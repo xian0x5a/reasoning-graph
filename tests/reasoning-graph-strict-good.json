@@ -1,0 +1,123 @@
+{
+  "summary": {
+    "title": "Strict audit sample",
+    "answer": "A1 wins."
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Pick best cause"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Likely cause",
+      "prior": 0.6
+    },
+    {
+      "id": "A2",
+      "type": "assumption",
+      "text": "Less likely cause",
+      "prior": 0.4
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "Candidate from A1",
+      "answer_kind": "exact_answer"
+    }
+  ],
+  "edges": [
+    {
+      "id": "E1",
+      "from": "A1",
+      "to": "CS1",
+      "type": "leads_to"
+    },
+    {
+      "id": "E2",
+      "from": "CS1",
+      "to": "G1",
+      "type": "leads_to"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "parent": null,
+      "cost_components": {
+        "uncertainty": "auto",
+        "verification": 0.1
+      }
+    },
+    {
+      "id": "Q2",
+      "node": "A2",
+      "parent": null,
+      "cost_components": {
+        "uncertainty": "auto",
+        "verification": 0.1
+      }
+    },
+    {
+      "id": "Q3",
+      "node": "CS1",
+      "parent": "Q1",
+      "cost_components": {
+        "reasoning_complexity": 0.1
+      }
+    }
+  ],
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": [
+        "Q1",
+        "Q2"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "pop",
+      "item": "Q1",
+      "cost": 0.610826
+    },
+    {
+      "step": 3,
+      "action": "expand",
+      "item": "Q1",
+      "add_nodes": [
+        "CS1"
+      ],
+      "add_edges": [
+        "E1",
+        "E2"
+      ],
+      "add_frontier": [
+        "Q3"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "pop",
+      "item": "Q3",
+      "cost": 0.710826
+    },
+    {
+      "step": 5,
+      "action": "select",
+      "item": "Q3",
+      "node": "CS1",
+      "cost": 0.710826
+    },
+    {
+      "step": 6,
+      "action": "stop",
+      "reason": "best candidate found for sample",
+      "outcome": "solved"
+    }
+  ]
+}
