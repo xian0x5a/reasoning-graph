@@ -1,6 +1,6 @@
-# reasoning-graph-skill
+# reasoning-graph
 
-Reasoning-graph skill for graph-driven, auditable search over complex reasoning tasks.
+Reasoning-graph skill and helper tooling for graph-driven, auditable search over complex reasoning tasks.
 
 Core files:
 
