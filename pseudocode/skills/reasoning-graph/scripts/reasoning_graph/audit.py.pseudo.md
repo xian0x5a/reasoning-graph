@@ -12,6 +12,7 @@ audit_state(state):
   replay init/pop/expand/select/stop events
   verify frontier pops are coherent and lowest cost
   verify expansions and selections match pending items and graph topology
+  treat candidate additions and contradicts-edge penalties as terminal/penalizing expansion signals
   verify stop events include valid outcomes and satisfy stop policy
   report errors/warnings without mutating state
 ```

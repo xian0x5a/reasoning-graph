@@ -349,7 +349,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                         f"{label}: evidence updated visited node {target_node_id}; costs will recompute, but add frontier for new work or record no_reopen_reason/exhaustion_reason"
                     )
 
-            terminal_or_contradicted = bool(added_node_types & {"contradiction", "candidate_solution"})
+            terminal_or_contradicted = bool(added_node_types & {"candidate_solution"}) or bool(contradiction_targets)
             item_node = nodes.get(item_node_id, {})
             has_under_branching_escape = bool(str(event.get("under_branching_reason") or "").strip())
             existing_siblings = as_string_list(event.get("existing_sibling_frontier"), f"{label}.existing_sibling_frontier", errors)

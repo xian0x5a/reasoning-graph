@@ -12,6 +12,6 @@ to_mermaid(state, include_nodes):
   render grouped nodes, typed edges, styles, and click anchors
 
 html_document(state, mermaid_source):
-  render answer summary, goal policy, candidate table, node detail cards, filters, focus controls, presentation graph, and audit graph
+  render answer summary, goal policy, candidate table, evidence/constraint-aware node detail cards, filters, focus controls, presentation graph, and audit graph
   use graph state/report metadata only; do not invent claims
 ```

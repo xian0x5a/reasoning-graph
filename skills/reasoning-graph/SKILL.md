@@ -2,7 +2,7 @@
 name: reasoning-graph
 description: >
   Use when solving complex reasoning problems by building a graph from goals,
-  facts, constraints, derivations, and hypothetical branches. Supports
+  evidence, constraints, derivations, and hypothetical branches. Supports
   UCS-style frontier exploration, candidate solution paths, uncertainty/cost
   tracking, and optional Mermaid/HTML graph output.
 ---
@@ -11,25 +11,7 @@ description: >
 
 Use this skill to solve problems as a reasoning graph instead of a single linear chain.
 
-Core idea: start from known truth, derive what follows, and when direct derivation is not obvious, explore hypothetical branches with priors and path costs. This is graph search over possible routes to truth.
-
-## When to Use
-
-Use for:
-
-- complex problem solving where the direct chain is unclear
-- debugging and root-cause analysis
-- design or planning under uncertainty
-- proof-like reasoning with explicit dependencies
-- algorithmic reasoning where multiple approaches may work
-- ambiguous tasks where several candidate solutions should be compared
-
-Do not use for:
-
-- simple lookup questions
-- obvious one-step answers
-- direct code edits with clear instructions
-- purely stylistic writing tasks
+Core idea: start from available evidence and constraints, derive what follows, and when direct derivation is not obvious, explore hypothetical branches with priors and path costs. This is graph search over possible routes to truth.
 
 Default output is compact. Use graph output only when requested or when the graph would materially improve understanding; ask before creating graph artifacts if not explicitly requested.
 
@@ -40,13 +22,12 @@ Default output is compact. Use graph output only when requested or when the grap
 Use this canonical set:
 
 - `goal` — target to prove, solve, decide, or explain
-- `fact` — known or verified true statement
+- `evidence` — observed, given, verified, or source-backed statement; may support or contradict other nodes via edges
 - `constraint` — boundary that valid answers must satisfy; constraints add cost or block goal satisfaction when explicitly required
 - `derived` — conclusion derived from prior nodes
 - `assumption` — uncertain branch point with a numeric prior
 - `test` — action, experiment, check, or evidence-gathering step; use `status` to distinguish proposed checks from performed ones
-- `contradiction` — node showing a branch conflicts with facts or constraints
-- `candidate_solution` — possible answer under current assumptions; must connect to a goal with `leads_to` and include `answer_kind`. Do not connect candidates to goals with `contradicts`; down-rank candidates with evidence/contradiction nodes that `contradicts` the candidate.
+- `candidate_solution` — possible answer under current assumptions; must connect to a goal with `leads_to` and include `answer_kind`. Do not connect candidates to goals with `contradicts`; down-rank candidates with `evidence -> candidate_solution` `contradicts` edges.
 
 ### Edge Types
 
@@ -64,34 +45,34 @@ Relationships are source of truth. Avoid manual `status` fields when they duplic
 Test node statuses:
 
 - `proposed` — recommended next verification; not yet evidence and should not be treated as support. Renderers should visually distinguish it from evidence, e.g. shorter `proposed` label, different color, and dashed/dotted `tests` edge.
-- `performed` — check was conducted; add resulting `fact`/`derived` nodes and connect them to affected branches
+- `performed` — check was conducted; add resulting `evidence`/`derived` nodes and connect them to affected branches
 - `inconclusive` — performed but did not settle the claim
 
-When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new fact/derived/contradiction node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item; otherwise record `no_reopen_reason` or `exhaustion_reason` on the expansion event. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
+When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item; otherwise record `no_reopen_reason` or `exhaustion_reason` on the expansion event. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
 
-Preferred pattern: `test` node = procedure; result `fact` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> F9`, `F9 --contradicts--> A1`. Put `confidence` on the result fact when scripts, OCR, external services, or manual transcription could be wrong. For tiny graphs, a `performed` test may carry a concise `result`, but separate result facts are easier to audit.
+Preferred pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong. For tiny graphs, a `performed` test may carry a concise `result`, but separate result evidence is easier to audit.
 
-## Fact and Constraint Extraction
+## Evidence and Constraint Extraction
 
-User input often arrives as an unstructured block, not labeled facts/constraints. Before branching, build a small ledger.
+User input often arrives as an unstructured block, not labeled evidence/constraints. Before branching, build a small ledger.
 
 Workflow:
 
 1. Extract the `goal` from explicit request wording. If multiple goals conflict, ask or state the chosen primary goal.
-2. Extract candidate `fact` nodes from the user text, files, logs, source code, tool output, screenshots, or web sources when browsing is allowed/required.
+2. Extract candidate `evidence` nodes from the user text, files, logs, source code, tool output, screenshots, or web sources when browsing is allowed/required.
 3. Extract `constraint` nodes from explicit requirements, user intent, project policy, runtime environment, API contracts, tests, performance/security limits, and non-goals.
 4. Separate evidence from interpretation:
-   - observed/given/verified statement -> `fact`
+   - observed/given/verified/source-backed statement -> `evidence`
    - solution boundary or requirement -> `constraint`
    - plausible but unverified claim -> `assumption`
    - conclusion from other nodes -> `derived`
-5. If a fact is findable but missing, gather it autonomously with available tools before branching. For code tasks, inspect relevant files/tests/logs. For current/external facts, browse or use docs tools when allowed by system policy.
+5. If needed evidence is findable but missing, gather it autonomously with available tools before branching. For code tasks, inspect relevant files/tests/logs. For current/external evidence, browse or use docs tools when allowed by system policy.
 6. If a constraint is inferred from intent rather than explicit, mark it as derived/inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
-7. Record source metadata on fact/constraint nodes when useful:
+7. Record source metadata on evidence/constraint nodes when useful:
 
 ```yaml
-- id: F3
-  type: fact
+- id: E3
+  type: evidence
   text: "Production logs show JWT signature verification failed"
   source: "user prompt"
   confidence: 0.95
@@ -107,11 +88,11 @@ Workflow:
   source: "inferred from existing tests and compatibility goal"
 ```
 
-Keep the ledger concise. Merge tiny related facts when that improves readability, but do not merge facts that play different logical roles in penalizing branches.
+Keep the ledger concise. Merge tiny related evidence when that improves readability, but do not merge evidence that plays different logical roles in supporting or penalizing branches.
 
-The ledger is live, not locked. During expansion, append new fact nodes from performed tests, code inspection, logs, docs, web sources, or user clarification when a branch needs support or contradiction checks. Add newly discovered constraints too. Proposed tests are not facts until conducted. If new evidence materially changes priors, confidence, truth costs, search costs, or frontier ordering, increment `evidence_version` and recompute/re-sort. Reopen only when the evidence creates new work; otherwise keep exhausted nodes closed and record `no_reopen_reason` or `exhaustion_reason`.
+The ledger is live, not locked. During expansion, append new evidence nodes from performed tests, code inspection, logs, docs, web sources, or user clarification when a branch needs support or contradiction checks. Add newly discovered constraints too. Proposed tests are not evidence until conducted. If new evidence materially changes priors, confidence, truth costs, search costs, or frontier ordering, increment `evidence_version` and recompute/re-sort. Reopen only when the evidence creates new work; otherwise keep exhausted nodes closed and record `no_reopen_reason` or `exhaustion_reason`.
 
-Graph-mode HTML must make fact and constraint nodes readable with IDs and sources. A filterable node-detail list and node popup modals can satisfy this; do not duplicate a separate fact/constraint ledger section when it makes the report longer without adding clarity.
+Graph-mode HTML must make evidence and constraint nodes readable with IDs and sources. A filterable node-detail list and node popup modals can satisfy this; do not duplicate a separate evidence/constraint ledger section when it makes the report longer without adding clarity.
 
 ## Hypothetical Branches
 
@@ -123,7 +104,7 @@ Rules:
 - Every derived node under an assumption inherits dependency on that assumption until verified or proven independent.
 - Do not create separate `solution` nodes. A final answer is the currently best-supported `candidate_solution`, chosen by evidence, constraints, and path cost.
 - Use `candidate_solution -> goal` with `leads_to` when the candidate satisfies the goal.
-- Do not use `candidate_solution -> goal` with `contradicts`. Rejection/down-ranking belongs on evidence: `contradiction/fact/test result -> candidate_solution` with `contradicts`.
+- Do not use `candidate_solution -> goal` with `contradicts`. Rejection/down-ranking belongs on evidence polarity: `evidence/test result -> candidate_solution` with `contradicts`.
 - Do not make “not solved”, “cannot establish”, or “missing dependency” a `candidate_solution` for a normal solve goal. That is a stop outcome or derived blocker, not an answer. Strong evidence that a problem is solvable should depreciate belief in “no solution/impossible”, not make unresolved status the top candidate just because it is the only listed row.
 - A true “no valid solution exists” candidate is allowed only when it answers an accepted epistemic/negative goal and is supported by positive impossibility evidence.
 - A method/source branch is not a `candidate_solution` unless it itself answers the goal; keep it as `assumption` or `derived`.
@@ -163,7 +144,7 @@ For a normal solve request, use one goal. For “solve it or prove impossible”
 Use probabilities only where they mean something.
 
 - `prior`: belief before branch exploration, for hypotheses/assumptions/candidate claims.
-- `confidence`: source/result reliability for facts, derived claims, contradictions, and noisy test observations.
+- `confidence`: source/result reliability for evidence, derived claims, and noisy test observations.
 - `posterior`: explicit updated belief after tests/evidence, if useful. Do not overwrite `prior`; it is the audit trail for the starting belief.
 - Mutually exclusive sibling assumptions should form a local distribution that sums to `1.0`.
 - Independent assumptions use independent priors and do not need to sum to `1.0`.
@@ -172,7 +153,7 @@ Use probabilities only where they mean something.
 
 Helper-generated reports derive table `belief` from `effective_truth_cost` so contradiction penalties remain visible. `posterior` must be an explicit evidence update stored on the node from support/contradiction/test evidence; do not derive or overwrite `posterior` from path/search costs.
 
-Facts can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
+Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
 Use `search_cost` to rank frontier expansion. Lower cost means explore earlier. `path_cost` is a legacy alias only.
 
@@ -256,8 +237,8 @@ Separate graph nodes from search frontier items.
 Example graph nodes:
 
 ```yaml
-- id: F1
-  type: fact
+- id: E1
+  type: evidence
   text: "The failing test is test_login_rejects_bad_token"
   source: "tests/auth_test.py::test_login_rejects_bad_token"
   confidence: 0.99
@@ -280,7 +261,7 @@ Example frontier item:
 - id: Q7
   node: A2
   parent: Q3
-  related: [F1, C1]
+  related: [E1, C1]
   scratch:
     - "Cache branch may split into stale-read vs invalidation-order variants."
     - "If this becomes important, promote it to a derived/test node."
@@ -292,7 +273,7 @@ Example frontier item:
   evidence_version: E1
 ```
 
-Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not evidence, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `fact`/`derived`/`test`/`assumption` node. After popping an item, digest the node, parent path, active assumptions, related nodes, and scratch, then generate multiple meaningful child branches, tests, or contradictions.
+Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not evidence, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `evidence`/`derived`/`test`/`assumption` node. After popping an item, digest the node, parent path, active assumptions, related nodes, and scratch, then generate multiple meaningful child branches, tests, or contradictions.
 
 Use parent pointers instead of copying full paths. Reconstruct a path by walking parent links.
 
@@ -354,7 +335,7 @@ State JSON shape:
   },
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "F1", "type": "fact", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
+    {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
     {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer"}
@@ -396,16 +377,16 @@ State JSON shape:
         "name": "Likely route",
         "belief": 0.6,
         "search_cost": 0.810826,
-        "path_nodes": ["F1", "C1", "A1", "CS1"],
+        "path_nodes": ["E1", "C1", "A1", "CS1"],
         "why": "Lowest explored search cost and satisfies constraints",
-        "next_test": "Verify supporting fact"
+        "next_test": "Verify supporting evidence"
       }
     ],
     "winning_path": ["Observed failure", "Likely route", "Candidate answer"],
-    "next_verification": "Verify supporting fact"
+    "next_verification": "Verify supporting evidence"
   },
   "presentation": {
-    "include_nodes": ["F1", "C1", "A1", "G1"],
+    "include_nodes": ["E1", "C1", "A1", "G1"],
     "highlight_nodes": ["A1", "G1"],
     "dim_nodes": [],
     "layout_hint": "evidence-left-candidates-right"
@@ -424,7 +405,7 @@ State JSON shape:
 
 Cost behavior:
 
-- `truth: "auto"` or legacy `uncertainty: "auto"` uses node truth probability: `posterior` when present, otherwise fact/derived/contradiction/test `confidence`, otherwise assumption/candidate `prior`.
+- `truth: "auto"` or legacy `uncertainty: "auto"` uses node truth probability: `posterior` when present, otherwise evidence/derived/test `confidence`, otherwise assumption/candidate `prior`.
 - `step_truth_cost` is the local truth contribution; `truth_cost` is parent `truth_cost + step_truth_cost`.
 - `step_cost` is the local search contribution; `search_cost` is parent `search_cost + step_cost`. `effort_budget` is included in `step_cost` and should price bounded work volume for probes/sweeps/enumerations.
 - `path_cost` is emitted only as a legacy alias for `search_cost`.
@@ -452,14 +433,14 @@ Expansion patch shape:
     {
       "id": "Q8",
       "node": "A8",
-      "related": ["F1"],
+      "related": ["E1"],
       "scratch": ["Phrase length may matter, but branch container formats before committing."],
       "cost_components": {"truth": "auto", "verification": 0.4}
     },
     {
       "id": "Q9",
       "node": "A9",
-      "related": ["F1"],
+      "related": ["E1"],
       "cost_components": {"truth": "auto", "verification": 0.5}
     }
   ]
@@ -473,13 +454,13 @@ Expansion patch shape:
 Use this workflow:
 
 1. Frame the `goal`.
-2. Extract facts and constraints from the prompt/context; autonomously inspect files/logs/docs/web when needed and allowed.
-3. Record a concise fact/constraint ledger with source metadata where useful.
+2. Extract evidence and constraints from the prompt/context; autonomously inspect files/logs/docs/web when needed and allowed.
+3. Record a concise evidence/constraint ledger with source metadata where useful.
 4. Try direct derivation if obvious; otherwise initialize frontier from plausible assumptions or unresolved claims.
-5. For each assumption, assign `prior`, truth cost, and reason. For uncertain facts/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
+5. For each assumption, assign `prior`, truth cost, and reason. For uncertain evidence/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
 6. Pop the frontier item with lowest accumulated `search_cost`. For complex reasoning, use `./scripts/rg.py next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
 7. Digest the popped item and its reconstructed path, then do divergent expansion. Ask: what does this imply, what sibling hypotheses split from here, what cheap tests discriminate them, what contradictions would penalize them, and what candidate answer becomes possible? Add multiple meaningful child branches when available. In discovery-style tasks, create `candidate_solution` nodes only after a branch has enough clue/evidence support to be answer-shaped; do not preload final candidates as unexplored buckets.
-8. If a test/evidence result arrives, add it as fact/derived/contradiction evidence and update posterior by creating new search state or evidence version. Then add child frontier items and re-sort. Let UCS choose which child to explore next.
+8. If a test/evidence result arrives, add it as evidence/derived evidence and update posterior by creating new search state or evidence version. Then add child frontier items and re-sort. Let UCS choose which child to explore next.
 9. Continue until adaptive stopping conditions are met.
 10. Return compact answer or graph artifact depending on output mode.
 
@@ -538,7 +519,7 @@ Assumption and candidate hygiene:
 - Authoritative clue heuristic: if an official hint, doc, maintainer comment, theorem condition, log message, test failure, or other high-authority clue appears, spawn interpretation branches before brute-force branches. Mark the clue-family node with `clue_family: true` and `salience` (for example `0.8`) when dropping it would materially change the search. Interpretations of the clue usually deserve lower `verification` and `reasoning_complexity` cost than broad search because they can sharply reduce the space. Do not let concrete but expensive brute force outrank cheap interpretation of an authoritative clue.
 - Bounded-negative heuristic: a failed bounded test penalizes only the exact tested interpretation, not the parent clue family. If a high-prior clue branch fails one direct test, add live frontier siblings for refined interpretations or add a derived node explaining why the whole family is actually exhausted. Do not convert `one tested variant failed` into `strong clue path dead`. No special backtracking mode is needed; UCS continues by popping the next live frontier item.
 - Partial-expansion/revival heuristic: popping a family/clue item means one expansion attempt, not permanent exhaustion. On first pass, expand obvious sibling interpretations broadly enough to avoid single-variant tunnel vision. If later evidence or a failed child shows the family was under-expanded, revive it by adding a new child `assumption`/`test` node under the original family node and a frontier item pointing to that child. Re-queueing the same family node is allowed only as a temporary continuation when no specific child branch can yet be named.
-- Continuation invariant: when prior reports/evaluations are allowed but prior graph state is not, reconstruct high-salience clue families from the reports as explicit graph nodes. Do not collapse a clue family into a generic “prior probes failed” fact. If the family is not fully exhausted, it must have either a live frontier continuation or an `exhausted: true` node with `exhaustion_reason`.
+- Continuation invariant: when prior reports/evaluations are allowed but prior graph state is not, reconstruct high-salience clue families from the reports as explicit graph nodes. Do not collapse a clue family into generic “prior probes failed” evidence. If the family is not fully exhausted, it must have either a live frontier continuation or an `exhausted: true` node with `exhaustion_reason`.
 - Divergence floor: for high-salience clue/family expansion, aim to create at least three child frontier branches: one direct/literal interpretation, one structural/transform interpretation, and one low-prior wildcard. Branching does not mean you must spend time on every branch immediately: UCS/search-cost ordering keeps low-prior or expensive branches low in the queue until better paths are exhausted or contradicted. Therefore adding a plausible low-prior branch is cheap and encouraged; silently omitting it is more dangerous than carrying it in the frontier. This is a soft floor by default, not a command to invent fake branches. If fewer branches are meaningful, record `under_branching_reason`, `existing_sibling_frontier`, or `exhausted: true` with `exhaustion_reason`. Audit defers branch-factor warnings until the stop reason claims exhaustion/completion, unless `branch_policy.enforce_on` is `always` or `severity` is `error`.
 - A one-child expansion is a soft signal to reconsider whether meaningful sibling branches were missed. The goal is to reveal possible solution paths, not to make one chosen path look reasonable after the fact.
 
@@ -558,12 +539,12 @@ Recommended shape:
       "truth_cost": 0.798508,
       "search_cost": 2.24,
       "weight": 0.72,
-      "path_nodes": ["F1", "D2", "CS1"],
+      "path_nodes": ["E1", "D2", "CS1"],
       "why": "Explains the most evidence with lowest constraint tension",
       "next_test": "Run the decisive verification"
     }
   ],
-  "winning_path": ["Fact A", "Assumption B", "Derived C", "Candidate D"],
+  "winning_path": ["Evidence A", "Assumption B", "Derived C", "Candidate D"],
   "next_verification": "..."
 }
 ```
@@ -584,7 +565,7 @@ blocker            insufficiency/blocker candidate for an explicit epistemic goa
 
 For concrete solve/exact-answer goals, only `exact_answer` and `exact_method` may connect to the accepted goal. `method_hypothesis`, `clue_path`, and `blocker` must target explicit method/clue/epistemic goals or remain assumptions/derived nodes. Strict states (`stop_policy.severity: "error"`) require `answer_kind` on every `candidate_solution`.
 
-Optional `path_nodes` on a candidate lists the main node IDs that should be highlighted when a report viewer focuses that candidate. Renderers may also include upstream support facts/constraints for positive path nodes so entry evidence remains visible. Contradiction/test nodes may be highlighted when explicitly listed, but should not automatically pull in their own upstream evidence unless the UI has a separate “why rejected” mode. If omitted, viewers should conservatively focus the candidate node and directly connected support where possible.
+Optional `path_nodes` on a candidate lists the main node IDs that should be highlighted when a report viewer focuses that candidate. Renderers may also include upstream support evidence/constraints for positive path nodes so entry evidence remains visible. Contradicting evidence/test nodes may be highlighted when explicitly listed, but should not automatically pull in their own upstream evidence unless the UI has a separate “why rejected” mode. If omitted, viewers should conservatively focus the candidate node and directly connected support where possible.
 
 Do not present computed weights as calibrated posterior probabilities. If useful, compute:
 
@@ -599,8 +580,8 @@ Use optional `presentation` metadata for curated graph/report views. Baseline HT
 
 ```json
 "presentation": {
-  "include_nodes": ["F1", "F2", "A1", "CS1"],
-  "highlight_nodes": ["F1", "A1", "CS1"],
+  "include_nodes": ["E1", "E2", "A1", "CS1"],
+  "highlight_nodes": ["E1", "A1", "CS1"],
   "dim_nodes": ["CS2", "CS3"],
   "title": "Why candidate 1 wins",
   "layout_hint": "evidence-left-candidates-right"
@@ -687,7 +668,7 @@ Required checks:
 - blockers are not disguised as answer candidates for normal solve goals
 - failed broad tests do not erase untested sibling interpretations or parent clue families
 - contradictions/failures penalize only affected branches
-- final answer draft matches graph state and invents no new facts
+- final answer draft matches graph state and invents no new evidence
 
 Do not call `next --pop` again until the pending popped item is expanded, selected, or intentionally stopped. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
@@ -746,7 +727,7 @@ Example compact shape:
 Answer: ...
 
 Proof path:
-F1 -> C1 -> A2 (prior 0.6) -> D4 -> candidate S1
+E1 -> C1 -> A2 (prior 0.6) -> D4 -> candidate S1
 
 Why this wins:
 - satisfies C1/C2
@@ -770,18 +751,18 @@ Graph mode has two useful views:
 - `audit graph` — complete/debuggable reasoning graph; good for checking reasoning completeness.
 - best explanation graph — curated/lossy human report; good for communicating why the answer wins.
 
-The full reasoning state is always the source of truth. Presentation graph can omit nodes, but must not invent facts, constraints, candidate claims, or edges absent from the state/report metadata.
+The full reasoning state is always the source of truth. Presentation graph can omit nodes, but must not invent evidence, constraints, candidate claims, or edges absent from the state/report metadata.
 
 Create an HTML artifact as a report, not a fixed template. Choose the layout that best explains the case/problem. It must include:
 
 - compact answer summary at top
-- readable fact and constraint node details with labels/sources, either in a filterable detail list or modal cards
+- readable evidence and constraint node details with labels/sources, either in a filterable detail list or modal cards
 - candidate ordering table when candidates exist
 - a small curated presentation graph for communication, preferably canvas-navigable when graph is nontrivial
 - a full audit graph in a pan/zoom canvas when the graph is large
 - click-to-details for graph nodes, ideally without forcing the user away from the canvas
 - winning path highlighted or listed
-- candidate solutions connect to the goal with `leads_to`; down-ranking is represented by evidence/contradiction nodes that `contradicts` the candidate
+- candidate solutions connect to the goal with `leads_to`; down-ranking is represented by evidence nodes that `contradicts` the candidate
 - contradicted/heavily penalized branches dimmed or red
 - next verification/action when available
 
@@ -797,7 +778,7 @@ For non-trivial HTML report generation, delegate presentation work to a low-thin
 Delegation contract:
 
 ```txt
-Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent facts. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
+Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent evidence. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
 ```
 
 Recommended graph-mode flow:
@@ -817,10 +798,10 @@ Presentation/canvas rules:
 
 - Presentation graph is curated and lossy: ideally 8-18 nodes, rarely more than 25. Use canvas mode for it too when labels/layout exceed the viewport.
 - Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
-- Prefer ID/type-only graph labels (`F3`, `CS1`, etc.) for dense graphs; keep full text in node-detail cards/modals.
+- Prefer ID/type-only graph labels (`E3`, `CS1`, etc.) for dense graphs; keep full text in node-detail cards/modals.
 - Use `short_text` only for small bespoke presentation graphs where the label is clearly readable and does not risk escaping/entity noise.
 - Prefer click-to-details anchors over huge node labels.
-- Mermaid supports node click links with tooltips, e.g. `click F15 "#details-F15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
+- Mermaid supports node click links with tooltips, e.g. `click E15 "#details-E15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
 - If using Mermaid click links/callbacks, initialize with `securityLevel: "loose"` when needed.
 - Do not expose only the full graph. Always include a readable presentation graph or equivalent visual summary.
 - Avoid forcing scroll for normal node inspection. Prefer popup/modal detail cards.
@@ -829,21 +810,21 @@ Mermaid styling pattern:
 
 ```mermaid
 flowchart TD
-  F1["fact: input is sorted"] --> D1["derived: two-pointer is viable"]
+  E1["evidence: input is sorted"] --> D1["derived: two-pointer is viable"]
   C1["constraint: O(n) time"] --> D1
   A1["assumption: duplicates matter<br/>prior 0.4"] --> CS1["candidate_solution: handle duplicates"]
   CS1 -- leads_to --> G
-  X1["contradiction: violates O(n)"] -. contradicts .-> A1
+  E2["evidence: violates O(n)"] -. contradicts .-> A1
 
   classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
   classDef candidate fill:#dbeafe,stroke:#2563eb;
   classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;
   classDef bad fill:#fee2e2,stroke:#dc2626;
 
-  class F1,C1,D1 winning;
+  class E1,C1,D1 winning;
   class CS1 candidate;
   class A1 dim;
-  class X1 bad;
+  class E2 bad;
 ```
 
 HTML report design guidance:
@@ -852,7 +833,7 @@ HTML report design guidance:
 - Put the answer/candidate ranking before the graph so users know what they are looking at.
 - Use a small presentation graph for the main story; use the full audit graph only as an inspectable canvas.
 - Keep graph labels short, preferably ID/type-only for dense graphs; route evidence text to filterable details cards and modal popups.
-- Do not add a separate facts/constraints section if the node details list already covers facts and constraints with sources.
+- Do not add a separate evidence/constraints section if the node details list already covers evidence and constraints with sources.
 - Use Mermaid flowchart spacing (for example `nodeSpacing`, `rankSpacing`, curved edges) only when dense graphs look compressed; compare against default spacing first.
 - Use `mermaid.initialize({ startOnLoad: true, securityLevel: "loose", flowchart: { htmlLabels: true, useMaxWidth: false } })` when using Mermaid click links and canvas sizing, and add spacing options only if needed.
 - If using a full SVG graph, add pan/zoom controls or viewBox-based pointer navigation.
@@ -862,7 +843,7 @@ HTML report design guidance:
 Before final answer, check:
 
 - Is the goal explicit?
-- Are facts separated from constraints?
+- Is evidence separated from constraints?
 - Are assumptions scoped and assigned priors?
 - Does every viable candidate solution answer the goal instead of merely naming a method/source branch? Are contradicted candidates clearly down-ranked by evidence-to-candidate contradiction edges?
 - When a high-prior clue branch got a bounded negative result, did the graph refine sibling interpretations instead of treating the entire clue family as dead?
@@ -876,7 +857,7 @@ Before final answer, check:
 - After `./scripts/rg.py stop` succeeded on a candidate state, did semantic stop review pass before the stopped state was promoted?
 - If driver events exist, did `./scripts/rg.py audit` finish without unexplained warnings, especially unexpanded `candidate_solution` nodes?
 - In graph mode, was the requested HTML artifact generated by `./scripts/rg.py html` from the validated state, not hand-written from scratch?
-- Can the user open the HTML artifact and see summary + candidate table + fact/constraint node details with sources?
+- Can the user open the HTML artifact and see summary + candidate table + evidence/constraint node details with sources?
 - Is there a curated presentation graph, not only the full audit graph?
 - If the full graph is dense, is it navigable with pan/zoom instead of tiny unreadable SVG?
 - Do graph nodes open popup/modal detail cards without forcing the user away from the canvas?

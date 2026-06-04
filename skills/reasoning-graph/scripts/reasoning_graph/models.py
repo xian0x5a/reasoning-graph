@@ -7,12 +7,11 @@ from dataclasses import dataclass
 
 NODE_TYPES = {
     "goal",
-    "fact",
+    "evidence",
     "constraint",
     "derived",
     "assumption",
     "test",
-    "contradiction",
     "candidate_solution",
 }
 
@@ -138,12 +137,11 @@ PROBE_LIKE_MARKERS = (
 
 CLASS_BY_NODE_TYPE = {
     "goal": "goal",
-    "fact": "fact",
+    "evidence": "evidence",
     "constraint": "constraint",
     "derived": "derived",
     "assumption": "assumption",
     "test": "test",
-    "contradiction": "bad",
     "candidate_solution": "candidate",
 }
 

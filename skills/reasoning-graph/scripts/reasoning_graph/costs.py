@@ -46,10 +46,10 @@ def item_has_explicit_effort_budget(item: dict[str, Any]) -> bool:
 def node_truth_cost(node: dict[str, Any] | None) -> float:
     """Local truth cost for a frontier node.
 
-    `prior` is for assumptions/candidates. `confidence` is for facts,
-    derived claims, contradictions, and noisy test observations. Missing
-    confidence on accepted facts/tests means "no truth penalty", not certainty
-    proof; users can add confidence when source reliability matters.
+    `prior` is for assumptions/candidates. `confidence` is for evidence,
+    derived claims, and noisy test observations. Missing confidence on accepted
+    evidence/tests means "no truth penalty", not certainty proof; users can add
+    confidence when source reliability matters.
     """
 
     if not node:
@@ -119,7 +119,7 @@ def contradiction_probability(state: dict[str, Any], edge: dict[str, Any]) -> fl
             return value
     if edge.get("hard") is False or edge.get("mode") == "soft":
         return 0.5
-    if source.get("type") in {"fact", "constraint", "contradiction"}:
+    if source.get("type") in {"evidence", "constraint"}:
         return 1.0
     if source.get("type") == "test" and source.get("status") == "performed":
         return 1.0

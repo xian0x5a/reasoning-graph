@@ -105,21 +105,20 @@ def presentation_node_ids(state: dict[str, Any]) -> set[str]:
         for node in state.get("nodes", [])
         if isinstance(node, dict) and node.get("type") in {"candidate_solution", "goal"}
     }
-    fact_ids = [
+    evidence_ids = [
         str(node.get("id"))
         for node in state.get("nodes", [])
-        if isinstance(node, dict) and node.get("type") in {"fact", "constraint", "derived"}
+        if isinstance(node, dict) and node.get("type") in {"evidence", "constraint", "derived"}
     ][:10]
-    return {node_id for node_id in set(fact_ids) | candidate_ids if node_id in nodes}
+    return {node_id for node_id in set(evidence_ids) | candidate_ids if node_id in nodes}
 
 
 GRAPH_GROUPS = (
     ("cluster_goal", "Goal", {"goal"}),
-    ("cluster_evidence", "Evidence", {"fact", "constraint"}),
+    ("cluster_evidence", "Evidence", {"evidence", "constraint"}),
     ("cluster_assumptions", "Assumptions", {"assumption"}),
     ("cluster_inference", "Inference", {"derived", "test"}),
     ("cluster_candidates", "Candidates", {"candidate_solution"}),
-    ("cluster_contradictions", "Contradictions", {"contradiction"}),
 )
 
 
@@ -208,7 +207,7 @@ def to_mermaid(
         [
             "",
             "  classDef goal fill:#fef3c7,stroke:#d97706,stroke-width:2px;",
-            "  classDef fact fill:#ecfeff,stroke:#0891b2;",
+            "  classDef evidence fill:#ecfeff,stroke:#0891b2;",
             "  classDef constraint fill:#fff7ed,stroke:#ea580c;",
             "  classDef derived fill:#f8fafc,stroke:#64748b;",
             "  classDef assumption fill:#f5f3ff,stroke:#7c3aed;",
@@ -233,7 +232,6 @@ def to_mermaid(
                 "  style cluster_assumptions fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
                 "  style cluster_inference fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px;",
                 "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
-                "  style cluster_contradictions fill:#fef2f2,stroke:#fecaca,stroke-width:1px;",
                 "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
                 "",
             ]
@@ -323,7 +321,7 @@ def candidate_rows(state: dict[str, Any]) -> str:
         if posterior_value is not None:
             belief_html = f"{belief_html} <small>(explicit posterior {html.escape(str(posterior_value))})</small>"
         if penalty is not None:
-            belief_html = f"{belief_html} <small>(truth cost {html.escape(str(truth_value))}; +{html.escape(str(penalty))} soft contradiction)</small>"
+            belief_html = f"{belief_html} <small>(truth cost {html.escape(str(truth_value))}; +{html.escape(str(penalty))} contradicting evidence)</small>"
         weight = candidate.get("weight", candidate.get("relative_weight", candidate.get("relative_weight_among_explored", "n/a")))
         weight_html = html.escape(str(weight))
         why = html.escape(str(candidate.get("why", "")))
@@ -415,12 +413,11 @@ def graph_panel(title: str, mermaid_source: str, graph_id: str, canvas_kind: str
 def detail_filter_buttons() -> str:
     filters = [
         ("all", "All"),
-        ("fact", "Facts"),
+        ("evidence", "Evidence"),
         ("constraint", "Constraints"),
         ("assumption", "Assumptions"),
         ("derived", "Derived"),
         ("candidate_solution", "Candidates"),
-        ("contradiction", "Contradictions"),
         ("test", "Tests"),
     ]
     buttons = [
@@ -473,7 +470,7 @@ def candidate_focus_nodes(state: dict[str, Any], candidate: dict[str, Any]) -> l
 
     nodes_by_id = by_id(state.get("nodes", []), "node")
     supportive_edges = {"supports", "requires", "assumes"}
-    non_expanding_seed_types = {"contradiction", "test"}
+    non_expanding_seed_types = {"evidence", "constraint", "test"}
     parents_by_child: dict[str, list[str]] = {}
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -741,7 +738,7 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
 
   <section id="node-details-section">
     <h2>Node details</h2>
-    <p class="hint">Includes facts, constraints, assumptions, and candidate answers. Use filters or click graph nodes for popup cards.</p>
+    <p class="hint">Includes evidence, constraints, assumptions, and candidate answers. Use filters or click graph nodes for popup cards.</p>
     {filters_html}
     <div class="detail-grid">{details_html}</div>
   </section>

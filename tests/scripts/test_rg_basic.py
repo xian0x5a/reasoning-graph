@@ -30,6 +30,45 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
 
+    def test_validate_accepts_evidence_and_rejects_legacy_fact_contradiction_nodes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "evidence-state.json"
+            legacy_path = Path(tmp_dir) / "legacy-state.json"
+            evidence_state = {
+                "nodes": [
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
+                    {"id": "E1", "type": "evidence", "text": "Observed mismatch", "confidence": 0.9},
+                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "contradicts"},
+                    {"from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"from": "CS1", "to": "G1", "type": "leads_to"},
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            legacy_state = {
+                "nodes": [
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "F1", "type": "fact", "text": "Legacy fact"},
+                    {"id": "X1", "type": "contradiction", "text": "Legacy contradiction"},
+                ],
+                "edges": [],
+                "frontier": [],
+            }
+            state_path.write_text(json.dumps(evidence_state), encoding="utf-8")
+            legacy_path.write_text(json.dumps(legacy_state), encoding="utf-8")
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertIn("ok", valid.stdout)
+
+            invalid = self.run_rg("validate", str(legacy_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("invalid type 'fact'", invalid.stderr)
+            self.assertIn("invalid type 'contradiction'", invalid.stderr)
+
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output = Path(tmp_dir) / "costs.json"
