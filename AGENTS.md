@@ -15,7 +15,7 @@ This repo contains the `reasoning-graph` skill and helper tooling.
 Before committing changes to `skills/reasoning-graph/scripts/rg.py`, run:
 
 ```bash
-python -m py_compile skills/reasoning-graph/scripts/rg.py
+python -m py_compile skills/reasoning-graph/scripts/rg.py skills/reasoning-graph/scripts/reasoning_graph/*.py
 python skills/reasoning-graph/scripts/rg.py validate tests/reasoning-graph-strict-good.json
 python skills/reasoning-graph/scripts/rg.py audit tests/reasoning-graph-strict-good.json
 ```
