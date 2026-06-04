@@ -15,6 +15,7 @@ Quick checks:
 python -m py_compile skills/reasoning-graph/scripts/rg.py skills/reasoning-graph/scripts/reasoning_graph/*.py
 python skills/reasoning-graph/scripts/rg.py validate tests/reasoning-graph-strict-good.json
 python skills/reasoning-graph/scripts/rg.py audit tests/reasoning-graph-strict-good.json
+python -m unittest discover -s tests/scripts
 ```
 
 Generate graph artifacts:
