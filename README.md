@@ -4,6 +4,8 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
+This repo includes a `pseudocode/` module; agents should update relevant pseudocode before touching matching source code.
+
 ## Algorithm
 
 The skill treats reasoning as heuristic uniform-cost search over a graph:
