@@ -23,6 +23,7 @@ EDGE_TYPES = {
     "contradicts",
     "tests",
     "leads_to",
+    "answers",
 }
 
 

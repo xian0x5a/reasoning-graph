@@ -27,7 +27,7 @@ Use this canonical set:
 - `derived` — conclusion derived from prior nodes
 - `assumption` — uncertain branch point with a numeric prior
 - `test` — action, experiment, check, or evidence-gathering step; use `status` to distinguish proposed checks from performed ones
-- `candidate_solution` — possible answer under current assumptions; must connect to a goal with `leads_to` and include `answer_kind`. Do not connect candidates to goals with `contradicts`; down-rank candidates with `evidence -> candidate_solution` `contradicts` edges.
+- `candidate_solution` — possible answer under current assumptions; must connect to a goal with `answers` and include `answer_kind`.
 
 ### Edge Types
 
@@ -38,7 +38,8 @@ Use this canonical set:
 - `assumes` — branch proceeds under an assumption
 - `contradicts` — opposes a node/branch by adding truth-cost penalty. It does not delete/disqualify the target; even decisive contradictions become very high truth cost / near-zero belief.
 - `tests` — evaluates an assumption, derived claim, or candidate solution
-- `leads_to` — derivation/progression from one node to another; also used when a candidate solution satisfies the goal
+- `leads_to` — derivation/progression from one node to another
+- `answers` — candidate solution satisfies a goal; must be `candidate_solution -> goal`
 
 Relationships are source of truth. Avoid manual `status` fields when they duplicate graph-derived view state such as winning/rank/dimmed/viable/rejected. In this schema, `status` is reserved for `test` nodes only.
 
@@ -103,8 +104,7 @@ Rules:
 - Treat derived nodes inside a hypothetical branch as conditional truth, not global truth.
 - Every derived node under an assumption inherits dependency on that assumption until verified or proven independent.
 - Do not create separate `solution` nodes. A final answer is the currently best-supported `candidate_solution`, chosen by evidence, constraints, and path cost.
-- Use `candidate_solution -> goal` with `leads_to` when the candidate satisfies the goal.
-- Do not use `candidate_solution -> goal` with `contradicts`. Rejection/down-ranking belongs on evidence polarity: `evidence/test result -> candidate_solution` with `contradicts`.
+- Use `candidate_solution -> goal` with `answers` when the candidate satisfies the goal.
 - Do not make “not solved”, “cannot establish”, or “missing dependency” a `candidate_solution` for a normal solve goal. That is a stop outcome or derived blocker, not an answer. Strong evidence that a problem is solvable should depreciate belief in “no solution/impossible”, not make unresolved status the top candidate just because it is the only listed row.
 - A true “no valid solution exists” candidate is allowed only when it answers an accepted epistemic/negative goal and is supported by positive impossibility evidence.
 - A method/source branch is not a `candidate_solution` unless it itself answers the goal; keep it as `assumption` or `derived`.
@@ -134,8 +134,8 @@ Rules:
 - If `accepted_goals` is absent, all goal nodes are acceptable destinations.
 - `preferred_goals` affects presentation/priority discussion, not validity.
 - `exclusive: true` means goals in that group are mutually incompatible outcomes; do not add noisy candidate-to-other-goal `contradicts` edges.
-- Candidate viability is per accepted goal: `candidate_solution -> accepted goal` with `leads_to`. Incoming contradiction raises truth cost / lowers belief but does not remove the candidate from viability.
-- Goal-group exclusivity is logical incompatibility between outcomes; evidence contradiction down-ranks candidates through truth cost.
+- Candidate viability is per accepted goal: `candidate_solution -> accepted goal` with `answers`.
+- Goal-group exclusivity is logical incompatibility between outcomes; contradictions apply through general truth-cost penalties.
 
 For a normal solve request, use one goal. For “solve it or prove impossible”, use two accepted goals. For “solve it or say evidence is insufficient”, add an explicit epistemic goal; then “insufficient evidence” may be a candidate only for that goal.
 
@@ -225,8 +225,6 @@ search_cost = truth_cost + verification_cost + effort_budget + reasoning_complex
 ```
 
 If contradiction evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work; otherwise record `no_reopen_reason` or `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item or a no-reopen reason.
-
-Candidate solutions with incoming contradictions still count as candidate nodes and remain goal-linked when they have `candidate_solution -> goal` `leads_to`; their belief/weight drops through `effective_truth_cost`.
 
 ## Search State
 
@@ -338,11 +336,11 @@ State JSON shape:
     {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
-    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer"}
+    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}
   ],
   "edges": [
     {"from": "A1", "to": "CS1", "type": "leads_to"},
-    {"from": "CS1", "to": "G1", "type": "leads_to"}
+    {"from": "CS1", "to": "G1", "type": "answers"}
   ],
   "frontier": [
     {
@@ -551,7 +549,7 @@ Recommended shape:
 
 Do not encode rank words such as `Best:`, `Second:`, `Third:`, `Weak:` in candidate `name` or node `text`. Frontier rank is derived by sorting items by `search_cost`; candidate belief ranking is derived from `truth_cost`/`belief`. The renderer can display ordinal rank. Avoid storing a `rank` field unless the ordering comes from an external criterion that is not derivable from cost/belief.
 
-Do not put `status` on `candidate_solution` nodes. Candidate rank/viability is derived from belief/truth cost, search cost, goal `leads_to` edges, `answer_kind`, and contradiction penalties. If the candidate table needs labels such as viable or contradicted, express them in `why`, `next_test`, edge strength/probability, or graph relationships, not node `status`.
+Do not put `status` on `candidate_solution` nodes. Candidate rank/viability is derived from belief/effective truth cost, search cost, goal `answers` edges, and `answer_kind`. If the candidate table needs labels such as viable or contradicted, express them in `why`, `next_test`, edge strength/probability, or graph relationships, not node `status`.
 
 Candidate `answer_kind` schema:
 
@@ -762,7 +760,7 @@ Create an HTML artifact as a report, not a fixed template. Choose the layout tha
 - a full audit graph in a pan/zoom canvas when the graph is large
 - click-to-details for graph nodes, ideally without forcing the user away from the canvas
 - winning path highlighted or listed
-- candidate solutions connect to the goal with `leads_to`; down-ranking is represented by evidence nodes that `contradicts` the candidate
+- candidate solutions connect to the goal with `answers`
 - contradicted/heavily penalized branches dimmed or red
 - next verification/action when available
 
@@ -813,7 +811,7 @@ flowchart TD
   E1["evidence: input is sorted"] --> D1["derived: two-pointer is viable"]
   C1["constraint: O(n) time"] --> D1
   A1["assumption: duplicates matter<br/>prior 0.4"] --> CS1["candidate_solution: handle duplicates"]
-  CS1 -- leads_to --> G
+  CS1 -- answers --> G
   E2["evidence: violates O(n)"] -. contradicts .-> A1
 
   classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
@@ -845,7 +843,7 @@ Before final answer, check:
 - Is the goal explicit?
 - Is evidence separated from constraints?
 - Are assumptions scoped and assigned priors?
-- Does every viable candidate solution answer the goal instead of merely naming a method/source branch? Are contradicted candidates clearly down-ranked by evidence-to-candidate contradiction edges?
+- Does every viable candidate solution answer the goal instead of merely naming a method/source branch?
 - When a high-prior clue branch got a bounded negative result, did the graph refine sibling interpretations instead of treating the entire clue family as dead?
 - If a family/clue node was only partially expanded, did the graph add child branch frontier items or explicitly justify family exhaustion?
 - Did constraints add explicit cost/blocking evidence for invalid branches?

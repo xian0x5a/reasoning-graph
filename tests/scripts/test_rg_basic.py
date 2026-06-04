@@ -44,7 +44,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "edges": [
                     {"from": "E1", "to": "A1", "type": "contradicts"},
                     {"from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"from": "CS1", "to": "G1", "type": "answers"},
                 ],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
@@ -68,6 +68,29 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("invalid type 'fact'", invalid.stderr)
             self.assertIn("invalid type 'contradiction'", invalid.stderr)
+
+    def test_validate_requires_answers_edge_for_candidate_goal_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            invalid_path = Path(tmp_dir) / "invalid-candidate-goal-link.json"
+            invalid_state = {
+                "nodes": [
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
+                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"from": "A1", "to": "G1", "type": "answers"},
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
+
+            invalid = self.run_rg("validate", str(invalid_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("candidate_solution -> goal must use answers", invalid.stderr)
+            self.assertIn("answers edge must connect candidate_solution -> goal", invalid.stderr)
 
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

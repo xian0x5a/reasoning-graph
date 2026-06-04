@@ -40,7 +40,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
         errors.append("solutions must be a list")
         solutions_raw = []
     elif solutions_raw:
-        warnings.append("solutions list is deprecated; use candidate_solution nodes with leads_to edges to the goal")
+        warnings.append("solutions list is deprecated; use candidate_solution nodes with answers edges to the goal")
 
     node_ids: set[str] = set()
     for i, node in enumerate(nodes_raw):
@@ -204,15 +204,16 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                 errors.append(f"edge {i} strength must be numeric when present")
         src_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == src), None)
         dst_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == dst), None)
-        if src in candidate_ids and dst in goal_ids and edge_type == "leads_to":
-            candidate_goal_edges.add(src)
-            candidate_goal_targets.setdefault(str(src), set()).add(str(dst))
-            if dst in accepted_goal_ids:
-                candidate_accepted_goal_edges.add(src)
-        if src in candidate_ids and dst in goal_ids and edge_type == "contradicts":
-            errors.append(
-                f"edge {i} uses candidate_solution -> goal contradicts; connect candidates to goals only with leads_to, and down-rank candidates with evidence -> candidate contradicts"
-            )
+        if src in candidate_ids and dst in goal_ids:
+            if edge_type == "answers":
+                candidate_goal_edges.add(src)
+                candidate_goal_targets.setdefault(str(src), set()).add(str(dst))
+                if dst in accepted_goal_ids:
+                    candidate_accepted_goal_edges.add(src)
+            else:
+                errors.append(f"edge {i} candidate_solution -> goal must use answers")
+        if edge_type == "answers" and (src_type != "candidate_solution" or dst_type != "goal"):
+            errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
         if src_type == "assumption" and dst_type == "goal":
             errors.append(
                 f"edge {i} connects assumption {src} directly to goal {dst}; route assumptions through tests/derived/candidate nodes instead"
@@ -256,9 +257,9 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     )
     for candidate_id in sorted(str(node_id) for node_id in candidate_ids if isinstance(node_id, str)):
         if candidate_id not in candidate_goal_edges:
-            errors.append(f"candidate_solution {candidate_id} must connect to a goal with a leads_to edge")
+            errors.append(f"candidate_solution {candidate_id} must connect to a goal with an answers edge")
         elif isinstance(accepted_goal_values, list) and candidate_id not in candidate_accepted_goal_edges:
-            errors.append(f"candidate_solution {candidate_id} must connect to an accepted goal with a leads_to edge")
+            errors.append(f"candidate_solution {candidate_id} must connect to an accepted goal with an answers edge")
 
     frontier_ids: set[str] = set()
     for i, item in enumerate(frontier_raw):

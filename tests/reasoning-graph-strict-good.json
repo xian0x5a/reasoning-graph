@@ -39,7 +39,7 @@
       "id": "E2",
       "from": "CS1",
       "to": "G1",
-      "type": "leads_to"
+      "type": "answers"
     }
   ],
   "frontier": [

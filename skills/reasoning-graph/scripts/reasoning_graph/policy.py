@@ -62,12 +62,12 @@ def candidate_goal_targets(state: dict[str, Any]) -> dict[str, set[str]]:
         edge_type = edge.get("type") or edge.get("label")
         src = edge.get("from")
         dst = edge.get("to")
-        if src in candidate_ids and dst in goals and edge_type == "leads_to":
+        if src in candidate_ids and dst in goals and edge_type == "answers":
             targets.setdefault(str(src), set()).add(str(dst))
     return targets
 
 
-def candidate_goal_leads_to_ids(state: dict[str, Any]) -> set[str]:
+def candidate_goal_answer_ids(state: dict[str, Any]) -> set[str]:
     return {candidate_id for candidate_id, targets in candidate_goal_targets(state).items() if targets}
 
 
