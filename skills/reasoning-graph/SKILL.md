@@ -41,6 +41,8 @@ Use this canonical set:
 - `leads_to` — derivation/progression from one node to another
 - `answers` — candidate solution satisfies a goal; must be `candidate_solution -> goal`
 
+For multi-premise derivations, a `derived` node may have multiple incoming `leads_to` edges. Treat those incoming `leads_to` premises as jointly required for that derived conclusion. Use `supports` for optional/soft evidence and `requires` for constraints or external dependencies the derived/candidate must satisfy.
+
 Relationships are source of truth. Avoid manual `status` fields when they duplicate graph-derived view state such as winning/rank/dimmed/viable/rejected. In this schema, `status` is reserved for `test` nodes only.
 
 Test node statuses:
