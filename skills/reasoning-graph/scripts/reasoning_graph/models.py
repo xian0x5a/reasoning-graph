@@ -21,7 +21,8 @@ EDGE_TYPES = {
     "supports",
     "assumes",
     "contradicts",
-    "tests",
+    "tested_by",
+    "tests",  # legacy alias; prefer tested_by for claim -> test topology
     "leads_to",
     "answers",
 }

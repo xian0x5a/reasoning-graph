@@ -37,7 +37,7 @@ Use this canonical set:
 - `supports` — soft evidence or reason in favor
 - `assumes` — branch proceeds under an assumption
 - `contradicts` — opposes a node/branch by adding truth-cost penalty. It does not delete/disqualify the target; even decisive contradictions become very high truth cost / near-zero belief.
-- `tests` — evaluates an assumption, derived claim, or candidate solution
+- `tested_by` — claim/candidate is evaluated by a test node; use `claim -> test` so expansion keeps outgoing topology
 - `leads_to` — derivation/progression from one node to another
 - `answers` — candidate solution satisfies a goal; must be `candidate_solution -> goal`
 
@@ -45,13 +45,13 @@ Relationships are source of truth. Avoid manual `status` fields when they duplic
 
 Test node statuses:
 
-- `proposed` — recommended next verification; not yet evidence and should not be treated as support. Renderers should visually distinguish it from evidence, e.g. shorter `proposed` label, different color, and dashed/dotted `tests` edge.
+- `proposed` — recommended next verification; not yet evidence and should not be treated as support. Renderers should visually distinguish it from evidence, e.g. shorter `proposed` label, different color, and dashed/dotted `tested_by` edge.
 - `performed` — check was conducted; add resulting `evidence`/`derived` nodes and connect them to affected branches
 - `inconclusive` — performed but did not settle the claim
 
 When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item for that node; if it only changes ranking/penalty, close the expansion with `no_new_work_reason`. Use `exhaustion_reason` only when marking a node or family `exhausted: true`. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
 
-Canonical pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong.
+Canonical pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tested_by--> T1`, `T1 --leads_to--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong.
 
 ## Input Ledger Extraction
 

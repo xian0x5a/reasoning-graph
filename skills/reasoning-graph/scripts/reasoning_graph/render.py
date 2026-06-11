@@ -195,11 +195,11 @@ def to_mermaid(
         if not src or not dst:
             continue
         edge_type = str(edge.get("type") or edge.get("label") or "leads_to")
-        if edge_type in {"contradicts", "tests"}:
+        if edge_type in {"contradicts", "tested_by", "tests"}:
             lines.append(f"  {src} -. {edge_type} .-> {dst}")
         else:
             lines.append(f"  {src} -- {edge_type} --> {dst}")
-        if edge_type == "tests":
+        if edge_type in {"tested_by", "tests"}:
             styled_edge_indexes.append(rendered_edge_index)
         rendered_edge_index += 1
 
