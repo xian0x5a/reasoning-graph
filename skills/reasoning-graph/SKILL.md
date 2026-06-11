@@ -53,23 +53,17 @@ When a proposed test is later conducted, resume by updating the test node status
 
 Canonical pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong.
 
-## Evidence and Constraint Extraction
+## Input Ledger Extraction
 
-User input often arrives as an unstructured block, not labeled evidence/constraints. Before branching, build a small ledger.
+User input often arrives as an unstructured block, not labeled evidence/constraints. Before branching, classify the provided input into a small ledger. This extraction step labels known inputs; acquiring missing evidence belongs to the exploration workflow.
 
 Workflow:
 
 1. Extract the `goal` from explicit request wording. If multiple goals conflict, ask or state the chosen primary goal.
-2. Extract candidate `evidence` nodes from the user text, files, logs, source code, tool output, screenshots, or web sources when browsing is allowed/required.
-3. Extract `constraint` nodes from explicit requirements, user intent, project policy, runtime environment, API contracts, tests, performance/security limits, and non-goals.
-4. Separate evidence from interpretation:
-   - observed/given/verified/source-backed statement -> `evidence`
-   - solution boundary or requirement -> `constraint`
-   - plausible but unverified claim -> `assumption`
-   - conclusion from other nodes -> `derived`
-5. If needed evidence is findable but missing, gather it autonomously with available tools before branching. For code tasks, inspect relevant files/tests/logs. For current/external evidence, browse or use docs tools when allowed by system policy.
-6. If a constraint is inferred from intent rather than explicit, mark it as derived/inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
-7. Record source metadata on evidence/constraint nodes when useful:
+2. Build the initial ledger from observed/source-backed inputs and requirements using the canonical Node Types above.
+3. Keep plausible interpretations as initial assumptions/frontier branches, not evidence.
+4. If a constraint is inferred from intent rather than explicit, mark it as inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
+5. Record source metadata on evidence/constraint nodes when useful:
 
 ```yaml
 - id: E3
@@ -83,15 +77,9 @@ Workflow:
   text: "Avoid rotating all user sessions unless necessary"
   source: "explicit user requirement"
 
-- id: C4
-  type: constraint
-  text: "Preserve public API behavior"
-  source: "inferred from existing tests and compatibility goal"
 ```
 
 Keep the ledger concise. Merge tiny related evidence when that improves readability, but do not merge evidence that plays different logical roles in supporting or penalizing branches.
-
-The ledger is live, not locked. During expansion, append new evidence nodes from performed tests, code inspection, logs, docs, web sources, or user clarification when a branch needs support or contradiction checks. Add newly discovered constraints too. Proposed tests are not evidence until conducted. If new evidence materially changes priors, confidence, truth costs, search costs, or frontier ordering, increment `evidence_version` and recompute/re-sort. Reopen only when the evidence creates new work; score-only updates stay closed.
 
 Graph-mode HTML must make evidence and constraint nodes readable with IDs and sources. A filterable node-detail list and node popup modals can satisfy this; do not duplicate a separate evidence/constraint ledger section when it makes the report longer without adding clarity.
 
@@ -449,16 +437,18 @@ Expansion patch shape:
 
 ## Exploration Algorithm
 
+Evidence acquisition boundary: input extraction only classifies known inputs. Before initializing the frontier, a bounded context pass may add cheap, source-backed evidence such as files, logs, docs, or web sources when allowed. After search starts, non-trivial checks, searches, or experiments should be modeled as `test`/frontier work; append observed result evidence during expansion.
+
 Use this workflow:
 
 1. Frame the `goal`.
-2. Extract evidence and constraints from the prompt/context; autonomously inspect files/logs/docs/web when needed and allowed.
-3. Record a concise evidence/constraint ledger with source metadata where useful.
+2. Build the initial ledger from prompt/context inputs and source metadata where useful.
+3. If cheap missing evidence is needed before branching, do a bounded context pass and add observed results to the ledger with sources.
 4. Try direct derivation if obvious; otherwise initialize frontier from plausible assumptions or unresolved claims.
 5. For each assumption, assign `prior`, truth cost, and reason. For uncertain evidence/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
 6. Pop the frontier item with lowest accumulated `search_cost`. For complex reasoning, use `./scripts/rg.py next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
 7. Digest the popped item and its reconstructed path, then do divergent expansion. Ask: what does this imply, what sibling hypotheses split from here, what cheap tests discriminate them, what contradictions would penalize them, and what candidate answer becomes possible? Add multiple meaningful child branches when available. In discovery-style tasks, create `candidate_solution` nodes only after a branch has enough clue/evidence support to be answer-shaped; do not preload final candidates as unexplored buckets.
-8. If a test/evidence result arrives, add it as evidence/derived evidence and update posterior by creating new search state or evidence version. Then add child frontier items and re-sort. Let UCS choose which child to explore next.
+8. If a result arrives during expansion, add it as evidence/derived evidence and update posterior by creating new search state or evidence version. Then add child frontier items and re-sort. Let UCS choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
 9. Continue until adaptive stopping conditions are met.
 10. Return compact answer or graph artifact depending on output mode.
 
