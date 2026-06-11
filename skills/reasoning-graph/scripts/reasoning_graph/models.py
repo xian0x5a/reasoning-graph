@@ -21,8 +21,9 @@ EDGE_TYPES = {
     "supports",
     "assumes",
     "contradicts",
-    "tested_by",
-    "tests",  # legacy alias; prefer tested_by for claim -> test topology
+    "prompts",
+    "tested_by",  # legacy alias; prefer prompts for follow-up work provenance
+    "tests",  # legacy alias; prefer prompts for follow-up work provenance
     "leads_to",
     "answers",
 }

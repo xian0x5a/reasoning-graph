@@ -92,6 +92,23 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("candidate_solution -> goal must use answers", invalid.stderr)
             self.assertIn("answers edge must connect candidate_solution -> goal", invalid.stderr)
 
+    def test_validate_accepts_prompts_edge_for_follow_up_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "prompts-edge-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
+                    {"id": "T1", "type": "test", "text": "Check likely cause", "status": "proposed"},
+                ],
+                "edges": [{"from": "A1", "to": "T1", "type": "prompts"}],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertIn("ok", valid.stdout)
+
     def test_audit_uses_no_new_work_reason_for_score_only_visited_updates(self) -> None:
         base_state = {
             "nodes": [
