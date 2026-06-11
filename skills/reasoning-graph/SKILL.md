@@ -49,7 +49,7 @@ Test node statuses:
 - `performed` — check was conducted; add resulting `evidence`/`derived` nodes and connect them to affected branches
 - `inconclusive` — performed but did not settle the claim
 
-When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item; otherwise record `no_reopen_reason` or `exhaustion_reason` on the expansion event. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
+When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item for that node; if it only changes ranking/penalty, close the expansion with `no_new_work_reason`. Use `exhaustion_reason` only when marking a node or family `exhausted: true`. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
 
 Preferred pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong. For tiny graphs, a `performed` test may carry a concise `result`, but separate result evidence is easier to audit.
 
@@ -91,7 +91,7 @@ Workflow:
 
 Keep the ledger concise. Merge tiny related evidence when that improves readability, but do not merge evidence that plays different logical roles in supporting or penalizing branches.
 
-The ledger is live, not locked. During expansion, append new evidence nodes from performed tests, code inspection, logs, docs, web sources, or user clarification when a branch needs support or contradiction checks. Add newly discovered constraints too. Proposed tests are not evidence until conducted. If new evidence materially changes priors, confidence, truth costs, search costs, or frontier ordering, increment `evidence_version` and recompute/re-sort. Reopen only when the evidence creates new work; otherwise keep exhausted nodes closed and record `no_reopen_reason` or `exhaustion_reason`.
+The ledger is live, not locked. During expansion, append new evidence nodes from performed tests, code inspection, logs, docs, web sources, or user clarification when a branch needs support or contradiction checks. Add newly discovered constraints too. Proposed tests are not evidence until conducted. If new evidence materially changes priors, confidence, truth costs, search costs, or frontier ordering, increment `evidence_version` and recompute/re-sort. Reopen only when the evidence creates new work; score-only updates stay closed.
 
 Graph-mode HTML must make evidence and constraint nodes readable with IDs and sources. A filterable node-detail list and node popup modals can satisfy this; do not duplicate a separate evidence/constraint ledger section when it makes the report longer without adding clarity.
 
@@ -224,7 +224,7 @@ effective_truth_cost = truth_cost + sum(contradiction penalties)
 search_cost = truth_cost + verification_cost + effort_budget + reasoning_complexity_cost + constraint_tension_cost + contradiction_penalty
 ```
 
-If contradiction evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work; otherwise record `no_reopen_reason` or `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item or a no-reopen reason.
+If contradiction evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
 
 ## Search State
 
@@ -607,7 +607,7 @@ Do not include full frontier before/after snapshots; state already stores fronti
     "add_edges": ["E1", "E2"],
     "add_frontier": ["Q4", "Q5"],
     "updated_nodes": [{"id": "A1", "fields": ["posterior"]}],
-    "no_reopen_reason": "A1 score changed, but no new A1-local work was implied."
+    "no_new_work_reason": "A1 score changed, but no new A1-local work was implied."
   },
   {"step": 4, "action": "select", "item": "Q7", "node": "CS1", "cost": 2.24},
   {"step": 5, "action": "stop", "reason": "found 3 candidates; best dominates", "outcome": "candidate_count_met"}

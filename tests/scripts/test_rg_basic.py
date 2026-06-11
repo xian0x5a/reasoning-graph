@@ -92,6 +92,58 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("candidate_solution -> goal must use answers", invalid.stderr)
             self.assertIn("answers edge must connect candidate_solution -> goal", invalid.stderr)
 
+    def test_audit_uses_no_new_work_reason_for_score_only_visited_updates(self) -> None:
+        base_state = {
+            "nodes": [
+                {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 1.0},
+                {"id": "T1", "type": "test", "text": "Check likely cause", "status": "performed"},
+                {"id": "D1", "type": "derived", "text": "A1 explored once"},
+                {"id": "E2", "type": "evidence", "text": "Negative result", "confidence": 0.8},
+            ],
+            "edges": [
+                {"id": "EA1D1", "from": "A1", "to": "D1", "type": "leads_to"},
+                {"id": "ET1E2", "from": "T1", "to": "E2", "type": "supports"},
+                {"id": "EE2A1", "from": "E2", "to": "A1", "type": "contradicts"},
+            ],
+            "frontier": [
+                {"id": "Q1", "node": "A1"},
+                {"id": "Q2", "node": "T1"},
+            ],
+            "events": [
+                {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                {"step": 3, "action": "expand", "item": "Q1", "add_nodes": ["D1"], "add_edges": ["EA1D1"], "add_frontier": []},
+                {"step": 4, "action": "pop", "item": "Q2", "cost": 0.0},
+                {
+                    "step": 5,
+                    "action": "expand",
+                    "item": "Q2",
+                    "add_nodes": ["E2"],
+                    "add_edges": ["ET1E2", "EE2A1"],
+                    "add_frontier": [],
+                    "updated_nodes": [{"id": "A1", "fields": ["truth_cost"]}],
+                    "no_new_work_reason": "E2 only changes A1 score; no new A1-local work implied.",
+                },
+                {"step": 6, "action": "stop", "reason": "test stop", "outcome": "user_stopped"},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ok_path = Path(tmp_dir) / "ok.json"
+            missing_path = Path(tmp_dir) / "missing.json"
+            ok_path.write_text(json.dumps(base_state), encoding="utf-8")
+            missing_state = json.loads(json.dumps(base_state))
+            del missing_state["events"][4]["no_new_work_reason"]
+            missing_path.write_text(json.dumps(missing_state), encoding="utf-8")
+
+            ok = self.run_rg("audit", str(ok_path))
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            self.assertNotIn("evidence updated visited node", ok.stderr)
+
+            missing = self.run_rg("audit", str(missing_path))
+            self.assertEqual(missing.returncode, 0, missing.stderr)
+            self.assertIn("evidence updated visited node A1", missing.stderr)
+            self.assertIn("no_new_work_reason", missing.stderr)
+
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output = Path(tmp_dir) / "costs.json"

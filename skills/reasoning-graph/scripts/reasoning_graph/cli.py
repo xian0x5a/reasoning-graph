@@ -220,7 +220,16 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "add_edges": [edge["id"] for edge in edges_to_add],
         "add_frontier": [item["id"] for item in frontier_to_add],
     }
-    for key in ("mode", "summary", "reason"):
+    for key in (
+        "mode",
+        "summary",
+        "reason",
+        "updated_nodes",
+        "no_new_work_reason",
+        "no_reopen_reason",
+        "under_branching_reason",
+        "existing_sibling_frontier",
+    ):
         if key in patch:
             event[key] = patch[key]
     events.append(event)

@@ -316,7 +316,14 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 for child_id in added_frontier_ids
                 if child_id in items and isinstance(items[child_id].get("node"), str)
             }
-            no_reopen_reason = str(event.get("no_reopen_reason") or event.get("exhaustion_reason") or "").strip()
+            # Older traces used no_reopen_reason/exhaustion_reason for this event-level escape.
+            # Prefer no_new_work_reason; keep legacy acceptance so saved reports still audit cleanly.
+            no_new_work_reason = str(
+                event.get("no_new_work_reason")
+                or event.get("no_reopen_reason")
+                or event.get("exhaustion_reason")
+                or ""
+            ).strip()
             updated_node_specs = event.get("updated_nodes", [])
             if updated_node_specs is None:
                 updated_node_specs = []
@@ -344,9 +351,13 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if not target_frontier_ids:
                     continue
                 popped_target_items = target_frontier_ids & popped_items
-                if popped_target_items and target_node_id not in added_frontier_nodes and not no_reopen_reason:
+                target_node = nodes.get(target_node_id, {})
+                target_exhausted = target_node.get("exhausted") is True and bool(
+                    str(target_node.get("exhaustion_reason") or "").strip()
+                )
+                if popped_target_items and target_node_id not in added_frontier_nodes and not (no_new_work_reason or target_exhausted):
                     warnings.append(
-                        f"{label}: evidence updated visited node {target_node_id}; costs will recompute, but add frontier for new work or record no_reopen_reason/exhaustion_reason"
+                        f"{label}: evidence updated visited node {target_node_id}; costs will recompute, but add frontier for new work, record no_new_work_reason, or mark the node exhausted with exhaustion_reason"
                     )
 
             terminal_or_contradicted = bool(added_node_types & {"candidate_solution"}) or bool(contradiction_targets)
@@ -357,9 +368,10 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if sibling_id not in items:
                     errors.append(f"{label}: existing_sibling_frontier references missing frontier item {sibling_id}")
             has_under_branching_escape = has_under_branching_escape or bool(existing_siblings)
-            has_under_branching_escape = has_under_branching_escape or bool(
-                item_node.get("exhausted") is True and str(item_node.get("exhaustion_reason") or "").strip()
+            item_exhausted = item_node.get("exhausted") is True and bool(
+                str(item_node.get("exhaustion_reason") or "").strip()
             )
+            has_under_branching_escape = has_under_branching_escape or item_exhausted
             if len(added_frontier_ids) == 1 and not terminal_or_contradicted and not has_under_branching_escape:
                 deferred_branch_warnings.append(
                     f"{label}: one-child expansion may be under-branching; consider coarse sibling branches if any are meaningful"
@@ -385,7 +397,13 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 and edge.get("to") in ({item_node_id} | added_node_set)
                 for edge in added_edges
             )
-            if popped_prior >= 0.65 and branch_penalized_by_contradiction and not added_frontier_ids and not no_reopen_reason:
+            if (
+                popped_prior >= 0.65
+                and branch_penalized_by_contradiction
+                and not added_frontier_ids
+                and not no_new_work_reason
+                and not item_exhausted
+            ):
                 warnings.append(
                     f"{label}: high-prior branch {item_node_id} received a contradiction penalty with no follow-up frontier; ensure the negative result exhausts the whole clue family, not only one bounded interpretation"
                 )
