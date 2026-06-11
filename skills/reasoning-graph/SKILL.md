@@ -51,7 +51,7 @@ Test node statuses:
 
 When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item for that node; if it only changes ranking/penalty, close the expansion with `no_new_work_reason`. Use `exhaustion_reason` only when marking a node or family `exhausted: true`. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
 
-Preferred pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong. For tiny graphs, a `performed` test may carry a concise `result`, but separate result evidence is easier to audit.
+Canonical pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --tests--> T1`, `T1 --supports--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong.
 
 ## Evidence and Constraint Extraction
 
