@@ -34,14 +34,14 @@ Use this canonical set:
 Use this canonical set:
 
 - `requires` — hard dependency; when involving constraints, prefer `goal -> constraint` or `candidate/branch -> constraint`, not `constraint -> goal`
-- `supports` — soft evidence or reason in favor
+- `supports` — positive evidence update or soft reason in favor; numeric updates use `likelihood_ratio > 1`
 - `assumes` — branch proceeds under an assumption
-- `contradicts` — opposes a node/branch by adding truth-cost penalty. It does not delete/disqualify the target; even decisive contradictions become very high truth cost / near-zero belief.
+- `contradicts` — negative evidence update; numeric updates use `0 < likelihood_ratio < 1`. It does not delete/disqualify the target; decisive contradictions become very high truth cost / near-zero belief.
 - `prompts` — non-evidential provenance; source node motivates a test, assumption, branch, or follow-up node without changing belief by itself
-- `leads_to` — derivation/progression from one node to another
+- `leads_to` — premise/dependency used to derive the target; incoming `leads_to` edges jointly form the target's base belief
 - `answers` — candidate solution satisfies a goal; must be `candidate_solution -> goal`
 
-For multi-premise derivations, a `derived` node may have multiple incoming `leads_to` edges. Treat those incoming `leads_to` premises as jointly required for that derived conclusion. Use `supports` for optional/soft evidence and `requires` for constraints or external dependencies the derived/candidate must satisfy.
+For multi-premise derivations, a `derived` node may have multiple incoming `leads_to` edges. Treat those premises as jointly required for that conclusion. Use `supports`/`contradicts` for evidence that updates belief in an existing target, and `requires` for constraints or external dependencies the derived/candidate must satisfy.
 
 Relationships are source of truth. Avoid manual `status` fields when they duplicate graph-derived view state such as winning/rank/dimmed/viable/rejected. In this schema, `status` is reserved for `test` nodes only.
 
@@ -78,7 +78,6 @@ Workflow:
   type: constraint
   text: "Avoid rotating all user sessions unless necessary"
   source: "explicit user requirement"
-
 ```
 
 Keep the ledger concise. Merge tiny related evidence when that improves readability, but do not merge evidence that plays different logical roles in supporting or penalizing branches.
@@ -99,7 +98,6 @@ Rules:
 - A true “no valid solution exists” candidate is allowed only when it answers an accepted epistemic/negative goal and is supported by positive impossibility evidence.
 - A method/source branch is not a `candidate_solution` unless it itself answers the goal; keep it as `assumption` or `derived`.
 - Do not point an `assumption` directly at a `goal`; validation rejects this. Route it through tests, derived conclusions, or candidate answers. Direct `assumption -> goal` usually smuggles “this branch solves the task” without evidence.
-- Do not write `constraint -> goal` with `requires`; reverse it to `goal -> constraint` when the goal must obey that constraint.
 
 ### Multiple Goals
 
@@ -141,7 +139,7 @@ Use probabilities only where they mean something.
 - Use coarse numeric values; avoid fake precision.
 - Show priors/confidence/costs to the user only when they affect the conclusion, ambiguity, or branch ranking.
 
-Helper-generated reports derive table `belief` from `effective_truth_cost` so contradiction penalties remain visible. `posterior` must be an explicit evidence update stored on the node from support/contradiction/test evidence; do not derive or overwrite `posterior` from path/search costs.
+Helper-generated reports derive table `belief` from `effective_truth_cost`. `posterior` is an explicit calibrated override stored on the node; do not derive or overwrite it from path/search costs. If `posterior` is present, graph-derived likelihood updates are treated as already accounted for.
 
 Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
@@ -151,14 +149,17 @@ Recommended hybrid cost model:
 
 ```txt
 truth_cost = -ln(P(claim true))
+base_truth_cost(target) = local_truth_cost(target) + sum(effective_truth_cost(premises via leads_to))
+base_odds = P_base / (1 - P_base)
+updated_odds = base_odds * product(likelihood_ratio on supports/contradicts)
+effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 
 search_cost =
-  sum(truth_cost)
+  sum(incremental effective_truth_cost)
 + sum(verification_cost)
 + sum(effort_budget)
 + sum(reasoning_complexity_cost)
 + sum(constraint_tension_cost)
-+ sum(contradiction_penalty)
 ```
 
 `truth_cost` measures plausibility. `search_cost` measures what to investigate next by combining plausibility with effort/risk. `effort_budget` prices how much time/compute/search volume you are committing before stopping that branch. Priority queue order is by lowest `search_cost`, not highest belief alone.
@@ -195,26 +196,27 @@ Example:
 
 If the branch means broad brute force, open-ended enumeration, or spending most of the run budget, assign high `effort_budget` so UCS explores authoritative clues and cheap source/semantic checks first. Validator warns when a probe-like frontier item lacks both `effort_budget` and explicit `budget` metadata.
 
-### Contradiction Strength
+### Evidence Updates with Likelihood Ratios
 
-Do not treat `contradicts` as deletion. A contradiction never disqualifies the target node/candidate by itself. It changes ranking by increasing truth cost. Even a decisive contradiction is represented as very high truth cost / near-zero belief, not as a removed node.
+Use `likelihood_ratio` for numeric evidence updates on `supports` and `contradicts` edges.
 
-Contradiction probability:
+- `supports` requires `likelihood_ratio > 1`.
+- `contradicts` requires `0 < likelihood_ratio < 1`.
+- Omit `likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking.
+- Multiple update edges multiply in odds space.
+- Correlated/overlapping evidence should be merged or represented with an already-adjusted effective `likelihood_ratio`; do not add a separate weight field.
+- If an exact joint probability is known, use an aggregate `derived` node or explicit target `posterior` instead of stacking approximate edge updates.
 
-- explicit `strength` wins when present
-- `hard: true`, `mode: "hard"`, or `strength: 1.0` means probability near 1.0
-- source `posterior`, `confidence`, `probability`, or `prior` controls uncertainty when present
-- `hard: false`, `mode: "soft"`, or uncertain source/test result means partial penalty
+Example:
 
-Penalty math:
-
-```txt
-contradiction_penalty = -ln(1 - P(contradicting claim))
-effective_truth_cost = truth_cost + sum(contradiction penalties)
-search_cost = truth_cost + verification_cost + effort_budget + reasoning_complexity_cost + constraint_tension_cost + contradiction_penalty
+```json
+{"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4.0}
+{"from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25}
 ```
 
-If contradiction evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
+`leads_to` is not a likelihood update. It forms the target's base belief by propagating premise truth costs. `supports`/`contradicts` then update that base belief. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming likelihood-ratio edges for that target.
+
+If evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
 
 ## Search State
 
@@ -286,7 +288,7 @@ Guidelines:
 - Prefer expanding lower-cost frontier items first, UCS-style.
 - Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong.
 - Keep multiple candidate paths in the frontier when they represent meaningfully different assumption chains or answer routes.
-- If new evidence changes a posterior, increment `evidence_version` and allow relevant paths to reopen.
+- If new evidence changes likelihood-ratio updates, an explicit posterior, or frontier ordering, increment `evidence_version` and allow relevant paths to reopen.
 
 ## Helper Script and Driver
 
@@ -393,8 +395,8 @@ State JSON shape:
 
 Cost behavior:
 
-- `truth: "auto"` or legacy `uncertainty: "auto"` uses node truth probability: `posterior` when present, otherwise evidence/derived/test `confidence`, otherwise assumption/candidate `prior`.
-- `step_truth_cost` is the local truth contribution; `truth_cost` is parent `truth_cost + step_truth_cost`.
+- `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus incoming `leads_to` premise costs, then `supports`/`contradicts` likelihood-ratio updates.
+- `step_truth_cost` is the incremental truth contribution beyond the parent frontier path; `truth_cost` is parent `truth_cost + step_truth_cost`. This avoids double-counting a premise already carried by the parent path.
 - `step_cost` is the local search contribution; `search_cost` is parent `search_cost + step_cost`. `effort_budget` is included in `step_cost` and should price bounded work volume for probes/sweeps/enumerations.
 - `path_cost` is emitted only as a legacy alias for `search_cost`.
 - `sort` keeps all frontier items but orders them by ascending `search_cost`.
@@ -450,7 +452,7 @@ Use this workflow:
 5. For each assumption, assign `prior`, truth cost, and reason. For uncertain evidence/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
 6. Pop the frontier item with lowest accumulated `search_cost`. For complex reasoning, use `./scripts/rg.py next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
 7. Digest the popped item and its reconstructed path, then do divergent expansion. Ask: what does this imply, what sibling hypotheses split from here, what cheap tests discriminate them, what contradictions would penalize them, and what candidate answer becomes possible? Add multiple meaningful child branches when available. In discovery-style tasks, create `candidate_solution` nodes only after a branch has enough clue/evidence support to be answer-shaped; do not preload final candidates as unexplored buckets.
-8. If a result arrives during expansion, add it as evidence/derived evidence and update posterior by creating new search state or evidence version. Then add child frontier items and re-sort. Let UCS choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
+8. If a result arrives during expansion, add it as evidence/derived evidence and add calibrated `supports`/`contradicts` likelihood-ratio edges or an explicit `posterior` update. Then add child frontier items and re-sort. Let UCS choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
 9. Continue until adaptive stopping conditions are met.
 10. Return compact answer or graph artifact depending on output mode.
 
@@ -483,7 +485,7 @@ Other stopping rules:
 
 - when the user asks for competing explanations/candidates, list ranked candidates only for branches that were actually expanded, directly tested, or explicitly supplied by the user and clearly marked as not yet explored
 - early stop is allowed when the best candidate crosses the belief threshold, but then do not pad the ranked candidate list with unexplored alternatives; mention them only as unexpanded possibilities if useful
-- stop early when alternatives are trivial or directly contradicted only if their contradiction penalties make them clearly dominated, and record the contradiction evidence/cost impact
+- stop early when alternatives are trivial or directly contradicted only if their likelihood-ratio updates make them clearly dominated, and record the contradiction evidence/cost impact
 - contradicted candidate solutions may remain viable goal-linked candidates, but their lowered belief should not satisfy a high-confidence target unless the stop policy threshold still passes
 - ask user before deepening search if more exploration would cost meaningful time
 
@@ -541,7 +543,7 @@ Recommended shape:
 
 Do not encode rank words such as `Best:`, `Second:`, `Third:`, `Weak:` in candidate `name` or node `text`. Frontier rank is derived by sorting items by `search_cost`; candidate belief ranking is derived from `truth_cost`/`belief`. The renderer can display ordinal rank. Avoid storing a `rank` field unless the ordering comes from an external criterion that is not derivable from cost/belief.
 
-Do not put `status` on `candidate_solution` nodes. Candidate rank/viability is derived from belief/effective truth cost, search cost, goal `answers` edges, and `answer_kind`. If the candidate table needs labels such as viable or contradicted, express them in `why`, `next_test`, edge strength/probability, or graph relationships, not node `status`.
+Do not put `status` on `candidate_solution` nodes. Candidate rank/viability is derived from belief/effective truth cost, search cost, goal `answers` edges, and `answer_kind`. If the candidate table needs labels such as viable or contradicted, express them in `why`, `next_test`, likelihood-ratio edges, or graph relationships, not node `status`.
 
 Candidate `answer_kind` schema:
 

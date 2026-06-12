@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .costs import compute_costs, item_has_explicit_effort_budget, probability_cost, probability_from_value, text_looks_probe_like, uncertainty_cost_from_prior
+from .costs import compute_costs, item_has_explicit_effort_budget, likelihood_ratio_from_value, probability_cost, probability_from_value, text_looks_probe_like, uncertainty_cost_from_prior
 from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, NODE_TYPES, TEST_STATUSES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
 from .utils import as_string_list
@@ -202,6 +202,19 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     errors.append(f"edge {i} strength must be in [0, 1]")
             except (TypeError, ValueError):
                 errors.append(f"edge {i} strength must be numeric when present")
+        if "likelihood_ratio" in edge:
+            try:
+                likelihood_ratio = likelihood_ratio_from_value(edge.get("likelihood_ratio"), "likelihood_ratio")
+            except ValueError as exc:
+                errors.append(f"edge {i}: {exc}")
+                likelihood_ratio = None
+            if edge_type not in {"supports", "contradicts"}:
+                errors.append(f"edge {i} likelihood_ratio is only valid on supports/contradicts edges")
+            elif likelihood_ratio is not None:
+                if edge_type == "supports" and likelihood_ratio <= 1:
+                    errors.append(f"edge {i} supports likelihood_ratio must be > 1")
+                if edge_type == "contradicts" and likelihood_ratio >= 1:
+                    errors.append(f"edge {i} contradicts likelihood_ratio must be in (0, 1)")
         src_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == src), None)
         dst_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == dst), None)
         if src in candidate_ids and dst in goal_ids:

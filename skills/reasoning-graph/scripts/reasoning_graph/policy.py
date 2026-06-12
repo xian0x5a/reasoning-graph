@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import compute_costs, node_contradiction_penalties, node_truth_cost, probability_from_value
+from .costs import compute_costs, node_effective_truth_costs, node_truth_cost, probability_from_value
 from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -112,13 +112,6 @@ def candidate_pruned_ids(state: dict[str, Any]) -> set[str]:
     return set()
 
 
-def candidate_soft_contradiction_penalties(state: dict[str, Any]) -> dict[str, float]:
-    nodes = by_id(state.get("nodes", []), "node")
-    candidate_ids = {node_id for node_id, node in nodes.items() if node.get("type") == "candidate_solution"}
-    node_penalties = node_contradiction_penalties(state)
-    return {candidate_id: node_penalties.get(candidate_id, 0.0) for candidate_id in candidate_ids}
-
-
 def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
     accepted = accepted_goal_ids(state)
     targets = candidate_goal_targets(state)
@@ -174,7 +167,7 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     graph_candidate_ids = viable_candidate_ids(state)
     selected_items = selected_candidate_frontier_items(state)
     # Report metadata can lag behind schema cleanup; render only live graph candidates.
-    soft_penalties = candidate_soft_contradiction_penalties(state)
+    node_truth_costs = node_effective_truth_costs(state)
     filtered: list[dict[str, Any]] = []
     for candidate in candidates:
         if not isinstance(candidate, dict):
@@ -196,12 +189,8 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         if truth_cost is None:
             truth_cost = finite_float(selected_item.get("truth_cost"))
         if truth_cost is None:
-            truth_cost = node_truth_cost(node)
-        penalty = soft_penalties.get(candidate_id, 0.0)
-        if penalty:
-            enriched["contradiction_penalty"] = round(penalty, 6)
-        penalty_in_selected_path = bool(selected_item) and selected_item.get("node") == candidate_id
-        effective_truth_cost = truth_cost if penalty_in_selected_path else truth_cost + penalty
+            truth_cost = node_truth_costs.get(candidate_id, node_truth_cost(node))
+        effective_truth_cost = truth_cost
         effective_belief = math.exp(-effective_truth_cost)
         enriched["truth_cost"] = round(truth_cost, 6)
         enriched["effective_truth_cost"] = round(effective_truth_cost, 6)

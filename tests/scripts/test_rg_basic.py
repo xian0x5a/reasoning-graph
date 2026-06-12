@@ -161,6 +161,100 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("evidence updated visited node A1", missing.stderr)
             self.assertIn("no_new_work_reason", missing.stderr)
 
+    def test_costs_use_likelihood_ratio_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "lr-state.json"
+            output_path = Path(tmp_dir) / "lr-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal"},
+                    {"id": "E2", "type": "evidence", "text": "Negative signal"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
+                    {"from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
+
+    def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "premise-state.json"
+            output_path = Path(tmp_dir) / "premise-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.8},
+                    {"id": "E1", "type": "evidence", "text": "Premise E", "confidence": 0.9},
+                    {"id": "D1", "type": "derived", "text": "Derived from A and E"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "E1", "to": "D1", "type": "leads_to"},
+                ],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
+                    {"id": "Q2", "node": "D1", "parent": "Q1", "cost_components": {"truth": "auto"}},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            by_id = {item["id"]: item for item in costed["frontier"]}
+            self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.223144, places=6)
+            # D1 requires A1 and E1; Q2 parent already carries A1, so step adds only E1.
+            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.105361, places=6)
+            self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
+
+    def test_costs_explicit_posterior_overrides_graph_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "posterior-state.json"
+            output_path = Path(tmp_dir) / "posterior-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2, "posterior": 0.7},
+                    {"id": "E1", "type": "evidence", "text": "Negative signal"},
+                ],
+                "edges": [{"from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.356675, places=6)
+
+    def test_validate_rejects_bad_likelihood_ratio_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "bad-lr-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Signal"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 0.5},
+                    {"from": "A1", "to": "E1", "type": "leads_to", "likelihood_ratio": 2.0},
+                ],
+                "frontier": [],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            invalid = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("supports likelihood_ratio must be > 1", invalid.stderr)
+            self.assertIn("likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
+
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output = Path(tmp_dir) / "costs.json"

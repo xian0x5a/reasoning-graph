@@ -469,7 +469,7 @@ def candidate_focus_nodes(state: dict[str, Any], candidate: dict[str, Any]) -> l
             node_ids.extend(str(value) for value in values)
 
     nodes_by_id = by_id(state.get("nodes", []), "node")
-    supportive_edges = {"supports", "requires", "assumes"}
+    supportive_edges = {"supports", "requires", "assumes", "leads_to"}
     non_expanding_seed_types = {"evidence", "constraint", "test"}
     parents_by_child: dict[str, list[str]] = {}
     for edge in state.get("edges", []):

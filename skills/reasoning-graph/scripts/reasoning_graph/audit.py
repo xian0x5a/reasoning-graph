@@ -128,7 +128,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     last_evidence_version: Any = None
     event_added_nodes: set[str] = set()
     event_selected_nodes: set[str] = set()
-    contradiction_added_steps_by_node: dict[str, list[int]] = {}
+    evidence_update_added_steps_by_node: dict[str, list[int]] = {}
     for event in events:
         if not isinstance(event, dict):
             continue
@@ -138,11 +138,15 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             continue
         for edge_id in event.get("add_edges") if isinstance(event.get("add_edges"), list) else []:
             edge = edges_by_id.get(str(edge_id))
-            if not edge or (edge.get("type") or edge.get("label")) != "contradicts":
+            if not edge:
+                continue
+            edge_type = edge.get("type") or edge.get("label")
+            is_numeric_update = edge_type in {"contradicts", "leads_to"} or (edge_type == "supports" and "likelihood_ratio" in edge)
+            if not is_numeric_update:
                 continue
             target = edge.get("to")
             if isinstance(target, str):
-                contradiction_added_steps_by_node.setdefault(target, []).append(event_step)
+                evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
 
     branch_policy = state.get("branch_policy") if isinstance(state.get("branch_policy"), dict) else {}
     high_salience_min_children = int(branch_policy.get("high_salience_min_children", 3))
@@ -164,7 +168,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         node_id = item.get("node")
         if not isinstance(node_id, str):
             return False
-        return any(change_step > step for change_step in contradiction_added_steps_by_node.get(node_id, []))
+        return any(change_step > step for change_step in evidence_update_added_steps_by_node.get(node_id, []))
 
     for index, raw_event in enumerate(events):
         stats["events"] += 1
@@ -311,6 +315,15 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 for edge in added_edges
                 if (edge.get("type") or edge.get("label")) == "contradicts" and isinstance(edge.get("to"), str)
             }
+            evidence_update_targets = {
+                str(edge.get("to"))
+                for edge in added_edges
+                if (
+                    ((edge.get("type") or edge.get("label")) in {"contradicts", "leads_to"})
+                    or ((edge.get("type") or edge.get("label")) == "supports" and "likelihood_ratio" in edge)
+                )
+                and isinstance(edge.get("to"), str)
+            }
             added_frontier_nodes = {
                 str(items[child_id].get("node"))
                 for child_id in added_frontier_ids
@@ -345,7 +358,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if update_node_id not in nodes:
                     errors.append(f"{label}.updated_nodes[{update_index}] references missing node {update_node_id}")
                 updated_node_ids.add(update_node_id)
-            reranked_visited_nodes = contradiction_targets | updated_node_ids
+            reranked_visited_nodes = evidence_update_targets | updated_node_ids
             for target_node_id in sorted(reranked_visited_nodes):
                 target_frontier_ids = frontier_ids_by_node.get(target_node_id, set())
                 if not target_frontier_ids:
