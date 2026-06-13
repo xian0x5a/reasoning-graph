@@ -191,17 +191,11 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             errors.append(f"edge {i} references missing to node {dst!r}")
         if edge_type not in EDGE_TYPES:
             errors.append(f"edge {i} invalid type {edge_type!r}")
-        if "hard" in edge and not isinstance(edge.get("hard"), bool):
-            errors.append(f"edge {i} hard must be boolean when present")
-        if "mode" in edge and edge.get("mode") not in {"hard", "soft"}:
-            errors.append(f"edge {i} mode must be 'hard' or 'soft' when present")
-        if "strength" in edge:
-            try:
-                strength = float(edge.get("strength"))
-                if not 0 <= strength <= 1:
-                    errors.append(f"edge {i} strength must be in [0, 1]")
-            except (TypeError, ValueError):
-                errors.append(f"edge {i} strength must be numeric when present")
+        ignored_legacy_fields = sorted(field for field in ("hard", "mode", "strength") if field in edge)
+        if ignored_legacy_fields:
+            warnings.append(
+                f"edge {i} uses ignored legacy field(s) {', '.join(ignored_legacy_fields)}; use likelihood_ratio or target posterior for numeric belief updates"
+            )
         if "likelihood_ratio" in edge:
             try:
                 likelihood_ratio = likelihood_ratio_from_value(edge.get("likelihood_ratio"), "likelihood_ratio")

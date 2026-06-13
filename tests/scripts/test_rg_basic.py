@@ -260,6 +260,29 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.693147, places=6)
             self.assertAlmostEqual(by_id["Q2"]["search_cost"], 0.693147, places=6)
 
+    def test_contradicts_without_likelihood_ratio_is_explanatory_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "legacy-contradiction-state.json"
+            output_path = Path(tmp_dir) / "legacy-contradiction-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Negative signal", "confidence": 0.1},
+                ],
+                "edges": [{"from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.693147, places=6)
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertIn("ignored legacy field(s) strength", valid.stderr)
+
     def test_validate_rejects_bad_likelihood_ratio_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "bad-lr-state.json"

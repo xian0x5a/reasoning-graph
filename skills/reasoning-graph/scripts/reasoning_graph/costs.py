@@ -122,62 +122,6 @@ def node_truth_cost(node: dict[str, Any] | None) -> float:
     return node_local_truth_cost(node)
 
 
-def contradiction_probability(state: dict[str, Any], edge: dict[str, Any]) -> float:
-    """Legacy contradiction probability for contradiction edges without LR.
-
-    New states should prefer `likelihood_ratio` on `supports`/`contradicts`.
-    This fallback keeps saved traces using `strength`/`hard`/source confidence
-    numerically meaningful.
-    """
-
-    if edge.get("hard") is True or edge.get("mode") == "hard":
-        return 1.0
-    strength = probability_from_value(edge.get("strength"))
-    if strength is not None:
-        return strength
-    nodes = by_id(state.get("nodes", []), "node")
-    source = nodes.get(str(edge.get("from")), {})
-    for field in ("posterior", "confidence", "probability", "prior"):
-        value = probability_from_value(source.get(field))
-        if value is not None:
-            return value
-    if edge.get("hard") is False or edge.get("mode") == "soft":
-        return 0.5
-    if source.get("type") in {"evidence", "constraint"}:
-        return 1.0
-    if source.get("type") == "test" and source.get("status") == "performed":
-        return 1.0
-    return 0.5
-
-
-def contradiction_is_hard(state: dict[str, Any], edge: dict[str, Any]) -> bool:
-    if edge.get("hard") is False or edge.get("mode") == "soft":
-        return False
-    return contradiction_probability(state, edge) >= 1.0
-
-
-def contradiction_truth_penalty(state: dict[str, Any], edge: dict[str, Any]) -> float:
-    """Legacy incoming contradiction penalty for edges without LR."""
-
-    probability = min(max(contradiction_probability(state, edge), 0.0), 1.0 - 1e-12)
-    return -math.log(1.0 - probability)
-
-
-def node_contradiction_penalties(state: dict[str, Any]) -> dict[str, float]:
-    """Legacy contradiction penalties not represented by likelihood ratios."""
-
-    nodes = by_id(state.get("nodes", []), "node")
-    penalties: dict[str, float] = {node_id: 0.0 for node_id in nodes}
-    for edge in state.get("edges", []):
-        if not isinstance(edge, dict):
-            continue
-        edge_type = edge.get("type") or edge.get("label")
-        dst = edge.get("to")
-        if edge_type != "contradicts" or dst not in nodes or "likelihood_ratio" in edge:
-            continue
-        penalties[str(dst)] += contradiction_truth_penalty(state, edge)
-    return penalties
-
 
 def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and LR evidence updates.
@@ -192,7 +136,6 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     nodes = by_id(state.get("nodes", []), "node")
     premise_sources: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     likelihood_edges: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in nodes}
-    legacy_penalties = node_contradiction_penalties(state)
 
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -241,7 +184,6 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
                 cost = -math.log(updated_probability)
         else:
             cost = base_cost
-        cost += legacy_penalties.get(node_id, 0.0)
         visiting.remove(node_id)
         memo[node_id] = cost
         return cost

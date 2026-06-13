@@ -202,8 +202,9 @@ Use `likelihood_ratio` for numeric evidence updates on `supports` and `contradic
 
 - `supports` requires `likelihood_ratio > 1`.
 - `contradicts` requires `0 < likelihood_ratio < 1`.
-- Omit `likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking.
+- Omit `likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking; without `likelihood_ratio`, `supports`/`contradicts` has no numeric cost effect.
 - Multiple update edges multiply in odds space.
+- `likelihood_ratio` is an effective update and should already include source reliability. Evidence `confidence` is displayed/audited and contributes when that evidence is a `leads_to` premise; it does not automatically dampen a `supports`/`contradicts` LR edge.
 - Correlated/overlapping evidence should be merged or represented with an already-adjusted effective `likelihood_ratio`; do not add a separate weight field.
 - If an exact joint probability is known, use an aggregate `derived` node or explicit target `posterior` instead of stacking approximate edge updates.
 
