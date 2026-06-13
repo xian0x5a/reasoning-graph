@@ -178,18 +178,20 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         node = nodes.get(candidate_id, {})
         selected_item = selected_items.get(candidate_id, {})
         enriched = dict(candidate)
-        search_cost = finite_float(enriched.get("search_cost"))
+        search_cost = finite_float(selected_item.get("search_cost", selected_item.get("path_cost")))
+        if search_cost is None:
+            search_cost = finite_float(enriched.get("search_cost"))
         if search_cost is None:
             search_cost = finite_float(enriched.get("path_cost"))
-        if search_cost is None:
-            search_cost = finite_float(selected_item.get("search_cost", selected_item.get("path_cost")))
         if search_cost is not None:
             enriched["search_cost"] = round(search_cost, 6)
-        truth_cost = finite_float(enriched.get("truth_cost"))
+        truth_cost = node_truth_costs.get(candidate_id)
         if truth_cost is None:
             truth_cost = finite_float(selected_item.get("truth_cost"))
         if truth_cost is None:
-            truth_cost = node_truth_costs.get(candidate_id, node_truth_cost(node))
+            truth_cost = finite_float(enriched.get("truth_cost"))
+        if truth_cost is None:
+            truth_cost = node_truth_cost(node)
         effective_truth_cost = truth_cost
         effective_belief = math.exp(-effective_truth_cost)
         enriched["truth_cost"] = round(truth_cost, 6)

@@ -3,7 +3,7 @@ name: reasoning-graph
 description: >
   Use when solving complex reasoning problems by building a graph from goals,
   evidence, constraints, derivations, and hypothetical branches. Supports
-  UCS-style frontier exploration, candidate solution paths, uncertainty/cost
+  best-first frontier exploration, candidate solution paths, uncertainty/cost
   tracking, and optional Mermaid/HTML graph output.
 ---
 
@@ -143,7 +143,7 @@ Helper-generated reports derive table `belief` from `effective_truth_cost`. `pos
 
 Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
-Use `search_cost` to rank frontier expansion. Lower cost means explore earlier. `path_cost` is a legacy alias only.
+Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. `path_cost` is a legacy alias only; it is not cumulative path cost.
 
 Recommended hybrid cost model:
 
@@ -155,14 +155,14 @@ updated_odds = base_odds * product(likelihood_ratio on supports/contradicts)
 effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 
 search_cost =
-  sum(incremental effective_truth_cost)
-+ sum(verification_cost)
-+ sum(effort_budget)
-+ sum(reasoning_complexity_cost)
-+ sum(constraint_tension_cost)
+  effective_truth_cost(current node)
++ local_verification_cost
++ local_effort_budget
++ local_reasoning_complexity_cost
++ local_constraint_tension_cost
 ```
 
-`truth_cost` measures plausibility. `search_cost` measures what to investigate next by combining plausibility with effort/risk. `effort_budget` prices how much time/compute/search volume you are committing before stopping that branch. Priority queue order is by lowest `search_cost`, not highest belief alone.
+`truth_cost` measures current plausibility from the graph's probability model. `search_cost` measures what to investigate next by combining plausibility with local remaining effort/risk. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone.
 
 Exact math is optional. Rough costs are acceptable when they preserve ordering and make the search better.
 
@@ -194,7 +194,7 @@ Example:
 }
 ```
 
-If the branch means broad brute force, open-ended enumeration, or spending most of the run budget, assign high `effort_budget` so UCS explores authoritative clues and cheap source/semantic checks first. Validator warns when a probe-like frontier item lacks both `effort_budget` and explicit `budget` metadata.
+If the branch means broad brute force, open-ended enumeration, or spending most of the run budget, assign high `effort_budget` so frontier priority explores authoritative clues and cheap source/semantic checks first. Validator warns when a probe-like frontier item lacks both `effort_budget` and explicit `budget` metadata.
 
 ### Evidence Updates with Likelihood Ratios
 
@@ -216,7 +216,7 @@ Example:
 
 `leads_to` is not a likelihood update. It forms the target's base belief by propagating premise truth costs. `supports`/`contradicts` then update that base belief. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming likelihood-ratio edges for that target.
 
-If evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes the whole path and `sort`/`next` reorders active frontier by UCS priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
+If evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes priorities and `sort`/`next` reorders active frontier by best-first priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
 
 ## Search State
 
@@ -257,8 +257,9 @@ Example frontier item:
     - "If this becomes important, promote it to a derived/test node."
   step_truth_cost: 0.51
   truth_cost: 0.51
+  work_cost: 0.30
   step_cost: 0.81
-  search_cost: 1.34
+  search_cost: 0.81
   active_assumptions: [A2]
   evidence_version: E1
 ```
@@ -285,7 +286,7 @@ current_node + sorted active_assumption_ids + evidence_version
 Guidelines:
 
 - Skip exact cycles.
-- Prefer expanding lower-cost frontier items first, UCS-style.
+- Prefer expanding lower-cost frontier items first, best-first style.
 - Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong.
 - Keep multiple candidate paths in the frontier when they represent meaningfully different assumption chains or answer routes.
 - If new evidence changes likelihood-ratio updates, an explicit posterior, or frontier ordering, increment `evidence_version` and allow relevant paths to reopen.
@@ -396,15 +397,16 @@ State JSON shape:
 Cost behavior:
 
 - `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus incoming `leads_to` premise costs, then `supports`/`contradicts` likelihood-ratio updates.
-- `step_truth_cost` is the incremental truth contribution beyond the parent frontier path; `truth_cost` is parent `truth_cost + step_truth_cost`. This avoids double-counting a premise already carried by the parent path.
-- `step_cost` is the local search contribution; `search_cost` is parent `search_cost + step_cost`. `effort_budget` is included in `step_cost` and should price bounded work volume for probes/sweeps/enumerations.
-- `path_cost` is emitted only as a legacy alias for `search_cost`.
+- `truth_cost` is the current node's effective truth cost. `step_truth_cost` is kept as a legacy mirror of `truth_cost`.
+- `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
+- `step_cost` and `search_cost` are the frontier priority score: `truth_cost + work_cost`. Parent pointers do not accumulate cost; past work is sunk.
+- `path_cost` is emitted only as a legacy alias for `search_cost`, not cumulative path cost.
 - `sort` keeps all frontier items but orders them by ascending `search_cost`.
 - `frontier` derives the currently active virtual frontier from `events`; before any pop event, all frontier items are active.
 - `next --pop -i` appends `init` when needed, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/selected, `next --pop` refuses to continue.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item.
 - `path` reconstructs a proof/search path from parent pointers.
-- `audit` checks compact strict-search events for coherent UCS-style expansion.
+- `audit` checks compact strict-search events for coherent best-first expansion.
 
 Expansion patch shape:
 
@@ -450,9 +452,9 @@ Use this workflow:
 3. If cheap missing evidence is needed before branching, do a bounded context pass and add observed results to the ledger with sources.
 4. Try direct derivation if obvious; otherwise initialize frontier from plausible assumptions or unresolved claims.
 5. For each assumption, assign `prior`, truth cost, and reason. For uncertain evidence/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
-6. Pop the frontier item with lowest accumulated `search_cost`. For complex reasoning, use `./scripts/rg.py next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
+6. Pop the frontier item with lowest current `search_cost`. For complex reasoning, use `./scripts/rg.py next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
 7. Digest the popped item and its reconstructed path, then do divergent expansion. Ask: what does this imply, what sibling hypotheses split from here, what cheap tests discriminate them, what contradictions would penalize them, and what candidate answer becomes possible? Add multiple meaningful child branches when available. In discovery-style tasks, create `candidate_solution` nodes only after a branch has enough clue/evidence support to be answer-shaped; do not preload final candidates as unexplored buckets.
-8. If a result arrives during expansion, add it as evidence/derived evidence and add calibrated `supports`/`contradicts` likelihood-ratio edges or an explicit `posterior` update. Then add child frontier items and re-sort. Let UCS choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
+8. If a result arrives during expansion, add it as evidence/derived evidence and add calibrated `supports`/`contradicts` likelihood-ratio edges or an explicit `posterior` update. Then add child frontier items and re-sort. Let best-first priority choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
 9. Continue until adaptive stopping conditions are met.
 10. Return compact answer or graph artifact depending on output mode.
 
@@ -509,10 +511,10 @@ Assumption and candidate hygiene:
 - Keep early candidates unresolved/unranked until each option has been expanded or directly contradicted by evidence. Ranked report candidates should correspond to explored/penalized branches, not merely imagined options. Evidence-contradicted candidates remain visible endpoints with lower belief; they are useful audit evidence and can remain viable only if their effective truth cost still meets the stop policy.
 - Expand coarse possibility families first, not micro-variants. For example, create one frontier item for `WebCrypto AES-GCM layout family`, not 500 items for PBKDF2 iteration counts. Concrete variants belong inside the popped family expansion/test.
 - Authoritative clue heuristic: if an official hint, doc, maintainer comment, theorem condition, log message, test failure, or other high-authority clue appears, spawn interpretation branches before brute-force branches. Mark the clue-family node with `clue_family: true` and `salience` (for example `0.8`) when dropping it would materially change the search. Interpretations of the clue usually deserve lower `verification` and `reasoning_complexity` cost than broad search because they can sharply reduce the space. Do not let concrete but expensive brute force outrank cheap interpretation of an authoritative clue.
-- Bounded-negative heuristic: a failed bounded test penalizes only the exact tested interpretation, not the parent clue family. If a high-prior clue branch fails one direct test, add live frontier siblings for refined interpretations or add a derived node explaining why the whole family is actually exhausted. Do not convert `one tested variant failed` into `strong clue path dead`. No special backtracking mode is needed; UCS continues by popping the next live frontier item.
+- Bounded-negative heuristic: a failed bounded test penalizes only the exact tested interpretation, not the parent clue family. If a high-prior clue branch fails one direct test, add live frontier siblings for refined interpretations or add a derived node explaining why the whole family is actually exhausted. Do not convert `one tested variant failed` into `strong clue path dead`. No special backtracking mode is needed; best-first search continues by popping the next live frontier item.
 - Partial-expansion/revival heuristic: popping a family/clue item means one expansion attempt, not permanent exhaustion. On first pass, expand obvious sibling interpretations broadly enough to avoid single-variant tunnel vision. If later evidence or a failed child shows the family was under-expanded, revive it by adding a new child `assumption`/`test` node under the original family node and a frontier item pointing to that child. Re-queueing the same family node is allowed only as a temporary continuation when no specific child branch can yet be named.
 - Continuation invariant: when prior reports/evaluations are allowed but prior graph state is not, reconstruct high-salience clue families from the reports as explicit graph nodes. Do not collapse a clue family into generic “prior probes failed” evidence. If the family is not fully exhausted, it must have either a live frontier continuation or an `exhausted: true` node with `exhaustion_reason`.
-- Divergence floor: for high-salience clue/family expansion, aim to create at least three child frontier branches: one direct/literal interpretation, one structural/transform interpretation, and one low-prior wildcard. Branching does not mean you must spend time on every branch immediately: UCS/search-cost ordering keeps low-prior or expensive branches low in the queue until better paths are exhausted or contradicted. Therefore adding a plausible low-prior branch is cheap and encouraged; silently omitting it is more dangerous than carrying it in the frontier. This is a soft floor by default, not a command to invent fake branches. If fewer branches are meaningful, record `under_branching_reason`, `existing_sibling_frontier`, or `exhausted: true` with `exhaustion_reason`. Audit defers branch-factor warnings until the stop reason claims exhaustion/completion, unless `branch_policy.enforce_on` is `always` or `severity` is `error`.
+- Divergence floor: for high-salience clue/family expansion, aim to create at least three child frontier branches: one direct/literal interpretation, one structural/transform interpretation, and one low-prior wildcard. Branching does not mean you must spend time on every branch immediately: search-cost ordering keeps low-prior or expensive branches low in the queue until better paths are exhausted or contradicted. Therefore adding a plausible low-prior branch is cheap and encouraged; silently omitting it is more dangerous than carrying it in the frontier. This is a soft floor by default, not a command to invent fake branches. If fewer branches are meaningful, record `under_branching_reason`, `existing_sibling_frontier`, or `exhausted: true` with `exhaustion_reason`. Audit defers branch-factor warnings until the stop reason claims exhaustion/completion, unless `branch_policy.enforce_on` is `always` or `severity` is `error`.
 - A one-child expansion is a soft signal to reconsider whether meaningful sibling branches were missed. The goal is to reveal possible solution paths, not to make one chosen path look reasonable after the fact.
 
 ## Report Metadata
@@ -684,7 +686,6 @@ Audit checks:
 - `init` appears before search events
 - `pop` item is currently in virtual frontier
 - popped item has lowest current `search_cost`
-- pop costs do not decrease unless `evidence_version` changes
 - `expand` follows the most recent pop
 - `add_frontier` items exist and usually parent to expanded item
 - expansions whose popped graph node has no outgoing edge to added nodes get a soft trace-topology warning
@@ -694,7 +695,7 @@ Audit checks:
 - `select` references a `candidate_solution` node
 - `stop` has a reason
 
-Limit: driver mode still cannot prove hidden cognition used UCS; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
+Limit: driver mode still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
 
 ## Output Modes
 

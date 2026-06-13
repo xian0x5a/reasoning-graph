@@ -316,7 +316,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
         scratch_text = " ".join(note for note in scratch if isinstance(note, str)) if isinstance(scratch, list) else ""
         if text_looks_probe_like(node_obj.get("text"), item.get("summary"), scratch_text) and not item_has_explicit_effort_budget(item):
             warnings.append(
-                f"frontier item {item_id or i} looks probe/brute-force-like; add cost_components.effort_budget and budget metadata so UCS prices bounded effort"
+                f"frontier item {item_id or i} looks probe/brute-force-like; add cost_components.effort_budget and budget metadata so frontier priority prices bounded effort"
             )
 
     all_frontier_ids = {item.get("id") for item in frontier_raw if isinstance(item, dict)}

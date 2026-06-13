@@ -211,8 +211,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             by_id = {item["id"]: item for item in costed["frontier"]}
             self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.223144, places=6)
-            # D1 requires A1 and E1; Q2 parent already carries A1, so step adds only E1.
-            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.105361, places=6)
+            # D1 truth is graph-derived from both premises; parent chain is audit context, not probability accumulation.
+            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.328504, places=6)
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
 
     def test_costs_explicit_posterior_overrides_graph_updates(self) -> None:
@@ -233,6 +233,32 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.356675, places=6)
+
+    def test_costs_do_not_subtract_unrelated_parent_truth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "unrelated-parent-state.json"
+            output_path = Path(tmp_dir) / "unrelated-parent-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Required premise", "prior": 0.5},
+                    {"id": "B1", "type": "assumption", "text": "Audit parent only", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived from A"},
+                ],
+                "edges": [{"from": "A1", "to": "D1", "type": "leads_to"}],
+                "frontier": [
+                    {"id": "Q1", "node": "B1", "cost_components": {"truth": "auto"}},
+                    {"id": "Q2", "node": "D1", "parent": "Q1", "cost_components": {"truth": "auto"}},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            by_id = {item["id"]: item for item in costed["frontier"]}
+            self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.693147, places=6)
+            self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.693147, places=6)
+            self.assertAlmostEqual(by_id["Q2"]["search_cost"], 0.693147, places=6)
 
     def test_validate_rejects_bad_likelihood_ratio_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

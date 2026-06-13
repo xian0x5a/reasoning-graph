@@ -104,14 +104,14 @@
       "step": 4,
       "action": "pop",
       "item": "Q3",
-      "cost": 0.710826
+      "cost": 0.610826
     },
     {
       "step": 5,
       "action": "select",
       "item": "Q3",
       "node": "CS1",
-      "cost": 0.710826
+      "cost": 0.610826
     },
     {
       "step": 6,

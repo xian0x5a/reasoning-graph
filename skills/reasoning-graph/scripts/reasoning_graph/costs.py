@@ -255,7 +255,6 @@ def cost_components_for_item(
     item: dict[str, Any],
     nodes: dict[str, dict[str, Any]],
     node_truth_costs: dict[str, float],
-    parent_truth_cost: float = 0.0,
 ) -> dict[str, float]:
     explicit = item.get("cost_components") or item.get("cost") or {}
     if explicit is None:
@@ -264,14 +263,11 @@ def cost_components_for_item(
         raise ValueError(f"frontier item {item.get('id')} cost_components must be object")
 
     components: dict[str, float] = {}
-    auto_truth_requested = False
     for raw_key, raw_value in explicit.items():
         key = LEGACY_COST_COMPONENT_ALIASES.get(str(raw_key), str(raw_key))
         if key not in SEARCH_COST_COMPONENTS:
             continue
         if raw_value is None or raw_value == "auto":
-            if key == "truth":
-                auto_truth_requested = True
             continue
         try:
             components[key] = float(raw_value)
@@ -281,12 +277,7 @@ def cost_components_for_item(
     node_id = str(item.get("node"))
     node = nodes.get(node_id)
     if "truth" not in components:
-        effective_truth = node_truth_costs.get(node_id, node_truth_cost(node))
-        # Auto truth is an incremental path contribution. The parent chain may
-        # already carry premise uncertainty, so only add the remaining delta.
-        components["truth"] = max(0.0, effective_truth - parent_truth_cost)
-    elif auto_truth_requested:
-        components["truth"] = max(0.0, node_truth_costs.get(node_id, node_truth_cost(node)) - parent_truth_cost)
+        components["truth"] = node_truth_costs.get(node_id, node_truth_cost(node))
 
     for key in SEARCH_COST_COMPONENTS:
         components.setdefault(key, 0.0)
@@ -297,67 +288,38 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
     nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     frontier = state.get("frontier", [])
-    items = by_id(frontier, "frontier item")
-    search_memo: dict[str, float] = {}
-    truth_memo: dict[str, float] = {}
-    visiting: set[str] = set()
 
-    def item_step_costs(item: dict[str, Any], parent_truth_cost: float) -> tuple[float, float]:
+    for item in frontier:
+        if not isinstance(item, dict):
+            continue
         if "cost_components" not in item and "cost" not in item and "step_cost" in item:
-            search_step = float(item["step_cost"])
-            truth_step = finite_float(item.get("step_truth_cost"))
-            if truth_step is None:
-                node_id = str(item.get("node"))
-                effective_truth = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
-                truth_step = max(0.0, effective_truth - parent_truth_cost)
-            effort_step = max(0.0, search_step - truth_step)
+            node_id = str(item.get("node"))
+            truth_cost = finite_float(item.get("step_truth_cost"))
+            if truth_cost is None:
+                truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
+            legacy_search_cost = float(item["step_cost"])
+            work_cost = max(0.0, legacy_search_cost - truth_cost)
+            search_cost = truth_cost + work_cost
             item["cost_components"] = {
-                "truth": round(truth_step, 6),
-                "verification": round(effort_step, 6),
+                "truth": round(truth_cost, 6),
+                "verification": round(work_cost, 6),
+                "effort_budget": 0.0,
                 "reasoning_complexity": 0.0,
                 "constraint_tension": 0.0,
             }
         else:
-            components = cost_components_for_item(item, nodes, node_truth_costs, parent_truth_cost)
+            components = cost_components_for_item(item, nodes, node_truth_costs)
+            truth_cost = components["truth"]
+            work_cost = sum(value for key, value in components.items() if key != "truth")
+            search_cost = truth_cost + work_cost
             item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
-            truth_step = components["truth"]
-            search_step = sum(components.values())
-        item["step_truth_cost"] = round(truth_step, 6)
-        item["step_cost"] = round(search_step, 6)
-        return search_step, truth_step
 
-    def item_search_cost(item_id: str) -> float:
-        if item_id in search_memo:
-            return search_memo[item_id]
-        if item_id in visiting:
-            raise ValueError(f"cycle in frontier parent chain at {item_id}")
-        item = items.get(item_id)
-        if not item:
-            raise ValueError(f"missing frontier item {item_id}")
-        visiting.add(item_id)
-        parent_id = item.get("parent")
-        parent_cost = 0.0
-        parent_truth_cost = 0.0
-        if parent_id:
-            if parent_id not in items:
-                raise ValueError(f"frontier item {item_id} references missing parent {parent_id}")
-            parent_cost = item_search_cost(str(parent_id))
-            parent_truth_cost = truth_memo[str(parent_id)]
-        search_step, truth_step = item_step_costs(item, parent_truth_cost)
-        search_total = parent_cost + search_step
-        truth_total = parent_truth_cost + truth_step
-        item["truth_cost"] = round(truth_total, 6)
-        item["search_cost"] = round(search_total, 6)
-        item["path_cost"] = round(search_total, 6)  # legacy alias; prefer search_cost.
-        search_memo[item_id] = search_total
-        truth_memo[item_id] = truth_total
-        visiting.remove(item_id)
-        return search_total
-
-    for item in frontier:
-        item_id = item.get("id")
-        if isinstance(item_id, str):
-            item_search_cost(item_id)
+        item["truth_cost"] = round(truth_cost, 6)
+        item["work_cost"] = round(work_cost, 6)
+        item["step_truth_cost"] = round(truth_cost, 6)
+        item["step_cost"] = round(search_cost, 6)
+        item["search_cost"] = round(search_cost, 6)
+        item["path_cost"] = round(search_cost, 6)  # legacy alias; prefer search_cost.
     return state
 
 

@@ -89,7 +89,7 @@ def audit_stop_policy(
 def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]]:
     """Audit compact strict-search events against graph/frontier state.
 
-    This does not prove the model thought in UCS order, but it catches incoherent
+    This does not prove the model used best-first order internally, but it catches incoherent
     or purely decorative search traces: wrong pop order, orphan children, missing
     candidate-selection events, or frontier items that appear without an expansion.
     """
@@ -124,8 +124,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     popped_items: set[str] = set()
     expanded_items: set[str] = set()
     last_popped_item: str | None = None
-    last_pop_cost: float | None = None
-    last_evidence_version: Any = None
     event_added_nodes: set[str] = set()
     event_selected_nodes: set[str] = set()
     evidence_update_added_steps_by_node: dict[str, list[int]] = {}
@@ -240,12 +238,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if expected_cost > lowest_cost + tolerance and not frontier_costs_changed_later:
                     lowest_items = sorted(q for q in virtual_frontier if q in items and abs(float(items[q].get("search_cost", items[q].get("path_cost", math.inf))) - lowest_cost) <= tolerance)
                     errors.append(f"{label}: popped {item_id} cost {expected_cost} but lowest frontier search_cost is {lowest_cost} at {lowest_items[:3]}")
-
-            evidence_version = event.get("evidence_version", item.get("evidence_version", state.get("evidence_version")))
-            if last_pop_cost is not None and evidence_version == last_evidence_version and event_cost + tolerance < last_pop_cost:
-                errors.append(f"{label}: pop cost decreased from {last_pop_cost} to {event_cost} without evidence_version change")
-            last_pop_cost = event_cost
-            last_evidence_version = evidence_version
 
             virtual_frontier.discard(item_id)
             popped_items.add(item_id)
