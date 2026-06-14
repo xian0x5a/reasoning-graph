@@ -228,6 +228,159 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(cursor["active_ids"], {"Q1"})
         self.assertEqual(state, original)
 
+    def test_search_cursor_applies_supersede_events(self) -> None:
+        state = {
+            "nodes": [{"id": "A1", "type": "assumption", "text": "Shared work", "prior": 1.0}],
+            "edges": [],
+            "frontier": [
+                {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
+            ],
+            "events": [
+                {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                {
+                    "step": 2,
+                    "action": "supersede",
+                    "item": "Q2",
+                    "replacement": "Q1",
+                    "reason": "duplicate expansion_signature; kept lower latest search_cost",
+                },
+            ],
+        }
+
+        cursor = search_cursor(state)
+
+        self.assertEqual(cursor["active_ids"], {"Q1"})
+
+    def test_audit_rejects_equal_cost_supersede(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "equal-cost-supersede.json"
+            state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Shared work", "prior": 1.0}],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {
+                        "step": 2,
+                        "action": "supersede",
+                        "item": "Q1",
+                        "replacement": "Q2",
+                        "reason": "duplicate expansion_signature",
+                    },
+                    {"step": 3, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("audit", str(state_path))
+
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("must be lower than superseded item", result.stderr)
+
+    def test_next_initializes_deduped_frontier(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Shared work", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Other work", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
+                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q3", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(updated["events"][0], {"step": 1, "action": "init", "frontier": ["Q2", "Q3"]})
+            self.assertEqual(updated["events"][1]["action"], "pop")
+            self.assertEqual(updated["events"][1]["item"], "Q2")
+
+    def test_expand_supersedes_existing_duplicate_when_new_item_is_cheaper(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state = {
+                "nodes": [
+                    {"id": "A0", "type": "assumption", "text": "Start", "prior": 1.0},
+                    {"id": "A1", "type": "assumption", "text": "Shared next work", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q0", "node": "A0", "cost_components": {"truth": "auto"}},
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q0", "Q1"]},
+                    {"step": 2, "action": "pop", "item": "Q0", "cost": 0.0},
+                ],
+            }
+            patch = {
+                "frontier": [
+                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}}
+                ]
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+
+            self.assertIn("Q2", {item["id"] for item in updated["frontier"]})
+            self.assertEqual(updated["events"][-2]["action"], "expand")
+            self.assertEqual(updated["events"][-2]["add_frontier"], ["Q2"])
+            self.assertEqual(updated["events"][-1]["action"], "supersede")
+            self.assertEqual(updated["events"][-1]["item"], "Q1")
+            self.assertEqual(updated["events"][-1]["replacement"], "Q2")
+            self.assertEqual(search_cursor(updated)["active_ids"], {"Q2"})
+
+    def test_expand_skips_new_duplicate_when_existing_item_is_cheaper(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state = {
+                "nodes": [
+                    {"id": "A0", "type": "assumption", "text": "Start", "prior": 1.0},
+                    {"id": "A1", "type": "assumption", "text": "Shared next work", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q0", "node": "A0", "cost_components": {"truth": "auto"}},
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q0", "Q1"]},
+                    {"step": 2, "action": "pop", "item": "Q0", "cost": 0.0},
+                ],
+            }
+            patch = {
+                "frontier": [
+                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}}
+                ]
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+
+            self.assertNotIn("Q2", {item["id"] for item in updated["frontier"]})
+            self.assertEqual(updated["events"][-1]["action"], "expand")
+            self.assertEqual(updated["events"][-1]["add_frontier"], [])
+            self.assertEqual(search_cursor(updated)["active_ids"], {"Q1"})
+
     def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "premise-state.json"

@@ -17,5 +17,10 @@ command handlers:
   load state when needed
   call validation, audit, cost, frontier, render, or event helpers
   expand patches can append nodes, edges, frontier items, and upsert premise_groups through update_premise_groups, then record matching event ids
+  use one shared frontier insertion chooser for init and expand dedupe
+  before creating an init event, recompute current costs from latest graph evidence and include only one frontier item per expansion_signature
+  before appending new frontier items, recompute current costs from latest graph evidence and group active plus new frontier candidates by expansion_signature
+  for each duplicate expansion_signature, keep the lowest-cost item; ties prefer the existing/earlier item
+  append only kept new frontier items and emit supersede events for active existing items replaced by a lower-cost duplicate
   preserve existing output, mutation, and error behavior
 ```

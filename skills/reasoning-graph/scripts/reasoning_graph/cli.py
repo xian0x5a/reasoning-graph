@@ -10,7 +10,7 @@ from typing import Any
 
 from .audit import audit_state
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
-from .frontier import item_view, next_event_step, reconstruct_path, search_cursor
+from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
 from .models import STOP_OUTCOMES
 from .render import html_document, presentation_node_ids, to_mermaid
 from .state import by_id, dump_state, load_state
@@ -93,6 +93,9 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"error: pending popped item {cursor['pending_item']} must be expanded or selected before next pop", file=sys.stderr)
         return 1
     active = sorted_frontier_items(state, cursor["active_ids"])
+    if args.pop and not cursor["initialized"]:
+        kept_ids, _ = _choose_frontier_insertions(state, [str(frontier_item["id"]) for frontier_item in active])
+        active = [frontier_item for frontier_item in active if str(frontier_item.get("id")) in kept_ids]
     if not active:
         print("error: active frontier is empty", file=sys.stderr)
         return 1
@@ -110,7 +113,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             print("error: events must be a list before --pop can append", file=sys.stderr)
             return 1
         if not cursor["initialized"]:
-            init_ids = [frontier_item["id"] for frontier_item in sorted_frontier_items(state, cursor["active_ids"])]
+            init_ids = [frontier_item["id"] for frontier_item in active]
             events.append({"step": next_event_step(state), "action": "init", "frontier": init_ids})
         pop_event: dict[str, Any] = {
             "step": next_event_step(state),
@@ -179,6 +182,108 @@ def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], 
             raise ValueError(f"{field} id {item_id} already exists")
 
 
+def _frontier_search_cost(item: dict[str, Any]) -> float:
+    return float(item.get("search_cost", item.get("path_cost", float("inf"))))
+
+
+def _frontier_item_positions(state: dict[str, Any]) -> dict[str, int]:
+    return {
+        str(item.get("id")): index
+        for index, item in enumerate(state.get("frontier", []))
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+
+
+def _choose_frontier_insertions(
+    state: dict[str, Any],
+    candidate_ids: list[str],
+    *,
+    new_ids: list[str] | None = None,
+) -> tuple[set[str], list[dict[str, Any]]]:
+    """Choose one inserted/active item per expansion signature using latest costs."""
+
+    compute_costs(state)
+    items = by_id(state.get("frontier", []), "frontier item")
+    item_positions = _frontier_item_positions(state)
+    new_id_set = set(new_ids or [])
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    seen_candidate_ids: set[str] = set()
+    for candidate_order, raw_item_id in enumerate(candidate_ids):
+        item_id = str(raw_item_id)
+        if item_id in seen_candidate_ids:
+            continue
+        seen_candidate_ids.add(item_id)
+        item = items.get(item_id)
+        if item is None:
+            continue
+        grouped.setdefault(expansion_signature(item), []).append(
+            {
+                "id": item_id,
+                "item": item,
+                "source": "new" if item_id in new_id_set else "existing",
+                "position": item_positions.get(item_id, 10**9),
+                "candidate_order": candidate_order,
+            }
+        )
+
+    kept_ids: set[str] = set()
+    supersede_events: list[dict[str, Any]] = []
+    for candidates in grouped.values():
+        best = min(
+            candidates,
+            key=lambda candidate: (
+                _frontier_search_cost(candidate["item"]),
+                0 if candidate["source"] == "existing" else 1,
+                candidate["position"],
+                candidate["candidate_order"],
+                candidate["id"],
+            ),
+        )
+        kept_ids.add(str(best["id"]))
+        if best["source"] != "new":
+            continue
+        for candidate in candidates:
+            if candidate["id"] == best["id"]:
+                continue
+            if candidate["source"] == "existing":
+                supersede_events.append(
+                    {
+                        "action": "supersede",
+                        "item": candidate["id"],
+                        "replacement": best["id"],
+                        "reason": "duplicate expansion_signature; kept lower latest search_cost",
+                    }
+                )
+    return kept_ids, supersede_events
+
+
+def _dedupe_frontier_additions(
+    state: dict[str, Any],
+    active_ids: set[str],
+    frontier_to_add: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Keep one active item per expansion signature using latest costs."""
+
+    temp_state = json.loads(json.dumps(state))
+    temp_state.setdefault("frontier", [])
+    temp_state["frontier"].extend(json.loads(json.dumps(frontier_to_add)))
+    new_ids = [str(item["id"]) for item in frontier_to_add]
+    original_new_by_id = {str(item["id"]): item for item in frontier_to_add}
+    item_positions = _frontier_item_positions(temp_state)
+    active_candidate_ids = sorted(
+        (str(item_id) for item_id in active_ids),
+        key=lambda item_id: (item_positions.get(item_id, 10**9), item_id),
+    )
+
+    kept_ids, supersede_events = _choose_frontier_insertions(
+        temp_state,
+        active_candidate_ids + new_ids,
+        new_ids=new_ids,
+    )
+    frontier_to_keep = [original_new_by_id[item_id] for item_id in new_ids if item_id in kept_ids]
+    return frontier_to_keep, supersede_events
+
+
 def cmd_expand(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     cursor = search_cursor(state)
@@ -216,9 +321,9 @@ def cmd_expand(args: argparse.Namespace) -> int:
         if child.get("parent") in (None, ""):
             child["parent"] = args.item
 
+    active_ids = set(cursor["active_ids"])
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
-    state.setdefault("frontier", []).extend(frontier_to_add)
     premise_groups = state.setdefault("premise_groups", [])
     if not isinstance(premise_groups, list):
         raise ValueError("premise_groups must be a list before expand can update it")
@@ -237,6 +342,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
         else:
             premise_group_indexes[group_id] = len(premise_groups)
             premise_groups.append(group)
+    frontier_to_add, supersede_events = _dedupe_frontier_additions(state, active_ids, frontier_to_add)
+    state.setdefault("frontier", []).extend(frontier_to_add)
     sorted_frontier(state)
 
     events = state.setdefault("events", [])
@@ -264,6 +371,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
         if key in patch:
             event[key] = patch[key]
     events.append(event)
+    for supersede_event in supersede_events:
+        events.append({"step": next_event_step(state), **supersede_event})
 
     select_spec = patch.get("select", patch.get("solution"))
     selected_node: str | None = None

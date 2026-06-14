@@ -8,6 +8,44 @@ from .costs import compute_costs
 from .state import by_id, node_label
 
 
+EXPANSION_SIGNATURE_CONTEXT_FIELDS = ("scope", "params", "budget")
+
+
+def _canonical_signature_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return tuple(
+            (str(key), _canonical_signature_value(value[key]))
+            for key in sorted(value, key=lambda candidate: str(candidate))
+        )
+    if isinstance(value, list):
+        return tuple(_canonical_signature_value(item) for item in value)
+    if isinstance(value, tuple):
+        return tuple(_canonical_signature_value(item) for item in value)
+    if isinstance(value, set):
+        return tuple(sorted((_canonical_signature_value(item) for item in value), key=repr))
+    return value
+
+
+def expansion_signature(item: dict[str, Any]) -> tuple[Any, ...]:
+    """Return identity for work that would expand the same way.
+
+    Parent/id/provenance fields are intentionally excluded. If path context
+    should change expansion, encode it as assumptions or explicit params/scope.
+    """
+
+    active_assumptions = item.get("active_assumptions", [])
+    if not isinstance(active_assumptions, list):
+        active_assumptions = []
+    return (
+        ("node", _canonical_signature_value(item.get("node"))),
+        ("active_assumptions", tuple(sorted(str(assumption) for assumption in active_assumptions))),
+        *(
+            (field, _canonical_signature_value(item.get(field)) if field in item else None)
+            for field in EXPANSION_SIGNATURE_CONTEXT_FIELDS
+        ),
+    )
+
+
 def next_event_step(state: dict[str, Any]) -> int:
     events = state.get("events")
     if not isinstance(events, list):
@@ -63,6 +101,15 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
             for child_id in added_frontier:
                 if isinstance(child_id, str) and child_id in items and child_id not in popped_ids:
                     active_ids.add(child_id)
+        elif action == "supersede":
+            item_id = event.get("item")
+            if isinstance(item_id, str):
+                active_ids.discard(item_id)
+                if item_id == pending_item:
+                    pending_item = None
+            replacement = event.get("replacement")
+            if isinstance(replacement, str) and replacement in items and replacement not in popped_ids:
+                active_ids.add(replacement)
         elif action in {"select", "solution"}:
             item_id = event.get("item")
             if item_id == pending_item:

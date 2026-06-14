@@ -67,7 +67,7 @@ Test node statuses:
 - `performed` — check was conducted; add resulting `evidence`/`derived` nodes and connect them to affected branches
 - `inconclusive` — performed but did not settle the claim
 
-When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, incrementing `evidence_version` if ranking changes, and re-sorting affected active frontier items. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item for that node; if it only changes ranking/penalty, close the expansion with `no_new_work_reason`. Use `exhaustion_reason` only when marking a node or family `exhausted: true`. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
+When a proposed test is later conducted, resume by updating the test node status to `performed` or `inconclusive`, adding the result as a new evidence/derived node when there is a result, then recomputing and re-sorting active frontier items against the latest graph evidence. `evidence_version` may be kept as trace metadata, but active dedupe always uses latest evidence and does not include `evidence_version`. Score changes alone do not reopen exhausted work. If evidence creates new work for an already-visited node, add a new frontier item for that node; if it only changes ranking/penalty, close the expansion with `no_new_work_reason`. Use `exhaustion_reason` only when marking a node or family `exhausted: true`. Keep the original proposed test node so the audit trail shows the recommendation-to-result transition.
 
 Canonical pattern: `test` node = procedure; result `evidence` node = observed output. Example: `A1 --prompts--> T1`, `T1 --leads_to--> E9`, `E9 --contradicts--> A1`. Put `confidence` on the result evidence when scripts, OCR, external services, or manual transcription could be wrong.
 
@@ -299,19 +299,22 @@ expanded:
     search_cost: 2.1
 ```
 
-State signature minimum:
+Expansion signature minimum:
 
 ```txt
-current_node + sorted active_assumption_ids + evidence_version
+current_node + sorted active_assumption_ids + canonical expansion params/scope/budget
 ```
 
 Guidelines:
 
 - Skip exact cycles.
 - Prefer expanding lower-cost frontier items first, best-first style.
-- Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong.
-- Keep multiple candidate paths in the frontier when they represent meaningfully different assumption chains or answer routes.
-- If new evidence changes likelihood updates, an explicit posterior, or frontier ordering, increment `evidence_version` and allow relevant paths to reopen.
+- Use latest graph evidence when computing every active item's cost; do not include `evidence_version` in active dedupe.
+- Active frontier must contain at most one item per expansion signature. If two active items have the same signature, keep the lowest current `search_cost`; ties keep the existing/earlier item.
+- Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong when they represent different expansion signatures.
+- Keep multiple candidate paths in the frontier when they represent meaningfully different assumption chains, answer routes, params, scopes, or budgets.
+- If path-specific context should affect expansion, encode it as `active_assumptions`, a more specific child node, or explicit params/scope/budget; parent path alone is provenance, not separate live work.
+- If new evidence changes likelihood updates, an explicit posterior, or frontier ordering, recompute active costs and supersede stale duplicate active items instead of carrying duplicate work.
 
 ## Helper Script and Driver
 
@@ -423,10 +426,10 @@ Cost behavior:
 - `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
 - `step_cost` and `search_cost` are the frontier priority score: `truth_cost + work_cost`. Parent pointers do not accumulate cost; past work is sunk.
 - `path_cost` is emitted only as a legacy alias for `search_cost`, not cumulative path cost.
-- `sort` keeps all frontier items but orders them by ascending `search_cost`.
-- `frontier` derives the currently active virtual frontier from `events`; before any pop event, all frontier items are active.
-- `next --pop -i` appends `init` when needed, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/selected, `next --pop` refuses to continue.
-- `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item.
+- `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
+- `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals. Without strict events, older loose states expose stored frontier items for compatibility.
+- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/selected, `next --pop` refuses to continue.
+- `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - `path` reconstructs a proof/search path from parent pointers.
 - `audit` checks compact strict-search events for coherent best-first expansion.
 
@@ -653,9 +656,10 @@ Do not include full frontier before/after snapshots; state already stores fronti
 
 Allowed actions:
 
-- `init` — initial frontier item ids
+- `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
 - `expand` — nodes/edges/frontier items created from the popped item. Add an outgoing edge from the popped node to at least one new test/result/child node so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `select` — chosen `candidate_solution` for this branch/search state
 - `stop` — why search stopped; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
 

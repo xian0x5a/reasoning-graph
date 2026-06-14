@@ -6,6 +6,7 @@ import math
 from typing import Any
 
 from .costs import compute_costs, probability_from_value
+from .frontier import expansion_signature
 from .models import AUDIT_EVENT_ACTIONS, STOP_OUTCOMES, ValidationResult
 from .policy import salient_clue_family_ids, selected_epistemic_candidate_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, viable_candidate_ids
 from .state import by_id
@@ -458,6 +459,41 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             expanded_items.add(item_id)
             last_popped_item = None
             stats["expansions"] += 1
+            continue
+
+        if action == "supersede":
+            item_id = event.get("item")
+            replacement_id = event.get("replacement")
+            if not isinstance(item_id, str) or not item_id:
+                errors.append(f"{label}: item must be a non-empty string")
+                continue
+            if not isinstance(replacement_id, str) or not replacement_id:
+                errors.append(f"{label}: replacement must be a non-empty string")
+                continue
+            if item_id == replacement_id:
+                errors.append(f"{label}: item and replacement must differ")
+                continue
+            if item_id not in items:
+                errors.append(f"{label}: references missing frontier item {item_id}")
+                continue
+            if replacement_id not in items:
+                errors.append(f"{label}: references missing replacement frontier item {replacement_id}")
+                continue
+            if item_id not in virtual_frontier:
+                errors.append(f"{label}: item {item_id} is not in current virtual frontier")
+            if replacement_id not in virtual_frontier:
+                errors.append(f"{label}: replacement {replacement_id} is not in current virtual frontier")
+            if expansion_signature(items[item_id]) != expansion_signature(items[replacement_id]):
+                errors.append(f"{label}: item {item_id} and replacement {replacement_id} have different expansion_signature")
+            item_cost = float(items[item_id].get("search_cost", items[item_id].get("path_cost", math.inf)))
+            replacement_cost = float(items[replacement_id].get("search_cost", items[replacement_id].get("path_cost", math.inf)))
+            if replacement_cost >= item_cost - tolerance:
+                errors.append(
+                    f"{label}: replacement {replacement_id} cost {replacement_cost} must be lower than superseded item {item_id} cost {item_cost}"
+                )
+            virtual_frontier.discard(item_id)
+            if replacement_id not in popped_items:
+                virtual_frontier.add(replacement_id)
             continue
 
         if action in {"select", "solution"}:

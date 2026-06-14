@@ -33,6 +33,7 @@ AUDIT_EVENT_ACTIONS = {
     "init",
     "pop",
     "expand",
+    "supersede",
     "select",
     "solution",  # legacy alias; new traces should use select
     "stop",
