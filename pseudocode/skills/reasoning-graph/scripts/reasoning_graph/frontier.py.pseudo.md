@@ -11,7 +11,7 @@ next_event_step(state):
   return one more than highest numeric event step
 
 search_cursor(state):
-  replay events to find initialized frontier, active items, pending pop, stopped state, and selected nodes
+  replay events without mutating state to find initialized frontier, active items, pending pop, stopped state, and selected nodes
 
 item_view(state, item):
   render compact item context with node, cost, related nodes, scratch, assumptions, and evidence version

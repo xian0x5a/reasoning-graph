@@ -7,7 +7,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RG = REPO_ROOT / "skills" / "reasoning-graph" / "scripts" / "rg.py"
+SCRIPTS_ROOT = REPO_ROOT / "skills" / "reasoning-graph" / "scripts"
+sys.path.insert(0, str(SCRIPTS_ROOT))
+
+from reasoning_graph.frontier import search_cursor
+
+
+RG = SCRIPTS_ROOT / "rg.py"
 FIXTURE = REPO_ROOT / "tests" / "reasoning-graph-strict-good.json"
 
 
@@ -209,6 +215,19 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
 
+    def test_search_cursor_does_not_mutate_frontier_costs(self) -> None:
+        state = {
+            "nodes": [{"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.5}],
+            "edges": [],
+            "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+        }
+        original = json.loads(json.dumps(state))
+
+        cursor = search_cursor(state)
+
+        self.assertEqual(cursor["active_ids"], {"Q1"})
+        self.assertEqual(state, original)
+
     def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "premise-state.json"
@@ -238,6 +257,179 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             # D1 truth is graph-derived from both premises; parent chain is audit context, not probability accumulation.
             self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.328504, places=6)
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
+
+    def test_costs_premise_group_replaces_independent_member_costs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "premise-group-state.json"
+            output_path = Path(tmp_dir) / "premise-group-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
+                    {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
+                    {"id": "C1", "type": "assumption", "text": "Independent premise C", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived from A, B, and C"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                    {"from": "C1", "to": "D1", "type": "leads_to"},
+                ],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.18,
+                        "reason": "A1 and B1 share a latent source, so their costs should not be multiplied independently.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            # Group cost -ln(.18) replaces A1/B1 member costs; C1 remains independent: -ln(.18) + -ln(.5).
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 2.407946, places=6)
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+    def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "grouped-cycle-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.5},
+                    {"id": "B1", "type": "assumption", "text": "Premise B", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                    {"from": "D1", "to": "A1", "type": "leads_to"},
+                ],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.4,
+                        "reason": "Group cost must not hide the raw cycle.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            invalid = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("cycle in truth dependency graph", invalid.stderr)
+
+    def test_validate_warns_but_accepts_missing_premise_group_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "missing-reason-premise-group-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.8},
+                    {"id": "B1", "type": "assumption", "text": "Premise B", "prior": 0.8},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                ],
+                "premise_groups": [{"id": "PG1", "target": "D1", "premises": ["A1", "B1"], "joint_probability": 0.7}],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertIn("should include reason", valid.stderr)
+
+    def test_expand_patch_appends_premise_groups(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "expand-premise-group-state.json"
+            patch_path = Path(tmp_dir) / "expand-premise-group-patch.json"
+            output_path = Path(tmp_dir) / "expand-premise-group-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
+                    {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [{"id": "EAD", "from": "A1", "to": "D1", "type": "leads_to"}],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            patch = {
+                "edges": [{"id": "EBD", "from": "B1", "to": "D1", "type": "leads_to"}],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.18,
+                        "reason": "A1 and B1 share a latent source.",
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg(
+                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expanded = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(expanded["premise_groups"][0]["id"], "PG1")
+            self.assertEqual(expanded["events"][-1]["add_premise_groups"], ["PG1"])
+            self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 1.714798, places=6)
+
+    def test_audit_accepts_added_premise_groups(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "audit-premise-group-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
+                    {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [
+                    {"id": "EAD", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "EBD", "from": "B1", "to": "D1", "type": "leads_to"},
+                ],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.18,
+                        "reason": "A1 and B1 share a latent source.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 1.714798},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q1",
+                        "add_nodes": [],
+                        "add_edges": ["EBD"],
+                        "add_frontier": [],
+                        "add_premise_groups": ["PG1"],
+                        "no_new_work_reason": "Calibration only.",
+                    },
+                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("audit", str(state_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_costs_explicit_posterior_overrides_graph_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -337,6 +529,50 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("likelihood/likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
             self.assertIn("edge must not set both likelihood and likelihood_ratio", invalid.stderr)
             self.assertIn("contradicts likelihood ratio must be in (0, 1)", invalid.stderr)
+
+    def test_validate_rejects_bad_premise_groups(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "bad-premise-groups.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.5},
+                    {"id": "B1", "type": "assumption", "text": "Premise B", "prior": 0.5},
+                    {"id": "C1", "type": "assumption", "text": "Premise C", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                ],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.8,
+                        "effective_truth_cost": 0.2,
+                        "reason": "same source",
+                    },
+                    {
+                        "id": "PG2",
+                        "target": "D1",
+                        "premises": ["B1", "C1"],
+                        "joint_probability": 0.0,
+                        "reason": "overlaps and lacks C1 dependency",
+                    },
+                    {"id": "PG3", "target": "D1", "premises": ["A1"], "joint_probability": 0.5},
+                ],
+                "frontier": [],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            invalid = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("premise_groups[0] must not set effective_truth_cost", invalid.stderr)
+            self.assertIn("premise_groups[1] premise 'C1' must have a leads_to edge to target 'D1'", invalid.stderr)
+            self.assertIn("premise_groups for target 'D1' overlap on premise(s) B1", invalid.stderr)
+            self.assertIn("premise_groups[1].joint_probability must be in (0, 1]", invalid.stderr)
+            self.assertIn("premise_groups[2].premises must be a list of at least two node ids", invalid.stderr)
 
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

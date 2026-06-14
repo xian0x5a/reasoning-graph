@@ -149,13 +149,35 @@ def node_truth_cost(node: dict[str, Any] | None) -> float:
     return node_local_truth_cost(node)
 
 
+def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:
+    """Reject raw `leads_to` cycles before any premise-group cost replacement."""
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node_id: str) -> None:
+        if node_id in visited:
+            return
+        if node_id in visiting:
+            raise ValueError(f"cycle in truth dependency graph at {node_id}")
+        visiting.add(node_id)
+        for source_id in premise_sources.get(node_id, []):
+            visit(source_id)
+        visiting.remove(node_id)
+        visited.add(node_id)
+
+    for node_id in premise_sources:
+        visit(node_id)
+
 
 def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
     Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. Incoming `supports`/`contradicts` edges
-    with `likelihood` or `likelihood_ratio` update that base belief in odds space.
+    cost to the target's base belief. Top-level premise_groups replace grouped
+    member costs with a calibrated joint_probability. Incoming `supports`/
+    `contradicts` edges with `likelihood` or `likelihood_ratio` update that
+    base belief in odds space.
     Explicit node `posterior` is treated as already-calibrated and wins over
     graph-derived updates to avoid double counting.
     """
@@ -177,6 +199,55 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         elif edge_type in {"supports", "contradicts"} and ("likelihood_ratio" in edge or "likelihood" in edge):
             likelihood_edges.setdefault(dst, []).append(edge)
 
+    assert_acyclic_premise_dependencies(premise_sources)
+
+    premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
+    grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
+    premise_source_sets = {node_id: set(sources) for node_id, sources in premise_sources.items()}
+    premise_groups = state.get("premise_groups", [])
+    if premise_groups is None:
+        premise_groups = []
+    if not isinstance(premise_groups, list):
+        raise ValueError("premise_groups must be a list when present")
+    for index, group in enumerate(premise_groups):
+        if not isinstance(group, dict):
+            raise ValueError(f"premise_groups[{index}] must be object")
+        target = group.get("target")
+        if not isinstance(target, str) or target not in nodes:
+            raise ValueError(f"premise_groups[{index}].target references missing node {target!r}")
+        premises = group.get("premises")
+        if not isinstance(premises, list) or len(premises) < 2:
+            raise ValueError(f"premise_groups[{index}].premises must be a list of at least two node ids")
+        premise_ids: list[str] = []
+        for premise_index, premise_id in enumerate(premises):
+            if not isinstance(premise_id, str) or not premise_id:
+                raise ValueError(f"premise_groups[{index}].premises[{premise_index}] must be a non-empty string")
+            if premise_id not in nodes:
+                raise ValueError(f"premise_groups[{index}].premises[{premise_index}] references missing node {premise_id!r}")
+            if premise_id == target:
+                raise ValueError(f"premise_groups[{index}] must not include target {target!r} as a premise")
+            if premise_id not in premise_source_sets.get(target, set()):
+                raise ValueError(
+                    f"premise_groups[{index}] premise {premise_id!r} must have a leads_to edge to target {target!r}"
+                )
+            premise_ids.append(premise_id)
+        if len(set(premise_ids)) != len(premise_ids):
+            raise ValueError(f"premise_groups[{index}].premises must not contain duplicates")
+        overlap = grouped_premise_sources[target].intersection(premise_ids)
+        if overlap:
+            joined = ", ".join(sorted(overlap))
+            raise ValueError(f"premise_groups for target {target!r} overlap on premise(s) {joined}")
+        if "effective_truth_cost" in group:
+            raise ValueError(
+                f"premise_groups[{index}] must not set effective_truth_cost; it is computed from joint_probability"
+            )
+        if "joint_probability" not in group:
+            raise ValueError(f"premise_groups[{index}] missing joint_probability")
+        premise_group_costs[target].append(
+            probability_cost(group["joint_probability"], f"premise_groups[{index}].joint_probability")
+        )
+        grouped_premise_sources[target].update(premise_ids)
+
     memo: dict[str, float] = {}
     visiting: set[str] = set()
 
@@ -195,7 +266,15 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
 
         visiting.add(node_id)
         local_cost = node_local_truth_cost(node, include_posterior=False)
-        premise_cost = sum(effective_cost(source_id) for source_id in premise_sources.get(node_id, []))
+        grouped_sources = grouped_premise_sources.get(node_id, set())
+        ungrouped_source_cost = sum(
+            effective_cost(source_id)
+            for source_id in premise_sources.get(node_id, [])
+            if source_id not in grouped_sources
+        )
+        # Premise groups are explicit non-independent bundles; their calibrated
+        # joint_probability replaces member costs.
+        premise_cost = sum(premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
         lrs = likelihood_edges.get(node_id, [])
         if lrs:

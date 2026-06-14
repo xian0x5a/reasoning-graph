@@ -192,13 +192,22 @@ def cmd_expand(args: argparse.Namespace) -> int:
     nodes_to_add = _object_list(patch.get("nodes", patch.get("add_node_objects")), "nodes")
     edges_to_add = _object_list(patch.get("edges", patch.get("add_edge_objects")), "edges")
     frontier_to_add = _object_list(patch.get("frontier", patch.get("add_frontier_objects")), "frontier")
+    premise_groups_to_add = _object_list(
+        patch.get("premise_groups", patch.get("add_premise_group_objects")), "premise_groups"
+    )
 
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
     existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
     existing_frontier = {item.get("id") for item in state.get("frontier", []) if isinstance(item, dict)}
+    existing_premise_groups = {
+        group.get("id") for group in state.get("premise_groups", []) if isinstance(group, dict) and group.get("id")
+    }
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
+    _ensure_unique_new_ids(
+        {str(item) for item in existing_premise_groups if item}, premise_groups_to_add, "premise_groups"
+    )
 
     for child in frontier_to_add:
         if child.get("parent") in (None, ""):
@@ -207,6 +216,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
     state.setdefault("frontier", []).extend(frontier_to_add)
+    state.setdefault("premise_groups", []).extend(premise_groups_to_add)
     sorted_frontier(state)
 
     events = state.setdefault("events", [])
@@ -219,6 +229,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "add_nodes": [node["id"] for node in nodes_to_add],
         "add_edges": [edge["id"] for edge in edges_to_add],
         "add_frontier": [item["id"] for item in frontier_to_add],
+        "add_premise_groups": [group["id"] for group in premise_groups_to_add],
     }
     for key in (
         "mode",

@@ -17,13 +17,12 @@ def next_event_step(state: dict[str, Any]) -> int:
 
 
 def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
-    """Derive the active virtual frontier from compact events.
+    """Derive the active virtual frontier from compact events without mutating state.
 
     If no strict events exist yet, every frontier item is considered active so
     older/loose states remain usable with `frontier` and `next`.
     """
 
-    compute_costs(state)
     items = by_id(state.get("frontier", []), "frontier item")
     events = state.get("events")
     if not isinstance(events, list) or not events:

@@ -16,5 +16,6 @@ main(argv):
 command handlers:
   load state when needed
   call validation, audit, cost, frontier, render, or event helpers
+  expand patches can append nodes, edges, frontier items, and premise_groups, then record matching add_* event ids
   preserve existing output, mutation, and error behavior
 ```
