@@ -7,7 +7,7 @@ import json
 import math
 from typing import Any
 
-from .costs import compute_costs, node_truth_cost
+from .costs import compute_costs, legacy_premise_group_factor, node_truth_cost
 from .models import CLASS_BY_NODE_TYPE
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
@@ -127,6 +127,43 @@ def mermaid_node_definition(mid: str, node: dict[str, Any]) -> str:
     return f'{mid}["{label}"]'
 
 
+def iter_visual_factors(state: dict[str, Any]) -> list[dict[str, Any]]:
+    visual: list[dict[str, Any]] = []
+    for factor in state.get("factors", []) if isinstance(state.get("factors", []), list) else []:
+        if isinstance(factor, dict):
+            visual.append(factor)
+    for group in state.get("premise_groups", []) if isinstance(state.get("premise_groups", []), list) else []:
+        if isinstance(group, dict):
+            factor = legacy_premise_group_factor(group)
+            factor["reason"] = group.get("reason")
+            visual.append(factor)
+    return visual
+
+
+def factor_mermaid_raw_id(factor: dict[str, Any], index: int) -> str:
+    raw_id = factor.get("id")
+    if isinstance(raw_id, str) and raw_id:
+        return f"factor:{raw_id}"
+    return f"factor:{index}"
+
+
+def compact_factor_label(factor: dict[str, Any]) -> str:
+    factor_id = str(factor.get("id") or "factor")
+    relation = str(factor.get("relation") or "factor")
+    aggregation = factor.get("aggregation") if isinstance(factor.get("aggregation"), dict) else {}
+    kind = str(aggregation.get("kind") or "aggregation")
+    if kind == "joint_probability" and "probability" in aggregation:
+        return f"{factor_id}\n{relation} joint P={aggregation.get('probability')}"
+    if kind == "likelihood":
+        return f"{factor_id}\n{relation} joint likelihood"
+    return f"{factor_id}\n{relation} {kind}"
+
+
+def mermaid_factor_definition(mid: str, factor: dict[str, Any]) -> str:
+    label = escape_mermaid_label(compact_factor_label(factor))
+    return f'{mid}{{{{"{label}"}}}}'
+
+
 def grouped_nodes(nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     groups: dict[str, list[dict[str, Any]]] = {group_id: [] for group_id, _, _ in GRAPH_GROUPS}
     groups["cluster_other"] = []
@@ -151,6 +188,8 @@ def to_mermaid(
     safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
     lines = [f"flowchart {safe_direction}"]
     node_id_map: dict[str, str] = {}
+    factor_id_map: dict[str, str] = {}
+    factor_member_edges: set[tuple[str, str, str]] = set()
     allowed = include_nodes
     selected_nodes: list[dict[str, Any]] = []
     for node in state.get("nodes", []):
@@ -162,6 +201,27 @@ def to_mermaid(
         mid = mermaid_id(raw_id)
         node_id_map[raw_id] = mid
         selected_nodes.append(node)
+
+    selected_factors: list[tuple[dict[str, Any], str]] = []
+    for index, factor in enumerate(iter_visual_factors(state)):
+        relation = str(factor.get("relation") or "")
+        target = factor.get("target")
+        inputs = factor.get("inputs")
+        if relation not in {"leads_to", "supports", "contradicts"}:
+            continue
+        if not isinstance(target, str) or target not in node_id_map:
+            continue
+        if not isinstance(inputs, list) or not inputs or not all(isinstance(input_id, str) for input_id in inputs):
+            continue
+        if any(input_id not in node_id_map for input_id in inputs):
+            continue
+        if allowed is not None and any(input_id not in allowed for input_id in inputs):
+            continue
+        raw_factor_id = f"{factor_mermaid_raw_id(factor, index)}:{index}"
+        factor_id_map[raw_factor_id] = mermaid_id(raw_factor_id)
+        selected_factors.append((factor, raw_factor_id))
+        for input_id in inputs:
+            factor_member_edges.add((input_id, target, relation))
 
     if group_by_type:
         groups = grouped_nodes(selected_nodes)
@@ -181,6 +241,16 @@ def to_mermaid(
             raw_id = str(node.get("id"))
             lines.append(f"  {mermaid_node_definition(node_id_map[raw_id], node)}")
 
+    if selected_factors:
+        if group_by_type:
+            lines.append("  subgraph cluster_factors[Factors]")
+            for factor, raw_factor_id in selected_factors:
+                lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
+            lines.append("  end")
+        else:
+            for factor, raw_factor_id in selected_factors:
+                lines.append(f"  {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
+
     styled_edge_indexes: list[int] = []
     rendered_edge_index = 0
     for edge in state.get("edges", []):
@@ -195,6 +265,8 @@ def to_mermaid(
         if not src or not dst:
             continue
         edge_type = str(edge.get("type") or edge.get("label") or "leads_to")
+        if (src_raw, dst_raw, edge_type) in factor_member_edges:
+            continue
         if edge_type in {"contradicts", "prompts", "tested_by", "tests"}:
             lines.append(f"  {src} -. {edge_type} .-> {dst}")
         else:
@@ -202,6 +274,21 @@ def to_mermaid(
         if edge_type in {"prompts", "tested_by", "tests"}:
             styled_edge_indexes.append(rendered_edge_index)
         rendered_edge_index += 1
+
+    for factor, raw_factor_id in selected_factors:
+        factor_mid = factor_id_map[raw_factor_id]
+        relation = str(factor.get("relation") or "factor")
+        target = str(factor.get("target"))
+        inputs = factor.get("inputs") if isinstance(factor.get("inputs"), list) else []
+        for input_id in inputs:
+            input_mid = node_id_map.get(str(input_id))
+            if input_mid:
+                lines.append(f"  {input_mid} -. grouped {relation} .-> {factor_mid}")
+                rendered_edge_index += 1
+        target_mid = node_id_map.get(target)
+        if target_mid:
+            lines.append(f"  {factor_mid} -- {relation} factor --> {target_mid}")
+            rendered_edge_index += 1
 
     lines.extend(
         [
@@ -220,6 +307,7 @@ def to_mermaid(
             "  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;",
             "  classDef bad fill:#fee2e2,stroke:#dc2626,stroke-width:2px;",
             "  classDef frontier fill:#fafafa,stroke:#71717a,stroke-dasharray: 5 5;",
+            "  classDef factor fill:#f1f5f9,stroke:#475569,stroke-dasharray: 3 3;",
             "",
         ]
     )
@@ -232,6 +320,7 @@ def to_mermaid(
                 "  style cluster_assumptions fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
                 "  style cluster_inference fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px;",
                 "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
+                "  style cluster_factors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3;",
                 "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
                 "",
             ]
@@ -239,6 +328,10 @@ def to_mermaid(
 
     for edge_index in styled_edge_indexes:
         lines.append(f"  linkStyle {edge_index} stroke:#d97706,stroke-dasharray:5 5;")
+
+    factor_mids = [factor_id_map[raw_factor_id] for _, raw_factor_id in selected_factors]
+    if factor_mids:
+        lines.append(f"  class {','.join(factor_mids)} factor;")
 
     classes = class_assignments(state)
     for cls, ids in sorted(classes.items()):

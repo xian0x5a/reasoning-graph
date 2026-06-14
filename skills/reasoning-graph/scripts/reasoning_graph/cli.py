@@ -308,6 +308,10 @@ def cmd_expand(args: argparse.Namespace) -> int:
         patch.get("update_premise_groups", patch.get("premise_groups", patch.get("add_premise_group_objects"))),
         "update_premise_groups",
     )
+    factors_to_update = _object_list(
+        patch.get("update_factors", patch.get("factors", patch.get("add_factor_objects"))),
+        "update_factors",
+    )
 
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
     existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
@@ -316,6 +320,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
     premise_group_update_ids = _ensure_object_ids(premise_groups_to_update, "update_premise_groups")
+    factor_update_ids = _ensure_object_ids(factors_to_update, "update_factors")
 
     for child in frontier_to_add:
         if child.get("parent") in (None, ""):
@@ -342,6 +347,24 @@ def cmd_expand(args: argparse.Namespace) -> int:
         else:
             premise_group_indexes[group_id] = len(premise_groups)
             premise_groups.append(group)
+    factors = state.setdefault("factors", [])
+    if not isinstance(factors, list):
+        raise ValueError("factors must be a list before expand can update it")
+    factor_indexes: dict[str, int] = {}
+    for index, factor in enumerate(factors):
+        if not isinstance(factor, dict) or not isinstance(factor.get("id"), str) or not factor.get("id"):
+            continue
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            raise ValueError(f"factors has duplicate id {factor_id}")
+        factor_indexes[factor_id] = index
+    for factor in factors_to_update:
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            factors[factor_indexes[factor_id]] = factor
+        else:
+            factor_indexes[factor_id] = len(factors)
+            factors.append(factor)
     frontier_to_add, supersede_events = _dedupe_frontier_additions(state, active_ids, frontier_to_add)
     state.setdefault("frontier", []).extend(frontier_to_add)
     sorted_frontier(state)
@@ -357,6 +380,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "add_edges": [edge["id"] for edge in edges_to_add],
         "add_frontier": [item["id"] for item in frontier_to_add],
         "update_premise_groups": premise_group_update_ids,
+        "update_factors": factor_update_ids,
     }
     for key in (
         "mode",

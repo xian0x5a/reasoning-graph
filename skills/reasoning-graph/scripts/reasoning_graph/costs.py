@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable
 
-from .models import LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
+from .models import FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
 from .state import by_id
 from .utils import finite_float
 
@@ -76,21 +76,95 @@ def likelihood_probability_from_value(value: Any, field: str) -> float:
     return probability
 
 
+def likelihood_ratio_from_likelihood(likelihood: Any, field: str = "likelihood") -> float:
+    if not isinstance(likelihood, dict):
+        raise ValueError(f"{field} must be an object")
+    if_target_true = likelihood_probability_from_value(
+        likelihood.get("if_target_true"), f"{field}.if_target_true"
+    )
+    if_target_false = likelihood_probability_from_value(
+        likelihood.get("if_target_false"), f"{field}.if_target_false"
+    )
+    return if_target_true / if_target_false
+
+
 def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
     if "likelihood" in edge and "likelihood_ratio" in edge:
         raise ValueError("edge must not set both likelihood and likelihood_ratio")
     if "likelihood" in edge:
-        likelihood = edge.get("likelihood")
-        if not isinstance(likelihood, dict):
-            raise ValueError("likelihood must be an object")
-        if_target_true = likelihood_probability_from_value(
-            likelihood.get("if_target_true"), "likelihood.if_target_true"
-        )
-        if_target_false = likelihood_probability_from_value(
-            likelihood.get("if_target_false"), "likelihood.if_target_false"
-        )
-        return if_target_true / if_target_false
+        return likelihood_ratio_from_likelihood(edge.get("likelihood"))
     return likelihood_ratio_from_value(edge.get("likelihood_ratio"))
+
+
+def factor_label(source: str, index: int) -> str:
+    return f"{source}[{index}]"
+
+
+def legacy_premise_group_factor(group: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": group.get("id"),
+        "relation": "leads_to",
+        "target": group.get("target"),
+        "inputs": group.get("premises"),
+        "aggregation": {"kind": "joint_probability", "probability": group.get("joint_probability")},
+    }
+
+
+def iter_numeric_factor_specs(state: dict[str, Any]) -> Iterable[tuple[str, int, dict[str, Any]]]:
+    factors = state.get("factors", [])
+    if factors is None:
+        factors = []
+    if not isinstance(factors, list):
+        raise ValueError("factors must be a list when present")
+    for index, factor in enumerate(factors):
+        if not isinstance(factor, dict):
+            raise ValueError(f"factors[{index}] must be object")
+        if "effective_truth_cost" in factor:
+            raise ValueError(f"factors[{index}] must not set effective_truth_cost; it is computed from aggregation")
+        if "likelihood_ratio" in factor:
+            raise ValueError(
+                f"factors[{index}] must not set likelihood_ratio directly; use aggregation.if_target_true and aggregation.if_target_false"
+            )
+        aggregation = factor.get("aggregation")
+        if isinstance(aggregation, dict) and "likelihood_ratio" in aggregation:
+            raise ValueError(
+                f"factors[{index}].aggregation must not set likelihood_ratio directly; use if_target_true and if_target_false"
+            )
+        yield "factors", index, factor
+
+    premise_groups = state.get("premise_groups", [])
+    if premise_groups is None:
+        premise_groups = []
+    if not isinstance(premise_groups, list):
+        raise ValueError("premise_groups must be a list when present")
+    for index, group in enumerate(premise_groups):
+        if not isinstance(group, dict):
+            raise ValueError(f"premise_groups[{index}] must be object")
+        if "effective_truth_cost" in group:
+            raise ValueError(
+                f"premise_groups[{index}] must not set effective_truth_cost; it is computed from joint_probability"
+            )
+        yield "premise_groups", index, legacy_premise_group_factor(group)
+
+
+def joint_probability_cost_from_factor(factor: dict[str, Any], label: str) -> float:
+    aggregation = factor.get("aggregation")
+    if not isinstance(aggregation, dict):
+        raise ValueError(f"{label}.aggregation must be an object")
+    if aggregation.get("kind") != "joint_probability":
+        raise ValueError(f"{label}.aggregation.kind must be 'joint_probability' for leads_to factors")
+    if "probability" not in aggregation:
+        raise ValueError(f"{label}.aggregation.probability missing")
+    return probability_cost(aggregation.get("probability"), f"{label}.aggregation.probability")
+
+
+def likelihood_ratio_from_factor(factor: dict[str, Any], label: str) -> float:
+    aggregation = factor.get("aggregation")
+    if not isinstance(aggregation, dict):
+        raise ValueError(f"{label}.aggregation must be an object")
+    if aggregation.get("kind") != "likelihood":
+        raise ValueError(f"{label}.aggregation.kind must be 'likelihood' for supports/contradicts factors")
+    return likelihood_ratio_from_likelihood(aggregation, f"{label}.aggregation")
 
 
 def probability_from_log_odds(log_odds: float) -> float:
@@ -174,10 +248,11 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
     Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. Top-level premise_groups replace grouped
-    member costs with a calibrated joint_probability. Incoming `supports`/
-    `contradicts` edges with `likelihood` or `likelihood_ratio` update that
-    base belief in odds space.
+    cost to the target's base belief. Top-level premise_groups or `leads_to`
+    factors replace grouped member costs with a calibrated joint_probability.
+    Incoming `supports`/`contradicts` edges with `likelihood` or
+    `likelihood_ratio` update that base belief in odds space; grouped likelihood
+    factors replace correlated member likelihood updates.
     Explicit node `posterior` is treated as already-calibrated and wins over
     graph-derived updates to avoid double counting.
     """
@@ -185,6 +260,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     nodes = by_id(state.get("nodes", []), "node")
     premise_sources: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     likelihood_edges: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in nodes}
+    likelihood_source_sets: dict[tuple[str, str], set[str]] = {}
 
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -196,57 +272,68 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             continue
         if edge_type == "leads_to":
             premise_sources.setdefault(dst, []).append(src)
-        elif edge_type in {"supports", "contradicts"} and ("likelihood_ratio" in edge or "likelihood" in edge):
-            likelihood_edges.setdefault(dst, []).append(edge)
+        elif edge_type in {"supports", "contradicts"}:
+            likelihood_source_sets.setdefault((dst, str(edge_type)), set()).add(src)
+            if "likelihood_ratio" in edge or "likelihood" in edge:
+                likelihood_edges.setdefault(dst, []).append(edge)
 
     assert_acyclic_premise_dependencies(premise_sources)
 
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
     grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
+    grouped_likelihood_sources: dict[tuple[str, str], set[str]] = {}
+    factor_likelihood_ratios: dict[str, list[float]] = {node_id: [] for node_id in nodes}
     premise_source_sets = {node_id: set(sources) for node_id, sources in premise_sources.items()}
-    premise_groups = state.get("premise_groups", [])
-    if premise_groups is None:
-        premise_groups = []
-    if not isinstance(premise_groups, list):
-        raise ValueError("premise_groups must be a list when present")
-    for index, group in enumerate(premise_groups):
-        if not isinstance(group, dict):
-            raise ValueError(f"premise_groups[{index}] must be object")
-        target = group.get("target")
+    for source, index, factor in iter_numeric_factor_specs(state):
+        label = factor_label(source, index)
+        relation = factor.get("relation")
+        if relation not in FACTOR_RELATIONS:
+            raise ValueError(f"{label}.relation must be one of {sorted(FACTOR_RELATIONS)}, got {relation!r}")
+        target = factor.get("target")
         if not isinstance(target, str) or target not in nodes:
-            raise ValueError(f"premise_groups[{index}].target references missing node {target!r}")
-        premises = group.get("premises")
-        if not isinstance(premises, list) or len(premises) < 2:
-            raise ValueError(f"premise_groups[{index}].premises must be a list of at least two node ids")
-        premise_ids: list[str] = []
-        for premise_index, premise_id in enumerate(premises):
-            if not isinstance(premise_id, str) or not premise_id:
-                raise ValueError(f"premise_groups[{index}].premises[{premise_index}] must be a non-empty string")
-            if premise_id not in nodes:
-                raise ValueError(f"premise_groups[{index}].premises[{premise_index}] references missing node {premise_id!r}")
-            if premise_id == target:
-                raise ValueError(f"premise_groups[{index}] must not include target {target!r} as a premise")
-            if premise_id not in premise_source_sets.get(target, set()):
-                raise ValueError(
-                    f"premise_groups[{index}] premise {premise_id!r} must have a leads_to edge to target {target!r}"
-                )
-            premise_ids.append(premise_id)
-        if len(set(premise_ids)) != len(premise_ids):
-            raise ValueError(f"premise_groups[{index}].premises must not contain duplicates")
-        overlap = grouped_premise_sources[target].intersection(premise_ids)
+            raise ValueError(f"{label}.target references missing node {target!r}")
+        inputs = factor.get("inputs")
+        input_label = "premises" if source == "premise_groups" else "inputs"
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError(f"{label}.{input_label} must be a list of at least two node ids")
+        input_ids: list[str] = []
+        for input_index, input_id in enumerate(inputs):
+            if not isinstance(input_id, str) or not input_id:
+                raise ValueError(f"{label}.{input_label}[{input_index}] must be a non-empty string")
+            if input_id not in nodes:
+                raise ValueError(f"{label}.{input_label}[{input_index}] references missing node {input_id!r}")
+            if input_id == target:
+                raise ValueError(f"{label} must not include target {target!r} as an input")
+            if relation == "leads_to" and input_id not in premise_source_sets.get(target, set()):
+                raise ValueError(f"{label} input {input_id!r} must have a leads_to edge to target {target!r}")
+            if relation in {"supports", "contradicts"} and input_id not in likelihood_source_sets.get((target, relation), set()):
+                raise ValueError(f"{label} input {input_id!r} must have a {relation} edge to target {target!r}")
+            input_ids.append(input_id)
+        if len(set(input_ids)) != len(input_ids):
+            raise ValueError(f"{label}.{input_label} must not contain duplicates")
+
+        if relation == "leads_to":
+            overlap = grouped_premise_sources[target].intersection(input_ids)
+            if overlap:
+                joined = ", ".join(sorted(overlap))
+                raise ValueError(f"leads_to factors for target {target!r} overlap on input(s) {joined}")
+            premise_group_costs[target].append(joint_probability_cost_from_factor(factor, label))
+            grouped_premise_sources[target].update(input_ids)
+            continue
+
+        grouped_key = (target, relation)
+        grouped_for_relation = grouped_likelihood_sources.setdefault(grouped_key, set())
+        overlap = grouped_for_relation.intersection(input_ids)
         if overlap:
             joined = ", ".join(sorted(overlap))
-            raise ValueError(f"premise_groups for target {target!r} overlap on premise(s) {joined}")
-        if "effective_truth_cost" in group:
-            raise ValueError(
-                f"premise_groups[{index}] must not set effective_truth_cost; it is computed from joint_probability"
-            )
-        if "joint_probability" not in group:
-            raise ValueError(f"premise_groups[{index}] missing joint_probability")
-        premise_group_costs[target].append(
-            probability_cost(group["joint_probability"], f"premise_groups[{index}].joint_probability")
-        )
-        grouped_premise_sources[target].update(premise_ids)
+            raise ValueError(f"{relation} factors for target {target!r} overlap on input(s) {joined}")
+        likelihood_ratio = likelihood_ratio_from_factor(factor, label)
+        if relation == "supports" and likelihood_ratio <= 1:
+            raise ValueError(f"{label} supports likelihood ratio must be > 1")
+        if relation == "contradicts" and likelihood_ratio >= 1:
+            raise ValueError(f"{label} contradicts likelihood ratio must be in (0, 1)")
+        factor_likelihood_ratios[target].append(likelihood_ratio)
+        grouped_for_relation.update(input_ids)
 
     memo: dict[str, float] = {}
     visiting: set[str] = set()
@@ -276,13 +363,21 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         # joint_probability replaces member costs.
         premise_cost = sum(premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
-        lrs = likelihood_edges.get(node_id, [])
-        if lrs:
+        ungrouped_likelihood_edges = [
+            edge
+            for edge in likelihood_edges.get(node_id, [])
+            if str(edge.get("from"))
+            not in grouped_likelihood_sources.get((node_id, str(edge.get("type") or edge.get("label"))), set())
+        ]
+        factor_lrs = factor_likelihood_ratios.get(node_id, [])
+        if ungrouped_likelihood_edges or factor_lrs:
             # Missing local/premise probability is not certainty; use neutral odds so LR can move belief.
             base_probability = NEUTRAL_UPDATE_PRIOR if base_cost == 0.0 and not node_has_probability(node) else probability_from_cost(base_cost)
             log_odds = log_odds_from_probability(base_probability)
-            for edge in lrs:
+            for edge in ungrouped_likelihood_edges:
                 log_odds += math.log(likelihood_ratio_from_edge(edge))
+            for likelihood_ratio in factor_lrs:
+                log_odds += math.log(likelihood_ratio)
             updated_probability = probability_from_log_odds(log_odds)
             if updated_probability <= 0.0:
                 cost = math.inf

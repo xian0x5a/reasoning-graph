@@ -29,6 +29,19 @@ EDGE_TYPES = {
 }
 
 
+FACTOR_RELATIONS = {
+    "leads_to",
+    "supports",
+    "contradicts",
+}
+
+
+FACTOR_AGGREGATION_KINDS = {
+    "joint_probability",
+    "likelihood",
+}
+
+
 AUDIT_EVENT_ACTIONS = {
     "init",
     "pop",

@@ -13,7 +13,7 @@ audit_state(state):
   verify frontier pops are coherent and lowest cost
   verify expansions and selections match pending items and graph topology
   verify supersede events reference same-signature active items, require the replacement to have strictly lower current cost than the retired item, and remove the stale item from the active frontier
-  verify expansion update_premise_groups references existing premise group ids and treat their targets as numeric belief updates
+  verify expansion update_premise_groups and update_factors reference existing ids and treat their targets as numeric belief updates
   treat candidate additions and contradicts-edge penalties as terminal/penalizing expansion signals
   verify stop events include valid outcomes and satisfy stop policy
   report errors/warnings without mutating state

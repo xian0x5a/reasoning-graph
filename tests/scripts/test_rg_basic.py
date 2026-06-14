@@ -449,6 +449,83 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_rg("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
+    def test_costs_factor_replaces_correlated_likelihood_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "factor-likelihood-state.json"
+            output_path = Path(tmp_dir) / "factor-likelihood-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal A"},
+                    {"id": "E2", "type": "evidence", "text": "Positive signal B"},
+                    {"id": "E3", "type": "evidence", "text": "Independent signal"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
+                    {"from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
+                    {"from": "E3", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.6, "if_target_false": 0.3}},
+                ],
+                "factors": [
+                    {
+                        "id": "F1",
+                        "relation": "supports",
+                        "inputs": ["E1", "E2"],
+                        "target": "A1",
+                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
+                        "reason": "E1 and E2 are correlated, so their combined LR is calibrated directly.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            # Prior odds 1 * grouped LR 3 * independent LR 2 = odds 6 => posterior 6/7 => -ln(6/7).
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.154151, places=6)
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+    def test_costs_leads_to_factor_replaces_independent_member_costs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "factor-leads-to-state.json"
+            output_path = Path(tmp_dir) / "factor-leads-to-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
+                    {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
+                    {"id": "C1", "type": "assumption", "text": "Independent premise C", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived from A, B, and C"},
+                ],
+                "edges": [
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                    {"from": "C1", "to": "D1", "type": "leads_to"},
+                ],
+                "factors": [
+                    {
+                        "id": "F1",
+                        "relation": "leads_to",
+                        "inputs": ["A1", "B1"],
+                        "target": "D1",
+                        "aggregation": {"kind": "joint_probability", "probability": 0.18},
+                        "reason": "A1 and B1 share a latent source.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 2.407946, places=6)
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
     def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "grouped-cycle-state.json"
@@ -592,6 +669,45 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(expanded["events"][-1]["update_premise_groups"], ["PG1"])
             self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 2.407946, places=6)
 
+    def test_expand_patch_upserts_new_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "expand-factor-state.json"
+            patch_path = Path(tmp_dir) / "expand-factor-patch.json"
+            output_path = Path(tmp_dir) / "expand-factor-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal A"},
+                    {"id": "E2", "type": "evidence", "text": "Positive signal B"},
+                ],
+                "edges": [{"id": "E1A", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}}],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            patch = {
+                "edges": [{"id": "E2A", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}}],
+                "update_factors": [
+                    {
+                        "id": "F1",
+                        "relation": "supports",
+                        "inputs": ["E1", "E2"],
+                        "target": "A1",
+                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
+                        "reason": "E1 and E2 share source.",
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg(
+                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expanded = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(expanded["factors"][0]["id"], "F1")
+            self.assertEqual(expanded["events"][-1]["update_factors"], ["F1"])
+            self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 0.287682, places=6)
+
     def test_audit_accepts_updated_premise_groups(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "audit-premise-group-state.json"
@@ -626,6 +742,51 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "add_edges": ["EBD"],
                         "add_frontier": [],
                         "update_premise_groups": ["PG1"],
+                        "no_new_work_reason": "Calibration only.",
+                    },
+                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("audit", str(state_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_audit_accepts_updated_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "audit-factor-state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal A"},
+                    {"id": "E2", "type": "evidence", "text": "Positive signal B"},
+                ],
+                "edges": [
+                    {"id": "E1A", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
+                    {"id": "E2A", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
+                ],
+                "factors": [
+                    {
+                        "id": "F1",
+                        "relation": "supports",
+                        "inputs": ["E1", "E2"],
+                        "target": "A1",
+                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
+                        "reason": "E1 and E2 share source.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.287682},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q1",
+                        "add_nodes": [],
+                        "add_edges": ["E2A"],
+                        "add_frontier": [],
+                        "update_factors": ["F1"],
                         "no_new_work_reason": "Calibration only.",
                     },
                     {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
@@ -735,6 +896,51 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("edge must not set both likelihood and likelihood_ratio", invalid.stderr)
             self.assertIn("contradicts likelihood ratio must be in (0, 1)", invalid.stderr)
 
+    def test_validate_rejects_bad_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "bad-factors.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Signal A"},
+                    {"id": "E2", "type": "evidence", "text": "Signal B"},
+                    {"id": "E3", "type": "evidence", "text": "Signal C"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports"},
+                    {"from": "E2", "to": "A1", "type": "supports"},
+                ],
+                "factors": [
+                    {
+                        "id": "F1",
+                        "relation": "supports",
+                        "inputs": ["E1", "E2"],
+                        "target": "A1",
+                        "aggregation": {"kind": "likelihood", "if_target_true": 0.2, "if_target_false": 0.8},
+                        "likelihood_ratio": 2.0,
+                        "reason": "wrong direction and direct ratio forbidden",
+                    },
+                    {
+                        "id": "F2",
+                        "relation": "supports",
+                        "inputs": ["E2", "E3"],
+                        "target": "A1",
+                        "aggregation": {"kind": "joint_probability", "probability": 0.5},
+                        "reason": "overlaps and E3 has no support edge",
+                    },
+                ],
+                "frontier": [],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            invalid = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("factors[0] must not set likelihood_ratio directly", invalid.stderr)
+            self.assertIn("factors[0] supports likelihood ratio must be > 1", invalid.stderr)
+            self.assertIn("factors[1] input 'E3' must have a supports edge to target 'A1'", invalid.stderr)
+            self.assertIn("supports factors for target 'A1' overlap on input(s) E2", invalid.stderr)
+            self.assertIn("factors[1].aggregation.kind must be 'likelihood' for supports/contradicts factors", invalid.stderr)
+
     def test_validate_rejects_bad_premise_groups(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "bad-premise-groups.json"
@@ -827,6 +1033,47 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("<!doctype html>", html_text.lower())
             self.assertIn("Best explanation graph", html_text)
+
+    def test_mermaid_and_html_render_virtual_factors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "factor-render-state.json"
+            html_path = Path(tmp_dir) / "factor-render.html"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal A"},
+                    {"id": "E2", "type": "evidence", "text": "Positive signal B"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports"},
+                    {"from": "E2", "to": "A1", "type": "supports"},
+                ],
+                "factors": [
+                    {
+                        "id": "F1",
+                        "relation": "supports",
+                        "inputs": ["E1", "E2"],
+                        "target": "A1",
+                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
+                        "reason": "E1 and E2 share source.",
+                    }
+                ],
+                "frontier": [],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            mermaid = self.run_rg("mermaid", str(state_path))
+            self.assertEqual(mermaid.returncode, 0, mermaid.stderr)
+            self.assertIn("F1", mermaid.stdout)
+            self.assertIn("grouped supports", mermaid.stdout)
+            self.assertIn("supports factor", mermaid.stdout)
+
+            html = self.run_rg("html", str(state_path), "-o", str(html_path))
+            self.assertEqual(html.returncode, 0, html.stderr)
+            html_text = html_path.read_text(encoding="utf-8")
+            self.assertIn("F1", html_text)
+            self.assertIn("grouped supports", html_text)
+            self.assertIn("supports factor", html_text)
 
 
 if __name__ == "__main__":

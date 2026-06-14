@@ -117,6 +117,12 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         for group in premise_groups
         if isinstance(group.get("id"), str) and group.get("id")
     }
+    factors = [factor for factor in state.get("factors", []) if isinstance(factor, dict)]
+    factors_by_id = {
+        factor.get("id"): factor
+        for factor in factors
+        if isinstance(factor.get("id"), str) and factor.get("id")
+    }
     frontier_ids_by_node: dict[str, set[str]] = {}
     for frontier_id, item in items.items():
         node_id = item.get("node")
@@ -165,6 +171,18 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             if not group:
                 continue
             target = group.get("target")
+            if isinstance(target, str):
+                evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
+        factor_ids = []
+        if isinstance(event.get("update_factors"), list):
+            factor_ids.extend(event["update_factors"])
+        if isinstance(event.get("add_factors"), list):
+            factor_ids.extend(event["add_factors"])
+        for factor_id in factor_ids:
+            factor = factors_by_id.get(str(factor_id))
+            if not factor:
+                continue
+            target = factor.get("target")
             if isinstance(target, str):
                 evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
 
@@ -306,6 +324,16 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             for group_id in premise_group_event_ids:
                 if group_id not in premise_groups_by_id:
                     errors.append(f"{label}: update_premise_groups references missing premise group id {group_id}")
+            updated_factor_ids = as_string_list(
+                event.get("update_factors"), f"{label}.update_factors", errors
+            )
+            legacy_added_factor_ids = as_string_list(
+                event.get("add_factors"), f"{label}.add_factors", errors
+            )
+            factor_event_ids = updated_factor_ids + legacy_added_factor_ids
+            for factor_id in factor_event_ids:
+                if factor_id not in factors_by_id:
+                    errors.append(f"{label}: update_factors references missing factor id {factor_id}")
             item_node_id = str(items[item_id].get("node") or "")
             added_node_set = set(added_node_ids)
             added_edges = [edges_by_id[edge_id] for edge_id in added_edge_ids if edge_id in edges_by_id]
@@ -313,6 +341,11 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 premise_groups_by_id[group_id]
                 for group_id in premise_group_event_ids
                 if group_id in premise_groups_by_id
+            ]
+            updated_factors = [
+                factors_by_id[factor_id]
+                for factor_id in factor_event_ids
+                if factor_id in factors_by_id
             ]
             if item_node_id and added_node_set:
                 has_outgoing_expansion_edge = any(
@@ -358,6 +391,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             }
             evidence_update_targets.update(
                 str(group.get("target")) for group in updated_premise_groups if isinstance(group.get("target"), str)
+            )
+            evidence_update_targets.update(
+                str(factor.get("target")) for factor in updated_factors if isinstance(factor.get("target"), str)
             )
             added_frontier_nodes = {
                 str(items[child_id].get("node"))

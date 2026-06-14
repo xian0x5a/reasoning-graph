@@ -38,26 +38,39 @@ Use this canonical set:
 - `assumes` — branch proceeds under an assumption
 - `contradicts` — negative evidence update; numeric updates use `likelihood` or `0 < likelihood_ratio < 1`. It does not delete/disqualify the target; decisive contradictions become very high truth cost / near-zero belief.
 - `prompts` — non-evidential provenance; source node motivates a test, assumption, branch, or follow-up node without changing belief by itself
-- `leads_to` — premise/dependency used to derive the target; incoming `leads_to` edges form the target's base belief and are treated as independent unless covered by `premise_groups`
+- `leads_to` — premise/dependency used to derive the target; incoming `leads_to` edges form the target's base belief and are treated as independent unless covered by `factors` or legacy `premise_groups`
 - `answers` — candidate solution satisfies a goal; must be `candidate_solution -> goal`
 
 For multi-premise derivations, a `derived` node may have multiple incoming `leads_to` edges. Treat plain incoming premises as jointly required and independent for that conclusion. Use `supports`/`contradicts` for evidence that updates belief in an existing target, and `requires` for constraints or external dependencies the derived/candidate must satisfy.
 
-Use top-level `premise_groups` only when two or more incoming `leads_to` premises for the same target are non-independent, such as shared source, duplicate evidence, logical overlap, or common latent cause. Group presence means non-independent; do not create groups for independent premises. Each group requires `id`, `target`, `premises`, and `joint_probability`; it should include a short `reason`. Its `joint_probability` replaces the independent product for those grouped premises; ungrouped incoming premises still contribute independently.
+Use top-level `factors` when two or more incoming numeric relation inputs for the same target are non-independent, such as shared source, duplicate evidence, logical overlap, or common latent cause. Factors are virtual relation records, not graph nodes: they cannot be frontier items, claims, candidates, or proof steps. Factor presence means non-independent; do not create factors for independent inputs.
+
+For `leads_to`, the factor aggregation is `joint_probability`: it replaces the independent product for grouped premises while ungrouped incoming premises still contribute independently. For `supports`/`contradicts`, the factor aggregation is conditional `likelihood`: it replaces the product of grouped member likelihood updates while ungrouped likelihood edges still multiply normally. Do not set direct factor `likelihood_ratio`; use `if_target_true` and `if_target_false`.
 
 ```json
 {
-  "premise_groups": [
+  "factors": [
     {
-      "id": "PG1",
+      "id": "F1",
+      "relation": "leads_to",
       "target": "D1",
-      "premises": ["A1", "B1"],
-      "joint_probability": 0.72,
+      "inputs": ["A1", "B1"],
+      "aggregation": {"kind": "joint_probability", "probability": 0.72},
       "reason": "A1 and B1 share the same source, so they are not independent."
+    },
+    {
+      "id": "F2",
+      "relation": "supports",
+      "target": "H1",
+      "inputs": ["E1", "E2"],
+      "aggregation": {"kind": "likelihood", "if_target_true": 0.54, "if_target_false": 0.18},
+      "reason": "E1 and E2 are correlated observations."
     }
   ]
 }
 ```
+
+Legacy `premise_groups` remain accepted as shorthand for `leads_to` factors with `joint_probability`; prefer `factors` for new graphs.
 
 Relationships are source of truth. Avoid manual `status` fields when they duplicate graph-derived view state such as winning/rank/dimmed/viable/rejected. In this schema, `status` is reserved for `test` nodes only.
 
@@ -165,9 +178,9 @@ Recommended hybrid cost model:
 
 ```txt
 truth_cost = -ln(P(claim true))
-base_truth_cost(target) = local_truth_cost(target) + sum(effective_truth_cost(ungrouped premises via leads_to)) + sum(-ln(premise_group.joint_probability))
+base_truth_cost(target) = local_truth_cost(target) + sum(effective_truth_cost(ungrouped premises via leads_to)) + sum(-ln(leads_to factor joint_probability))
 base_odds = P_base / (1 - P_base)
-updated_odds = base_odds * product(likelihood ratios computed from supports/contradicts)
+updated_odds = base_odds * product(ungrouped supports/contradicts likelihood ratios) * product(supports/contradicts factor likelihood ratios)
 effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 
 search_cost =
@@ -233,10 +246,10 @@ likelihood_ratio = P(evidence | target true) / P(evidence | target false)
 - Omit `likelihood`/`likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking; without one, `supports`/`contradicts` has no numeric cost effect.
 - Multiple update edges multiply in odds space.
 - The likelihood update should already include source reliability. Evidence `confidence` is displayed/audited and contributes when that evidence is a `leads_to` premise; it does not automatically dampen a `supports`/`contradicts` update.
-- Correlated/overlapping evidence should be merged, represented with a `premise_group` when it is part of a `leads_to` derivation, or represented with already-adjusted effective likelihoods; do not add a separate weight field.
-- If an exact joint probability is known for required `leads_to` premises, use `premise_groups[].joint_probability`; if the whole target belief is calibrated, use explicit target `posterior` instead of stacking approximate updates.
+- Correlated/overlapping evidence should be merged, represented with a `factor`, or represented with already-adjusted effective likelihoods; do not add a separate weight field.
+- If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields; if the whole target belief is calibrated, use explicit target `posterior` instead of stacking approximate updates.
 
-`leads_to` is not a likelihood update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `premise_groups[].joint_probability` costs. `supports`/`contradicts` then update that base belief. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming premise or likelihood edges for that target.
+`leads_to` is not a likelihood update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `leads_to` factor joint-probability costs. `supports`/`contradicts` then update that base belief, with factor likelihoods replacing grouped member likelihood updates. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming premise, factor, or likelihood edges for that target.
 
 If evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes priorities and `sort`/`next` reorders active frontier by best-first priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
 
@@ -421,7 +434,7 @@ State JSON shape:
 
 Cost behavior:
 
-- `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus ungrouped incoming `leads_to` premise costs and `premise_groups[].joint_probability` costs, then `supports`/`contradicts` likelihood updates.
+- `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus ungrouped incoming `leads_to` premise costs and `leads_to` factor joint-probability costs, then ungrouped `supports`/`contradicts` likelihood updates and grouped factor likelihood updates.
 - `truth_cost` is the current node's effective truth cost. `step_truth_cost` is kept as a legacy mirror of `truth_cost`.
 - `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
 - `step_cost` and `search_cost` are the frontier priority score: `truth_cost + work_cost`. Parent pointers do not accumulate cost; past work is sunk.
@@ -464,21 +477,22 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, and `update_premise_groups` ids for appended or replaced objects. Use `select` to record the chosen `candidate_solution` for the pending popped item. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `select` to record the chosen `candidate_solution` for the pending popped item. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
-An expansion patch can add or replace non-independent premise groups after the relevant `leads_to` premises already exist or are included in the same patch. To append a newly discovered premise to an existing group, submit the full replacement group with the expanded `premises` list and recalibrated `joint_probability`:
+An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
 ```json
 {
   "edges": [
     {"id": "E31", "from": "B1", "to": "D1", "type": "leads_to"}
   ],
-  "update_premise_groups": [
+  "update_factors": [
     {
-      "id": "PG1",
+      "id": "F1",
+      "relation": "leads_to",
       "target": "D1",
-      "premises": ["A1", "B1"],
-      "joint_probability": 0.72,
+      "inputs": ["A1", "B1"],
+      "aggregation": {"kind": "joint_probability", "probability": 0.72},
       "reason": "A1 and B1 share the same source."
     }
   ]

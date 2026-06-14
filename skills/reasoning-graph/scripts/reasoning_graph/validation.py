@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .costs import compute_costs, item_has_explicit_effort_budget, likelihood_ratio_from_edge, likelihood_ratio_from_value, probability_cost, probability_from_value, text_looks_probe_like, uncertainty_cost_from_prior
-from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, NODE_TYPES, TEST_STATUSES, ValidationResult
+from .costs import compute_costs, item_has_explicit_effort_budget, likelihood_ratio_from_edge, likelihood_ratio_from_likelihood, likelihood_ratio_from_value, probability_cost, probability_from_value, text_looks_probe_like, uncertainty_cost_from_prior
+from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, TEST_STATUSES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
 from .utils import as_string_list
 
@@ -27,9 +27,12 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
     frontier_raw = state.get("frontier", [])
     solutions_raw = state.get("solutions", [])
     premise_groups_raw = state.get("premise_groups", [])
+    factors_raw = state.get("factors", [])
 
     if premise_groups_raw is None:
         premise_groups_raw = []
+    if factors_raw is None:
+        factors_raw = []
     if not isinstance(nodes_raw, list):
         errors.append("nodes must be a list")
         nodes_raw = []
@@ -47,6 +50,9 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
     if not isinstance(premise_groups_raw, list):
         errors.append("premise_groups must be a list when present")
         premise_groups_raw = []
+    if not isinstance(factors_raw, list):
+        errors.append("factors must be a list when present")
+        factors_raw = []
 
     node_ids: set[str] = set()
     for i, node in enumerate(nodes_raw):
@@ -185,6 +191,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
     candidate_accepted_goal_edges: set[str] = set()
     candidate_goal_targets: dict[str, set[str]] = {}
     leads_to_pairs: set[tuple[str, str]] = set()
+    relation_pairs: set[tuple[str, str, str]] = set()
     for i, edge in enumerate(edges_raw):
         if not isinstance(edge, dict):
             errors.append(f"edges[{i}] must be object")
@@ -217,6 +224,8 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     errors.append(f"edge {i} supports likelihood ratio must be > 1")
                 if edge_type == "contradicts" and likelihood_ratio >= 1:
                     errors.append(f"edge {i} contradicts likelihood ratio must be in (0, 1)")
+        if isinstance(src, str) and isinstance(dst, str) and isinstance(edge_type, str):
+            relation_pairs.add((src, dst, edge_type))
         if edge_type == "leads_to" and isinstance(src, str) and isinstance(dst, str):
             leads_to_pairs.add((src, dst))
         src_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == src), None)
@@ -315,6 +324,132 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
         if not str(group.get("reason") or "").strip():
             warnings.append(
                 f"premise_group {group_id or i} should include reason explaining why premises are non-independent"
+            )
+
+    seen_factor_ids: set[str] = set()
+    grouped_likelihood_inputs_by_target_relation: dict[tuple[str, str], set[str]] = {}
+    for i, factor in enumerate(factors_raw):
+        if not isinstance(factor, dict):
+            errors.append(f"factors[{i}] must be object")
+            continue
+        factor_id = factor.get("id")
+        if not isinstance(factor_id, str) or not factor_id:
+            errors.append(f"factors[{i}] missing string id")
+        elif factor_id in seen_factor_ids:
+            errors.append(f"duplicate factor id {factor_id}")
+        else:
+            seen_factor_ids.add(factor_id)
+
+        relation = factor.get("relation")
+        if relation not in FACTOR_RELATIONS:
+            errors.append(f"factors[{i}].relation must be one of {sorted(FACTOR_RELATIONS)}, got {relation!r}")
+            relation_valid = False
+        else:
+            relation_valid = True
+
+        target = factor.get("target")
+        if not isinstance(target, str) or not target:
+            errors.append(f"factors[{i}].target must be a non-empty string")
+            target_valid = False
+        elif target not in node_ids:
+            errors.append(f"factors[{i}].target references missing node {target!r}")
+            target_valid = False
+        else:
+            target_valid = True
+            if "posterior" in nodes_by_id.get(target, {}):
+                warnings.append(
+                    f"factor {factor_id or i} targets node {target} with explicit posterior; "
+                    "posterior overrides factor costs"
+                )
+
+        inputs = factor.get("inputs")
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            errors.append(f"factors[{i}].inputs must be a list of at least two node ids")
+            input_ids: list[str] = []
+        else:
+            input_ids = []
+            for input_index, input_id in enumerate(inputs):
+                if not isinstance(input_id, str) or not input_id:
+                    errors.append(f"factors[{i}].inputs[{input_index}] must be a non-empty string")
+                    continue
+                input_ids.append(input_id)
+                if input_id not in node_ids:
+                    errors.append(f"factors[{i}].inputs[{input_index}] references missing node {input_id!r}")
+                if target_valid and relation_valid:
+                    if input_id == target:
+                        errors.append(f"factors[{i}] must not include target {target!r} as an input")
+                    elif input_id in node_ids and (input_id, target, str(relation)) not in relation_pairs:
+                        errors.append(
+                            f"factors[{i}] input {input_id!r} must have a {relation} edge to target {target!r}"
+                        )
+            if len(set(input_ids)) != len(input_ids):
+                errors.append(f"factors[{i}].inputs must not contain duplicates")
+
+        if target_valid and relation_valid and input_ids:
+            if relation == "leads_to":
+                grouped_for_target = grouped_premises_by_target.setdefault(str(target), set())
+                overlap = grouped_for_target.intersection(input_ids)
+                if overlap:
+                    errors.append(
+                        f"leads_to factors for target {target!r} overlap on input(s) {', '.join(sorted(overlap))}"
+                    )
+                grouped_for_target.update(input_ids)
+            elif isinstance(relation, str) and relation in {"supports", "contradicts"}:
+                grouped_key = (str(target), str(relation))
+                grouped_for_relation = grouped_likelihood_inputs_by_target_relation.setdefault(grouped_key, set())
+                overlap = grouped_for_relation.intersection(input_ids)
+                if overlap:
+                    errors.append(
+                        f"{relation} factors for target {target!r} overlap on input(s) {', '.join(sorted(overlap))}"
+                    )
+                grouped_for_relation.update(input_ids)
+
+        if "effective_truth_cost" in factor:
+            errors.append(f"factors[{i}] must not set effective_truth_cost; it is computed from aggregation")
+        if "likelihood_ratio" in factor:
+            errors.append(
+                f"factors[{i}] must not set likelihood_ratio directly; use aggregation.if_target_true and aggregation.if_target_false"
+            )
+        aggregation = factor.get("aggregation")
+        if not isinstance(aggregation, dict):
+            errors.append(f"factors[{i}].aggregation must be an object")
+        else:
+            if "likelihood_ratio" in aggregation:
+                errors.append(
+                    f"factors[{i}].aggregation must not set likelihood_ratio directly; use if_target_true and if_target_false"
+                )
+            aggregation_kind = aggregation.get("kind")
+            if aggregation_kind not in FACTOR_AGGREGATION_KINDS:
+                errors.append(
+                    f"factors[{i}].aggregation.kind must be one of {sorted(FACTOR_AGGREGATION_KINDS)}, got {aggregation_kind!r}"
+                )
+            elif relation == "leads_to":
+                if aggregation_kind != "joint_probability":
+                    errors.append(f"factors[{i}].aggregation.kind must be 'joint_probability' for leads_to factors")
+                if "probability" not in aggregation:
+                    errors.append(f"factors[{i}].aggregation.probability missing")
+                else:
+                    try:
+                        probability_cost(aggregation["probability"], f"factors[{i}].aggregation.probability")
+                    except ValueError as exc:
+                        errors.append(f"factors[{i}]: {exc}")
+            elif isinstance(relation, str) and relation in {"supports", "contradicts"}:
+                if aggregation_kind != "likelihood":
+                    errors.append(f"factors[{i}].aggregation.kind must be 'likelihood' for supports/contradicts factors")
+                else:
+                    try:
+                        likelihood_ratio = likelihood_ratio_from_likelihood(aggregation, f"factors[{i}].aggregation")
+                    except ValueError as exc:
+                        errors.append(f"factors[{i}]: {exc}")
+                        likelihood_ratio = None
+                    if likelihood_ratio is not None:
+                        if relation == "supports" and likelihood_ratio <= 1:
+                            errors.append(f"factors[{i}] supports likelihood ratio must be > 1")
+                        if relation == "contradicts" and likelihood_ratio >= 1:
+                            errors.append(f"factors[{i}] contradicts likelihood ratio must be in (0, 1)")
+        if not str(factor.get("reason") or "").strip():
+            warnings.append(
+                f"factor {factor_id or i} should include reason explaining why inputs are grouped"
             )
 
     unresolved_markers = ("not solved", "not established", "cannot establish", "insufficient evidence", "missing dependency", "undetermined", "not recoverable")
