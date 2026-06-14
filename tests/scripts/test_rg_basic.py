@@ -161,6 +161,30 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("evidence updated visited node A1", missing.stderr)
             self.assertIn("no_new_work_reason", missing.stderr)
 
+    def test_costs_use_conditional_likelihood_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "likelihood-state.json"
+            output_path = Path(tmp_dir) / "likelihood-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Positive signal"},
+                    {"id": "E2", "type": "evidence", "text": "Negative signal"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.75, "if_target_false": 0.25}},
+                    {"from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.2, "if_target_false": 0.4}},
+                ],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            # Prior odds 1 * (0.75/0.25) * (0.2/0.4) = odds 1.5 => posterior 0.6 => -ln(.6).
+            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
+
     def test_costs_use_likelihood_ratio_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "lr-state.json"
@@ -294,6 +318,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "edges": [
                     {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 0.5},
                     {"from": "A1", "to": "E1", "type": "leads_to", "likelihood_ratio": 2.0},
+                    {
+                        "from": "E1",
+                        "to": "A1",
+                        "type": "supports",
+                        "likelihood_ratio": 2.0,
+                        "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2},
+                    },
+                    {"from": "E1", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
                 ],
                 "frontier": [],
             }
@@ -301,8 +333,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             invalid = self.run_rg("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
-            self.assertIn("supports likelihood_ratio must be > 1", invalid.stderr)
-            self.assertIn("likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
+            self.assertIn("supports likelihood ratio must be > 1", invalid.stderr)
+            self.assertIn("likelihood/likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
+            self.assertIn("edge must not set both likelihood and likelihood_ratio", invalid.stderr)
+            self.assertIn("contradicts likelihood ratio must be in (0, 1)", invalid.stderr)
 
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

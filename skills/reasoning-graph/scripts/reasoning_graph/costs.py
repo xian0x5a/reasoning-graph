@@ -66,6 +66,33 @@ def likelihood_ratio_from_value(value: Any, field: str = "likelihood_ratio") -> 
     return likelihood_ratio
 
 
+def likelihood_probability_from_value(value: Any, field: str) -> float:
+    try:
+        probability = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} must be numeric, got {value!r}")
+    if not 0 < probability <= 1:
+        raise ValueError(f"{field} must be in (0, 1], got {probability}")
+    return probability
+
+
+def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
+    if "likelihood" in edge and "likelihood_ratio" in edge:
+        raise ValueError("edge must not set both likelihood and likelihood_ratio")
+    if "likelihood" in edge:
+        likelihood = edge.get("likelihood")
+        if not isinstance(likelihood, dict):
+            raise ValueError("likelihood must be an object")
+        if_target_true = likelihood_probability_from_value(
+            likelihood.get("if_target_true"), "likelihood.if_target_true"
+        )
+        if_target_false = likelihood_probability_from_value(
+            likelihood.get("if_target_false"), "likelihood.if_target_false"
+        )
+        return if_target_true / if_target_false
+    return likelihood_ratio_from_value(edge.get("likelihood_ratio"))
+
+
 def probability_from_log_odds(log_odds: float) -> float:
     if log_odds >= 0:
         if log_odds > 745:
@@ -124,13 +151,13 @@ def node_truth_cost(node: dict[str, Any] | None) -> float:
 
 
 def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
-    """Compute effective node truth costs from premises and LR evidence updates.
+    """Compute effective node truth costs from premises and likelihood updates.
 
     Incoming `leads_to` edges are required premises and contribute source truth
     cost to the target's base belief. Incoming `supports`/`contradicts` edges
-    with `likelihood_ratio` update that base belief in odds space. Explicit node
-    `posterior` is treated as already-calibrated and wins over graph-derived
-    updates to avoid double counting.
+    with `likelihood` or `likelihood_ratio` update that base belief in odds space.
+    Explicit node `posterior` is treated as already-calibrated and wins over
+    graph-derived updates to avoid double counting.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
@@ -147,7 +174,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             continue
         if edge_type == "leads_to":
             premise_sources.setdefault(dst, []).append(src)
-        elif edge_type in {"supports", "contradicts"} and "likelihood_ratio" in edge:
+        elif edge_type in {"supports", "contradicts"} and ("likelihood_ratio" in edge or "likelihood" in edge):
             likelihood_edges.setdefault(dst, []).append(edge)
 
     memo: dict[str, float] = {}
@@ -176,7 +203,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             base_probability = NEUTRAL_UPDATE_PRIOR if base_cost == 0.0 and not node_has_probability(node) else probability_from_cost(base_cost)
             log_odds = log_odds_from_probability(base_probability)
             for edge in lrs:
-                log_odds += math.log(likelihood_ratio_from_value(edge.get("likelihood_ratio")))
+                log_odds += math.log(likelihood_ratio_from_edge(edge))
             updated_probability = probability_from_log_odds(log_odds)
             if updated_probability <= 0.0:
                 cost = math.inf

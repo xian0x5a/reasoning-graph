@@ -139,7 +139,10 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             if not edge:
                 continue
             edge_type = edge.get("type") or edge.get("label")
-            is_numeric_update = edge_type in {"contradicts", "leads_to"} or (edge_type == "supports" and "likelihood_ratio" in edge)
+            is_likelihood_update = edge_type in {"supports", "contradicts"} and (
+                "likelihood_ratio" in edge or "likelihood" in edge
+            )
+            is_numeric_update = edge_type == "leads_to" or is_likelihood_update
             if not is_numeric_update:
                 continue
             target = edge.get("to")
@@ -311,8 +314,11 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 str(edge.get("to"))
                 for edge in added_edges
                 if (
-                    ((edge.get("type") or edge.get("label")) in {"contradicts", "leads_to"})
-                    or ((edge.get("type") or edge.get("label")) == "supports" and "likelihood_ratio" in edge)
+                    ((edge.get("type") or edge.get("label")) == "leads_to")
+                    or (
+                        ((edge.get("type") or edge.get("label")) in {"supports", "contradicts"})
+                        and ("likelihood_ratio" in edge or "likelihood" in edge)
+                    )
                 )
                 and isinstance(edge.get("to"), str)
             }
