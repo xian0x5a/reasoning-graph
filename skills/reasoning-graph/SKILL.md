@@ -461,16 +461,16 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, and `add_premise_groups` ids for appended objects. Use `select` to record the chosen `candidate_solution` for the pending popped item. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, and `update_premise_groups` ids for appended or replaced objects. Use `select` to record the chosen `candidate_solution` for the pending popped item. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
-An expansion patch can also add non-independent premise groups after the relevant `leads_to` premises already exist or are included in the same patch:
+An expansion patch can add or replace non-independent premise groups after the relevant `leads_to` premises already exist or are included in the same patch. To append a newly discovered premise to an existing group, submit the full replacement group with the expanded `premises` list and recalibrated `joint_probability`:
 
 ```json
 {
   "edges": [
     {"id": "E31", "from": "B1", "to": "D1", "type": "leads_to"}
   ],
-  "premise_groups": [
+  "update_premise_groups": [
     {
       "id": "PG1",
       "target": "D1",

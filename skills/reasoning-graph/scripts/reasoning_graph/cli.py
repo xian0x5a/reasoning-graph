@@ -159,17 +159,24 @@ def _object_list(value: Any, field: str) -> list[dict[str, Any]]:
     return result
 
 
-def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], field: str) -> None:
+def _ensure_object_ids(items: list[dict[str, Any]], field: str) -> list[str]:
     seen: set[str] = set()
-    for index, item in enumerate(additions):
+    ids: list[str] = []
+    for index, item in enumerate(items):
         item_id = item.get("id")
         if not isinstance(item_id, str) or not item_id:
             raise ValueError(f"{field}[{index}] missing string id")
-        if item_id in existing:
-            raise ValueError(f"{field}[{index}] id {item_id} already exists")
         if item_id in seen:
-            raise ValueError(f"{field}[{index}] duplicate new id {item_id}")
+            raise ValueError(f"{field}[{index}] duplicate id {item_id}")
         seen.add(item_id)
+        ids.append(item_id)
+    return ids
+
+
+def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], field: str) -> None:
+    for item_id in _ensure_object_ids(additions, field):
+        if item_id in existing:
+            raise ValueError(f"{field} id {item_id} already exists")
 
 
 def cmd_expand(args: argparse.Namespace) -> int:
@@ -192,22 +199,18 @@ def cmd_expand(args: argparse.Namespace) -> int:
     nodes_to_add = _object_list(patch.get("nodes", patch.get("add_node_objects")), "nodes")
     edges_to_add = _object_list(patch.get("edges", patch.get("add_edge_objects")), "edges")
     frontier_to_add = _object_list(patch.get("frontier", patch.get("add_frontier_objects")), "frontier")
-    premise_groups_to_add = _object_list(
-        patch.get("premise_groups", patch.get("add_premise_group_objects")), "premise_groups"
+    premise_groups_to_update = _object_list(
+        patch.get("update_premise_groups", patch.get("premise_groups", patch.get("add_premise_group_objects"))),
+        "update_premise_groups",
     )
 
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
     existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
     existing_frontier = {item.get("id") for item in state.get("frontier", []) if isinstance(item, dict)}
-    existing_premise_groups = {
-        group.get("id") for group in state.get("premise_groups", []) if isinstance(group, dict) and group.get("id")
-    }
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
-    _ensure_unique_new_ids(
-        {str(item) for item in existing_premise_groups if item}, premise_groups_to_add, "premise_groups"
-    )
+    premise_group_update_ids = _ensure_object_ids(premise_groups_to_update, "update_premise_groups")
 
     for child in frontier_to_add:
         if child.get("parent") in (None, ""):
@@ -216,7 +219,24 @@ def cmd_expand(args: argparse.Namespace) -> int:
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
     state.setdefault("frontier", []).extend(frontier_to_add)
-    state.setdefault("premise_groups", []).extend(premise_groups_to_add)
+    premise_groups = state.setdefault("premise_groups", [])
+    if not isinstance(premise_groups, list):
+        raise ValueError("premise_groups must be a list before expand can update it")
+    premise_group_indexes: dict[str, int] = {}
+    for index, group in enumerate(premise_groups):
+        if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group.get("id"):
+            continue
+        group_id = str(group["id"])
+        if group_id in premise_group_indexes:
+            raise ValueError(f"premise_groups has duplicate id {group_id}")
+        premise_group_indexes[group_id] = index
+    for group in premise_groups_to_update:
+        group_id = str(group["id"])
+        if group_id in premise_group_indexes:
+            premise_groups[premise_group_indexes[group_id]] = group
+        else:
+            premise_group_indexes[group_id] = len(premise_groups)
+            premise_groups.append(group)
     sorted_frontier(state)
 
     events = state.setdefault("events", [])
@@ -229,7 +249,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "add_nodes": [node["id"] for node in nodes_to_add],
         "add_edges": [edge["id"] for edge in edges_to_add],
         "add_frontier": [item["id"] for item in frontier_to_add],
-        "add_premise_groups": [group["id"] for group in premise_groups_to_add],
+        "update_premise_groups": premise_group_update_ids,
     }
     for key in (
         "mode",

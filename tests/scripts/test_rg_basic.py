@@ -349,7 +349,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("should include reason", valid.stderr)
 
-    def test_expand_patch_appends_premise_groups(self) -> None:
+    def test_expand_patch_upserts_new_premise_groups(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "expand-premise-group-state.json"
             patch_path = Path(tmp_dir) / "expand-premise-group-patch.json"
@@ -365,7 +365,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             patch = {
                 "edges": [{"id": "EBD", "from": "B1", "to": "D1", "type": "leads_to"}],
-                "premise_groups": [
+                "update_premise_groups": [
                     {
                         "id": "PG1",
                         "target": "D1",
@@ -384,10 +384,62 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             expanded = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(expanded["premise_groups"][0]["id"], "PG1")
-            self.assertEqual(expanded["events"][-1]["add_premise_groups"], ["PG1"])
+            self.assertEqual(expanded["events"][-1]["update_premise_groups"], ["PG1"])
             self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 1.714798, places=6)
 
-    def test_audit_accepts_added_premise_groups(self) -> None:
+    def test_expand_patch_updates_existing_premise_groups(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "update-premise-group-state.json"
+            patch_path = Path(tmp_dir) / "update-premise-group-patch.json"
+            output_path = Path(tmp_dir) / "update-premise-group-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
+                    {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
+                    {"id": "C1", "type": "assumption", "text": "Premise C", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
+                ],
+                "edges": [
+                    {"id": "EAD", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "EBD", "from": "B1", "to": "D1", "type": "leads_to"},
+                ],
+                "premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1"],
+                        "joint_probability": 0.18,
+                        "reason": "Initial two-premise calibration.",
+                    }
+                ],
+                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
+            }
+            patch = {
+                "edges": [{"id": "ECD", "from": "C1", "to": "D1", "type": "leads_to"}],
+                "update_premise_groups": [
+                    {
+                        "id": "PG1",
+                        "target": "D1",
+                        "premises": ["A1", "B1", "C1"],
+                        "joint_probability": 0.09,
+                        "reason": "A1, B1, and C1 share a latent source.",
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg(
+                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expanded = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(expanded["premise_groups"]), 1)
+            self.assertEqual(expanded["premise_groups"][0]["premises"], ["A1", "B1", "C1"])
+            self.assertEqual(expanded["events"][-1]["update_premise_groups"], ["PG1"])
+            self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 2.407946, places=6)
+
+    def test_audit_accepts_updated_premise_groups(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "audit-premise-group-state.json"
             state = {
@@ -420,7 +472,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "add_nodes": [],
                         "add_edges": ["EBD"],
                         "add_frontier": [],
-                        "add_premise_groups": ["PG1"],
+                        "update_premise_groups": ["PG1"],
                         "no_new_work_reason": "Calibration only.",
                     },
                     {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
