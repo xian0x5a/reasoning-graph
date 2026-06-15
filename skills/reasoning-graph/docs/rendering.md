@@ -1,0 +1,137 @@
+# Reasoning Graph Rendering Guide
+
+Compact output, graph mode, HTML artifacts, and visual presentation rules.
+
+## Output Modes
+
+### Compact Mode
+
+Default. Return:
+
+1. answer or recommendation
+2. winning proof path as concise user-facing rationale
+3. key assumptions, if any
+4. top competing candidate paths when ambiguity matters
+5. contradictions or heavily penalized branches only if important
+6. next test/action if uncertainty remains
+
+When also creating HTML/graph artifacts, write the user-facing answer first or keep it complete in the final response. The visual artifact is extra output, not a substitute for clear prose reasoning.
+
+Do not expose hidden chain-of-thought or raw scratch state. Provide a clear proof path / reasoning summary suitable for the user.
+
+Example compact shape:
+
+```md
+Answer: ...
+
+Proof path:
+E1 -> C1 -> A2 (prior 0.6) -> D4 -> candidate S1
+
+Why this wins:
+- satisfies C1/C2
+- lower path cost than S2
+- test T1 supports A2
+
+Other candidates:
+- S2: possible, but needs expensive verification
+- S3: contradicted by C2
+
+Remaining uncertainty:
+- verify T2 before treating S1 as final
+```
+
+### Graph Mode
+
+Use when user asks for graph/visualization/HTML, or when agent recommends it and user approves.
+
+Graph mode has two useful views:
+
+- `audit graph` — complete/debuggable reasoning graph; good for checking reasoning completeness.
+- best explanation graph — curated/lossy human report; good for communicating why the answer wins.
+
+The full reasoning state is always the source of truth. Presentation graph can omit nodes, but must not invent evidence, constraints, candidate claims, or edges absent from the state/report metadata.
+
+Create an HTML artifact as a report, not a fixed template. Choose the layout that best explains the case/problem. It must include:
+
+- compact answer summary at top
+- readable evidence and constraint node details with labels/sources, either in a filterable detail list or modal cards
+- candidate ordering table when candidates exist
+- a small curated presentation graph for communication, preferably canvas-navigable when graph is nontrivial
+- a full audit graph in a pan/zoom canvas when the graph is large
+- click-to-details for graph nodes, ideally without forcing the user away from the canvas
+- winning path highlighted or listed
+- candidate solutions connect to the goal with `answers`
+- contradicted/heavily penalized branches dimmed or red
+- next verification/action when available
+
+Artifact location:
+
+- ad hoc/default: `/tmp/reasoning-graph-<slug>-<timestamp>.html`
+- persistent project artifact only when useful or requested: `./docs/reasoning-graphs/<slug>.html`
+
+Prefer local Mermaid rendering if available; otherwise use Mermaid CDN. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `./scripts/rg.py html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
+
+For non-trivial HTML report generation, delegate presentation work to a low-thinking agent when possible. The solver should focus on the reasoning state; the renderer should consume `state.json` as source of truth and not solve again. If delegation is not available from the current context, write/validate `state.json` and clearly state that polished HTML rendering is a follow-up step for a low-thinking agent.
+
+Delegation contract:
+
+```txt
+Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent evidence. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
+```
+
+Recommended graph-mode flow:
+
+1. Persist the graph/search state as JSON in `/tmp` unless the user asked for a project artifact.
+2. For complex reasoning, build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
+3. Run `./scripts/rg.py costs state.json -i` or `./scripts/rg.py sort state.json -i` when candidate/frontier ranking matters.
+4. Run `./scripts/rg.py validate state.json` and fix errors.
+5. If driver events exist, run `./scripts/rg.py audit state.json` and fix errors or explain remaining warnings.
+6. Generate the requested graph HTML path with `./scripts/rg.py html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid spacing presets; default leaves Mermaid spacing unchanged.
+7. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph mode was requested.
+8. For separate graph sources, run `./scripts/rg.py mermaid state.json > <slug>.mmd`.
+9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
+10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.
+
+Presentation/canvas rules:
+
+- Presentation graph is curated and lossy: ideally 8-18 nodes, rarely more than 25. Use canvas mode for it too when labels/layout exceed the viewport.
+- Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
+- Prefer ID/type-only graph labels (`E3`, `CS1`, etc.) for dense graphs; keep full text in node-detail cards/modals.
+- Use `short_text` only for small bespoke presentation graphs where the label is clearly readable and does not risk escaping/entity noise.
+- Prefer click-to-details anchors over huge node labels.
+- Mermaid supports node click links with tooltips, e.g. `click E15 "#details-E15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
+- If using Mermaid click links/callbacks, initialize with `securityLevel: "loose"` when needed.
+- Do not expose only the full graph. Always include a readable presentation graph or equivalent visual summary.
+- Avoid forcing scroll for normal node inspection. Prefer popup/modal detail cards.
+
+Mermaid styling pattern:
+
+```mermaid
+flowchart TD
+  E1["evidence: input is sorted"] --> D1["derived: two-pointer is viable"]
+  C1["constraint: O(n) time"] --> D1
+  A1["assumption: duplicates matter<br/>prior 0.4"] --> CS1["candidate_solution: handle duplicates"]
+  CS1 -- answers --> G
+  E2["evidence: violates O(n)"] -. contradicts .-> A1
+
+  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
+  classDef candidate fill:#dbeafe,stroke:#2563eb;
+  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;
+  classDef bad fill:#fee2e2,stroke:#dc2626;
+
+  class E1,C1,D1 winning;
+  class CS1 candidate;
+  class A1 dim;
+  class E2 bad;
+```
+
+HTML report design guidance:
+
+- Avoid rigid, generic templates. Make the report serve the reasoning object.
+- Put the answer/candidate ranking before the graph so users know what they are looking at.
+- Use a small presentation graph for the main story; use the full audit graph only as an inspectable canvas.
+- Keep graph labels short, preferably ID/type-only for dense graphs; route evidence text to filterable details cards and modal popups.
+- Do not add a separate evidence/constraints section if the node details list already covers evidence and constraints with sources.
+- Use Mermaid flowchart spacing (for example `nodeSpacing`, `rankSpacing`, curved edges) only when dense graphs look compressed; compare against default spacing first.
+- Use `mermaid.initialize({ startOnLoad: true, securityLevel: "loose", flowchart: { htmlLabels: true, useMaxWidth: false } })` when using Mermaid click links and canvas sizing, and add spacing options only if needed.
+- If using a full SVG graph, add pan/zoom controls or viewBox-based pointer navigation.
