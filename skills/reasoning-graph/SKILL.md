@@ -11,7 +11,7 @@ description: >
 
 Use this skill to solve problems as a reasoning graph instead of a single linear chain.
 
-Core idea: start from available evidence and constraints, derive what follows, and when direct derivation is not obvious, explore hypothetical branches with priors and path costs. This is graph search over possible routes to truth.
+Core idea: combine deduction, abduction, and induction. Start from available evidence and constraints, derive what follows, and when direct derivation is not obvious, explore hypothetical branches with priors and path costs. Update beliefs as evidence arrives. This is graph search over possible routes to truth.
 
 Default output is compact. Use graph output only when requested or when the graph would materially improve understanding; ask before creating graph artifacts if not explicitly requested.
 
