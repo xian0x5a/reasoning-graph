@@ -12,15 +12,26 @@ from .utils import finite_float
 
 NEUTRAL_UPDATE_PRIOR = 0.5
 
+# Truth-cost precedence and detail-card display order differ on purpose:
+# posterior overrides local belief math; display starts with prior for auditability.
+NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "confidence", "probability", "prior")
+NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR = ("confidence", "probability", "prior")
+NODE_DISPLAY_PROBABILITY_FIELDS = ("prior", "confidence", "probability", "posterior")
+NODE_NON_PRIOR_PROBABILITY_FIELDS = ("confidence", "probability", "posterior")
 
-def probability_cost(value: Any, field: str = "probability") -> float:
+
+def require_probability(value: Any, field: str = "probability") -> float:
     try:
-        p = float(value)
+        probability = float(value)
     except (TypeError, ValueError):
         raise ValueError(f"{field} must be numeric, got {value!r}")
-    if not 0 < p <= 1:
-        raise ValueError(f"{field} must be in (0, 1], got {p}")
-    return -math.log(p)
+    if not 0 < probability <= 1:
+        raise ValueError(f"{field} must be in (0, 1], got {probability}")
+    return probability
+
+
+def probability_cost(value: Any, field: str = "probability") -> float:
+    return -math.log(require_probability(value, field))
 
 
 def uncertainty_cost_from_prior(prior: Any) -> float:
@@ -67,13 +78,7 @@ def likelihood_ratio_from_value(value: Any, field: str = "likelihood_ratio") -> 
 
 
 def likelihood_probability_from_value(value: Any, field: str) -> float:
-    try:
-        probability = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{field} must be numeric, got {value!r}")
-    if not 0 < probability <= 1:
-        raise ValueError(f"{field} must be in (0, 1], got {probability}")
-    return probability
+    return require_probability(value, field)
 
 
 def likelihood_ratio_from_likelihood(likelihood: Any, field: str = "likelihood") -> float:
@@ -196,7 +201,7 @@ def probability_from_cost(cost: float) -> float:
 
 
 def node_has_probability(node: dict[str, Any] | None) -> bool:
-    return bool(node) and any(field in node for field in ("posterior", "confidence", "probability", "prior"))
+    return bool(node) and any(field in node for field in NODE_TRUTH_PROBABILITY_PRECEDENCE)
 
 
 def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:
@@ -204,7 +209,11 @@ def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: boo
 
     if not node:
         return 0.0
-    fields = ("posterior", "confidence", "probability", "prior") if include_posterior else ("confidence", "probability", "prior")
+    fields = (
+        NODE_TRUTH_PROBABILITY_PRECEDENCE
+        if include_posterior
+        else NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR
+    )
     for field in fields:
         if field in node:
             return probability_cost(node[field], field)

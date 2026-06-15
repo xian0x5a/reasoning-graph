@@ -5,7 +5,18 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .costs import compute_costs, item_has_explicit_effort_budget, likelihood_ratio_from_edge, likelihood_ratio_from_likelihood, likelihood_ratio_from_value, probability_cost, probability_from_value, text_looks_probe_like, uncertainty_cost_from_prior
+from .costs import (
+    NODE_NON_PRIOR_PROBABILITY_FIELDS,
+    compute_costs,
+    item_has_explicit_effort_budget,
+    likelihood_ratio_from_edge,
+    likelihood_ratio_from_likelihood,
+    likelihood_ratio_from_value,
+    probability_cost,
+    probability_from_value,
+    text_looks_probe_like,
+    uncertainty_cost_from_prior,
+)
 from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, TEST_STATUSES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
 from .utils import as_string_list
@@ -77,7 +88,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     uncertainty_cost_from_prior(node["prior"])
                 except ValueError as exc:
                     errors.append(f"assumption {node_id}: {exc}")
-        for probability_field in ("confidence", "probability", "posterior"):
+        for probability_field in NODE_NON_PRIOR_PROBABILITY_FIELDS:
             if probability_field in node:
                 try:
                     probability_cost(node[probability_field], probability_field)

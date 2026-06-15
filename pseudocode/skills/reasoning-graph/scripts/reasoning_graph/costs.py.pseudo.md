@@ -7,9 +7,10 @@ Compute truth/search costs, contradiction penalties, and frontier ordering.
 ## Behavior
 
 ```pseudo
-convert probabilities to -ln(probability) costs with bounded validation
+validate numeric probabilities through one required-probability helper, then convert to -ln(probability) costs
+expose shared node probability field lists for truth-cost precedence and display order
 read item cost components, including legacy aliases
-compute node truth cost from posterior, confidence, prior, or default
+compute node truth cost from shared precedence: posterior, confidence, probability, prior, or default
 reject cycles in the raw leads_to truth dependency graph before applying factor cost replacement
 for each target, treat plain incoming leads_to premises as independent required premises
 when premise_groups or leads_to factors are present, replace grouped member premise costs with the group's joint_probability cost

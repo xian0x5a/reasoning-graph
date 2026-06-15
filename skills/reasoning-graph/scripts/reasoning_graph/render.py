@@ -7,7 +7,12 @@ import json
 import math
 from typing import Any
 
-from .costs import compute_costs, legacy_premise_group_factor, node_truth_cost
+from .costs import (
+    NODE_DISPLAY_PROBABILITY_FIELDS,
+    compute_costs,
+    legacy_premise_group_factor,
+    node_truth_cost,
+)
 from .models import CLASS_BY_NODE_TYPE
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
@@ -448,7 +453,7 @@ def node_detail_cards(state: dict[str, Any]) -> str:
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
         extras: list[str] = []
-        for key in ("prior", "confidence", "probability", "posterior"):
+        for key in NODE_DISPLAY_PROBABILITY_FIELDS:
             if key in node:
                 extras.append(f"<span>{html.escape(key)}: {html.escape(str(node[key]))}</span>")
         type_class = html.escape(raw_type)

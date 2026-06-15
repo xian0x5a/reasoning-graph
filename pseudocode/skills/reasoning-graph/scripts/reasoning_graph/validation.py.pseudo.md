@@ -9,7 +9,7 @@ Validate graph schema, references, candidate hygiene, and cost metadata before u
 ```pseudo
 validate_state(state):
   check top-level collections and object ids
-  check node types, including evidence instead of legacy fact/contradiction nodes; check edge types, references, statuses, priors, confidence, and answer kinds
+  check node types, including evidence instead of legacy fact/contradiction nodes; check edge types, references, statuses, priors and other probability fields through shared numeric validation, and answer kinds
   check premise_groups are legacy non-independent premise bundles with id, target, at least two leads_to premises, and joint_probability
   check factors are virtual numeric relation groups with id, relation, target, at least two inputs, and relation-appropriate aggregation
   reject overlapping premise_groups/leads_to factors for the same target; reject overlapping supports/contradicts factors for the same target and relation; warn when a grouped target has explicit posterior that overrides graph-derived costs
