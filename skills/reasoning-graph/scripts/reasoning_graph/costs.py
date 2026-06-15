@@ -11,6 +11,8 @@ from .utils import finite_float
 
 
 NEUTRAL_UPDATE_PRIOR = 0.5
+DEFAULT_ESTIMATED_REMAINING_WEIGHT = 1.0
+ESTIMATED_REMAINING_COST_FIELD = "estimated_remaining_cost"
 
 # Truth-cost precedence and detail-card display order differ on purpose:
 # posterior overrides local belief math; display starts with prior for auditability.
@@ -403,6 +405,36 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     return memo
 
 
+def search_policy_estimated_remaining_weight(state: dict[str, Any]) -> float:
+    policy = state.get("search_policy", {})
+    if policy is None:
+        policy = {}
+    if not isinstance(policy, dict):
+        raise ValueError("search_policy must be an object when present")
+    raw_weight = policy.get("estimated_remaining_weight", DEFAULT_ESTIMATED_REMAINING_WEIGHT)
+    try:
+        weight = float(raw_weight)
+    except (TypeError, ValueError):
+        raise ValueError(f"search_policy.estimated_remaining_weight must be numeric, got {raw_weight!r}")
+    if not math.isfinite(weight) or weight < 0:
+        raise ValueError(f"search_policy.estimated_remaining_weight must be finite and non-negative, got {weight}")
+    return weight
+
+
+def estimated_remaining_cost_for_item(item: dict[str, Any]) -> tuple[float, bool]:
+    if ESTIMATED_REMAINING_COST_FIELD not in item:
+        return 0.0, False
+    try:
+        estimated_remaining_cost = float(item.get(ESTIMATED_REMAINING_COST_FIELD))
+    except (TypeError, ValueError):
+        raise ValueError(f"frontier item {item.get('id')} estimated_remaining_cost must be numeric")
+    if not math.isfinite(estimated_remaining_cost) or estimated_remaining_cost < 0:
+        raise ValueError(
+            f"frontier item {item.get('id')} estimated_remaining_cost must be finite and non-negative"
+        )
+    return estimated_remaining_cost, True
+
+
 def cost_components_for_item(
     item: dict[str, Any],
     nodes: dict[str, dict[str, Any]],
@@ -416,7 +448,10 @@ def cost_components_for_item(
 
     components: dict[str, float] = {}
     for raw_key, raw_value in explicit.items():
-        key = LEGACY_COST_COMPONENT_ALIASES.get(str(raw_key), str(raw_key))
+        key = str(raw_key)
+        if key == ESTIMATED_REMAINING_COST_FIELD:
+            raise ValueError(f"frontier item {item.get('id')} cost_components.{key} must be top-level")
+        key = LEGACY_COST_COMPONENT_ALIASES.get(key, key)
         if key not in SEARCH_COST_COMPONENTS:
             continue
         if raw_value is None or raw_value == "auto":
@@ -440,6 +475,7 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
     nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     frontier = state.get("frontier", [])
+    estimated_remaining_weight = search_policy_estimated_remaining_weight(state)
 
     for item in frontier:
         if not isinstance(item, dict):
@@ -451,7 +487,6 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
                 truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
             legacy_search_cost = float(item["step_cost"])
             work_cost = max(0.0, legacy_search_cost - truth_cost)
-            search_cost = truth_cost + work_cost
             item["cost_components"] = {
                 "truth": round(truth_cost, 6),
                 "verification": round(work_cost, 6),
@@ -463,11 +498,21 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             components = cost_components_for_item(item, nodes, node_truth_costs)
             truth_cost = components["truth"]
             work_cost = sum(value for key, value in components.items() if key != "truth")
-            search_cost = truth_cost + work_cost
             item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
+
+        base_search_cost = truth_cost + work_cost
+        estimated_remaining_cost, has_estimated_remaining_cost = estimated_remaining_cost_for_item(item)
+        heuristic_cost = estimated_remaining_weight * estimated_remaining_cost
+        search_cost = base_search_cost + heuristic_cost
 
         item["truth_cost"] = round(truth_cost, 6)
         item["work_cost"] = round(work_cost, 6)
+        item["base_search_cost"] = round(base_search_cost, 6)
+        if has_estimated_remaining_cost:
+            item["estimated_remaining_cost"] = round(estimated_remaining_cost, 6)
+            item["heuristic_cost"] = round(heuristic_cost, 6)
+        else:
+            item.pop("heuristic_cost", None)
         item["step_truth_cost"] = round(truth_cost, 6)
         item["step_cost"] = round(search_cost, 6)
         item["search_cost"] = round(search_cost, 6)

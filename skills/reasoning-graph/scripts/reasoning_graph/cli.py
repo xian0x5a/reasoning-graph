@@ -76,8 +76,11 @@ def cmd_frontier(args: argparse.Namespace) -> int:
         for row in rows:
             related = f" related={row['related_brief']}" if row.get("related_brief") else ""
             scratch = f" scratch={row['scratch_brief']}" if row.get("scratch_brief") else ""
+            heuristic = ""
+            if row.get("estimated_remaining_cost") is not None:
+                heuristic = f" base={row['base_search_cost']} remaining={row['estimated_remaining_cost']} heuristic={row['heuristic_cost']}"
             print(
-                f"{row['id']} search={row['search_cost']} truth={row['truth_cost']} node={row['node']} "
+                f"{row['id']} search={row['search_cost']} truth={row['truth_cost']}{heuristic} node={row['node']} "
                 f"type={row['node_type']} text={row['text']}{related}{scratch}"
             )
     return 0
@@ -130,8 +133,11 @@ def cmd_next(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps({"item": view, "path": path}, indent=2, ensure_ascii=False))
     else:
+        heuristic = ""
+        if view.get("estimated_remaining_cost") is not None:
+            heuristic = f" base={view['base_search_cost']} remaining={view['estimated_remaining_cost']} heuristic={view['heuristic_cost']}"
         print(
-            f"next {view['id']} search={view['search_cost']} truth={view['truth_cost']} node={view['node']} "
+            f"next {view['id']} search={view['search_cost']} truth={view['truth_cost']}{heuristic} node={view['node']} "
             f"type={view['node_type']} text={view['text']}"
         )
         if view.get("related_brief"):
@@ -143,7 +149,8 @@ def cmd_next(args: argparse.Namespace) -> int:
             path_item = step["item"]
             path_node = step["node"]
             print(
-                f"  {path_item.get('id')} search={path_item.get('search_cost', path_item.get('path_cost'))} truth={path_item.get('truth_cost')} "
+                f"  {path_item.get('id')} search={path_item.get('search_cost', path_item.get('path_cost'))} "
+                f"base={path_item.get('base_search_cost')} truth={path_item.get('truth_cost')} "
                 f"node={path_node.get('id')} type={path_node.get('type')} text={path_node.get('text', '')}"
             )
     return 0
@@ -523,8 +530,8 @@ def cmd_path(args: argparse.Namespace) -> int:
             item = step["item"]
             node = step["node"]
             print(
-                f"{item.get('id')} search={item.get('search_cost', item.get('path_cost'))} truth={item.get('truth_cost')} "
-                f"node={node.get('id')} type={node.get('type')} text={node.get('text', '')}"
+                f"{item.get('id')} search={item.get('search_cost', item.get('path_cost'))} base={item.get('base_search_cost')} "
+                f"truth={item.get('truth_cost')} node={node.get('id')} type={node.get('type')} text={node.get('text', '')}"
             )
     return 0
 

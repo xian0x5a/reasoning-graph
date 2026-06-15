@@ -12,7 +12,7 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 
 1. Extract goal, facts, constraints.
 2. Add assumptions/tests as frontier items.
-3. Score each item by truth cost, verification cost, effort budget, reasoning complexity, constraint tension, and evidence penalties.
+3. Score each item by truth cost, verification cost, effort budget, reasoning complexity, constraint tension, evidence penalties, and optional estimated remaining work.
 4. Pop lowest `search_cost`; expand into evidence, tests, child branches, or candidate answers.
 5. Update costs as evidence arrives; keep branches visible instead of deleting them.
 6. Stop only when frontier is exhausted, confidence/quantity threshold is met, budget is spent, or a real blocker is proved.

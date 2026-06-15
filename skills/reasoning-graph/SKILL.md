@@ -183,15 +183,21 @@ base_odds = P_base / (1 - P_base)
 updated_odds = base_odds * product(ungrouped supports/contradicts likelihood ratios) * product(supports/contradicts factor likelihood ratios)
 effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 
-search_cost =
+base_search_cost =
   effective_truth_cost(current node)
 + local_verification_cost
 + local_effort_budget
 + local_reasoning_complexity_cost
 + local_constraint_tension_cost
+
+search_cost =
+  base_search_cost
++ search_policy.estimated_remaining_weight * estimated_remaining_cost
 ```
 
-`truth_cost` measures current plausibility from the graph's probability model. `search_cost` measures what to investigate next by combining plausibility with local remaining effort/risk. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone.
+`truth_cost` measures current plausibility from the graph's probability model. `base_search_cost` measures local remaining effort/risk. Optional top-level `estimated_remaining_cost` is a heuristic estimate of remaining work: unmet criteria, missing evidence, unresolved constraints, confidence gap, dependency depth, or similar effort. It is not truth cost and should stay outside `cost_components`. `search_policy.estimated_remaining_weight` defaults to `1.0`; set it lower when rough heuristics should guide order without dominating local cost.
+
+`search_cost` is frontier priority. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone.
 
 Exact math is optional. Rough costs are acceptable when they preserve ordering and make the search better.
 
@@ -219,6 +225,7 @@ Example:
     "reasoning_complexity": 0.1,
     "constraint_tension": 0.0
   },
+  "estimated_remaining_cost": 0.4,
   "budget": {"max_attempts": 20, "max_seconds": 30, "stop_after": "first discriminating result"}
 }
 ```
@@ -293,8 +300,11 @@ Example frontier item:
   step_truth_cost: 0.51
   truth_cost: 0.51
   work_cost: 0.30
-  step_cost: 0.81
-  search_cost: 0.81
+  base_search_cost: 0.81
+  estimated_remaining_cost: 0.40
+  heuristic_cost: 0.40
+  step_cost: 1.21
+  search_cost: 1.21
   active_assumptions: [A2]
   evidence_version: E1
 ```
@@ -383,9 +393,13 @@ State JSON shape:
         "verification": 0.2,
         "reasoning_complexity": 0.1,
         "constraint_tension": 0
-      }
+      },
+      "estimated_remaining_cost": 0.5
     }
   ],
+  "search_policy": {
+    "estimated_remaining_weight": 1.0
+  },
   "stop_policy": {
     "min_viable_candidates": 3,
     "belief_threshold": 0.8,
@@ -405,7 +419,7 @@ State JSON shape:
         "id": "CS1",
         "name": "Likely route",
         "belief": 0.6,
-        "search_cost": 0.810826,
+        "search_cost": 1.310826,
         "path_nodes": ["E1", "C1", "A1", "CS1"],
         "why": "Lowest explored search cost and satisfies constraints",
         "next_test": "Verify supporting evidence"
@@ -422,7 +436,7 @@ State JSON shape:
   },
   "events": [
     {"step": 1, "action": "init", "frontier": ["Q1"]},
-    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.810826},
+    {"step": 2, "action": "pop", "item": "Q1", "cost": 1.310826},
     {"step": 3, "action": "stop", "reason": "sample complete", "outcome": "frontier_exhausted"}
   ],
   "view": {
@@ -437,7 +451,10 @@ Cost behavior:
 - `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus ungrouped incoming `leads_to` premise costs and `leads_to` factor joint-probability costs, then ungrouped `supports`/`contradicts` likelihood updates and grouped factor likelihood updates.
 - `truth_cost` is the current node's effective truth cost. `step_truth_cost` is kept as a legacy mirror of `truth_cost`.
 - `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
-- `step_cost` and `search_cost` are the frontier priority score: `truth_cost + work_cost`. Parent pointers do not accumulate cost; past work is sunk.
+- `base_search_cost` is `truth_cost + work_cost` before goal-distance heuristics.
+- `estimated_remaining_cost` is optional top-level heuristic remaining work.
+- Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
+- `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
 - `path_cost` is emitted only as a legacy alias for `search_cost`, not cumulative path cost.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals. Without strict events, older loose states expose stored frontier items for compatibility.

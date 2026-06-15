@@ -22,7 +22,7 @@ search_cursor(state):
   when a supersede event is seen, remove the stale item from active frontier and keep its replacement active if the replacement exists and was not popped
 
 item_view(state, item):
-  render compact item context with node, cost, related nodes, scratch, assumptions, and evidence version
+  render compact item context with node, search/base/truth/remaining heuristic costs, related nodes, scratch, assumptions, and evidence version
 
 reconstruct_path(state, item_id):
   follow parent pointers from item to root and return ordered path records

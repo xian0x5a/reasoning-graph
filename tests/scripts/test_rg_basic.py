@@ -381,6 +381,100 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(updated["events"][-1]["add_frontier"], [])
             self.assertEqual(search_cursor(updated)["active_ids"], {"Q1"})
 
+    def test_costs_include_estimated_remaining_cost_as_frontier_heuristic(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "remaining-cost-state.json"
+            output_path = Path(tmp_dir) / "remaining-cost-output.json"
+            state = {
+                "search_policy": {"estimated_remaining_weight": 0.5},
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Cheap but far", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Expensive but near", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {
+                        "id": "Q1",
+                        "node": "A1",
+                        "cost_components": {"truth": "auto", "verification": 0.1},
+                        "estimated_remaining_cost": 2.0,
+                    },
+                    {
+                        "id": "Q2",
+                        "node": "A2",
+                        "cost_components": {"truth": "auto", "verification": 1.0},
+                        "estimated_remaining_cost": 0.0,
+                    },
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("sort", str(state_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            by_id = {item["id"]: item for item in costed["frontier"]}
+            self.assertEqual([item["id"] for item in costed["frontier"]], ["Q2", "Q1"])
+            self.assertAlmostEqual(by_id["Q1"]["base_search_cost"], 0.1, places=6)
+            self.assertAlmostEqual(by_id["Q1"]["heuristic_cost"], 1.0, places=6)
+            self.assertAlmostEqual(by_id["Q1"]["search_cost"], 1.1, places=6)
+            self.assertAlmostEqual(by_id["Q2"]["search_cost"], 1.0, places=6)
+
+    def test_costs_reject_misplaced_estimated_remaining_cost_component(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "misplaced-distance-field.json"
+            state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Branch", "prior": 1.0}],
+                "edges": [],
+                "frontier": [
+                    {
+                        "id": "Q1",
+                        "node": "A1",
+                        "cost_components": {"truth": "auto", "estimated_remaining_cost": 0.75},
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("cost_components.estimated_remaining_cost must be top-level", result.stderr)
+
+    def test_costs_reject_invalid_estimated_remaining_cost(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "invalid-distance.json"
+            state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Branch", "prior": 1.0}],
+                "edges": [],
+                "frontier": [
+                    {
+                        "id": "Q1",
+                        "node": "A1",
+                        "cost_components": {"truth": "auto"},
+                        "estimated_remaining_cost": -0.1,
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path))
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("estimated_remaining_cost must be finite and non-negative", result.stderr)
+
+    def test_costs_reject_invalid_estimated_remaining_weight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "invalid-weight.json"
+            state = {
+                "search_policy": {"estimated_remaining_weight": -1},
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Branch", "prior": 1.0}],
+                "edges": [],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_rg("costs", str(state_path))
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("search_policy.estimated_remaining_weight must be finite and non-negative", result.stderr)
+
     def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "premise-state.json"
