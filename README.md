@@ -35,6 +35,13 @@ python skills/reasoning-graph/scripts/rg.py mermaid state.json > graph.mmd
 python skills/reasoning-graph/scripts/rg.py html state.json -o graph.html
 ```
 
+## Schemas
+
+Machine-readable JSON Schemas live under `skills/reasoning-graph/schemas/`:
+
+- `state.schema.json` for graph/search state files
+- `patch.schema.json` for expansion patches
+
 ## Checks
 
 ```bash

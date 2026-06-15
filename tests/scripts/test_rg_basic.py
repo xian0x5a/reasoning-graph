@@ -3,7 +3,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
+
+try:
+    import jsonschema
+except ImportError:  # pragma: no cover - optional developer dependency
+    jsonschema = None
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +21,8 @@ from reasoning_graph.frontier import search_cursor
 
 RG = SCRIPTS_ROOT / "rg.py"
 FIXTURE = REPO_ROOT / "tests" / "reasoning-graph-strict-good.json"
+STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphCliBasicTests(unittest.TestCase):
@@ -26,6 +34,49 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             capture_output=True,
             **kwargs,
         )
+
+    def test_json_schemas_parse_and_cover_core_enums(self) -> None:
+        state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
+        patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
+
+        self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
+        self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
+        self.assertIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
+        self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
+        self.assertIn("stop_outcome", patch_schema["properties"])
+
+    @unittest.skipIf(jsonschema is None, "jsonschema not installed")
+    def test_json_schema_validates_fixture_and_patch_examples(self) -> None:
+        state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
+        patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
+        fixture_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        patch = {
+            "nodes": [{"id": "A3", "type": "assumption", "text": "Third cause", "prior": 0.2}],
+            "edges": [{"id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
+            "frontier": [{"id": "Q4", "node": "A3", "cost_components": {"truth": "auto"}}],
+            "stop_reason": "sample stop",
+            "stop_outcome": "user_stopped",
+        }
+
+        state_validator = jsonschema.Draft202012Validator(state_schema)
+        state_validator.validate(fixture_state)
+        with self.assertRaises(jsonschema.ValidationError):
+            state_validator.validate({"nodes": [{"id": "X1", "type": "fact"}]})
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            resolver = jsonschema.RefResolver.from_schema(
+                patch_schema,
+                store={
+                    state_schema["$id"]: state_schema,
+                    "state.schema.json": state_schema,
+                },
+            )
+            patch_validator = jsonschema.Draft202012Validator(patch_schema, resolver=resolver)
+        patch_validator.validate(patch)
+        with self.assertRaises(jsonschema.ValidationError):
+            patch_validator.validate({"stop_reason": "missing outcome"})
 
     def test_validate_and_audit_fixture_pass(self) -> None:
         validate = self.run_rg("validate", str(FIXTURE))

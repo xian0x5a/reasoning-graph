@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:reasoning-graph:patch.schema.json",
+  "title": "Reasoning Graph Expansion Patch",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "summary": {"type": "string"},
+    "mode": {"type": "string"},
+    "reason": {"type": "string"},
+    "nodes": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/node"}},
+    "add_node_objects": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/edge"}},
+    "add_edge_objects": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/edge"}},
+    "frontier": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/frontierItem"}},
+    "add_frontier_objects": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/frontierItem"}},
+    "update_premise_groups": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/premiseGroup"}},
+    "premise_groups": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/premiseGroup"}},
+    "add_premise_group_objects": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/premiseGroup"}},
+    "update_factors": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/factor"}},
+    "factors": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/factor"}},
+    "add_factor_objects": {"type": "array", "items": {"$ref": "state.schema.json#/$defs/factor"}},
+    "updated_nodes": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {"type": "string", "minLength": 1},
+          {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "fields": {"type": "array", "items": {"type": "string", "minLength": 1}}
+            }
+          }
+        ]
+      }
+    },
+    "no_new_work_reason": {"type": "string"},
+    "no_reopen_reason": {"type": "string", "deprecated": true},
+    "under_branching_reason": {"type": "string"},
+    "existing_sibling_frontier": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "select": {
+      "anyOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["node"],
+          "properties": {
+            "node": {"type": "string", "minLength": 1},
+            "item": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
+    "solution": {
+      "anyOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["node"],
+          "properties": {
+            "node": {"type": "string", "minLength": 1},
+            "item": {"type": "string", "minLength": 1}
+          }
+        }
+      ],
+      "deprecated": true
+    },
+    "solution_node": {"type": "string", "minLength": 1, "deprecated": true},
+    "stop_reason": {"type": "string", "minLength": 1},
+    "stop": {"type": "string", "minLength": 1},
+    "stop_outcome": {"enum": ["solved", "candidate_threshold_met", "candidate_count_met", "frontier_exhausted", "budget_exhausted", "blocked", "user_stopped", "inconclusive"]},
+    "outcome": {"enum": ["solved", "candidate_threshold_met", "candidate_count_met", "frontier_exhausted", "budget_exhausted", "blocked", "user_stopped", "inconclusive"]}
+  },
+  "allOf": [
+    {
+      "if": {"anyOf": [{"required": ["stop_reason"]}, {"required": ["stop"]}]},
+      "then": {"anyOf": [{"required": ["stop_outcome"]}, {"required": ["outcome"]}]}
+    }
+  ]
+}

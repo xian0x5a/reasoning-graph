@@ -177,3 +177,4 @@ Details: `docs/rendering.md`.
 - `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
 - `docs/driver.md` — state JSON, helper commands, event/audit semantics
 - `docs/rendering.md` — compact output, graph mode, HTML/canvas rules
+- `schemas/state.schema.json` and `schemas/patch.schema.json` — machine-readable state/patch contracts
