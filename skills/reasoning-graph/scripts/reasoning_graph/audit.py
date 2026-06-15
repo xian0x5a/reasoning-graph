@@ -99,6 +99,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     errors = list(base.errors)
     warnings = list(base.warnings)
     stats = {"events": 0, "pops": 0, "expansions": 0, "selections": 0}
+    if errors:
+        return ValidationResult(errors=errors, warnings=warnings), stats
 
     events = state.get("events")
     if not isinstance(events, list) or not events:

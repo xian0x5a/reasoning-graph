@@ -9,6 +9,8 @@ Audit driver events and stop policy after graph search has been recorded.
 ```pseudo
 audit_state(state):
   run validation first
+  if validation reports errors:
+    return those errors and warnings without deeper audit
   replay init/pop/expand/select/stop events
   verify frontier pops are coherent and lowest cost
   verify expansions and selections match pending items and graph topology

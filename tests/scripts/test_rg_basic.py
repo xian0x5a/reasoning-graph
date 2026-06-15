@@ -36,6 +36,28 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
 
+    def test_audit_reports_validation_errors_without_deeper_audit_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "invalid-stop-policy.json"
+            state = {
+                "nodes": [],
+                "edges": [],
+                "frontier": [],
+                "stop_policy": {"max_live_frontier_items": "x", "min_viable_candidates": "y"},
+                "events": [
+                    {"step": 1, "action": "init", "frontier": []},
+                    {"step": 2, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_rg("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0, audit.stdout)
+            self.assertIn("stop_policy.max_live_frontier_items must be a non-negative integer", audit.stderr)
+            self.assertIn("stop_policy.min_viable_candidates must be a non-negative integer", audit.stderr)
+            self.assertNotIn("invalid literal for int()", audit.stderr)
+
     def test_validate_accepts_evidence_and_rejects_legacy_fact_contradiction_nodes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "evidence-state.json"
