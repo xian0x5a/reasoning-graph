@@ -4,9 +4,9 @@ Real-world puzzle fixture from Gold Bug DC33 / Crypto & Privacy Village 2025.
 
 Source puzzle page: https://goldbug.cryptovillage.org/puzzles/2025/Sea%20Shanty/
 
-Use the local image asset in this directory:
+Use the local image asset in `assets/`:
 
-![Sea Shanty rum bottles](SEA-SHANTY.png)
+![Sea Shanty rum bottles](assets/SEA-SHANTY.png)
 
 ## Blind-solver instructions
 

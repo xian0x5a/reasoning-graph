@@ -1,21 +1,12 @@
-# Reasoning Graph Test: The Locked Observatory
+# The Locked Observatory
 
-Use the `reasoning-graph` skill in **graph mode**.
+## Problem questions
 
-## Task
-
-Solve the mystery using a reasoning graph.
-
-Return:
-
-1. compact answer summary
-2. facts / constraints separation
-3. assumptions with numeric priors
-4. UCS-style candidate ordering with path costs
-5. winning proof path
-6. competing candidate paths and contradicted/weakened branches
-7. next verification action
-8. path to generated HTML graph artifact
+1. Who is the most likely killer?
+2. What method explains the locked room and delayed poisoning?
+3. What key evidence supports the best explanation?
+4. What are the top competing candidates, and why are they weaker?
+5. What single next verification action would best confirm or refute the answer?
 
 ## Scenario
 
@@ -56,8 +47,4 @@ Identify the most likely killer, method, and next verification action.
 
 ## Constraints
 
-- C1: Do not assume supernatural or impossible movement.
-- C2: Use numeric priors and UCS-style path costs.
-- C3: Produce up to 3 candidate solution paths.
-- C4: Generate an HTML graph artifact.
-
+- Do not assume supernatural or impossible movement.

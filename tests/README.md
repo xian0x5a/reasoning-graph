@@ -18,14 +18,7 @@ Tests are split by role:
 
 ## Scenarios
 
-- `scenarios/prompts/no-skill-ab-prompt.md` — reusable A/B prompt for the normal/no-skill run.
-- `scenarios/prompts/skill-ab-prompt.md` — reusable A/B prompt for the `reasoning-graph` skill run.
-- `scenarios/countdown-island/` — countdown-island problem variants and spoiler validator.
-- `scenarios/sea-shanty/` — Gold Bug DC33 / CryptoVillage 2025 Sea Shanty puzzle fixture and validator.
-- `scenarios/theo-crypto-v2/` — text-only cold fixture for a two-line crypto challenge.
-- `scenarios/reasoning-graph-hard-*.md` — hard detective-style packets and validators.
-- `scenarios/reasoning-graph-sherlock-conan-*.md` — earlier blind observatory test and validator.
-- `scenarios/locked-observatory-baseline-blind.md` — baseline prompt used for non-skill comparison.
+Human/eval prompt packets live under `scenarios/`. Detailed scenario layout, prompt template, validator, and asset conventions live in `../docs/test-scenarios.md`.
 
 ## Run
 

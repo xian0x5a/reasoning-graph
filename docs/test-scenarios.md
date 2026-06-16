@@ -1,0 +1,62 @@
+# Test scenario format
+
+Human/eval scenarios live under `tests/scenarios/`. Keep every scenario in its own slug directory; no loose scenario Markdown files at the root.
+
+## Directory layout
+
+```text
+tests/scenarios/
+  _templates/
+    no-skill.md
+    reasoning-graph.md
+  <scenario-slug>/
+    problem.md
+    problem.v2.md              # optional harder/revised variants, same validator unless noted
+    problem.v3.md
+    validator.md                # optional, spoiler-only
+    assets/                     # optional local images/data used by problems
+```
+
+## Problem files
+
+`problem.md` is the default blind prompt packet. It should be solver-mode neutral: no no-skill wording, no `reasoning-graph`-specific instructions, no machine-specific paths.
+
+Recommended sections:
+
+1. Title
+2. Short context / source note, if useful
+3. `## Problem questions`
+4. Case/puzzle material
+5. `## Constraints`, only when constraints are intrinsic to the puzzle
+
+For ordered variants, use `problem.vN.md` names. Keep `problem.md` as the default/v1 packet; use `problem.v2.md`, `problem.v3.md`, etc. for harder or revised variants. If a descriptive label matters, explain it in the scenario README or validator notes instead of the filename.
+
+## Prompt templates
+
+Share prompt templates in `_templates/`; do not duplicate solver-mode instructions inside each scenario.
+
+Current templates:
+
+- `_templates/no-skill.md` — baseline run without the skill.
+- `_templates/reasoning-graph.md` — skill run using strict/graph mode.
+
+Templates use `{{PROBLEM_FILE}}` as the problem path placeholder.
+
+## Validators
+
+`validator.md` is spoiler-only and must never be included in blind solver prompts.
+
+Recommended validator sections:
+
+1. `# SPOILER Validator — <scenario title>`
+2. Short warning not to show it to blind solvers
+3. `## Expected best solution` or `## Expected final answer`
+4. Required evidence / clue coverage
+5. Acceptable variants
+6. Common wrong answers or scoring notes, if useful
+
+Keep validators in Markdown for human review. Add machine-readable validator files only when a runner needs them; if so, put them beside `validator.md` with explicit names like `validator.json`.
+
+## Assets
+
+Put local images or auxiliary data under `assets/` inside the scenario directory. Reference them with relative paths from the problem file, e.g. `![caption](assets/image.png)`.

@@ -1,8 +1,6 @@
-# Reasoning Graph Test Validator: The Locked Observatory
+# SPOILER Validator — The Locked Observatory
 
-Use this file to evaluate answers to `/tmp/reasoning-graph-sherlock-conan-test.md`.
-
-Do not include this validator file in the blind test prompt.
+Do not include this validator file in blind solver prompts.
 
 ## Hidden Clue Coverage Targets
 
