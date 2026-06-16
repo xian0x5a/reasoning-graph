@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Find exact answer"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Route",
+      "prior": 0.5
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "Candidate",
+      "answer_kind": "exact_answer"
+    }
+  ],
+  "edges": [
+    {
+      "id": "A1CS1",
+      "from": "A1",
+      "to": "CS1",
+      "type": "leads_to"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "cost_components": {
+        "truth": "auto"
+      }
+    }
+  ]
+}

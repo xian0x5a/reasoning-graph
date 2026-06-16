@@ -1,0 +1,15 @@
+{
+  "summary": {
+    "title": "Minimal state",
+    "answer": ""
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Solve the problem"
+    }
+  ],
+  "edges": [],
+  "frontier": []
+}

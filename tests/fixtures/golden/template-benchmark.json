@@ -1,0 +1,31 @@
+{
+  "summary": {
+    "title": "Reasoning Graph",
+    "answer": ""
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Solve the problem"
+    }
+  ],
+  "edges": [],
+  "frontier": [],
+  "search_policy": {
+    "estimated_remaining_weight": 1.0
+  },
+  "stop_policy": {
+    "min_viable_candidates": 3,
+    "belief_threshold": 0.8,
+    "max_live_frontier_items": 0,
+    "require_frontier_exhausted_for_epistemic_stop": true,
+    "severity": "error"
+  },
+  "branch_policy": {
+    "high_salience_min_children": 3,
+    "low_prior_wildcard_required": true,
+    "enforce_on": "always",
+    "severity": "error"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "nodes": [],
+  "edges": [],
+  "frontier": [],
+  "stop_policy": {
+    "max_live_frontier_items": "x",
+    "min_viable_candidates": "y"
+  },
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": []
+    },
+    {
+      "step": 2,
+      "action": "stop",
+      "reason": "manual stop",
+      "outcome": "user_stopped"
+    }
+  ]
+}

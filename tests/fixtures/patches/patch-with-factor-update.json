@@ -1,0 +1,49 @@
+{
+  "summary": "Add grouped evidence factor for A1.",
+  "nodes": [
+    {
+      "id": "E3",
+      "type": "evidence",
+      "text": "Third correlated signal",
+      "confidence": 0.75
+    },
+    {
+      "id": "E4",
+      "type": "evidence",
+      "text": "Fourth correlated signal",
+      "confidence": 0.7
+    }
+  ],
+  "edges": [
+    {
+      "id": "E3A1",
+      "from": "E3",
+      "to": "A1",
+      "type": "supports"
+    },
+    {
+      "id": "E4A1",
+      "from": "E4",
+      "to": "A1",
+      "type": "supports"
+    }
+  ],
+  "update_factors": [
+    {
+      "id": "F_SUPPORTS_A1_EXTRA",
+      "relation": "supports",
+      "target": "A1",
+      "inputs": [
+        "E3",
+        "E4"
+      ],
+      "aggregation": {
+        "kind": "likelihood",
+        "if_target_true": 0.7,
+        "if_target_false": 0.3
+      },
+      "reason": "New signals are correlated with each other and grouped together."
+    }
+  ],
+  "no_new_work_reason": "Evidence only reranks existing branch."
+}

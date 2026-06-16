@@ -1,0 +1,71 @@
+{
+  "summary": {
+    "title": "Goal policy state",
+    "answer": "Accepted goal answered."
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Find exact answer"
+    },
+    {
+      "id": "G2",
+      "type": "goal",
+      "text": "Explain likely method"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Answer route",
+      "prior": 0.7
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "Exact answer",
+      "answer_kind": "exact_answer"
+    }
+  ],
+  "goal_groups": [
+    {
+      "id": "GG1",
+      "goals": [
+        "G1",
+        "G2"
+      ],
+      "exclusive": false
+    }
+  ],
+  "goal_policy": {
+    "accepted_goals": [
+      "G1"
+    ],
+    "preferred_goals": [
+      "G2"
+    ]
+  },
+  "edges": [
+    {
+      "id": "A1CS1",
+      "from": "A1",
+      "to": "CS1",
+      "type": "leads_to"
+    },
+    {
+      "id": "CS1G1",
+      "from": "CS1",
+      "to": "G1",
+      "type": "answers"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "cost_components": {
+        "truth": "auto"
+      }
+    }
+  ]
+}

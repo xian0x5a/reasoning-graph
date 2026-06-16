@@ -21,6 +21,11 @@ Messy/blind test inputs and spoiler validators for reviewing the `reasoning-grap
 - `reasoning-graph-sherlock-conan-validator.md` — spoiler validator. Do not give to blind solvers.
 - `locked-observatory-baseline-blind.md` — baseline prompt used for non-skill comparison.
 - `reasoning-graph-strict-good.json` — minimal strict-mode state that should validate/audit.
+- `fixtures/valid/` — durable valid state fixtures for schema/CLI regression tests.
+- `fixtures/invalid/validate/` — states expected to fail `rg.py validate` with specific errors.
+- `fixtures/invalid/audit/` — states expected to pass validation but fail `rg.py audit`.
+- `fixtures/patches/` — expansion patch fixtures validated by schema and applied in round-trip tests.
+- `fixtures/golden/` — deterministic CLI output snapshots for starter/review commands.
 
 ## Review notes
 

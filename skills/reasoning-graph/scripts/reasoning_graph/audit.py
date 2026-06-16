@@ -565,10 +565,14 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: cost {event_cost} != item search_cost {expected_cost}")
             if item_id not in popped_items:
                 warnings.append(f"{label}: selected item {item_id} was recorded before a pop event")
+            if item_id == last_popped_item:
+                last_popped_item = None
             stats["selections"] += 1
             continue
 
         if action == "stop":
+            if last_popped_item is not None:
+                errors.append(f"{label}: stop cannot follow unresolved popped item {last_popped_item}; expand or select it first")
             reason = event.get("reason")
             if not isinstance(reason, str) or not reason.strip():
                 errors.append(f"{label}: stop reason must be non-empty")

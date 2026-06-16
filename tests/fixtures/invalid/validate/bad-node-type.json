@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {
+      "id": "X1",
+      "type": "fact",
+      "text": "Legacy fact"
+    }
+  ],
+  "edges": [],
+  "frontier": []
+}

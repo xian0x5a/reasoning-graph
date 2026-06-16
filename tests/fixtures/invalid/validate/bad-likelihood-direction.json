@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "id": "E1",
+      "type": "evidence",
+      "text": "Signal"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Target",
+      "prior": 0.5
+    }
+  ],
+  "edges": [
+    {
+      "id": "E1A1",
+      "from": "E1",
+      "to": "A1",
+      "type": "supports",
+      "likelihood_ratio": 0.5
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "cost_components": {
+        "truth": "auto"
+      }
+    }
+  ]
+}

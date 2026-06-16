@@ -1,0 +1,118 @@
+{
+  "summary": {
+    "title": "Lazy epistemic stop",
+    "answer": "Insufficient evidence."
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Determine whether the cause remains unknown from insufficient evidence"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "First unresolved route",
+      "prior": 0.5
+    },
+    {
+      "id": "A2",
+      "type": "assumption",
+      "text": "Second live route",
+      "prior": 0.5
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "Insufficient evidence to establish cause",
+      "answer_kind": "blocker"
+    }
+  ],
+  "edges": [
+    {
+      "id": "CS1G1",
+      "from": "CS1",
+      "to": "G1",
+      "type": "answers"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "cost_components": {
+        "truth": "auto"
+      }
+    },
+    {
+      "id": "Q2",
+      "node": "A2",
+      "cost_components": {
+        "truth": "auto"
+      }
+    },
+    {
+      "id": "Q3",
+      "node": "CS1",
+      "parent": "Q1",
+      "cost_components": {
+        "reasoning_complexity": 0.1
+      }
+    }
+  ],
+  "stop_policy": {
+    "max_live_frontier_items": 0,
+    "require_frontier_exhausted_for_epistemic_stop": true,
+    "severity": "error"
+  },
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": [
+        "Q1",
+        "Q2"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "pop",
+      "item": "Q1",
+      "cost": 0.693147
+    },
+    {
+      "step": 3,
+      "action": "expand",
+      "item": "Q1",
+      "add_nodes": [
+        "CS1"
+      ],
+      "add_edges": [
+        "CS1G1"
+      ],
+      "add_frontier": [
+        "Q3"
+      ],
+      "under_branching_reason": "Fixture forces lazy stop violation."
+    },
+    {
+      "step": 4,
+      "action": "pop",
+      "item": "Q3",
+      "cost": 0.1
+    },
+    {
+      "step": 5,
+      "action": "select",
+      "item": "Q3",
+      "node": "CS1",
+      "cost": 0.1
+    },
+    {
+      "step": 6,
+      "action": "stop",
+      "reason": "insufficient evidence selected before exhausting live route",
+      "outcome": "solved"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Add one candidate answer from A1.",
+  "nodes": [
+    {
+      "id": "CS2",
+      "type": "candidate_solution",
+      "text": "Alternative exact answer",
+      "answer_kind": "exact_answer"
+    }
+  ],
+  "edges": [
+    {
+      "id": "A1CS2",
+      "from": "A1",
+      "to": "CS2",
+      "type": "leads_to"
+    },
+    {
+      "id": "CS2G1",
+      "from": "CS2",
+      "to": "G1",
+      "type": "answers"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q4",
+      "node": "CS2",
+      "cost_components": {
+        "reasoning_complexity": 0.1
+      }
+    }
+  ]
+}
