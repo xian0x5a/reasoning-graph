@@ -18,7 +18,7 @@ Helper-generated reports derive table `belief` from `effective_truth_cost`. `pos
 
 Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
-Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. `path_cost` is a legacy alias only; it is not cumulative path cost.
+Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Legacy inputs may still contain `path_cost`, but modern output uses `search_cost`.
 
 Recommended hybrid cost model:
 

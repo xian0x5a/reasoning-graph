@@ -8,6 +8,8 @@ Validate graph schema, references, candidate hygiene, and cost metadata before u
 
 ```pseudo
 validate_state(state):
+  collect JSON Schema contract errors first
+  continue semantic validation so one command reports both schema and graph-specific diagnostics
   check top-level collections and object ids
   check node types, including evidence instead of legacy fact/contradiction nodes; check edge types, references, statuses, priors and other probability fields through shared numeric validation, and answer kinds
   check premise_groups are legacy non-independent premise bundles with id, target, at least two leads_to premises, and joint_probability

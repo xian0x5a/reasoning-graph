@@ -14,6 +14,7 @@ from .frontier import expansion_signature, item_view, next_event_step, reconstru
 from .models import STOP_OUTCOMES
 from .policy import selected_candidate_ids_from_events, viable_candidate_ids
 from .render import html_document, presentation_node_ids, to_mermaid
+from .schema_validation import patch_schema_errors
 from .state import by_id, dump_state, load_state
 from .validation import validate_state
 
@@ -506,16 +507,21 @@ def cmd_expand(args: argparse.Namespace) -> int:
     patch = load_state(args.patch)
     if not isinstance(patch, dict):
         raise ValueError("expansion patch must be a JSON object")
+    patch_errors = patch_schema_errors(patch)
+    if patch_errors:
+        for error in patch_errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
 
-    nodes_to_add = _object_list(patch.get("nodes", patch.get("add_node_objects")), "nodes")
-    edges_to_add = _object_list(patch.get("edges", patch.get("add_edge_objects")), "edges")
-    frontier_to_add = _object_list(patch.get("frontier", patch.get("add_frontier_objects")), "frontier")
+    nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    edges_to_add = _object_list(patch.get("edges"), "edges")
+    frontier_to_add = _object_list(patch.get("frontier"), "frontier")
     premise_groups_to_update = _object_list(
-        patch.get("update_premise_groups", patch.get("premise_groups", patch.get("add_premise_group_objects"))),
+        patch.get("update_premise_groups", patch.get("premise_groups")),
         "update_premise_groups",
     )
     factors_to_update = _object_list(
-        patch.get("update_factors", patch.get("factors", patch.get("add_factor_objects"))),
+        patch.get("update_factors", patch.get("factors")),
         "update_factors",
     )
 
@@ -594,7 +600,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "reason",
         "updated_nodes",
         "no_new_work_reason",
-        "no_reopen_reason",
         "under_branching_reason",
         "existing_sibling_frontier",
     ):
@@ -604,7 +609,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
 
-    select_spec = patch.get("select", patch.get("solution"))
+    select_spec = patch.get("select")
     selected_node: str | None = None
     selected_item = args.item
     if isinstance(select_spec, str):
@@ -616,8 +621,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
             selected_node = raw_selected_node
         if isinstance(raw_selected_item, str):
             selected_item = raw_selected_item
-    elif isinstance(patch.get("solution_node"), str):
-        selected_node = patch["solution_node"]
     if selected_node:
         frontier_items = by_id(state.get("frontier", []), "frontier item")
         if selected_item not in frontier_items:
@@ -633,12 +636,10 @@ def cmd_expand(args: argparse.Namespace) -> int:
         )
 
     stop_reason = patch.get("stop_reason")
-    if stop_reason is None and isinstance(patch.get("stop"), str):
-        stop_reason = patch.get("stop")
     if stop_reason is not None:
         if not isinstance(stop_reason, str) or not stop_reason.strip():
             raise ValueError("stop_reason must be a non-empty string")
-        stop_outcome = patch.get("stop_outcome", patch.get("outcome"))
+        stop_outcome = patch.get("stop_outcome")
         if stop_outcome not in STOP_OUTCOMES:
             raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
         events.append({"step": next_event_step(state), "action": "stop", "reason": stop_reason, "outcome": stop_outcome})
@@ -794,7 +795,7 @@ def build_parser() -> argparse.ArgumentParser:
     stop_review.add_argument("--strict-warnings", action="store_true", help="treat validation/audit warnings as required fixes")
     stop_review.set_defaults(func=cmd_stop_review)
 
-    costs = sub.add_parser("costs", help="compute truth_cost/search_cost; path_cost is emitted as a legacy alias")
+    costs = sub.add_parser("costs", help="compute truth_cost/search_cost")
     costs.add_argument("state", help="state JSON path, or - for stdin")
     costs.add_argument("-o", "--output", help="write result to path instead of stdout")
     costs.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")

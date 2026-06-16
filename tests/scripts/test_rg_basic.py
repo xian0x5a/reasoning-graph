@@ -13,16 +13,16 @@ except ImportError:  # pragma: no cover - optional developer dependency
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_ROOT = REPO_ROOT / "skills" / "reasoning-graph" / "scripts"
-sys.path.insert(0, str(SCRIPTS_ROOT))
+SRC_ROOT = REPO_ROOT / "src"
+sys.path.insert(0, str(SRC_ROOT))
 
 from reasoning_graph.frontier import search_cursor
 
 
-RG = SCRIPTS_ROOT / "rg.py"
+RG = REPO_ROOT / "skills" / "reasoning-graph" / "scripts" / "rg.py"
 FIXTURE = REPO_ROOT / "tests" / "reasoning-graph-strict-good.json"
-STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "patch.schema.json"
+STATE_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphCliBasicTests(unittest.TestCase):
@@ -1077,6 +1077,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             by_id = {item["id"]: item for item in costed["frontier"]}
+            self.assertNotIn("path_cost", by_id["Q1"])
             self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.693147, places=6)
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.693147, places=6)
             self.assertAlmostEqual(by_id["Q2"]["search_cost"], 0.693147, places=6)
@@ -1101,8 +1102,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.693147, places=6)
 
             valid = self.run_rg("validate", str(state_path))
-            self.assertEqual(valid.returncode, 0, valid.stderr)
+            self.assertNotEqual(valid.returncode, 0, valid.stdout)
             self.assertIn("ignored legacy field(s) strength", valid.stderr)
+            self.assertIn("schema $.edges[0]", valid.stderr)
 
     def test_validate_rejects_bad_likelihood_ratio_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

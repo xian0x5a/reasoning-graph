@@ -19,6 +19,7 @@ from .costs import (
 )
 from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, TEST_STATUSES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
+from .schema_validation import state_schema_errors
 from .utils import as_string_list
 
 
@@ -31,7 +32,7 @@ def edge_id_set(state: dict[str, Any]) -> set[str]:
 
 
 def validate_state(state: dict[str, Any]) -> ValidationResult:
-    errors: list[str] = []
+    errors: list[str] = state_schema_errors(state) if isinstance(state, dict) else ["schema $: state must be an object"]
     warnings: list[str] = []
     nodes_raw = state.get("nodes", [])
     edges_raw = state.get("edges", [])

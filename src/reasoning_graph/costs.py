@@ -516,7 +516,7 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
         item["step_truth_cost"] = round(truth_cost, 6)
         item["step_cost"] = round(search_cost, 6)
         item["search_cost"] = round(search_cost, 6)
-        item["path_cost"] = round(search_cost, 6)  # legacy alias; prefer search_cost.
+        item.pop("path_cost", None)
     return state
 
 

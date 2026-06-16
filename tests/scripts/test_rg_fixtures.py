@@ -28,8 +28,8 @@ AUDIT_INVALID_FIXTURES = {
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
 }
-STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "schemas" / "patch.schema.json"
+STATE_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphFixtureTests(unittest.TestCase):
@@ -41,6 +41,21 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             capture_output=True,
             **kwargs,
         )
+
+    def test_installed_console_entrypoint_validates_fixture(self) -> None:
+        try:
+            result = subprocess.run(
+                ["uv", "run", "rg", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+        except FileNotFoundError:
+            self.skipTest("uv is not on PATH")
+        if result.returncode == 127 or "No such file" in result.stderr:
+            self.skipTest("uv is not on PATH")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
 
     def test_valid_fixture_matrix_validates(self) -> None:
         self.assertGreaterEqual(len(VALID_FIXTURES), 5)
@@ -90,6 +105,22 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         for fixture in sorted((FIXTURES / "patches").glob("*.json")):
             with self.subTest(patch=fixture.name):
                 patch_validator.validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+    def test_cli_validate_rejects_schema_legacy_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "legacy-path-cost.json"
+            state_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "G1", "type": "goal", "text": "Solve"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}],
+                }),
+                encoding="utf-8",
+            )
+            result = self.run_rg("validate", str(state_path))
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("schema $.frontier[0]", result.stderr)
+            self.assertIn("path_cost", result.stderr)
 
     @unittest.skipIf(jsonschema is None, "jsonschema not installed")
     def test_json_schemas_reject_known_legacy_fields(self) -> None:

@@ -93,7 +93,7 @@ Use the helper for graph mode, multi-branch reasoning, frontier ranking, path re
 ./scripts/rg.py doctor state.json                  # validate, summarize frontier, audit when events exist
 ./scripts/rg.py stop-review state.json --draft answer.md  # final stop checklist
 ./scripts/rg.py validate state.json                # schema/reference/cost sanity checks
-./scripts/rg.py costs state.json                   # compute truth_cost/search_cost; path_cost kept as legacy alias
+./scripts/rg.py costs state.json                   # compute truth_cost/search_cost
 ./scripts/rg.py audit state.json          # audit strict-search compact events
 ./scripts/rg.py sort state.json           # compute costs and sort frontier by search_cost
 ./scripts/rg.py sort state.json -i        # rewrite state.json sorted in place
@@ -201,7 +201,6 @@ Cost behavior:
 - `estimated_remaining_cost` is optional top-level heuristic remaining work.
 - Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
-- `path_cost` is emitted only as a legacy alias for `search_cost`, not cumulative path cost.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals. Without strict events, older loose states expose stored frontier items for compatibility.
 - `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/selected, `next --pop` refuses to continue.

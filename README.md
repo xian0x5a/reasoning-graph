@@ -4,7 +4,7 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-This repo includes a `pseudocode/` module; agents should update relevant pseudocode before touching matching source code.
+This repo is a Python project using `src/reasoning_graph/`. The skill keeps `skills/reasoning-graph/scripts/rg.py` as a compatibility wrapper. Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
@@ -27,8 +27,10 @@ python skills/reasoning-graph/scripts/rg.py doctor state.json
 python skills/reasoning-graph/scripts/rg.py stop-review state.json --draft answer.md
 
 # validate and audit a graph state
+uv run rg validate state.json
+uv run rg audit state.json
+# compatibility wrapper still works:
 python skills/reasoning-graph/scripts/rg.py validate state.json
-python skills/reasoning-graph/scripts/rg.py audit state.json
 
 # drive graph search
 python skills/reasoning-graph/scripts/rg.py frontier state.json
@@ -43,20 +45,20 @@ python skills/reasoning-graph/scripts/rg.py html state.json -o graph.html
 
 ## Schemas
 
-Machine-readable JSON Schemas live under `skills/reasoning-graph/schemas/`:
+Machine-readable JSON Schemas live under `src/reasoning_graph/schemas/`:
 
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches
 
-Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `rg.py validate` still runs semantic graph/policy validation that JSON Schema cannot express.
+Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `rg.py validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
 
 ## Checks
 
 ```bash
-python -m py_compile skills/reasoning-graph/scripts/rg.py skills/reasoning-graph/scripts/reasoning_graph/*.py
-python skills/reasoning-graph/scripts/rg.py validate tests/reasoning-graph-strict-good.json
-python skills/reasoning-graph/scripts/rg.py audit tests/reasoning-graph-strict-good.json
-python -m unittest discover -s tests/scripts
+uv run python -m py_compile skills/reasoning-graph/scripts/rg.py src/reasoning_graph/*.py
+uv run rg validate tests/reasoning-graph-strict-good.json
+uv run rg audit tests/reasoning-graph-strict-good.json
+uv run python -m unittest discover -s tests/scripts
 ```
 
 Generated reports, Mermaid files, and benchmark outputs belong in `test-results/` or `/tmp`, not git.

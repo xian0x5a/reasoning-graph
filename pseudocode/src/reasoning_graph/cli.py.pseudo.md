@@ -20,6 +20,7 @@ command handlers:
   doctor command validates a state, attempts cost/frontier summary only after validation passes, audits when events exist, prints concise diagnostics, and returns nonzero on validation or audit errors
   stop-review command validates stopped state, audits event traces when present, checks selected candidate presence/viability, optionally compares final draft against selected candidate ids/text, prints YAML-like verdict, and returns nonzero on required fixes
   call validation, audit, cost, frontier, render, or event helpers
+  expand command validates patch JSON against packaged patch schema before applying it
   expand patches can append nodes, edges, frontier items, upsert premise_groups through update_premise_groups, and upsert factors through update_factors, then record matching event ids
   use one shared frontier insertion chooser for init and expand dedupe
   frontier and next text output shows estimated remaining heuristic details when present
