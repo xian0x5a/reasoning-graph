@@ -75,6 +75,9 @@ Details: `docs/cost-model.md`.
 Run from skill directory or call script by path.
 
 ```bash
+./scripts/rg.py template strict -o state.json
+./scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
+./scripts/rg.py doctor state.json
 ./scripts/rg.py validate state.json
 ./scripts/rg.py costs state.json -i
 ./scripts/rg.py sort state.json -i

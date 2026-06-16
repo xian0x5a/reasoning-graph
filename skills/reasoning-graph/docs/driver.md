@@ -88,8 +88,11 @@ For complex reasoning, use the helper as the search driver. The graph should cho
 Use the helper for graph mode, multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
-./scripts/rg.py validate state.json       # schema/reference/cost sanity checks
-./scripts/rg.py costs state.json          # compute truth_cost/search_cost; path_cost kept as legacy alias
+./scripts/rg.py template strict -o state.json      # emit starter state profile
+./scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
+./scripts/rg.py doctor state.json                  # validate, summarize frontier, audit when events exist
+./scripts/rg.py validate state.json                # schema/reference/cost sanity checks
+./scripts/rg.py costs state.json                   # compute truth_cost/search_cost; path_cost kept as legacy alias
 ./scripts/rg.py audit state.json          # audit strict-search compact events
 ./scripts/rg.py sort state.json           # compute costs and sort frontier by search_cost
 ./scripts/rg.py sort state.json -i        # rewrite state.json sorted in place

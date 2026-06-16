@@ -53,6 +53,112 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 1
 
 
+STRICT_STOP_POLICY = {
+    "min_viable_candidates": 3,
+    "belief_threshold": 0.8,
+    "max_live_frontier_items": 0,
+    "require_frontier_exhausted_for_epistemic_stop": True,
+    "severity": "error",
+}
+
+
+DEFAULT_BRANCH_POLICY = {
+    "high_salience_min_children": 3,
+    "low_prior_wildcard_required": True,
+    "enforce_on": "exhaustion_stop",
+    "severity": "warning",
+}
+
+
+BENCHMARK_BRANCH_POLICY = {
+    **DEFAULT_BRANCH_POLICY,
+    "enforce_on": "always",
+    "severity": "error",
+}
+
+
+def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, Any]:
+    state: dict[str, Any] = {
+        "summary": {"title": "Reasoning Graph", "answer": ""},
+        "nodes": [{"id": "G1", "type": "goal", "text": goal}],
+        "edges": [],
+        "frontier": [],
+    }
+    if profile in {"strict", "benchmark"}:
+        state["search_policy"] = {"estimated_remaining_weight": 1.0}
+        state["stop_policy"] = dict(STRICT_STOP_POLICY)
+        state["branch_policy"] = dict(BENCHMARK_BRANCH_POLICY if profile == "benchmark" else DEFAULT_BRANCH_POLICY)
+    return state
+
+
+def cmd_template(args: argparse.Namespace) -> int:
+    state = starter_state(args.profile)
+    dump_state(state, args.output)
+    return 0
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    goal = args.goal.strip()
+    if not goal:
+        print("error: --goal must be non-empty", file=sys.stderr)
+        return 1
+    profile = "strict" if args.strict else args.profile
+    state = starter_state(profile, goal)
+    dump_state(state, args.output)
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    result = validate_state(state)
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    for error in result.errors:
+        print(f"error: {error}", file=sys.stderr)
+    if not result.ok:
+        print("doctor: validation failed")
+        return 1
+
+    try:
+        compute_costs(state)
+    except Exception as exc:
+        print(f"error: cost computation failed: {exc}", file=sys.stderr)
+        print("doctor: cost computation failed")
+        return 1
+
+    cursor = search_cursor(state)
+    print("doctor: validation ok")
+    print(
+        "doctor: nodes={nodes} edges={edges} frontier={frontier} active={active} pending={pending} stopped={stopped}".format(
+            nodes=len(state.get("nodes", [])),
+            edges=len(state.get("edges", [])),
+            frontier=len(state.get("frontier", [])),
+            active=len(cursor["active_ids"]),
+            pending=cursor["pending_item"] or "none",
+            stopped=str(cursor["stopped"]).lower(),
+        )
+    )
+
+    events = state.get("events")
+    if not isinstance(events, list) or not events:
+        print("doctor: audit skipped (no events)")
+        return 0
+
+    audit_result, stats = audit_state(state)
+    for warning in audit_result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    for error in audit_result.errors:
+        print(f"error: {error}", file=sys.stderr)
+    print(
+        "doctor: audit events={events} pops={pops} expansions={expansions} selections={selections}".format(**stats)
+    )
+    if not audit_result.ok:
+        print("doctor: audit failed")
+        return 1
+    print("doctor: audit ok")
+    return 0
+
+
 def cmd_sort(args: argparse.Namespace) -> int:
     state = sorted_frontier(load_state(args.state))
     dump_state(state, args.output, args.state if args.in_place else None)
@@ -569,9 +675,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Reasoning graph helper")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    template = sub.add_parser("template", help="emit a starter state template")
+    template.add_argument("profile", choices=("minimal", "strict", "benchmark"), help="template profile")
+    template.add_argument("-o", "--output", help="write result to path instead of stdout")
+    template.set_defaults(func=cmd_template)
+
+    init = sub.add_parser("init", help="emit a starter state for a goal")
+    init.add_argument("--goal", required=True, help="goal text for G1")
+    init.add_argument("--profile", choices=("minimal", "strict", "benchmark"), default="minimal", help="starter profile")
+    init.add_argument("--strict", action="store_true", help="shortcut for --profile strict")
+    init.add_argument("-o", "--output", help="write result to path instead of stdout")
+    init.set_defaults(func=cmd_init)
+
     validate = sub.add_parser("validate", help="validate graph/search state")
     validate.add_argument("state", help="state JSON path, or - for stdin")
     validate.set_defaults(func=cmd_validate)
+
+    doctor = sub.add_parser("doctor", help="validate state and summarize costs/frontier/audit health")
+    doctor.add_argument("state", help="state JSON path, or - for stdin")
+    doctor.set_defaults(func=cmd_doctor)
 
     costs = sub.add_parser("costs", help="compute truth_cost/search_cost; path_cost is emitted as a legacy alias")
     costs.add_argument("state", help="state JSON path, or - for stdin")

@@ -78,6 +78,40 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             patch_validator.validate({"stop_reason": "missing outcome"})
 
+    def test_template_and_init_emit_valid_starter_states(self) -> None:
+        template = self.run_rg("template", "benchmark")
+        self.assertEqual(template.returncode, 0, template.stderr)
+        template_state = json.loads(template.stdout)
+        self.assertEqual(template_state["nodes"][0]["id"], "G1")
+        self.assertEqual(template_state["stop_policy"]["severity"], "error")
+        self.assertEqual(template_state["branch_policy"]["enforce_on"], "always")
+
+        init = self.run_rg("init", "--goal", "Diagnose production outage", "--strict")
+        self.assertEqual(init.returncode, 0, init.stderr)
+        init_state = json.loads(init.stdout)
+        self.assertEqual(init_state["nodes"][0]["text"], "Diagnose production outage")
+        self.assertEqual(init_state["stop_policy"]["severity"], "error")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "starter.json"
+            state_path.write_text(template.stdout, encoding="utf-8")
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+    def test_doctor_reports_validation_and_audit_health(self) -> None:
+        ok = self.run_rg("doctor", str(FIXTURE))
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertIn("doctor: validation ok", ok.stdout)
+        self.assertIn("doctor: audit ok", ok.stdout)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            invalid_path = Path(tmp_dir) / "invalid.json"
+            invalid_path.write_text(json.dumps({"nodes": [{"id": "X1", "type": "fact"}]}), encoding="utf-8")
+            invalid = self.run_rg("doctor", str(invalid_path))
+            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
+            self.assertIn("invalid type 'fact'", invalid.stderr)
+            self.assertIn("doctor: validation failed", invalid.stdout)
+
     def test_validate_and_audit_fixture_pass(self) -> None:
         validate = self.run_rg("validate", str(FIXTURE))
         self.assertEqual(validate.returncode, 0, validate.stderr)

@@ -20,6 +20,11 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 ## Helper commands
 
 ```bash
+# bootstrap and inspect state
+python skills/reasoning-graph/scripts/rg.py template strict -o state.json
+python skills/reasoning-graph/scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
+python skills/reasoning-graph/scripts/rg.py doctor state.json
+
 # validate and audit a graph state
 python skills/reasoning-graph/scripts/rg.py validate state.json
 python skills/reasoning-graph/scripts/rg.py audit state.json

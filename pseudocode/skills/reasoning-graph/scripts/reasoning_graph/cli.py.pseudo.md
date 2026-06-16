@@ -15,6 +15,9 @@ main(argv):
 
 command handlers:
   load state when needed
+  template command emits starter state JSON for minimal, strict, or benchmark profiles
+  init command emits starter state JSON from a goal string, with optional strict policies
+  doctor command validates a state, attempts cost/frontier summary only after validation passes, audits when events exist, prints concise diagnostics, and returns nonzero on validation or audit errors
   call validation, audit, cost, frontier, render, or event helpers
   expand patches can append nodes, edges, frontier items, upsert premise_groups through update_premise_groups, and upsert factors through update_factors, then record matching event ids
   use one shared frontier insertion chooser for init and expand dedupe
