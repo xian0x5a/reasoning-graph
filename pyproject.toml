@@ -22,4 +22,4 @@ where = ["skills/reasoning-graph/src"]
 reasoning_graph = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/scripts"]
+testpaths = ["tests/cli", "tests/integration"]

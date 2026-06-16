@@ -19,7 +19,7 @@ sys.path.insert(0, str(SKILL_SRC_ROOT))
 from reasoning_graph.frontier import search_cursor
 
 
-FIXTURE = REPO_ROOT / "tests" / "reasoning-graph-strict-good.json"
+FIXTURE = REPO_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
 STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
 PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 

@@ -1,6 +1,6 @@
 ---
 affects:
-  - tests/scripts/test_rg_basic.py
+  - tests/cli/test_commands.py
 ---
 
 # Factor Renderer Smoke Test
