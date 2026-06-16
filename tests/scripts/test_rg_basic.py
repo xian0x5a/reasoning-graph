@@ -1261,6 +1261,36 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-1]["action"], "stop")
             self.assertEqual(stopped["events"][-1]["outcome"], "user_stopped")
 
+    def test_finalize_ranks_then_stops_without_mutating_input_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            stopped_path = Path(tmp_dir) / "stopped.json"
+            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+            original = json.dumps(state, indent=2) + "\n"
+            state_path.write_text(original, encoding="utf-8")
+
+            result = self.run_rg(
+                "finalize",
+                str(state_path),
+                "--reason",
+                "CS1 answers G1 and sample frontier is complete",
+                "--outcome",
+                "solved",
+                "-o",
+                str(stopped_path),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            stopped = json.loads(stopped_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in stopped["events"][-2:]], ["rank", "stop"])
+            self.assertEqual(stopped["events"][-2]["best"], "CS1")
+            self.assertEqual(stopped["events"][-1]["outcome"], "solved")
+
+            audit = self.run_rg("audit", str(stopped_path))
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+
     def test_mermaid_and_html_smoke(self) -> None:
         mermaid = self.run_rg("mermaid", str(FIXTURE))
         self.assertEqual(mermaid.returncode, 0, mermaid.stderr)

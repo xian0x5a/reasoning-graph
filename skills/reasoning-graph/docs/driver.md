@@ -101,8 +101,7 @@ uv run rg frontier state.json       # show active frontier derived from events
 uv run rg next state.json           # show lowest-cost active item + path context
 uv run rg next state.json --pop -i  # persist init/pop event for lowest-cost item
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg rank state.json -i
-uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg path state.json Q7        # reconstruct parent-pointer path
 uv run rg mermaid state.json        # emit Mermaid source
 uv run rg html state.json -o /tmp/reasoning-graph-example.html
@@ -240,7 +239,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `rank` to record the current best viable `candidate_solution` derived from graph belief, not a manual choice. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `finalize` when ending search; it records the current best viable `candidate_solution` derived from graph belief when the outcome needs a candidate, then appends the stop event. Low-level `rank` and `stop` remain available for unusual manual traces. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
 An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
@@ -305,8 +304,7 @@ uv run rg next state.json --pop -i
 # inspect popped node, parent path, active assumptions, and related nodes
 # write expansion.json containing coarse child branches/tests/evidence
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg rank state.json -i  # derives best candidate from current graph belief
-uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
 uv run rg audit state.stopped.json
 # semantic-review stopped candidate; promote only on pass
@@ -320,7 +318,7 @@ Stop is two gates:
 
 Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
 
-1. `uv run rg stop ... -o state.stopped.json` appends the stop event without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
+1. `uv run rg finalize ... -o state.stopped.json` appends rank/stop events without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
 2. A semantic reviewer approves `state.stopped.json` before it is promoted.
 
 If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.

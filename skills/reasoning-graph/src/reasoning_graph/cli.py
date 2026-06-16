@@ -640,54 +640,82 @@ def cmd_expand(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_rank(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
+CANDIDATE_STOP_OUTCOMES = {"solved", "candidate_threshold_met", "candidate_count_met"}
+
+
+def append_rank_event(state: dict[str, Any], item_id: str | None = None, top: int = 10) -> int:
     ranked = ranked_viable_candidates(state)
     if not ranked:
         print("error: no viable candidate_solution answers an accepted goal", file=sys.stderr)
         return 1
 
-    cursor = search_cursor(state)
-    item_id = args.item or cursor.get("pending_item")
     if item_id is not None:
         items = by_id(state.get("frontier", []), "frontier item")
         if not isinstance(item_id, str) or item_id not in items:
             print(f"error: frontier item not found: {item_id}", file=sys.stderr)
             return 1
 
-    top = max(1, args.top)
+    events = state.setdefault("events", [])
+    if not isinstance(events, list):
+        print("error: events must be a list before rank can append", file=sys.stderr)
+        return 1
+
     event: dict[str, Any] = {
         "step": next_event_step(state),
         "action": "rank",
         "best": ranked[0]["node"],
         "belief": ranked[0]["belief"],
-        "candidates": ranked[:top],
+        "candidates": ranked[: max(1, top)],
     }
     if item_id is not None:
         event["item"] = item_id
+    events.append(event)
+    return 0
+
+
+def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
+    reason = reason.strip()
+    if not reason:
+        print("error: stop reason must be non-empty", file=sys.stderr)
+        return 1
+    if outcome not in STOP_OUTCOMES:
+        print(f"error: --outcome must be one of {sorted(STOP_OUTCOMES)}, got {outcome!r}", file=sys.stderr)
+        return 1
     events = state.setdefault("events", [])
     if not isinstance(events, list):
-        print("error: events must be a list before rank can append", file=sys.stderr)
+        print("error: events must be a list before stop can append", file=sys.stderr)
         return 1
-    events.append(event)
+    events.append({"step": next_event_step(state), "action": "stop", "reason": reason, "outcome": outcome})
+    return 0
+
+
+def cmd_rank(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    cursor = search_cursor(state)
+    item_id = args.item or cursor.get("pending_item")
+    if append_rank_event(state, item_id=item_id, top=args.top) != 0:
+        return 1
     dump_state(state, args.output, args.state if args.in_place else None)
     return 0
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    reason = args.reason.strip()
-    if not reason:
-        print("error: stop reason must be non-empty", file=sys.stderr)
+    if append_stop_event(state, args.reason, args.outcome) != 0:
         return 1
-    if args.outcome not in STOP_OUTCOMES:
-        print(f"error: --outcome must be one of {sorted(STOP_OUTCOMES)}, got {args.outcome!r}", file=sys.stderr)
+    dump_state(state, args.output, args.state if args.in_place else None)
+    return 0
+
+
+def cmd_finalize(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    if args.outcome in CANDIDATE_STOP_OUTCOMES:
+        cursor = search_cursor(state)
+        item_id = args.item or cursor.get("pending_item")
+        if append_rank_event(state, item_id=item_id, top=args.top) != 0:
+            return 1
+    if append_stop_event(state, args.reason, args.outcome) != 0:
         return 1
-    events = state.setdefault("events", [])
-    if not isinstance(events, list):
-        print("error: events must be a list before stop can append", file=sys.stderr)
-        return 1
-    events.append({"step": next_event_step(state), "action": "stop", "reason": reason, "outcome": args.outcome})
     dump_state(state, args.output, args.state if args.in_place else None)
     return 0
 
@@ -814,6 +842,16 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("-o", "--output", help="write mutated state to path")
     rank.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
     rank.set_defaults(func=cmd_rank)
+
+    finalize = sub.add_parser("finalize", help="rank current candidates when needed, then append a stop event")
+    finalize.add_argument("state", help="state JSON path, or - for stdin")
+    finalize.add_argument("--reason", required=True, help="why search is stopping")
+    finalize.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
+    finalize.add_argument("--item", help="frontier item id for the rank event; defaults to pending popped item when one exists")
+    finalize.add_argument("--top", type=int, default=10, help="number of ranked candidates to include when ranking is needed")
+    finalize.add_argument("-o", "--output", help="write mutated state to path")
+    finalize.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    finalize.set_defaults(func=cmd_finalize)
 
     stop = sub.add_parser("stop", help="append a stop event")
     stop.add_argument("state", help="state JSON path, or - for stdin")
