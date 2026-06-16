@@ -18,7 +18,7 @@ Default output is compact. Create graph/HTML artifacts only when requested or wh
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
 3. **Initialize frontier.** Add unresolved assumptions/tests/candidate-support work as frontier items with coarse priors/costs.
-4. **Let driver choose.** For complex graph mode, run `./scripts/rg.py next state.json --pop -i` before major reasoning, tool use, searches, tests, or branch selection.
+4. **Let driver choose.** For complex graph mode, run `uv run rg next state.json --pop -i` before major reasoning, tool use, searches, tests, or branch selection.
 5. **Expand divergently.** For popped item, add meaningful sibling branches/tests/evidence/candidates. Do not tunnel on first plausible answer.
 6. **Update beliefs.** Add result evidence and calibrated `supports`/`contradicts` likelihoods or explicit posterior. Re-sort frontier.
 7. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
@@ -72,24 +72,24 @@ Details: `docs/cost-model.md`.
 
 ## Helper commands
 
-Run from skill directory or call script by path.
+Run with `uv run rg` so dependencies come from `uv.lock`. This works from the repo root or skill directory.
 
 ```bash
-./scripts/rg.py template strict -o state.json
-./scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
-./scripts/rg.py doctor state.json
-./scripts/rg.py stop-review state.json --draft answer.md
-./scripts/rg.py validate state.json
-./scripts/rg.py costs state.json -i
-./scripts/rg.py sort state.json -i
-./scripts/rg.py frontier state.json
-./scripts/rg.py next state.json --pop -i
-./scripts/rg.py expand state.json --item Q7 --patch expansion.json -i
-./scripts/rg.py select state.json --node CS1 -i
-./scripts/rg.py stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
-./scripts/rg.py audit state.json
-./scripts/rg.py mermaid state.json > graph.mmd
-./scripts/rg.py html state.json -o graph.html
+uv run rg template strict -o state.json
+uv run rg init --goal "Diagnose outage" --strict -o state.json
+uv run rg doctor state.json
+uv run rg stop-review state.json --draft answer.md
+uv run rg validate state.json
+uv run rg costs state.json -i
+uv run rg sort state.json -i
+uv run rg frontier state.json
+uv run rg next state.json --pop -i
+uv run rg expand state.json --item Q7 --patch expansion.json -i
+uv run rg select state.json --node CS1 -i
+uv run rg stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
+uv run rg audit state.json
+uv run rg mermaid state.json > graph.mmd
+uv run rg html state.json -o graph.html
 ```
 
 Do not call `next --pop` again until the pending popped item is expanded, selected, or intentionally stopped.
@@ -132,8 +132,8 @@ For benchmark/search tasks, prefer:
 Before final in driver mode:
 
 ```bash
-./scripts/rg.py validate state.json
-./scripts/rg.py audit state.json
+uv run rg validate state.json
+uv run rg audit state.json
 ```
 
 Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
@@ -153,7 +153,7 @@ Graph mode when requested:
 
 1. persist state JSON, usually in `/tmp`
 2. validate/audit
-3. generate baseline artifact with `./scripts/rg.py html state.json -o <path>.html`
+3. generate baseline artifact with `uv run rg html state.json -o <path>.html`
 4. include summary, candidate table, readable evidence/constraint details, curated presentation graph, and full audit graph
 
 Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.

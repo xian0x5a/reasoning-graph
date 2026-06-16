@@ -15,7 +15,7 @@ Use one authoritative validation command with two layers:
 
 - Move `skills/reasoning-graph/scripts/reasoning_graph/` to `skills/reasoning-graph/src/reasoning_graph/`.
 - Move matching pseudocode to `pseudocode/skills/reasoning-graph/src/reasoning_graph/`.
-- Keep `skills/reasoning-graph/scripts/rg.py` as compatibility wrapper.
+- Remove the obsolete `skills/reasoning-graph/scripts/rg.py` wrapper and use `uv run rg` as the only CLI entrypoint.
 - Add `pyproject.toml` with package metadata, `jsonschema` dependency, and `rg` console script.
 - Update tests to import from `src` and still test wrapper path.
 - Add schema validation module and fuse schema-first checks into `rg.py validate`, `doctor`, `audit`, and `stop-review` via combined validator.
@@ -23,7 +23,7 @@ Use one authoritative validation command with two layers:
 
 ## Constraints
 
-- Preserve existing `./scripts/rg.py` skill usage.
+- Preserve command behavior through the `rg` console script.
 - No broad behavior changes beyond schema-first validation.
 - Follow pseudocode-first for behavior changes.
 - Use `git mv` for tracked file moves.
@@ -34,7 +34,7 @@ Use one authoritative validation command with two layers:
 - `uv run rg validate tests/reasoning-graph-strict-good.json`
 - `uv run rg audit tests/reasoning-graph-strict-good.json`
 - `uv run rg stop-review tests/reasoning-graph-strict-good.json`
-- `uv run python skills/reasoning-graph/scripts/rg.py validate tests/reasoning-graph-strict-good.json`
+- `cd skills/reasoning-graph && uv run rg validate ../../tests/reasoning-graph-strict-good.json`
 
 ## Progress
 
@@ -43,7 +43,7 @@ Use one authoritative validation command with two layers:
 - Moved mapped pseudocode to `pseudocode/skills/reasoning-graph/src/reasoning_graph/`.
 - Moved schemas into package data under `skills/reasoning-graph/src/reasoning_graph/schemas/`.
 - Added `pyproject.toml`, `uv.lock`, `jsonschema` dependency, and `rg` console script.
-- Kept `skills/reasoning-graph/scripts/rg.py` as compatibility wrapper that imports from `src`.
+- Removed `skills/reasoning-graph/scripts/rg.py`; `uv run rg` is the canonical entrypoint.
 - Added packaged schema validation module and fused schema errors into `validate_state()`.
 - Added patch schema validation before `expand` applies patches.
 - Stopped emitting modern-output `path_cost`; legacy input fallback remains readable.
@@ -53,6 +53,6 @@ Use one authoritative validation command with two layers:
 ## Outcomes & Retrospective
 
 - `rg.py validate` is now authoritative for both schema contract and semantic graph checks.
-- Installed CLI path (`uv run rg`) and skill wrapper path both work.
+- Installed CLI path (`uv run rg`) works from both repo root and skill directory.
 - Package data makes schemas available after installation.
 - `rg` command name can collide with ripgrep outside the uv environment, so tests invoke `uv run rg` for console-script coverage.

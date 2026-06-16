@@ -1,6 +1,5 @@
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 import warnings
@@ -13,7 +12,6 @@ except ImportError:  # pragma: no cover - optional developer dependency
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RG = REPO_ROOT / "skills" / "reasoning-graph" / "scripts" / "rg.py"
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 VALID_FIXTURES = sorted((FIXTURES / "valid").glob("*.json"))
 VALIDATE_INVALID_FIXTURES = {
@@ -35,7 +33,7 @@ PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_gra
 class ReasoningGraphFixtureTests(unittest.TestCase):
     def run_rg(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(RG), *args],
+            ["uv", "run", "rg", *args],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,

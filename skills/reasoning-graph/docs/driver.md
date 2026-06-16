@@ -88,27 +88,27 @@ For complex reasoning, use the helper as the search driver. The graph should cho
 Use the helper for graph mode, multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
-./scripts/rg.py template strict -o state.json      # emit starter state profile
-./scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
-./scripts/rg.py doctor state.json                  # validate, summarize frontier, audit when events exist
-./scripts/rg.py stop-review state.json --draft answer.md  # final stop checklist
-./scripts/rg.py validate state.json                # schema/reference/cost sanity checks
-./scripts/rg.py costs state.json                   # compute truth_cost/search_cost
-./scripts/rg.py audit state.json          # audit strict-search compact events
-./scripts/rg.py sort state.json           # compute costs and sort frontier by search_cost
-./scripts/rg.py sort state.json -i        # rewrite state.json sorted in place
-./scripts/rg.py frontier state.json       # show active frontier derived from events
-./scripts/rg.py next state.json           # show lowest-cost active item + path context
-./scripts/rg.py next state.json --pop -i  # persist init/pop event for lowest-cost item
-./scripts/rg.py expand state.json --item Q7 --patch expansion.json -i
-./scripts/rg.py select state.json --node CS1 -i
-./scripts/rg.py stop state.json --reason "best candidate verified" --outcome solved -i
-./scripts/rg.py path state.json Q7        # reconstruct parent-pointer path
-./scripts/rg.py mermaid state.json        # emit Mermaid source
-./scripts/rg.py html state.json -o /tmp/reasoning-graph-example.html
+uv run rg template strict -o state.json      # emit starter state profile
+uv run rg init --goal "Diagnose outage" --strict -o state.json
+uv run rg doctor state.json                  # validate, summarize frontier, audit when events exist
+uv run rg stop-review state.json --draft answer.md  # final stop checklist
+uv run rg validate state.json                # schema/reference/cost sanity checks
+uv run rg costs state.json                   # compute truth_cost/search_cost
+uv run rg audit state.json          # audit strict-search compact events
+uv run rg sort state.json           # compute costs and sort frontier by search_cost
+uv run rg sort state.json -i        # rewrite state.json sorted in place
+uv run rg frontier state.json       # show active frontier derived from events
+uv run rg next state.json           # show lowest-cost active item + path context
+uv run rg next state.json --pop -i  # persist init/pop event for lowest-cost item
+uv run rg expand state.json --item Q7 --patch expansion.json -i
+uv run rg select state.json --node CS1 -i
+uv run rg stop state.json --reason "best candidate verified" --outcome solved -i
+uv run rg path state.json Q7        # reconstruct parent-pointer path
+uv run rg mermaid state.json        # emit Mermaid source
+uv run rg html state.json -o /tmp/reasoning-graph-example.html
 ```
 
-Run commands from the skill directory, or use the absolute script path.
+Run commands with `uv run rg` from the repo root or skill directory so dependencies come from `uv.lock`.
 
 State JSON shape:
 
@@ -299,23 +299,23 @@ Allowed actions:
 Driver loop for search moves:
 
 ```bash
-./scripts/rg.py frontier state.json
-./scripts/rg.py next state.json --pop -i
+uv run rg frontier state.json
+uv run rg next state.json --pop -i
 # inspect popped node, parent path, active assumptions, and related nodes
 # write expansion.json containing coarse child branches/tests/evidence
-./scripts/rg.py expand state.json --item Q7 --patch expansion.json -i
-./scripts/rg.py select state.json --node CS1 -i  # when a popped branch reaches the best current candidate
-./scripts/rg.py stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
+uv run rg expand state.json --item Q7 --patch expansion.json -i
+uv run rg select state.json --node CS1 -i  # when a popped branch reaches the best current candidate
+uv run rg stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
 # review stopped candidate; promote only on pass
 cp state.stopped.json state.json
-./scripts/rg.py frontier state.json
+uv run rg frontier state.json
 ```
 
 ### Semantic Stop Review
 
 Stop is two gates:
 
-1. `./scripts/rg.py stop ... -o state.stopped.json` fast-fails structural issues without mutating the working state.
+1. `uv run rg stop ... -o state.stopped.json` fast-fails structural issues without mutating the working state.
 2. A semantic reviewer approves `state.stopped.json` before it is promoted.
 
 If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.
@@ -347,7 +347,7 @@ Do not call `next --pop` again until the pending popped item is expanded, select
 Before final in driver mode, run:
 
 ```bash
-./scripts/rg.py audit state.json
+uv run rg audit state.json
 ```
 
 Treat audit warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or selected by driver events, do one of these before final:

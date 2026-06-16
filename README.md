@@ -4,7 +4,7 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-This repo is a Python project using `skills/reasoning-graph/src/reasoning_graph/`. The skill keeps `skills/reasoning-graph/scripts/rg.py` as a compatibility wrapper. Agents should update relevant pseudocode before touching matching source code.
+This repo is a Python project using `skills/reasoning-graph/src/reasoning_graph/`. Run the CLI with `uv run rg ...` so dependencies come from `uv.lock`. Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
@@ -21,26 +21,24 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 
 ```bash
 # bootstrap and inspect state
-python skills/reasoning-graph/scripts/rg.py template strict -o state.json
-python skills/reasoning-graph/scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
-python skills/reasoning-graph/scripts/rg.py doctor state.json
-python skills/reasoning-graph/scripts/rg.py stop-review state.json --draft answer.md
+uv run rg template strict -o state.json
+uv run rg init --goal "Diagnose outage" --strict -o state.json
+uv run rg doctor state.json
+uv run rg stop-review state.json --draft answer.md
 
 # validate and audit a graph state
 uv run rg validate state.json
 uv run rg audit state.json
-# compatibility wrapper still works:
-python skills/reasoning-graph/scripts/rg.py validate state.json
 
 # drive graph search
-python skills/reasoning-graph/scripts/rg.py frontier state.json
-python skills/reasoning-graph/scripts/rg.py next state.json --pop -i
-python skills/reasoning-graph/scripts/rg.py expand state.json --item Q1 --patch expansion.json -i
-python skills/reasoning-graph/scripts/rg.py stop state.json --reason "best candidate verified" --outcome solved -i
+uv run rg frontier state.json
+uv run rg next state.json --pop -i
+uv run rg expand state.json --item Q1 --patch expansion.json -i
+uv run rg stop state.json --reason "best candidate verified" --outcome solved -i
 
 # render artifacts
-python skills/reasoning-graph/scripts/rg.py mermaid state.json > graph.mmd
-python skills/reasoning-graph/scripts/rg.py html state.json -o graph.html
+uv run rg mermaid state.json > graph.mmd
+uv run rg html state.json -o graph.html
 ```
 
 ## Schemas
@@ -50,12 +48,12 @@ Machine-readable JSON Schemas live under `skills/reasoning-graph/src/reasoning_g
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches
 
-Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `rg.py validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
+Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `uv run rg validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
 
 ## Checks
 
 ```bash
-uv run python -m py_compile skills/reasoning-graph/scripts/rg.py skills/reasoning-graph/src/reasoning_graph/*.py
+uv run python -m py_compile skills/reasoning-graph/src/reasoning_graph/*.py
 uv run rg validate tests/reasoning-graph-strict-good.json
 uv run rg audit tests/reasoning-graph-strict-good.json
 uv run python -m unittest discover -s tests/scripts
