@@ -45,6 +45,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("stop_outcome", patch_schema["properties"])
+        serialized_schemas = json.dumps({"state": state_schema, "patch": patch_schema})
+        self.assertNotIn('"deprecated"', serialized_schemas)
+        self.assertNotIn('"solutions"', state_schema["properties"])
+        self.assertNotIn('"label"', state_schema["$defs"]["edge"]["properties"])
+        self.assertNotIn('"path_cost"', state_schema["$defs"]["frontierItem"]["properties"])
+        self.assertNotIn("solution", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
+        self.assertNotIn('"solution_node"', patch_schema["properties"])
+        self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
 
     @unittest.skipIf(jsonschema is None, "jsonschema not installed")
     def test_json_schema_validates_fixture_and_patch_examples(self) -> None:

@@ -67,8 +67,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
                 self.assertNotEqual(audit.returncode, 0, audit.stdout)
                 self.assertIn(expected, audit.stderr)
 
-    @unittest.skipIf(jsonschema is None, "jsonschema not installed")
-    def test_state_and_patch_fixtures_match_json_schemas(self) -> None:
+    def schema_validators(self) -> tuple[object, object]:
         state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
         state_validator = jsonschema.Draft202012Validator(state_schema)
@@ -79,6 +78,11 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
                 store={state_schema["$id"]: state_schema, "state.schema.json": state_schema},
             )
             patch_validator = jsonschema.Draft202012Validator(patch_schema, resolver=resolver)
+        return state_validator, patch_validator
+
+    @unittest.skipIf(jsonschema is None, "jsonschema not installed")
+    def test_state_and_patch_fixtures_match_json_schemas(self) -> None:
+        state_validator, patch_validator = self.schema_validators()
 
         for fixture in VALID_FIXTURES:
             with self.subTest(state=fixture.name):
@@ -86,6 +90,33 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         for fixture in sorted((FIXTURES / "patches").glob("*.json")):
             with self.subTest(patch=fixture.name):
                 patch_validator.validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+    @unittest.skipIf(jsonschema is None, "jsonschema not installed")
+    def test_json_schemas_reject_known_legacy_fields(self) -> None:
+        state_validator, patch_validator = self.schema_validators()
+        modern_state = json.loads((FIXTURES / "valid" / "minimal-state.json").read_text(encoding="utf-8"))
+        legacy_state_variants = {
+            "solutions": {**modern_state, "solutions": ["CS1"]},
+            "edge-label": {**modern_state, "edges": [{"from": "G1", "to": "G1", "label": "supports"}]},
+            "frontier-path-cost": {**modern_state, "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}]},
+            "event-solution-action": {**modern_state, "events": [{"step": 1, "action": "solution", "item": "Q1", "node": "CS1", "cost": 0}]},
+            "event-add-factors": {**modern_state, "events": [{"step": 1, "action": "expand", "item": "Q1", "add_nodes": [], "add_edges": [], "add_frontier": [], "add_factors": ["F1"]}]},
+        }
+        for name, state in legacy_state_variants.items():
+            with self.subTest(state=name), self.assertRaises(jsonschema.ValidationError):
+                state_validator.validate(state)
+
+        modern_patch = {"nodes": [], "edges": [], "frontier": []}
+        legacy_patch_variants = {
+            "add-node-objects": {**modern_patch, "add_node_objects": []},
+            "solution": {**modern_patch, "solution": "CS1"},
+            "solution-node": {**modern_patch, "solution_node": "CS1"},
+            "no-reopen-reason": {**modern_patch, "no_reopen_reason": "legacy"},
+            "stop-alias": {**modern_patch, "stop": "legacy stop", "outcome": "user_stopped"},
+        }
+        for name, patch in legacy_patch_variants.items():
+            with self.subTest(patch=name), self.assertRaises(jsonschema.ValidationError):
+                patch_validator.validate(patch)
 
     def test_golden_cli_outputs_stay_stable(self) -> None:
         commands = {

@@ -48,6 +48,8 @@ Machine-readable JSON Schemas live under `skills/reasoning-graph/schemas/`:
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches
 
+Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `rg.py validate` still runs semantic graph/policy validation that JSON Schema cannot express.
+
 ## Checks
 
 ```bash

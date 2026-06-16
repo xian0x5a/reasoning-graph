@@ -5,383 +5,1108 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "summary": {"$ref": "#/$defs/summary"},
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
     "nodes": {
       "type": "array",
-      "items": {"$ref": "#/$defs/node"},
+      "items": {
+        "$ref": "#/$defs/node"
+      },
       "default": []
     },
     "edges": {
       "type": "array",
-      "items": {"$ref": "#/$defs/edge"},
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
       "default": []
     },
     "frontier": {
       "type": "array",
-      "items": {"$ref": "#/$defs/frontierItem"},
+      "items": {
+        "$ref": "#/$defs/frontierItem"
+      },
       "default": []
     },
     "factors": {
       "type": "array",
-      "items": {"$ref": "#/$defs/factor"},
+      "items": {
+        "$ref": "#/$defs/factor"
+      },
       "default": []
     },
     "premise_groups": {
       "type": "array",
-      "items": {"$ref": "#/$defs/premiseGroup"},
+      "items": {
+        "$ref": "#/$defs/premiseGroup"
+      },
       "default": []
     },
     "events": {
       "type": "array",
-      "items": {"$ref": "#/$defs/event"},
+      "items": {
+        "$ref": "#/$defs/event"
+      },
       "default": []
     },
-    "goal_policy": {"$ref": "#/$defs/goalPolicy"},
+    "goal_policy": {
+      "$ref": "#/$defs/goalPolicy"
+    },
     "goal_groups": {
       "type": "array",
-      "items": {"$ref": "#/$defs/goalGroup"}
-    },
-    "stop_policy": {"$ref": "#/$defs/stopPolicy"},
-    "branch_policy": {"$ref": "#/$defs/branchPolicy"},
-    "search_policy": {"$ref": "#/$defs/searchPolicy"},
-    "report": {"$ref": "#/$defs/report"},
-    "presentation": {"$ref": "#/$defs/presentation"},
-    "view": {"$ref": "#/$defs/view"},
-    "solutions": {
-      "type": "array",
       "items": {
-        "anyOf": [
-          {"type": "string", "minLength": 1},
-          {
-            "type": "object",
-            "additionalProperties": true,
-            "properties": {"node": {"type": "string", "minLength": 1}}
-          }
-        ]
-      },
-      "deprecated": true
+        "$ref": "#/$defs/goalGroup"
+      }
+    },
+    "stop_policy": {
+      "$ref": "#/$defs/stopPolicy"
+    },
+    "branch_policy": {
+      "$ref": "#/$defs/branchPolicy"
+    },
+    "search_policy": {
+      "$ref": "#/$defs/searchPolicy"
+    },
+    "report": {
+      "$ref": "#/$defs/report"
+    },
+    "presentation": {
+      "$ref": "#/$defs/presentation"
+    },
+    "view": {
+      "$ref": "#/$defs/view"
     }
   },
   "$defs": {
-    "id": {"type": "string", "minLength": 1},
-    "probability": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
-    "nonNegativeNumber": {"type": "number", "minimum": 0},
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "probability": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
     "autoNumber": {
       "anyOf": [
-        {"type": "number"},
-        {"const": "auto"},
-        {"type": "null"}
+        {
+          "type": "number"
+        },
+        {
+          "const": "auto"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
-    "stringList": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "summary": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "title": {"type": "string"},
-        "answer": {"type": "string"}
+        "title": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string"
+        }
       }
     },
     "node": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "type"],
+      "required": [
+        "id",
+        "type"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "type": {"enum": ["goal", "evidence", "constraint", "derived", "assumption", "test", "candidate_solution"]},
-        "text": {"type": "string"},
-        "short_text": {"type": "string"},
-        "source": {"type": "string"},
-        "prior": {"$ref": "#/$defs/probability"},
-        "confidence": {"$ref": "#/$defs/probability"},
-        "probability": {"$ref": "#/$defs/probability"},
-        "posterior": {"$ref": "#/$defs/probability"},
-        "status": {"enum": ["proposed", "performed", "inconclusive"]},
-        "answer_kind": {"enum": ["exact_answer", "exact_method", "method_hypothesis", "clue_path", "blocker"]},
-        "clue_family": {"type": "boolean"},
-        "salience": {"type": "number", "minimum": 0, "maximum": 1},
-        "exhausted": {"type": "boolean"},
-        "exhaustion_reason": {"type": "string"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "goal",
+            "evidence",
+            "constraint",
+            "derived",
+            "assumption",
+            "test",
+            "candidate_solution"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "short_text": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "prior": {
+          "$ref": "#/$defs/probability"
+        },
+        "confidence": {
+          "$ref": "#/$defs/probability"
+        },
+        "probability": {
+          "$ref": "#/$defs/probability"
+        },
+        "posterior": {
+          "$ref": "#/$defs/probability"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "performed",
+            "inconclusive"
+          ]
+        },
+        "answer_kind": {
+          "enum": [
+            "exact_answer",
+            "exact_method",
+            "method_hypothesis",
+            "clue_path",
+            "blocker"
+          ]
+        },
+        "clue_family": {
+          "type": "boolean"
+        },
+        "salience": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "exhausted": {
+          "type": "boolean"
+        },
+        "exhaustion_reason": {
+          "type": "string"
+        }
       },
       "allOf": [
         {
-          "if": {"properties": {"type": {"const": "test"}}, "required": ["type"]},
-          "then": {"properties": {"status": {"enum": ["proposed", "performed", "inconclusive"]}}},
-          "else": {"not": {"required": ["status"]}}
+          "if": {
+            "properties": {
+              "type": {
+                "const": "test"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "proposed",
+                  "performed",
+                  "inconclusive"
+                ]
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "status"
+              ]
+            }
+          }
         },
         {
-          "if": {"properties": {"type": {"const": "candidate_solution"}}, "required": ["type"]},
-          "then": {"properties": {"answer_kind": {"enum": ["exact_answer", "exact_method", "method_hypothesis", "clue_path", "blocker"]}}}
+          "if": {
+            "properties": {
+              "type": {
+                "const": "candidate_solution"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "answer_kind": {
+                "enum": [
+                  "exact_answer",
+                  "exact_method",
+                  "method_hypothesis",
+                  "clue_path",
+                  "blocker"
+                ]
+              }
+            }
+          }
         }
       ]
     },
     "likelihood": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["if_target_true", "if_target_false"],
+      "required": [
+        "if_target_true",
+        "if_target_false"
+      ],
       "properties": {
-        "if_target_true": {"$ref": "#/$defs/probability"},
-        "if_target_false": {"$ref": "#/$defs/probability"}
+        "if_target_true": {
+          "$ref": "#/$defs/probability"
+        },
+        "if_target_false": {
+          "$ref": "#/$defs/probability"
+        }
       }
     },
     "edge": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["from", "to", "type"],
+      "required": [
+        "from",
+        "to",
+        "type"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "from": {"$ref": "#/$defs/id"},
-        "to": {"$ref": "#/$defs/id"},
-        "type": {"enum": ["requires", "supports", "assumes", "contradicts", "prompts", "tested_by", "tests", "leads_to", "answers"]},
-        "label": {"enum": ["requires", "supports", "assumes", "contradicts", "prompts", "tested_by", "tests", "leads_to", "answers"]},
-        "likelihood": {"$ref": "#/$defs/likelihood"},
-        "likelihood_ratio": {"type": "number", "exclusiveMinimum": 0}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "from": {
+          "$ref": "#/$defs/id"
+        },
+        "to": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "enum": [
+            "requires",
+            "supports",
+            "assumes",
+            "contradicts",
+            "prompts",
+            "tested_by",
+            "tests",
+            "leads_to",
+            "answers"
+          ]
+        },
+        "likelihood": {
+          "$ref": "#/$defs/likelihood"
+        },
+        "likelihood_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
       },
-      "not": {"required": ["likelihood", "likelihood_ratio"]}
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "likelihood",
+              "likelihood_ratio"
+            ]
+          },
+          {
+            "required": [
+              "label"
+            ]
+          },
+          {
+            "required": [
+              "hard"
+            ]
+          },
+          {
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "required": [
+              "strength"
+            ]
+          }
+        ]
+      }
     },
     "factorAggregation": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": {"enum": ["joint_probability", "likelihood"]},
-        "probability": {"$ref": "#/$defs/probability"},
-        "if_target_true": {"$ref": "#/$defs/probability"},
-        "if_target_false": {"$ref": "#/$defs/probability"}
+        "kind": {
+          "enum": [
+            "joint_probability",
+            "likelihood"
+          ]
+        },
+        "probability": {
+          "$ref": "#/$defs/probability"
+        },
+        "if_target_true": {
+          "$ref": "#/$defs/probability"
+        },
+        "if_target_false": {
+          "$ref": "#/$defs/probability"
+        }
       },
       "allOf": [
         {
-          "if": {"properties": {"kind": {"const": "joint_probability"}}, "required": ["kind"]},
-          "then": {"required": ["probability"]}
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "joint_probability"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "probability"
+            ]
+          }
         },
         {
-          "if": {"properties": {"kind": {"const": "likelihood"}}, "required": ["kind"]},
-          "then": {"required": ["if_target_true", "if_target_false"]}
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "likelihood"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "if_target_true",
+              "if_target_false"
+            ]
+          }
         }
       ],
-      "not": {"required": ["likelihood_ratio"]}
+      "not": {
+        "required": [
+          "likelihood_ratio"
+        ]
+      }
     },
     "factor": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "relation", "target", "inputs", "aggregation"],
+      "required": [
+        "id",
+        "relation",
+        "target",
+        "inputs",
+        "aggregation"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "relation": {"enum": ["leads_to", "supports", "contradicts"]},
-        "target": {"$ref": "#/$defs/id"},
-        "inputs": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
-        "aggregation": {"$ref": "#/$defs/factorAggregation"},
-        "reason": {"type": "string"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "relation": {
+          "enum": [
+            "leads_to",
+            "supports",
+            "contradicts"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "aggregation": {
+          "$ref": "#/$defs/factorAggregation"
+        },
+        "reason": {
+          "type": "string"
+        }
       },
-      "not": {"anyOf": [{"required": ["likelihood_ratio"]}, {"required": ["effective_truth_cost"]}]}
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "likelihood_ratio"
+            ]
+          },
+          {
+            "required": [
+              "effective_truth_cost"
+            ]
+          }
+        ]
+      }
     },
     "premiseGroup": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "target", "premises", "joint_probability"],
+      "required": [
+        "id",
+        "target",
+        "premises",
+        "joint_probability"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "target": {"$ref": "#/$defs/id"},
-        "premises": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
-        "joint_probability": {"$ref": "#/$defs/probability"},
-        "reason": {"type": "string"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "target": {
+          "$ref": "#/$defs/id"
+        },
+        "premises": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "joint_probability": {
+          "$ref": "#/$defs/probability"
+        },
+        "reason": {
+          "type": "string"
+        }
       },
-      "not": {"required": ["effective_truth_cost"]}
+      "not": {
+        "required": [
+          "effective_truth_cost"
+        ]
+      }
     },
     "costComponents": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "truth": {"$ref": "#/$defs/autoNumber"},
-        "uncertainty": {"$ref": "#/$defs/autoNumber"},
-        "verification": {"type": "number"},
-        "effort_budget": {"type": "number"},
-        "resource_budget": {"type": "number"},
-        "compute_budget": {"type": "number"},
-        "reasoning_complexity": {"type": "number"},
-        "constraint_tension": {"type": "number"}
+        "truth": {
+          "$ref": "#/$defs/autoNumber"
+        },
+        "uncertainty": {
+          "$ref": "#/$defs/autoNumber"
+        },
+        "verification": {
+          "type": "number"
+        },
+        "effort_budget": {
+          "type": "number"
+        },
+        "resource_budget": {
+          "type": "number"
+        },
+        "compute_budget": {
+          "type": "number"
+        },
+        "reasoning_complexity": {
+          "type": "number"
+        },
+        "constraint_tension": {
+          "type": "number"
+        }
       }
     },
     "frontierItem": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "node"],
+      "required": [
+        "id",
+        "node"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "node": {"$ref": "#/$defs/id"},
-        "parent": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
-        "related": {"$ref": "#/$defs/stringList"},
-        "scratch": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "active_assumptions": {"$ref": "#/$defs/stringList"},
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "node": {
+          "$ref": "#/$defs/id"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "related": {
+          "$ref": "#/$defs/stringList"
+        },
+        "scratch": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "active_assumptions": {
+          "$ref": "#/$defs/stringList"
+        },
         "scope": {},
         "params": {},
         "budget": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "max_attempts": {"type": "integer", "minimum": 0},
-            "max_seconds": {"type": "number", "minimum": 0},
-            "max_items": {"type": "integer", "minimum": 0},
-            "max_sources": {"type": "integer", "minimum": 0},
-            "stop_after": {"type": "string"}
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_sources": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stop_after": {
+              "type": "string"
+            }
           }
         },
-        "cost_components": {"$ref": "#/$defs/costComponents"},
-        "cost": {"$ref": "#/$defs/costComponents"},
-        "estimated_remaining_cost": {"$ref": "#/$defs/nonNegativeNumber"},
-        "truth_cost": {"type": "number"},
-        "work_cost": {"type": "number"},
-        "base_search_cost": {"type": "number"},
-        "heuristic_cost": {"type": "number"},
-        "search_cost": {"type": "number"},
-        "step_cost": {"type": "number"},
-        "path_cost": {"type": "number"},
-        "step_truth_cost": {"type": "number"}
+        "cost_components": {
+          "$ref": "#/$defs/costComponents"
+        },
+        "cost": {
+          "$ref": "#/$defs/costComponents"
+        },
+        "estimated_remaining_cost": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "truth_cost": {
+          "type": "number"
+        },
+        "work_cost": {
+          "type": "number"
+        },
+        "base_search_cost": {
+          "type": "number"
+        },
+        "heuristic_cost": {
+          "type": "number"
+        },
+        "search_cost": {
+          "type": "number"
+        },
+        "step_cost": {
+          "type": "number"
+        },
+        "step_truth_cost": {
+          "type": "number"
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "path_cost"
+            ]
+          },
+          {
+            "required": [
+              "next_action"
+            ]
+          },
+          {
+            "required": [
+              "expansion_hint"
+            ]
+          },
+          {
+            "required": [
+              "context"
+            ]
+          },
+          {
+            "required": [
+              "additional_info"
+            ]
+          },
+          {
+            "required": [
+              "focus"
+            ]
+          }
+        ]
       }
     },
     "event": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["step", "action"],
+      "required": [
+        "step",
+        "action"
+      ],
       "properties": {
-        "step": {"type": "integer", "minimum": 0},
-        "action": {"enum": ["init", "pop", "expand", "supersede", "select", "solution", "stop"]},
-        "frontier": {"$ref": "#/$defs/stringList"},
-        "item": {"$ref": "#/$defs/id"},
-        "replacement": {"$ref": "#/$defs/id"},
-        "node": {"$ref": "#/$defs/id"},
-        "cost": {"type": "number"},
-        "reason": {"type": "string"},
-        "outcome": {"enum": ["solved", "candidate_threshold_met", "candidate_count_met", "frontier_exhausted", "budget_exhausted", "blocked", "user_stopped", "inconclusive"]},
-        "add_nodes": {"$ref": "#/$defs/stringList"},
-        "add_edges": {"$ref": "#/$defs/stringList"},
-        "add_frontier": {"$ref": "#/$defs/stringList"},
-        "update_premise_groups": {"$ref": "#/$defs/stringList"},
-        "add_premise_groups": {"$ref": "#/$defs/stringList"},
-        "update_factors": {"$ref": "#/$defs/stringList"},
-        "add_factors": {"$ref": "#/$defs/stringList"},
+        "step": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "action": {
+          "enum": [
+            "init",
+            "pop",
+            "expand",
+            "supersede",
+            "select",
+            "stop"
+          ]
+        },
+        "frontier": {
+          "$ref": "#/$defs/stringList"
+        },
+        "item": {
+          "$ref": "#/$defs/id"
+        },
+        "replacement": {
+          "$ref": "#/$defs/id"
+        },
+        "node": {
+          "$ref": "#/$defs/id"
+        },
+        "cost": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "solved",
+            "candidate_threshold_met",
+            "candidate_count_met",
+            "frontier_exhausted",
+            "budget_exhausted",
+            "blocked",
+            "user_stopped",
+            "inconclusive"
+          ]
+        },
+        "add_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "add_edges": {
+          "$ref": "#/$defs/stringList"
+        },
+        "add_frontier": {
+          "$ref": "#/$defs/stringList"
+        },
+        "update_premise_groups": {
+          "$ref": "#/$defs/stringList"
+        },
+        "update_factors": {
+          "$ref": "#/$defs/stringList"
+        },
         "updated_nodes": {
           "type": "array",
           "items": {
             "anyOf": [
-              {"$ref": "#/$defs/id"},
+              {
+                "$ref": "#/$defs/id"
+              },
               {
                 "type": "object",
                 "additionalProperties": true,
-                "required": ["id"],
+                "required": [
+                  "id"
+                ],
                 "properties": {
-                  "id": {"$ref": "#/$defs/id"},
-                  "fields": {"$ref": "#/$defs/stringList"}
+                  "id": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "fields": {
+                    "$ref": "#/$defs/stringList"
+                  }
                 }
               }
             ]
           }
         },
-        "no_new_work_reason": {"type": "string"},
-        "under_branching_reason": {"type": "string"},
-        "existing_sibling_frontier": {"$ref": "#/$defs/stringList"}
+        "no_new_work_reason": {
+          "type": "string"
+        },
+        "under_branching_reason": {
+          "type": "string"
+        },
+        "existing_sibling_frontier": {
+          "$ref": "#/$defs/stringList"
+        }
       },
       "allOf": [
-        {"if": {"properties": {"action": {"const": "init"}}, "required": ["action"]}, "then": {"required": ["frontier"]}},
-        {"if": {"properties": {"action": {"const": "pop"}}, "required": ["action"]}, "then": {"required": ["item", "cost"]}},
-        {"if": {"properties": {"action": {"const": "expand"}}, "required": ["action"]}, "then": {"required": ["item", "add_nodes", "add_edges", "add_frontier"]}},
-        {"if": {"properties": {"action": {"const": "supersede"}}, "required": ["action"]}, "then": {"required": ["item", "replacement", "reason"]}},
-        {"if": {"properties": {"action": {"enum": ["select", "solution"]}}, "required": ["action"]}, "then": {"required": ["item", "node", "cost"]}},
-        {"if": {"properties": {"action": {"const": "stop"}}, "required": ["action"]}, "then": {"required": ["reason", "outcome"]}}
-      ]
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "init"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "frontier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "pop"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "item",
+              "cost"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "expand"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "item",
+              "add_nodes",
+              "add_edges",
+              "add_frontier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "supersede"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "item",
+              "replacement",
+              "reason"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "select"
+                ]
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "item",
+              "node",
+              "cost"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "stop"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason",
+              "outcome"
+            ]
+          }
+        }
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "add_premise_groups"
+            ]
+          },
+          {
+            "required": [
+              "add_factors"
+            ]
+          },
+          {
+            "required": [
+              "no_reopen_reason"
+            ]
+          },
+          {
+            "required": [
+              "exhaustion_reason"
+            ]
+          }
+        ]
+      }
     },
     "goalPolicy": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "accepted_goals": {"$ref": "#/$defs/stringList"},
-        "preferred_goals": {"$ref": "#/$defs/stringList"}
+        "accepted_goals": {
+          "$ref": "#/$defs/stringList"
+        },
+        "preferred_goals": {
+          "$ref": "#/$defs/stringList"
+        }
       }
     },
     "goalGroup": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["id", "goals"],
+      "required": [
+        "id",
+        "goals"
+      ],
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "goals": {"$ref": "#/$defs/stringList"},
-        "exclusive": {"type": "boolean"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "goals": {
+          "$ref": "#/$defs/stringList"
+        },
+        "exclusive": {
+          "type": "boolean"
+        }
       }
     },
     "stopPolicy": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "min_viable_candidates": {"type": "integer", "minimum": 0},
-        "belief_threshold": {"$ref": "#/$defs/probability"},
-        "max_live_frontier_items": {"type": "integer", "minimum": 0},
-        "require_frontier_exhausted_for_epistemic_stop": {"type": "boolean"},
-        "severity": {"enum": ["warning", "error"]}
+        "min_viable_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "belief_threshold": {
+          "$ref": "#/$defs/probability"
+        },
+        "max_live_frontier_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "require_frontier_exhausted_for_epistemic_stop": {
+          "type": "boolean"
+        },
+        "severity": {
+          "enum": [
+            "warning",
+            "error"
+          ]
+        }
       }
     },
     "branchPolicy": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "high_salience_min_children": {"type": "integer", "minimum": 0},
-        "low_prior_wildcard_required": {"type": "boolean"},
-        "enforce_on": {"enum": ["exhaustion_stop", "always"]},
-        "severity": {"enum": ["warning", "error"]}
+        "high_salience_min_children": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "low_prior_wildcard_required": {
+          "type": "boolean"
+        },
+        "enforce_on": {
+          "enum": [
+            "exhaustion_stop",
+            "always"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "warning",
+            "error"
+          ]
+        }
       }
     },
     "searchPolicy": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "estimated_remaining_weight": {"$ref": "#/$defs/nonNegativeNumber"}
+        "estimated_remaining_weight": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        }
       }
     },
     "report": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "title": {"type": "string"},
-        "answer": {"type": "string"},
-        "candidates": {"type": "array", "items": {"$ref": "#/$defs/reportCandidate"}},
-        "winning_path": {"type": "array", "items": {"type": "string"}},
-        "next_verification": {"type": "string"}
+        "title": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reportCandidate"
+          }
+        },
+        "winning_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_verification": {
+          "type": "string"
+        }
       }
     },
     "reportCandidate": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "id": {"$ref": "#/$defs/id"},
-        "name": {"type": "string"},
-        "belief": {"type": "number", "minimum": 0, "maximum": 1},
-        "truth_cost": {"type": "number"},
-        "effective_truth_cost": {"type": "number"},
-        "search_cost": {"type": "number"},
-        "weight": {"type": "number", "minimum": 0, "maximum": 1},
-        "path_nodes": {"$ref": "#/$defs/stringList"},
-        "why": {"type": "string"},
-        "next_test": {"type": "string"}
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "belief": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "truth_cost": {
+          "type": "number"
+        },
+        "effective_truth_cost": {
+          "type": "number"
+        },
+        "search_cost": {
+          "type": "number"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "path_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "why": {
+          "type": "string"
+        },
+        "next_test": {
+          "type": "string"
+        }
       }
     },
     "presentation": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "include_nodes": {"$ref": "#/$defs/stringList"},
-        "highlight_nodes": {"$ref": "#/$defs/stringList"},
-        "dim_nodes": {"$ref": "#/$defs/stringList"},
-        "title": {"type": "string"},
-        "layout_hint": {"type": "string"}
+        "include_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "highlight_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "dim_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "title": {
+          "type": "string"
+        },
+        "layout_hint": {
+          "type": "string"
+        }
       }
     },
     "view": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "winning_path": {"$ref": "#/$defs/stringList"},
-        "dimmed_branches": {"$ref": "#/$defs/stringList"},
-        "frontier": {"$ref": "#/$defs/stringList"}
+        "winning_path": {
+          "$ref": "#/$defs/stringList"
+        },
+        "dimmed_branches": {
+          "$ref": "#/$defs/stringList"
+        },
+        "frontier": {
+          "$ref": "#/$defs/stringList"
+        }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "solutions"
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }
