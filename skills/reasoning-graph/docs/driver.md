@@ -101,8 +101,8 @@ uv run rg frontier state.json       # show active frontier derived from events
 uv run rg next state.json           # show lowest-cost active item + path context
 uv run rg next state.json --pop -i  # persist init/pop event for lowest-cost item
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg select state.json --node CS1 -i
-uv run rg stop state.json --reason "best candidate verified" --outcome solved -i
+uv run rg rank state.json -i
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg path state.json Q7        # reconstruct parent-pointer path
 uv run rg mermaid state.json        # emit Mermaid source
 uv run rg html state.json -o /tmp/reasoning-graph-example.html
@@ -183,10 +183,11 @@ State JSON shape:
   "events": [
     {"step": 1, "action": "init", "frontier": ["Q1"]},
     {"step": 2, "action": "pop", "item": "Q1", "cost": 1.310826},
-    {"step": 3, "action": "stop", "reason": "sample complete", "outcome": "frontier_exhausted"}
+    {"step": 3, "action": "rank", "item": "Q1", "best": "CS1", "belief": 0.6, "candidates": [{"node": "CS1", "belief": 0.6, "effective_truth_cost": 0.510826}]},
+    {"step": 4, "action": "stop", "reason": "CS1 answers G1 and no live frontier remains", "outcome": "solved"}
   ],
   "view": {
-    "winning_path": ["A1", "G1"],
+    "winning_path": ["A1", "CS1", "G1"],
     "dimmed_branches": []
   }
 }
@@ -203,7 +204,7 @@ Cost behavior:
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals. Without strict events, older loose states expose stored frontier items for compatibility.
-- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/selected, `next --pop` refuses to continue.
+- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/ranked, `next --pop` refuses to continue.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - `path` reconstructs a proof/search path from parent pointers.
 - `audit` checks compact strict-search events for coherent best-first expansion.
@@ -239,7 +240,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `select` to record the chosen `candidate_solution` for the pending popped item. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `rank` to record the current best viable `candidate_solution` derived from graph belief, not a manual choice. Use `stop` to append a stop event when search should end. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
 An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
@@ -282,8 +283,8 @@ Do not include full frontier before/after snapshots; state already stores fronti
     "updated_nodes": [{"id": "A1", "fields": ["posterior"]}],
     "no_new_work_reason": "A1 score changed, but no new A1-local work was implied."
   },
-  {"step": 4, "action": "select", "item": "Q7", "node": "CS1", "cost": 2.24},
-  {"step": 5, "action": "stop", "reason": "found 3 candidates; best dominates", "outcome": "candidate_count_met"}
+  {"step": 4, "action": "rank", "best": "CS1", "belief": 0.91, "candidates": [{"node": "CS1", "belief": 0.91, "effective_truth_cost": 0.094311}]},
+  {"step": 5, "action": "stop", "reason": "three viable candidates compared; CS1 satisfies the accepted goal above threshold", "outcome": "candidate_count_met"}
 ]
 ```
 
@@ -293,7 +294,7 @@ Allowed actions:
 - `pop` — selected lowest-cost frontier item
 - `expand` — nodes/edges/frontier items created from the popped item. Add an outgoing edge from the popped node to at least one new test/result/child node so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
-- `select` — chosen `candidate_solution` for this branch/search state
+- `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
 - `stop` — why search stopped; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
 
 Driver loop for search moves:
@@ -304,9 +305,11 @@ uv run rg next state.json --pop -i
 # inspect popped node, parent path, active assumptions, and related nodes
 # write expansion.json containing coarse child branches/tests/evidence
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg select state.json --node CS1 -i  # when a popped branch reaches the best current candidate
-uv run rg stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
-# review stopped candidate; promote only on pass
+uv run rg rank state.json -i  # derives best candidate from current graph belief
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json
+# semantic-review stopped candidate; promote only on pass
 cp state.stopped.json state.json
 uv run rg frontier state.json
 ```
@@ -315,7 +318,9 @@ uv run rg frontier state.json
 
 Stop is two gates:
 
-1. `uv run rg stop ... -o state.stopped.json` fast-fails structural issues without mutating the working state.
+Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
+
+1. `uv run rg stop ... -o state.stopped.json` appends the stop event without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
 2. A semantic reviewer approves `state.stopped.json` before it is promoted.
 
 If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.
@@ -333,16 +338,16 @@ notes: []
 
 Required checks:
 
-- stop outcome/reason matches accepted goal, selected candidate, and stop policy
+- stop outcome/reason matches accepted goal, derived best candidate, and stop policy
 - no meaningful answer-goal frontier remains hidden behind an epistemic/blocker stop
 - high-salience clue/family nodes are expanded, live, or explicitly exhausted
-- selected candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
+- best candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
 - blockers are not disguised as answer candidates for normal solve goals
 - failed broad tests do not erase untested sibling interpretations or parent clue families
 - contradictions/failures penalize only affected branches
 - final answer draft matches graph state and invents no new evidence
 
-Do not call `next --pop` again until the pending popped item is expanded, selected, or intentionally stopped. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
+Do not call `next --pop` again until the pending popped item is expanded, ranked, or intentionally stopped. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
 Before final in driver mode, run:
 
@@ -350,9 +355,9 @@ Before final in driver mode, run:
 uv run rg audit state.json
 ```
 
-Treat audit warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or selected by driver events, do one of these before final:
+Treat audit warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:
 
-- add proper `expand`/`select`/contradiction-penalty events for those candidates,
+- add proper `expand`/`rank`/contradiction-penalty events for those candidates,
 - demote them to assumptions/derived notes if they were only speculative ideas,
 - or keep them out of `nodes` and mention them as unexpanded possibilities in prose/report metadata.
 
@@ -370,7 +375,7 @@ Audit checks:
 - one-child non-terminal expansions get a soft under-branching warning only when the final stop claims exhaustion/completion, unless `under_branching_reason` or `existing_sibling_frontier` is recorded
 - high-salience clue/family expansions below `branch_policy.high_salience_min_children` warn/fail on exhaustion/completion stops unless they include `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof; set `branch_policy.enforce_on: "always"` for noisy development audits
 - candidate solutions contradicted by evidence remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
-- `select` references a `candidate_solution` node
+- `rank.best` matches the derived highest-belief viable `candidate_solution`
 - `stop` has a reason
 
 Limit: driver mode still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.

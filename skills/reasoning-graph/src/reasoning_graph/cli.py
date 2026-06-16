@@ -12,7 +12,7 @@ from .audit import audit_state
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
 from .models import STOP_OUTCOMES
-from .policy import selected_candidate_ids_from_events, viable_candidate_ids
+from .policy import best_candidate_ids, ranked_viable_candidates
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors
 from .state import by_id, dump_state, load_state
@@ -49,7 +49,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     if result.ok:
         print("ok")
         print(
-            "events={events} pops={pops} expansions={expansions} selections={selections}".format(**stats)
+            "events={events} pops={pops} expansions={expansions} rankings={rankings}".format(**stats)
         )
         return 0
     return 1
@@ -152,7 +152,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     for error in audit_result.errors:
         print(f"error: {error}", file=sys.stderr)
     print(
-        "doctor: audit events={events} pops={pops} expansions={expansions} selections={selections}".format(**stats)
+        "doctor: audit events={events} pops={pops} expansions={expansions} rankings={rankings}".format(**stats)
     )
     if not audit_result.ok:
         print("doctor: audit failed")
@@ -185,9 +185,9 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         "validation passed before semantic review",
         "audit passed when driver events exist",
         "stop event exists and includes structured outcome",
-        "selected candidate exists for solved/candidate-threshold stops",
-        "selected candidate answers an accepted goal",
-        "draft mentions selected candidate id or text when draft is supplied",
+        "best viable candidate is derived for solved/candidate-threshold stops",
+        "best candidate answers an accepted goal",
+        "draft mentions best candidate id or text when draft is supplied",
     ]
 
     validation_result = validate_state(state)
@@ -219,27 +219,22 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         if not stop_outcome:
             required_fixes.append("latest stop event missing outcome")
 
-    selected_ids = selected_candidate_ids_from_events(state)
-    needs_selected_candidate = stop_outcome in {"solved", "candidate_threshold_met", "candidate_count_met"}
-    if needs_selected_candidate and not selected_ids:
-        required_fixes.append(f"stop outcome {stop_outcome!r} requires a selected candidate_solution")
-
-    viable_ids = viable_candidate_ids(state)
-    nonviable_selected = sorted(candidate_id for candidate_id in selected_ids if candidate_id not in viable_ids)
-    for candidate_id in nonviable_selected:
-        required_fixes.append(f"selected candidate {candidate_id} does not answer an accepted goal")
+    best_ids = best_candidate_ids(state)
+    needs_best_candidate = stop_outcome in {"solved", "candidate_threshold_met", "candidate_count_met"}
+    if needs_best_candidate and not best_ids:
+        required_fixes.append(f"stop outcome {stop_outcome!r} requires a viable candidate_solution")
 
     if args.draft:
         draft_text = Path(args.draft).read_text(encoding="utf-8")
         nodes = by_id(state.get("nodes", []), "node")
-        selected_mentions = []
-        for candidate_id in sorted(selected_ids):
+        best_mentions = []
+        for candidate_id in sorted(best_ids):
             candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
             mentioned = candidate_id in draft_text or (candidate_text and candidate_text in draft_text)
             if mentioned:
-                selected_mentions.append(candidate_id)
-        if selected_ids and not selected_mentions:
-            message = "draft does not mention any selected candidate id or exact candidate text"
+                best_mentions.append(candidate_id)
+        if best_ids and not best_mentions:
+            message = "draft does not mention best candidate id or exact candidate text"
             if args.strict_warnings:
                 required_fixes.append(message)
             else:
@@ -293,7 +288,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print("error: search already has a stop event", file=sys.stderr)
         return 1
     if cursor["pending_item"]:
-        print(f"error: pending popped item {cursor['pending_item']} must be expanded or selected before next pop", file=sys.stderr)
+        print(f"error: pending popped item {cursor['pending_item']} must be expanded or ranked before next pop", file=sys.stderr)
         return 1
     active = sorted_frontier_items(state, cursor["active_ids"])
     if args.pop and not cursor["initialized"]:
@@ -609,29 +604,18 @@ def cmd_expand(args: argparse.Namespace) -> int:
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
 
-    select_spec = patch.get("select")
-    selected_node: str | None = None
-    selected_item = args.item
-    if isinstance(select_spec, str):
-        selected_node = select_spec
-    elif isinstance(select_spec, dict):
-        raw_selected_node = select_spec.get("node")
-        raw_selected_item = select_spec.get("item")
-        if isinstance(raw_selected_node, str):
-            selected_node = raw_selected_node
-        if isinstance(raw_selected_item, str):
-            selected_item = raw_selected_item
-    if selected_node:
-        frontier_items = by_id(state.get("frontier", []), "frontier item")
-        if selected_item not in frontier_items:
-            raise ValueError(f"selected item {selected_item} is not a frontier item")
+    if patch.get("rank") is True:
+        ranked = ranked_viable_candidates(state)
+        if not ranked:
+            raise ValueError("rank requested but no viable candidate_solution answers an accepted goal")
         events.append(
             {
                 "step": next_event_step(state),
-                "action": "select",
-                "item": selected_item,
-                "node": selected_node,
-                "cost": frontier_items[selected_item].get("search_cost", frontier_items[selected_item].get("path_cost")),
+                "action": "rank",
+                "item": args.item,
+                "best": ranked[0]["node"],
+                "belief": ranked[0]["belief"],
+                "candidates": ranked,
             }
         )
 
@@ -656,48 +640,36 @@ def cmd_expand(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_select(args: argparse.Namespace) -> int:
+def cmd_rank(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    compute_costs(state)
-    items = by_id(state.get("frontier", []), "frontier item")
-    nodes = by_id(state.get("nodes", []), "node")
+    ranked = ranked_viable_candidates(state)
+    if not ranked:
+        print("error: no viable candidate_solution answers an accepted goal", file=sys.stderr)
+        return 1
+
     cursor = search_cursor(state)
-
     item_id = args.item or cursor.get("pending_item")
-    if not isinstance(item_id, str) or not item_id:
-        print("error: no pending popped item; use `next --pop` first or pass --item with --force", file=sys.stderr)
-        return 1
-    if item_id not in items:
-        print(f"error: frontier item not found: {item_id}", file=sys.stderr)
-        return 1
-    if cursor.get("pending_item") not in (None, item_id) and not args.force:
-        print(f"error: pending popped item is {cursor.get('pending_item')}, not {item_id}; use --force to override", file=sys.stderr)
-        return 1
-    if cursor.get("pending_item") is None and not args.force:
-        print("error: select expects a pending popped item; use --force to append anyway", file=sys.stderr)
-        return 1
+    if item_id is not None:
+        items = by_id(state.get("frontier", []), "frontier item")
+        if not isinstance(item_id, str) or item_id not in items:
+            print(f"error: frontier item not found: {item_id}", file=sys.stderr)
+            return 1
 
-    node = nodes.get(args.node)
-    if node is None:
-        print(f"error: candidate_solution node not found: {args.node}", file=sys.stderr)
-        return 1
-    if node.get("type") != "candidate_solution":
-        print(f"error: node {args.node} must be candidate_solution", file=sys.stderr)
-        return 1
-
+    top = max(1, args.top)
+    event: dict[str, Any] = {
+        "step": next_event_step(state),
+        "action": "rank",
+        "best": ranked[0]["node"],
+        "belief": ranked[0]["belief"],
+        "candidates": ranked[:top],
+    }
+    if item_id is not None:
+        event["item"] = item_id
     events = state.setdefault("events", [])
     if not isinstance(events, list):
-        print("error: events must be a list before select can append", file=sys.stderr)
+        print("error: events must be a list before rank can append", file=sys.stderr)
         return 1
-    events.append(
-        {
-            "step": next_event_step(state),
-            "action": "select",
-            "item": item_id,
-            "node": args.node,
-            "cost": items[item_id].get("search_cost", items[item_id].get("path_cost")),
-        }
-    )
+    events.append(event)
     dump_state(state, args.output, args.state if args.in_place else None)
     return 0
 
@@ -791,7 +763,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     stop_review = sub.add_parser("stop-review", help="run semantic stop-review checklist for a stopped state")
     stop_review.add_argument("state", help="state JSON path, or - for stdin")
-    stop_review.add_argument("--draft", help="optional final answer draft to compare against selected candidate")
+    stop_review.add_argument("--draft", help="optional final answer draft to compare against the derived best candidate")
     stop_review.add_argument("--strict-warnings", action="store_true", help="treat validation/audit warnings as required fixes")
     stop_review.set_defaults(func=cmd_stop_review)
 
@@ -820,7 +792,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     next_cmd = sub.add_parser("next", help="show or persistently pop the lowest-cost active frontier item")
     next_cmd.add_argument("state", help="state JSON path, or - for stdin")
-    next_cmd.add_argument("--pop", action="store_true", help="append init/pop events for the selected item")
+    next_cmd.add_argument("--pop", action="store_true", help="append init/pop events for the lowest-cost item")
     next_cmd.add_argument("-o", "--output", help="write mutated state to path when --pop is used")
     next_cmd.add_argument("-i", "--in-place", action="store_true", help="rewrite input file when --pop is used")
     next_cmd.add_argument("--json", action="store_true", help="print JSON item/path context")
@@ -835,14 +807,13 @@ def build_parser() -> argparse.ArgumentParser:
     expand.add_argument("--force", action="store_true", help="skip pending-pop guard")
     expand.set_defaults(func=cmd_expand)
 
-    select = sub.add_parser("select", help="record selected candidate_solution for the pending popped item")
-    select.add_argument("state", help="state JSON path, or - for stdin")
-    select.add_argument("--node", required=True, help="candidate_solution node id")
-    select.add_argument("--item", help="frontier item id; defaults to pending popped item")
-    select.add_argument("-o", "--output", help="write mutated state to path")
-    select.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
-    select.add_argument("--force", action="store_true", help="append even when there is no pending popped item")
-    select.set_defaults(func=cmd_select)
+    rank = sub.add_parser("rank", help="record current best viable candidate_solution by derived belief")
+    rank.add_argument("state", help="state JSON path, or - for stdin")
+    rank.add_argument("--item", help="frontier item id; defaults to pending popped item when one exists")
+    rank.add_argument("--top", type=int, default=10, help="number of ranked candidates to include in the event")
+    rank.add_argument("-o", "--output", help="write mutated state to path")
+    rank.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    rank.set_defaults(func=cmd_rank)
 
     stop = sub.add_parser("stop", help="append a stop event")
     stop.add_argument("state", help="state JSON path, or - for stdin")

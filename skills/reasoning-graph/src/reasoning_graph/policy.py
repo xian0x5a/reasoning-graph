@@ -81,29 +81,38 @@ def epistemic_goal_ids(state: dict[str, Any]) -> set[str]:
     }
 
 
-def selected_candidate_ids_from_events(state: dict[str, Any]) -> set[str]:
-    events = state.get("events")
-    if not isinstance(events, list):
-        return set()
-    return {
-        str(event.get("node"))
-        for event in events
-        if isinstance(event, dict)
-        and event.get("action") in {"select", "solution"}
-        and isinstance(event.get("node"), str)
-    }
+def ranked_viable_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
+    compute_costs(state)
+    nodes = by_id(state.get("nodes", []), "node")
+    node_truth_costs = node_effective_truth_costs(state)
+    ranked: list[dict[str, Any]] = []
+    for candidate_id in sorted(viable_candidate_ids(state)):
+        node = nodes.get(candidate_id, {})
+        truth_cost = node_truth_costs.get(candidate_id)
+        if truth_cost is None:
+            truth_cost = node_truth_cost(node)
+        belief = math.exp(-truth_cost)
+        ranked.append(
+            {
+                "node": candidate_id,
+                "belief": round(belief, 6),
+                "effective_truth_cost": round(truth_cost, 6),
+            }
+        )
+    return sorted(ranked, key=lambda candidate: (candidate["effective_truth_cost"], str(candidate["node"])))
 
 
-def selected_epistemic_candidate_ids(state: dict[str, Any]) -> set[str]:
+def best_candidate_ids(state: dict[str, Any]) -> set[str]:
+    ranked = ranked_viable_candidates(state)
+    return {str(ranked[0]["node"])} if ranked else set()
+
+
+def best_epistemic_candidate_ids(state: dict[str, Any]) -> set[str]:
     epistemic_goals = epistemic_goal_ids(state)
     if not epistemic_goals:
         return set()
     targets = candidate_goal_targets(state)
-    return {
-        candidate_id
-        for candidate_id in selected_candidate_ids_from_events(state)
-        if targets.get(candidate_id, set()) & epistemic_goals
-    }
+    return {candidate_id for candidate_id in best_candidate_ids(state) if targets.get(candidate_id, set()) & epistemic_goals}
 
 
 def candidate_pruned_ids(state: dict[str, Any]) -> set[str]:
@@ -140,23 +149,6 @@ def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
     return (truth_cost, search_cost, str(candidate.get("id") or candidate.get("name") or ""))
 
 
-def selected_candidate_frontier_items(state: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    compute_costs(state)
-    items = by_id(state.get("frontier", []), "frontier item")
-    selected: dict[str, dict[str, Any]] = {}
-    events = state.get("events")
-    if not isinstance(events, list):
-        return selected
-    for event in events:
-        if not isinstance(event, dict) or event.get("action") not in {"select", "solution"}:
-            continue
-        candidate_id = event.get("node")
-        item_id = event.get("item")
-        if isinstance(candidate_id, str) and isinstance(item_id, str) and item_id in items:
-            selected[candidate_id] = items[item_id]
-    return selected
-
-
 def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     compute_costs(state)
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
@@ -165,7 +157,6 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     nodes = by_id(state.get("nodes", []), "node")
     graph_candidate_ids = viable_candidate_ids(state)
-    selected_items = selected_candidate_frontier_items(state)
     # Report metadata can lag behind schema cleanup; render only live graph candidates.
     node_truth_costs = node_effective_truth_costs(state)
     filtered: list[dict[str, Any]] = []
@@ -176,18 +167,13 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         if candidate_id not in graph_candidate_ids:
             continue
         node = nodes.get(candidate_id, {})
-        selected_item = selected_items.get(candidate_id, {})
         enriched = dict(candidate)
-        search_cost = finite_float(selected_item.get("search_cost", selected_item.get("path_cost")))
-        if search_cost is None:
-            search_cost = finite_float(enriched.get("search_cost"))
+        search_cost = finite_float(enriched.get("search_cost"))
         if search_cost is None:
             search_cost = finite_float(enriched.get("path_cost"))
         if search_cost is not None:
             enriched["search_cost"] = round(search_cost, 6)
         truth_cost = node_truth_costs.get(candidate_id)
-        if truth_cost is None:
-            truth_cost = finite_float(selected_item.get("truth_cost"))
         if truth_cost is None:
             truth_cost = finite_float(enriched.get("truth_cost"))
         if truth_cost is None:
@@ -210,7 +196,7 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def strongest_candidate_belief(state: dict[str, Any]) -> float:
-    beliefs = [finite_float(candidate.get("belief")) for candidate in sorted_report_candidates(state)]
+    beliefs = [finite_float(candidate.get("belief")) for candidate in ranked_viable_candidates(state)]
     return max((belief for belief in beliefs if belief is not None), default=0.0)
 
 

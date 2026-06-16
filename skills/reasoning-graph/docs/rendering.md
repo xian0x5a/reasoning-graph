@@ -29,7 +29,7 @@ E1 -> C1 -> A2 (prior 0.6) -> D4 -> candidate S1
 
 Why this wins:
 - satisfies C1/C2
-- lower path cost than S2
+- lower search cost than S2
 - test T1 supports A2
 
 Other candidates:

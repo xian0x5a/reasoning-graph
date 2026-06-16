@@ -8,7 +8,7 @@ from typing import Any
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
 from .models import AUDIT_EVENT_ACTIONS, STOP_OUTCOMES, ValidationResult
-from .policy import salient_clue_family_ids, selected_epistemic_candidate_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, viable_candidate_ids
+from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -39,11 +39,11 @@ def audit_stop_policy(
         severity = "warning"
 
     live_count = len(live_frontier_items)
-    selected_epistemic = selected_epistemic_candidate_ids(state)
-    if selected_epistemic and live_count:
+    best_epistemic = best_epistemic_candidate_ids(state)
+    if best_epistemic and live_count:
         add_stop_policy_violation(
             result,
-            "epistemic/unresolved candidate selected while event-reachable frontier remains live: "
+            "best candidate answers an epistemic/unresolved goal while event-reachable frontier remains live: "
             + ", ".join(item.get("id", "?") for item in live_frontier_items[:8])
             + ("..." if live_count > 8 else ""),
             severity,
@@ -76,7 +76,7 @@ def audit_stop_policy(
             ),
             severity,
         )
-    if policy.get("require_frontier_exhausted_for_epistemic_stop") is True and selected_epistemic:
+    if policy.get("require_frontier_exhausted_for_epistemic_stop") is True and best_epistemic:
         add_stop_policy_violation(
             result,
             "stop_policy requires frontier exhaustion for epistemic stop, but live frontier remains: "
@@ -92,13 +92,13 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
     This does not prove the model used best-first order internally, but it catches incoherent
     or purely decorative search traces: wrong pop order, orphan children, missing
-    candidate-selection events, or frontier items that appear without an expansion.
+    candidate-rank events, or frontier items that appear without an expansion.
     """
 
     base = validate_state(state)
     errors = list(base.errors)
     warnings = list(base.warnings)
-    stats = {"events": 0, "pops": 0, "expansions": 0, "selections": 0}
+    stats = {"events": 0, "pops": 0, "expansions": 0, "rankings": 0}
     if errors:
         return ValidationResult(errors=errors, warnings=warnings), stats
 
@@ -140,7 +140,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     expanded_items: set[str] = set()
     last_popped_item: str | None = None
     event_added_nodes: set[str] = set()
-    event_selected_nodes: set[str] = set()
+    event_ranked_nodes: set[str] = set()
     evidence_update_added_steps_by_node: dict[str, list[int]] = {}
     for event in events:
         if not isinstance(event, dict):
@@ -534,45 +534,40 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 virtual_frontier.add(replacement_id)
             continue
 
-        if action in {"select", "solution"}:
-            if action == "solution":
-                warnings.append(f"{label}: action 'solution' is deprecated; use 'select'")
+        if action == "rank":
             item_id = event.get("item")
-            node_id = event.get("node")
-            if not isinstance(item_id, str) or not item_id:
-                errors.append(f"{label}: item must be a non-empty string")
-                continue
-            if item_id not in items:
-                errors.append(f"{label}: references missing frontier item {item_id}")
-                continue
-            item = items[item_id]
-            if not isinstance(node_id, str) or not node_id:
-                errors.append(f"{label}: node must be a non-empty string")
-            elif node_id not in nodes:
-                errors.append(f"{label}: references missing candidate_solution node {node_id}")
+            if item_id is not None:
+                if not isinstance(item_id, str) or not item_id:
+                    errors.append(f"{label}: item must be a non-empty string when present")
+                elif item_id not in items:
+                    errors.append(f"{label}: references missing frontier item {item_id}")
+                elif item_id not in popped_items:
+                    warnings.append(f"{label}: ranked item {item_id} was recorded before a pop event")
+                if item_id == last_popped_item:
+                    last_popped_item = None
+            best_id = event.get("best")
+            if not isinstance(best_id, str) or not best_id:
+                errors.append(f"{label}: best must be a non-empty candidate_solution id")
+            elif best_id not in nodes:
+                errors.append(f"{label}: references missing candidate_solution node {best_id}")
             else:
-                node_type = nodes[node_id].get("type")
+                node_type = nodes[best_id].get("type")
                 if node_type != "candidate_solution":
-                    errors.append(f"{label}: node {node_id} must be candidate_solution, got {node_type!r}")
-                event_selected_nodes.add(node_id)
-            try:
-                event_cost = float(event.get("cost"))
-            except (TypeError, ValueError):
-                errors.append(f"{label}: cost must be numeric")
-                event_cost = float(item.get("search_cost", item.get("path_cost", math.inf)))
-            expected_cost = float(item.get("search_cost", item.get("path_cost", math.inf)))
-            if abs(event_cost - expected_cost) > tolerance:
-                errors.append(f"{label}: cost {event_cost} != item search_cost {expected_cost}")
-            if item_id not in popped_items:
-                warnings.append(f"{label}: selected item {item_id} was recorded before a pop event")
-            if item_id == last_popped_item:
-                last_popped_item = None
-            stats["selections"] += 1
+                    errors.append(f"{label}: best {best_id} must be candidate_solution, got {node_type!r}")
+                event_ranked_nodes.add(best_id)
+                ranked = ranked_viable_candidates(state)
+                derived_best = str(ranked[0]["node"]) if ranked else ""
+                if derived_best and best_id != derived_best:
+                    errors.append(f"{label}: best {best_id} != derived highest-belief candidate {derived_best}")
+            candidates = event.get("candidates")
+            if candidates is not None and not isinstance(candidates, list):
+                errors.append(f"{label}: candidates must be a list when present")
+            stats["rankings"] += 1
             continue
 
         if action == "stop":
             if last_popped_item is not None:
-                errors.append(f"{label}: stop cannot follow unresolved popped item {last_popped_item}; expand or select it first")
+                errors.append(f"{label}: stop cannot follow unresolved popped item {last_popped_item}; expand or rank it first")
             reason = event.get("reason")
             if not isinstance(reason, str) or not reason.strip():
                 errors.append(f"{label}: stop reason must be non-empty")
@@ -593,8 +588,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         stop_claims_exhaustion = "frontier_exhausted" in stop_outcomes
     else:
         stop_claims_exhaustion = any(stop_reason_claims_exhaustion(reason) for reason in stop_reasons)
-    has_selected_epistemic_candidate = bool(selected_epistemic_candidate_ids(state))
-    emit_completion_coverage_warnings = branch_policy_enforce_on == "always" or stop_claims_exhaustion or has_selected_epistemic_candidate
+    has_best_epistemic_candidate = bool(best_epistemic_candidate_ids(state))
+    emit_completion_coverage_warnings = branch_policy_enforce_on == "always" or stop_claims_exhaustion or has_best_epistemic_candidate
     if deferred_branch_warnings and emit_completion_coverage_warnings:
         warnings.extend(deferred_branch_warnings)
     if stats["pops"] == 0:
@@ -633,8 +628,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     stop_policy_result = audit_stop_policy(state, reachable_unpopped_frontier_items, candidate_count)
     errors.extend(stop_policy_result.errors)
     warnings.extend(stop_policy_result.warnings)
-    if stats["selections"] == 0 and candidate_count > 0:
-        warnings.append("strict search audit saw no candidate-selection events")
+    if stats["rankings"] == 0 and candidate_count > 0:
+        warnings.append("strict search audit saw no candidate-rank events")
     if candidate_count >= 3:
         expected_branch_count = min(3, candidate_count)
         unvisited_candidates = sorted(
@@ -643,11 +638,11 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             if node.get("type") == "candidate_solution"
             and node_id in viable_candidates
             and node_id not in event_added_nodes
-            and node_id not in event_selected_nodes
+            and node_id not in event_ranked_nodes
         )
         if unvisited_candidates:
             warnings.append(
-                "candidate_solution nodes not added or selected by strict events: "
+                "candidate_solution nodes not added or ranked by strict events: "
                 + ", ".join(unvisited_candidates[:8])
                 + ("..." if len(unvisited_candidates) > 8 else "")
             )

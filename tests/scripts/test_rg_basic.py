@@ -105,22 +105,22 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_rg("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_stop_review_passes_fixture_and_fails_missing_selection(self) -> None:
+    def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
         ok = self.run_rg("stop-review", str(FIXTURE))
         self.assertEqual(ok.returncode, 0, ok.stderr)
         self.assertIn("verdict: pass", ok.stdout)
-        self.assertIn("selected candidate answers an accepted goal", ok.stdout)
+        self.assertIn("best candidate answers an accepted goal", ok.stdout)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "missing-selection.json"
+            state_path = Path(tmp_dir) / "missing-candidate.json"
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [event for event in state["events"] if event.get("action") != "select"]
+            state["edges"] = [edge for edge in state["edges"] if edge.get("type") != "answers"]
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
             missing = self.run_rg("stop-review", str(state_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("verdict: fail", missing.stdout)
-            self.assertIn("requires a selected candidate_solution", missing.stdout)
+            self.assertIn("requires a viable candidate_solution", missing.stdout)
 
     def test_stop_review_compares_optional_draft(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -133,7 +133,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             draft_path.write_text("Unrelated answer.", encoding="utf-8")
             missing = self.run_rg("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
-            self.assertIn("draft does not mention", missing.stdout)
+            self.assertIn("draft does not mention best candidate", missing.stdout)
 
     def test_doctor_reports_validation_and_audit_health(self) -> None:
         ok = self.run_rg("doctor", str(FIXTURE))

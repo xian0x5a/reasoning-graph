@@ -79,7 +79,7 @@ Rules:
 
 - Treat derived nodes inside a hypothetical branch as conditional truth, not global truth.
 - Every derived node under an assumption inherits dependency on that assumption until verified or proven independent.
-- Do not create separate `solution` nodes. A final answer is the currently best-supported `candidate_solution`, chosen by evidence, constraints, and path cost.
+- Do not create separate `solution` nodes. A final answer is the currently best-supported `candidate_solution`, derived from evidence, constraints, and search cost.
 - Use `candidate_solution -> goal` with `answers` when the candidate satisfies the goal.
 - Do not make “not solved”, “cannot establish”, or “missing dependency” a `candidate_solution` for a normal solve goal. That is a stop outcome or derived blocker, not an answer.
 - A true “no valid solution exists” candidate is allowed only when it answers an accepted epistemic/negative goal and is supported by positive impossibility evidence.

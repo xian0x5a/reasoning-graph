@@ -108,15 +108,22 @@
     },
     {
       "step": 5,
-      "action": "select",
+      "action": "rank",
       "item": "Q3",
-      "node": "CS1",
-      "cost": 0.610826
+      "best": "CS1",
+      "belief": 0.6,
+      "candidates": [
+        {
+          "node": "CS1",
+          "belief": 0.6,
+          "effective_truth_cost": 0.510826
+        }
+      ]
     },
     {
       "step": 6,
       "action": "stop",
-      "reason": "best candidate found for sample",
+      "reason": "CS1 answers G1 and explored sample frontier is complete",
       "outcome": "solved"
     }
   ]

@@ -18,7 +18,7 @@ Helper-generated reports derive table `belief` from `effective_truth_cost`. `pos
 
 Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
-Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Legacy inputs may still contain `path_cost`, but modern output uses `search_cost`.
+Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas reject legacy `path_cost`. Run `uv run rg costs legacy-state.json -o state.json` to rewrite old frontier cost fields.
 
 Recommended hybrid cost model:
 
@@ -82,7 +82,7 @@ If the branch means broad brute force, open-ended enumeration, or spending most 
 
 Use `likelihood` for numeric evidence updates on `supports` and `contradicts` edges. Prefer explicit conditional likelihoods over a bare ratio:
 
-```json
+```jsonl
 {"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}}
 {"from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.1, "if_target_false": 0.7}}
 ```

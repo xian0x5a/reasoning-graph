@@ -110,7 +110,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
             replacement = event.get("replacement")
             if isinstance(replacement, str) and replacement in items and replacement not in popped_ids:
                 active_ids.add(replacement)
-        elif action in {"select", "solution"}:
+        elif action == "rank":
             item_id = event.get("item")
             if item_id == pending_item:
                 pending_item = None

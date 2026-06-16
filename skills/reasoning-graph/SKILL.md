@@ -85,14 +85,15 @@ uv run rg sort state.json -i
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg select state.json --node CS1 -i
-uv run rg stop state.json --reason "best candidate verified" --outcome solved -o state.stopped.json
-uv run rg audit state.json
+uv run rg rank state.json -i
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json
 uv run rg mermaid state.json > graph.mmd
 uv run rg html state.json -o graph.html
 ```
 
-Do not call `next --pop` again until the pending popped item is expanded, selected, or intentionally stopped.
+Do not call `next --pop` again until the pending popped item is expanded, ranked, or intentionally stopped.
 
 Details: `docs/driver.md`.
 

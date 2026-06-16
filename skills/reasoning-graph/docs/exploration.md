@@ -9,7 +9,7 @@ User input often arrives as an unstructured block, not labeled evidence/constrai
 Workflow:
 
 1. Extract the `goal` from explicit request wording. If multiple goals conflict, ask or state the chosen primary goal.
-2. Build the initial ledger from observed/source-backed inputs and requirements using the canonical Node Types above.
+2. Build the initial ledger from observed/source-backed inputs and requirements using the canonical node types in `schema.md`.
 3. Keep plausible interpretations as initial assumptions/frontier branches, not evidence.
 4. If a constraint is inferred from intent rather than explicit, mark it as inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
 5. Record source metadata on evidence/constraint nodes when useful:
@@ -57,7 +57,7 @@ A normal stop is acceptable when at least one is true:
 - strongest viable candidate belief crosses an explicit threshold (for example `belief_threshold: 0.8`),
 - an explicit external budget is reached and the graph records the remaining live frontier items as unfinished, not exhausted.
 
-Do not select an epistemic/unresolved blocker while meaningful answer-goal frontier items remain live unless the state has an explicit stop policy allowing that. This is lazy-stop territory: the graph must prove search got enough candidates, got enough confidence, or genuinely exhausted/blocked the live frontier.
+Do not stop on an epistemic/unresolved blocker while meaningful answer-goal frontier items remain live unless the state has an explicit stop policy allowing that. This is lazy-stop territory: the graph must prove search got enough candidates, got enough confidence, or genuinely exhausted/blocked the live frontier.
 
 Recommended strict policy for benchmark/search tasks:
 

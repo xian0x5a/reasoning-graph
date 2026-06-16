@@ -5,8 +5,8 @@ semantic_tricks_checked:
   - "validation passed before semantic review"
   - "audit passed when driver events exist"
   - "stop event exists and includes structured outcome"
-  - "selected candidate exists for solved/candidate-threshold stops"
-  - "selected candidate answers an accepted goal"
-  - "draft mentions selected candidate id or text when draft is supplied"
+  - "best viable candidate is derived for solved/candidate-threshold stops"
+  - "best candidate answers an accepted goal"
+  - "draft mentions best candidate id or text when draft is supplied"
 notes:
   []

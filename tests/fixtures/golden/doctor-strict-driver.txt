@@ -1,4 +1,4 @@
 doctor: validation ok
 doctor: nodes=4 edges=2 frontier=3 active=0 pending=none stopped=true
-doctor: audit events=6 pops=2 expansions=1 selections=1
+doctor: audit events=6 pops=2 expansions=1 rankings=1
 doctor: audit ok

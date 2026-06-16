@@ -100,30 +100,8 @@
         "minLength": 1
       }
     },
-    "select": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "object",
-          "additionalProperties": true,
-          "required": [
-            "node"
-          ],
-          "properties": {
-            "node": {
-              "type": "string",
-              "minLength": 1
-            },
-            "item": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        }
-      ]
+    "rank": {
+      "type": "boolean"
     },
     "stop_reason": {
       "type": "string",

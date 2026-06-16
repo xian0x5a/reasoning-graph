@@ -677,7 +677,7 @@
             "pop",
             "expand",
             "supersede",
-            "select",
+            "rank",
             "stop"
           ]
         },
@@ -693,8 +693,29 @@
         "node": {
           "$ref": "#/$defs/id"
         },
+        "best": {
+          "$ref": "#/$defs/id"
+        },
         "cost": {
           "type": "number"
+        },
+        "belief": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["node", "belief", "effective_truth_cost"],
+            "properties": {
+              "node": {"$ref": "#/$defs/id"},
+              "belief": {"type": "number", "minimum": 0, "maximum": 1},
+              "effective_truth_cost": {"type": "number"}
+            }
+          }
         },
         "reason": {
           "type": "string"
@@ -841,7 +862,7 @@
             "properties": {
               "action": {
                 "enum": [
-                  "select"
+                  "rank"
                 ]
               }
             },
@@ -851,9 +872,9 @@
           },
           "then": {
             "required": [
-              "item",
-              "node",
-              "cost"
+              "best",
+              "belief",
+              "candidates"
             ]
           }
         },
