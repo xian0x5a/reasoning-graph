@@ -24,6 +24,7 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 python skills/reasoning-graph/scripts/rg.py template strict -o state.json
 python skills/reasoning-graph/scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
 python skills/reasoning-graph/scripts/rg.py doctor state.json
+python skills/reasoning-graph/scripts/rg.py stop-review state.json --draft answer.md
 
 # validate and audit a graph state
 python skills/reasoning-graph/scripts/rg.py validate state.json

@@ -12,6 +12,7 @@ from .audit import audit_state
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
 from .models import STOP_OUTCOMES
+from .policy import selected_candidate_ids_from_events, viable_candidate_ids
 from .render import html_document, presentation_node_ids, to_mermaid
 from .state import by_id, dump_state, load_state
 from .validation import validate_state
@@ -157,6 +158,98 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return 1
     print("doctor: audit ok")
     return 0
+
+
+def _print_yaml_list(name: str, values: list[str]) -> None:
+    print(f"{name}:")
+    if not values:
+        print("  []")
+        return
+    for value in values:
+        print(f"  - {json.dumps(value, ensure_ascii=False)}")
+
+
+def _stop_events(state: dict[str, Any]) -> list[dict[str, Any]]:
+    events = state.get("events")
+    if not isinstance(events, list):
+        return []
+    return [event for event in events if isinstance(event, dict) and event.get("action") == "stop"]
+
+
+def cmd_stop_review(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    required_fixes: list[str] = []
+    notes: list[str] = []
+    checks = [
+        "validation passed before semantic review",
+        "audit passed when driver events exist",
+        "stop event exists and includes structured outcome",
+        "selected candidate exists for solved/candidate-threshold stops",
+        "selected candidate answers an accepted goal",
+        "draft mentions selected candidate id or text when draft is supplied",
+    ]
+
+    validation_result = validate_state(state)
+    required_fixes.extend(f"validation error: {error}" for error in validation_result.errors)
+    validation_warnings = [f"validation warning: {warning}" for warning in validation_result.warnings]
+    if args.strict_warnings:
+        required_fixes.extend(validation_warnings)
+    else:
+        notes.extend(validation_warnings)
+
+    events = state.get("events")
+    if not isinstance(events, list) or not events:
+        required_fixes.append("state has no driver events; stop-review expects a stopped driver state")
+    else:
+        audit_result, _ = audit_state(state)
+        required_fixes.extend(f"audit error: {error}" for error in audit_result.errors)
+        audit_warnings = [f"audit warning: {warning}" for warning in audit_result.warnings]
+        if args.strict_warnings:
+            required_fixes.extend(audit_warnings)
+        else:
+            notes.extend(audit_warnings)
+
+    stops = _stop_events(state)
+    if not stops:
+        required_fixes.append("missing stop event")
+        stop_outcome = ""
+    else:
+        stop_outcome = str(stops[-1].get("outcome") or "")
+        if not stop_outcome:
+            required_fixes.append("latest stop event missing outcome")
+
+    selected_ids = selected_candidate_ids_from_events(state)
+    needs_selected_candidate = stop_outcome in {"solved", "candidate_threshold_met", "candidate_count_met"}
+    if needs_selected_candidate and not selected_ids:
+        required_fixes.append(f"stop outcome {stop_outcome!r} requires a selected candidate_solution")
+
+    viable_ids = viable_candidate_ids(state)
+    nonviable_selected = sorted(candidate_id for candidate_id in selected_ids if candidate_id not in viable_ids)
+    for candidate_id in nonviable_selected:
+        required_fixes.append(f"selected candidate {candidate_id} does not answer an accepted goal")
+
+    if args.draft:
+        draft_text = Path(args.draft).read_text(encoding="utf-8")
+        nodes = by_id(state.get("nodes", []), "node")
+        selected_mentions = []
+        for candidate_id in sorted(selected_ids):
+            candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
+            mentioned = candidate_id in draft_text or (candidate_text and candidate_text in draft_text)
+            if mentioned:
+                selected_mentions.append(candidate_id)
+        if selected_ids and not selected_mentions:
+            message = "draft does not mention any selected candidate id or exact candidate text"
+            if args.strict_warnings:
+                required_fixes.append(message)
+            else:
+                notes.append(message)
+
+    verdict = "fail" if required_fixes else "pass"
+    print(f"verdict: {verdict}")
+    _print_yaml_list("required_fixes", required_fixes)
+    _print_yaml_list("semantic_tricks_checked", checks)
+    _print_yaml_list("notes", notes)
+    return 0 if verdict == "pass" else 1
 
 
 def cmd_sort(args: argparse.Namespace) -> int:
@@ -694,6 +787,12 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="validate state and summarize costs/frontier/audit health")
     doctor.add_argument("state", help="state JSON path, or - for stdin")
     doctor.set_defaults(func=cmd_doctor)
+
+    stop_review = sub.add_parser("stop-review", help="run semantic stop-review checklist for a stopped state")
+    stop_review.add_argument("state", help="state JSON path, or - for stdin")
+    stop_review.add_argument("--draft", help="optional final answer draft to compare against selected candidate")
+    stop_review.add_argument("--strict-warnings", action="store_true", help="treat validation/audit warnings as required fixes")
+    stop_review.set_defaults(func=cmd_stop_review)
 
     costs = sub.add_parser("costs", help="compute truth_cost/search_cost; path_cost is emitted as a legacy alias")
     costs.add_argument("state", help="state JSON path, or - for stdin")

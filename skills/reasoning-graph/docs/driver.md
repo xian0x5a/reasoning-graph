@@ -91,6 +91,7 @@ Use the helper for graph mode, multi-branch reasoning, frontier ranking, path re
 ./scripts/rg.py template strict -o state.json      # emit starter state profile
 ./scripts/rg.py init --goal "Diagnose outage" --strict -o state.json
 ./scripts/rg.py doctor state.json                  # validate, summarize frontier, audit when events exist
+./scripts/rg.py stop-review state.json --draft answer.md  # final stop checklist
 ./scripts/rg.py validate state.json                # schema/reference/cost sanity checks
 ./scripts/rg.py costs state.json                   # compute truth_cost/search_cost; path_cost kept as legacy alias
 ./scripts/rg.py audit state.json          # audit strict-search compact events
