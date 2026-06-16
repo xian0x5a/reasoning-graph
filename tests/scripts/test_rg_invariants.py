@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = REPO_ROOT / "src"
-sys.path.insert(0, str(SRC_ROOT))
+SKILL_SRC_ROOT = REPO_ROOT / "skills" / "reasoning-graph" / "src"
+sys.path.insert(0, str(SKILL_SRC_ROOT))
 
 from reasoning_graph.costs import compute_costs
 from reasoning_graph.validation import validate_state

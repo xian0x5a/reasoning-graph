@@ -16,7 +16,7 @@ dependencies = [
 rg = "reasoning_graph.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["skills/reasoning-graph/src"]
 
 [tool.setuptools.package-data]
 reasoning_graph = ["schemas/*.json"]

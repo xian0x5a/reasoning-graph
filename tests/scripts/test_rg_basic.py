@@ -13,16 +13,16 @@ except ImportError:  # pragma: no cover - optional developer dependency
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = REPO_ROOT / "src"
-sys.path.insert(0, str(SRC_ROOT))
+SKILL_SRC_ROOT = REPO_ROOT / "skills" / "reasoning-graph" / "src"
+sys.path.insert(0, str(SKILL_SRC_ROOT))
 
 from reasoning_graph.frontier import search_cursor
 
 
 RG = REPO_ROOT / "skills" / "reasoning-graph" / "scripts" / "rg.py"
 FIXTURE = REPO_ROOT / "tests" / "reasoning-graph-strict-good.json"
-STATE_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
+STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphCliBasicTests(unittest.TestCase):

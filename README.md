@@ -4,7 +4,7 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-This repo is a Python project using `src/reasoning_graph/`. The skill keeps `skills/reasoning-graph/scripts/rg.py` as a compatibility wrapper. Agents should update relevant pseudocode before touching matching source code.
+This repo is a Python project using `skills/reasoning-graph/src/reasoning_graph/`. The skill keeps `skills/reasoning-graph/scripts/rg.py` as a compatibility wrapper. Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
@@ -45,7 +45,7 @@ python skills/reasoning-graph/scripts/rg.py html state.json -o graph.html
 
 ## Schemas
 
-Machine-readable JSON Schemas live under `src/reasoning_graph/schemas/`:
+Machine-readable JSON Schemas live under `skills/reasoning-graph/src/reasoning_graph/schemas/`:
 
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches
@@ -55,7 +55,7 @@ Schemas describe the modern interchange contract and explicitly reject known leg
 ## Checks
 
 ```bash
-uv run python -m py_compile skills/reasoning-graph/scripts/rg.py src/reasoning_graph/*.py
+uv run python -m py_compile skills/reasoning-graph/scripts/rg.py skills/reasoning-graph/src/reasoning_graph/*.py
 uv run rg validate tests/reasoning-graph-strict-good.json
 uv run rg audit tests/reasoning-graph-strict-good.json
 uv run python -m unittest discover -s tests/scripts

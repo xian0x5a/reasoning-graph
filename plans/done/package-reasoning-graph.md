@@ -2,7 +2,7 @@
 
 ## Goal
 
-Move the `reasoning_graph` Python package to standard `src/` layout, add `pyproject.toml`, declare `jsonschema`, and make `rg.py validate` run JSON Schema before semantic validation.
+Move the `reasoning_graph` Python package to skill-local `skills/reasoning-graph/src/` layout, add `pyproject.toml`, declare `jsonschema`, and make `rg.py validate` run JSON Schema before semantic validation.
 
 ## Intent
 
@@ -13,8 +13,8 @@ Use one authoritative validation command with two layers:
 
 ## Scope
 
-- Move `skills/reasoning-graph/scripts/reasoning_graph/` to `src/reasoning_graph/`.
-- Move matching pseudocode to `pseudocode/src/reasoning_graph/`.
+- Move `skills/reasoning-graph/scripts/reasoning_graph/` to `skills/reasoning-graph/src/reasoning_graph/`.
+- Move matching pseudocode to `pseudocode/skills/reasoning-graph/src/reasoning_graph/`.
 - Keep `skills/reasoning-graph/scripts/rg.py` as compatibility wrapper.
 - Add `pyproject.toml` with package metadata, `jsonschema` dependency, and `rg` console script.
 - Update tests to import from `src` and still test wrapper path.
@@ -39,9 +39,9 @@ Use one authoritative validation command with two layers:
 ## Progress
 
 - Started after schema-tightening commit `8720041`.
-- Moved package source to `src/reasoning_graph/`.
-- Moved mapped pseudocode to `pseudocode/src/reasoning_graph/`.
-- Moved schemas into package data under `src/reasoning_graph/schemas/`.
+- Moved package source to `skills/reasoning-graph/src/reasoning_graph/`.
+- Moved mapped pseudocode to `pseudocode/skills/reasoning-graph/src/reasoning_graph/`.
+- Moved schemas into package data under `skills/reasoning-graph/src/reasoning_graph/schemas/`.
 - Added `pyproject.toml`, `uv.lock`, `jsonschema` dependency, and `rg` console script.
 - Kept `skills/reasoning-graph/scripts/rg.py` as compatibility wrapper that imports from `src`.
 - Added packaged schema validation module and fused schema errors into `validate_state()`.

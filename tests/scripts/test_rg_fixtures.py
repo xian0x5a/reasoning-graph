@@ -28,8 +28,8 @@ AUDIT_INVALID_FIXTURES = {
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
 }
-STATE_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
+STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphFixtureTests(unittest.TestCase):
