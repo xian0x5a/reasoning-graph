@@ -13,16 +13,66 @@ Use this skill when a messy task needs explicit alternatives instead of one hidd
 
 Default output is compact. Create graph/HTML artifacts only when requested or when they materially improve understanding; ask first if artifact generation was not requested.
 
+## Controller-only probe delegation
+
+For non-trivial reasoning-graph work, the main thread is a controller, not an explorer. The parent owns goal framing, canonical graph/state, branch/frontier definition, priority, stop policy, merge decisions, and final answer.
+
+Delegate observation-heavy work when a subagent backend is available:
+
+- source research
+- codebase/file inspection
+- external documentation lookup
+- hypothesis probes
+- evidence collection
+- validation checks
+- candidate audits
+- adversarial review
+
+Do not let the parent do broad research, large file inspection, or detailed verification when a child can do it. This protects main-thread context from raw evidence noise. Parent may do targeted inspection needed to frame probes, adjudicate conflicts, or verify high-impact child claims. Simple answer-only tasks, trivial bookkeeping, and unavailable delegation backends are exceptions.
+
+Delegation unit = bounded probe:
+
+- one frontier item, hypothesis, test, source family, or candidate audit
+- bounded scope and stop rule
+- explicit output contract
+- no final decision authority
+
+The frontier driver (`sort`/`next`) chooses the next focus item. Parent chooses treatment: expand, probe, verify, close, or a mix. Subagents collect observations. Parent updates graph and decides.
+
+Frontier treatments may compose:
+
+- probe first when expansion needs missing context
+- expand first when probe targets are unclear
+- probe several child branches in parallel after expansion
+- verify after probe results support a candidate
+- create follow-up frontier items from any result
+
+Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment.
+
+Subagent probe output should include:
+
+- probe target
+- evidence found with source/file refs
+- evidence against the target
+- proposed graph nodes/edges
+- confidence or likelihood impact
+- residual uncertainty
+- suggested next probes
+- blocked/stop reason when applicable
+
+Children must not finalize the answer or mutate canonical graph state; they may produce isolated patch/artifact proposals for parent review when explicitly assigned. When generic orchestration mechanics matter, follow `delegation-orchestrator` and `pi-subagents`; this skill defines how delegation maps onto reasoning-graph probes.
+
 ## Core operating loop
 
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
 3. **Initialize frontier.** Add unresolved assumptions/tests/candidate-support work as frontier items with coarse priors/costs.
-4. **Let driver choose.** For complex graph mode, run `uv run rg next state.json --pop -i` before major reasoning, tool use, searches, tests, or branch selection.
-5. **Expand divergently.** For popped item, add meaningful sibling branches/tests/evidence/candidates. Do not tunnel on first plausible answer.
-6. **Update beliefs.** Add result evidence and calibrated `supports`/`contradicts` likelihoods or explicit posterior. Re-sort frontier.
-7. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
-8. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
+4. **Pop focus.** For complex graph mode, run `uv run rg sort state.json -i` and `uv run rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
+5. **Choose treatment.** Decide whether the popped item needs expansion, probe, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
+6. **Update graph.** Merge child findings and/or parent expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
+7. **Re-rank frontier.** Sort after every meaningful update.
+8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
+9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
 
 ## Canonical model quick reference
 
@@ -92,7 +142,7 @@ uv run rg mermaid state.json > graph.mmd
 uv run rg html state.json -o graph.html
 ```
 
-Do not call `next --pop` again until the pending popped item is expanded, ranked, or intentionally stopped.
+Do not call `next --pop` again until the pending popped item is recorded through `expand`, `rank`, or `stop`. If delegating, first `expand` the popped item into explicit bounded probe/test child nodes or frontier items, then assign those probes. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not pop unrelated jobs just to keep workers busy unless each assignment is recorded in state.
 
 Details: `docs/driver.md`.
 
