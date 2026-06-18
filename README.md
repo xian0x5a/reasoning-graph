@@ -4,7 +4,7 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-This repo is a Python project using `skills/reasoning-graph/src/reasoning_graph/`. Run the CLI with `uv run rg ...` so dependencies come from `uv.lock`. Agents should update relevant pseudocode before touching matching source code.
+The installable Python project lives inside `skills/reasoning-graph/`, with source under `skills/reasoning-graph/src/reasoning_graph/`. Run the CLI from that skill directory with `uv run rg ...`, or from the repo root with `uv --project skills/reasoning-graph run rg ...`. Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
@@ -20,6 +20,8 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 ## Helper commands
 
 ```bash
+cd skills/reasoning-graph
+
 # bootstrap and inspect state
 uv run rg template strict -o state.json
 uv run rg init --goal "Diagnose outage" --strict -o state.json
@@ -76,10 +78,10 @@ Schemas describe the modern interchange contract and explicitly reject known leg
 ## Checks
 
 ```bash
-uv run python -m py_compile skills/reasoning-graph/src/reasoning_graph/*.py
-uv run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
-uv run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
-uv run --group dev pytest tests/cli tests/integration -q
+uv --project skills/reasoning-graph run python -m py_compile skills/reasoning-graph/src/reasoning_graph/*.py
+uv --project skills/reasoning-graph run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project skills/reasoning-graph run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project skills/reasoning-graph run --group dev pytest tests/cli tests/integration -q
 ```
 
 Generated reports, Mermaid files, and benchmark outputs belong in `test-results/` or `/tmp`, not git.

@@ -122,7 +122,7 @@ Details: `docs/cost-model.md`.
 
 ## Helper commands
 
-Run with `uv run rg` so dependencies come from `uv.lock`. This works from the repo root or skill directory.
+Run from this skill directory with `uv run rg` so dependencies come from this skill's `uv.lock`. From the repo root, use `uv --project skills/reasoning-graph run rg ...`.
 
 ```bash
 uv run rg template strict -o state.json

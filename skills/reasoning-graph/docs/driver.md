@@ -108,7 +108,7 @@ uv run rg mermaid state.json        # emit Mermaid source
 uv run rg html state.json -o /tmp/reasoning-graph-example.html
 ```
 
-Run commands with `uv run rg` from the repo root or skill directory so dependencies come from `uv.lock`.
+Run commands with `uv run rg` from this skill directory so dependencies come from the skill-local `uv.lock`. From the repo root, use `uv --project skills/reasoning-graph run rg ...`.
 
 State JSON shape:
 

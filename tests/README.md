@@ -2,7 +2,7 @@
 
 Tests are split by role:
 
-- `cli/` — executable CLI contract tests for `uv run rg ...` commands.
+- `cli/` — executable CLI contract tests for the skill-local `uv run rg ...` commands.
 - `integration/` — broader driver, cost, audit, and invariant tests.
 - `fixtures/` — reusable JSON states, patches, invalid cases, and golden outputs.
 - `scenarios/` — human/eval prompt packets, blind problems, and spoiler validators.
@@ -23,9 +23,9 @@ Human/eval prompt packets live under `scenarios/`. Detailed scenario layout, pro
 ## Run
 
 ```bash
-uv run --group dev pytest tests/cli tests/integration -q
-uv run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
-uv run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project skills/reasoning-graph run --group dev pytest tests/cli tests/integration -q
+uv --project skills/reasoning-graph run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project skills/reasoning-graph run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
 
 ## Review notes
