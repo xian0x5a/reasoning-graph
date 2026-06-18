@@ -91,18 +91,19 @@ Use the helper for graph mode, multi-branch reasoning, frontier ranking, path re
 uv run rg template strict -o state.json      # emit starter state profile
 uv run rg init --goal "Diagnose outage" --strict -o state.json
 uv run rg doctor state.json                  # validate, summarize frontier, audit when events exist
-uv run rg stop-review state.json --draft answer.md  # final stop checklist
 uv run rg validate state.json                # schema/reference/cost sanity checks
 uv run rg costs state.json                   # compute truth_cost/search_cost
-uv run rg audit state.json          # audit strict-search compact events
 uv run rg sort state.json           # compute costs and sort frontier by search_cost
 uv run rg sort state.json -i        # rewrite state.json sorted in place
 uv run rg frontier state.json       # show active frontier derived from events
 uv run rg next state.json           # show lowest-cost active item + path context
 uv run rg next state.json --pop -i  # persist init/pop event for lowest-cost item
-uv run rg expand state.json --item Q7 --patch expansion.json -i
+uv run rg expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
 uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
-uv run rg path state.json Q7        # reconstruct parent-pointer path
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json  # audit strict-search compact events after driver events exist
+uv run rg stop-review state.stopped.json --draft answer.md  # final stop checklist after stop
+uv run rg path state.json Q7        # reconstruct parent-pointer path for an item id
 uv run rg mermaid state.json        # emit Mermaid source
 uv run rg html state.json -o /tmp/reasoning-graph-example.html
 ```
@@ -312,15 +313,16 @@ Driver loop for search moves:
 ```bash
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
-# inspect popped node, parent path, active assumptions, and related nodes
-# for async observation-heavy work:
-uv run rg assign state.json --item Q7 --agent researcher -i
+# inspect the printed item id, parent path, active assumptions, and related nodes
+# for async observation-heavy work, assign that exact popped item id:
+uv run rg assign state.json --item <popped-item-id> --agent researcher -i
 # continue popping eligible work; assigning more async work is blocked at max_probe_concurrency
 # write expansion.json containing child findings, branches/tests/evidence, or no_new_work_reason
-uv run rg expand state.json --item Q7 --patch expansion.json -i
+uv run rg expand state.json --item <assigned-or-pending-item-id> --patch expansion.json -i
 uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
 uv run rg audit state.stopped.json
+uv run rg stop-review state.stopped.json --draft answer.md
 # semantic-review stopped candidate; promote only on pass
 cp state.stopped.json state.json
 uv run rg frontier state.json
@@ -361,13 +363,15 @@ Required checks:
 
 Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
-Before final in driver mode, run:
+Before final in driver mode, validate, audit, and semantically review the stopped state:
 
 ```bash
-uv run rg audit state.json
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json
+uv run rg stop-review state.stopped.json --draft answer.md
 ```
 
-Treat audit warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:
+Treat audit/stop-review warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:
 
 - add proper `expand`/`rank`/contradiction-penalty events for those candidates,
 - demote them to assumptions/derived notes if they were only speculative ideas,

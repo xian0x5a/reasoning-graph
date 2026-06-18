@@ -24,7 +24,6 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 uv run rg template strict -o state.json
 uv run rg init --goal "Diagnose outage" --strict -o state.json
 uv run rg doctor state.json
-uv run rg stop-review state.json --draft answer.md
 
 # validate and audit a graph state
 uv run rg validate state.json
@@ -33,12 +32,20 @@ uv run rg audit state.json
 # drive graph search
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
+cat > expansion.json <<'JSON'
+{"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
+JSON
 uv run rg expand state.json --item Q1 --patch expansion.json -i
-uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
+
+# final review for a stopped driver state
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json
+uv run rg stop-review state.stopped.json
 
 # render artifacts
-uv run rg mermaid state.json > graph.mmd
-uv run rg html state.json -o graph.html
+uv run rg mermaid state.stopped.json > graph.mmd
+uv run rg html state.stopped.json -o graph.html
 ```
 
 ## Schemas

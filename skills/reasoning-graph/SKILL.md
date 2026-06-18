@@ -128,19 +128,21 @@ Run with `uv run rg` so dependencies come from `uv.lock`. This works from the re
 uv run rg template strict -o state.json
 uv run rg init --goal "Diagnose outage" --strict -o state.json
 uv run rg doctor state.json
-uv run rg stop-review state.json --draft answer.md
 uv run rg validate state.json
 uv run rg costs state.json -i
 uv run rg sort state.json -i
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
-uv run rg assign state.json --item Q7 --agent researcher -i
-uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+cat > expansion.json <<'JSON'
+{"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
+JSON
+uv run rg expand state.json --item Q1 --patch expansion.json -i
+uv run rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
 uv run rg validate state.stopped.json
 uv run rg audit state.stopped.json
-uv run rg mermaid state.json > graph.mmd
-uv run rg html state.json -o graph.html
+uv run rg stop-review state.stopped.json
+uv run rg mermaid state.stopped.json > graph.mmd
+uv run rg html state.stopped.json -o graph.html
 ```
 
 Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
@@ -180,11 +182,12 @@ For benchmark/search tasks, prefer:
 }
 ```
 
-Before final in driver mode:
+Before final in driver mode, validate/audit the stopped state and run semantic stop-review:
 
 ```bash
-uv run rg validate state.json
-uv run rg audit state.json
+uv run rg validate state.stopped.json
+uv run rg audit state.stopped.json
+uv run rg stop-review state.stopped.json --draft answer.md
 ```
 
 Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
