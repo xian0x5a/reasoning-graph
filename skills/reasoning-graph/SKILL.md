@@ -37,7 +37,7 @@ Delegation unit = bounded probe:
 - explicit output contract
 - no final decision authority
 
-The frontier driver (`sort`/`next`) chooses the next focus item. Parent chooses treatment: expand, probe, verify, close, or a mix. Subagents collect observations. Parent updates graph and decides.
+The frontier driver (`sort`/`next`) chooses the next focus item. Parent chooses treatment: expand, assign async probe/verify work, close, or a mix. Subagents collect observations. Parent updates graph and decides.
 
 Frontier treatments may compose:
 
@@ -47,7 +47,7 @@ Frontier treatments may compose:
 - verify after probe results support a candidate
 - create follow-up frontier items from any result
 
-Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment.
+Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment. Use async subagents for independent probes, bounded by `search_policy.max_probe_concurrency` or an explicit `rg assign --max-concurrency` value.
 
 Subagent probe output should include:
 
@@ -68,8 +68,8 @@ Children must not finalize the answer or mutate canonical graph state; they may 
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
 3. **Initialize frontier.** Add unresolved assumptions/tests/candidate-support work as frontier items with coarse priors/costs.
 4. **Pop focus.** For complex graph mode, run `uv run rg sort state.json -i` and `uv run rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
-5. **Choose treatment.** Decide whether the popped item needs expansion, probe, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
-6. **Update graph.** Merge child findings and/or parent expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
+5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
+6. **Assign or update.** For async work, run `uv run rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge findings/expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
 7. **Re-rank frontier.** Sort after every meaningful update.
 8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
@@ -134,6 +134,7 @@ uv run rg costs state.json -i
 uv run rg sort state.json -i
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
+uv run rg assign state.json --item Q7 --agent researcher -i
 uv run rg expand state.json --item Q7 --patch expansion.json -i
 uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
@@ -142,7 +143,7 @@ uv run rg mermaid state.json > graph.mmd
 uv run rg html state.json -o graph.html
 ```
 
-Do not call `next --pop` again until the pending popped item is recorded through `expand`, `rank`, or `stop`. If delegating, first `expand` the popped item into explicit bounded probe/test child nodes or frontier items, then assign those probes. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not pop unrelated jobs just to keep workers busy unless each assignment is recorded in state.
+Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, `rank`, or `stop`. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
 
 Details: `docs/driver.md`.
 

@@ -137,6 +137,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     previous_step: int | None = None
     virtual_frontier: set[str] = set()
     popped_items: set[str] = set()
+    in_flight_items: set[str] = set()
     expanded_items: set[str] = set()
     last_popped_item: str | None = None
     event_added_nodes: set[str] = set()
@@ -187,6 +188,12 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             target = factor.get("target")
             if isinstance(target, str):
                 evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
+
+    search_policy = state.get("search_policy") if isinstance(state.get("search_policy"), dict) else {}
+    default_max_probe_concurrency = 3
+    policy_max_probe_concurrency = search_policy.get("max_probe_concurrency", default_max_probe_concurrency)
+    if not isinstance(policy_max_probe_concurrency, int) or policy_max_probe_concurrency < 1:
+        policy_max_probe_concurrency = default_max_probe_concurrency
 
     branch_policy = state.get("branch_policy") if isinstance(state.get("branch_policy"), dict) else {}
     high_salience_min_children = int(branch_policy.get("high_salience_min_children", 3))
@@ -252,6 +259,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             continue
 
         if action == "pop":
+            if last_popped_item is not None:
+                errors.append(f"{label}: cannot pop while unresolved popped item {last_popped_item} is pending; expand, assign, or rank it first")
             item_id = event.get("item")
             if not isinstance(item_id, str) or not item_id:
                 errors.append(f"{label}: item must be a non-empty string")
@@ -287,7 +296,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             stats["pops"] += 1
             continue
 
-        if action == "expand":
+        if action == "assign":
             item_id = event.get("item")
             if not isinstance(item_id, str) or not item_id:
                 errors.append(f"{label}: item must be a non-empty string")
@@ -296,7 +305,33 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: references missing frontier item {item_id}")
                 continue
             if item_id != last_popped_item:
-                errors.append(f"{label}: expand must follow most recent pop ({last_popped_item}), got {item_id}")
+                errors.append(f"{label}: assign must follow most recent unresolved pop ({last_popped_item}), got {item_id}")
+            if item_id not in popped_items:
+                errors.append(f"{label}: cannot assign unpopped item {item_id}")
+            max_concurrency = event.get("max_concurrency", policy_max_probe_concurrency)
+            if not isinstance(max_concurrency, int) or max_concurrency < 1:
+                errors.append(f"{label}: max_concurrency must be a positive integer when present")
+                max_concurrency = policy_max_probe_concurrency
+            if len(in_flight_items) >= max_concurrency:
+                errors.append(
+                    f"{label}: max probe concurrency exceeded ({len(in_flight_items) + 1}/{max_concurrency})"
+                )
+            in_flight_items.add(item_id)
+            if item_id == last_popped_item:
+                last_popped_item = None
+            continue
+
+        if action == "expand":
+            item_id = event.get("item")
+            if not isinstance(item_id, str) or not item_id:
+                errors.append(f"{label}: item must be a non-empty string")
+                continue
+            if item_id not in items:
+                errors.append(f"{label}: references missing frontier item {item_id}")
+                continue
+            assigned_expansion = item_id in in_flight_items
+            if item_id != last_popped_item and not assigned_expansion:
+                errors.append(f"{label}: expand must follow most recent pop ({last_popped_item}) or target an in-flight assigned item, got {item_id}")
             if item_id not in popped_items:
                 errors.append(f"{label}: cannot expand unpopped item {item_id}")
 
@@ -495,7 +530,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 )
 
             expanded_items.add(item_id)
-            last_popped_item = None
+            in_flight_items.discard(item_id)
+            if item_id == last_popped_item:
+                last_popped_item = None
             stats["expansions"] += 1
             continue
 
@@ -545,6 +582,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     warnings.append(f"{label}: ranked item {item_id} was recorded before a pop event")
                 if item_id == last_popped_item:
                     last_popped_item = None
+                in_flight_items.discard(item_id)
             best_id = event.get("best")
             if not isinstance(best_id, str) or not best_id:
                 errors.append(f"{label}: best must be a non-empty candidate_solution id")
@@ -567,7 +605,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
         if action == "stop":
             if last_popped_item is not None:
-                errors.append(f"{label}: stop cannot follow unresolved popped item {last_popped_item}; expand or rank it first")
+                errors.append(f"{label}: stop cannot follow unresolved popped item {last_popped_item}; expand, assign, or rank it first")
+            if in_flight_items:
+                errors.append(f"{label}: stop cannot occur while assigned items remain in-flight: {sorted(in_flight_items)}")
             reason = event.get("reason")
             if not isinstance(reason, str) or not reason.strip():
                 errors.append(f"{label}: stop reason must be non-empty")

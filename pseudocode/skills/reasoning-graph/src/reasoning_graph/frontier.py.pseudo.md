@@ -18,7 +18,9 @@ expansion_signature(item):
   exclude id, parent, evidence_version, costs, related, and scratch because those do not by themselves change the next expansion
 
 search_cursor(state):
-  replay events without mutating state to find initialized frontier, active items, pending pop, stopped state, and selected nodes
+  replay events without mutating state to find initialized frontier, active items, pending pop, in-flight assigned items, stopped state, and selected nodes
+  when an assign event is seen for the pending item, clear the pending pop and mark that item in-flight so later pops can continue while async probe work runs
+  when an expand or rank event is seen for an in-flight item, remove it from in-flight because the delegated work has been integrated or explicitly closed
   when a supersede event is seen, remove the stale item from active frontier and keep its replacement active if the replacement exists and was not popped
 
 item_view(state, item):

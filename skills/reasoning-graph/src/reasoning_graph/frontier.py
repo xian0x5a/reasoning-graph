@@ -67,6 +67,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
         return {
             "active_ids": {item_id for item_id in items},
             "pending_item": None,
+            "in_flight_ids": set(),
             "initialized": False,
             "stopped": False,
         }
@@ -74,6 +75,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
     active_ids: set[str] = set()
     popped_ids: set[str] = set()
     pending_item: str | None = None
+    in_flight_ids: set[str] = set()
     initialized = False
     stopped = False
 
@@ -93,10 +95,18 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
                 active_ids.discard(item_id)
                 popped_ids.add(item_id)
                 pending_item = item_id
+        elif action == "assign":
+            item_id = event.get("item")
+            if isinstance(item_id, str) and item_id in items:
+                if item_id == pending_item:
+                    pending_item = None
+                in_flight_ids.add(item_id)
         elif action == "expand":
             item_id = event.get("item")
             if item_id == pending_item:
                 pending_item = None
+            if isinstance(item_id, str):
+                in_flight_ids.discard(item_id)
             added_frontier = event.get("add_frontier") if isinstance(event.get("add_frontier"), list) else []
             for child_id in added_frontier:
                 if isinstance(child_id, str) and child_id in items and child_id not in popped_ids:
@@ -114,9 +124,12 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
             item_id = event.get("item")
             if item_id == pending_item:
                 pending_item = None
+            if isinstance(item_id, str):
+                in_flight_ids.discard(item_id)
         elif action == "stop":
             stopped = True
             pending_item = None
+            in_flight_ids.clear()
             active_ids.clear()
 
     if not initialized:
@@ -125,6 +138,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
     return {
         "active_ids": active_ids,
         "pending_item": pending_item,
+        "in_flight_ids": in_flight_ids,
         "initialized": initialized,
         "stopped": stopped,
     }

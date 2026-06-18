@@ -17,6 +17,7 @@ validate_state(state):
   reject overlapping premise_groups/leads_to factors for the same target; reject overlapping supports/contradicts factors for the same target and relation; warn when a grouped target has explicit posterior that overrides graph-derived costs
   check candidate solutions connect to accepted goals with `answers` edges only when semantically valid
   reject `answers` edges that do not connect candidate_solution -> goal
+  check search_policy numeric fields, including non-negative estimated_remaining_weight and positive integer max_probe_concurrency when present
   check costs can be computed
   warn about probe-like frontier items without explicit budgets
   return ValidationResult(errors, warnings)

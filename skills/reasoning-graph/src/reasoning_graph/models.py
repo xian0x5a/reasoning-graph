@@ -45,6 +45,7 @@ FACTOR_AGGREGATION_KINDS = {
 AUDIT_EVENT_ACTIONS = {
     "init",
     "pop",
+    "assign",
     "expand",
     "supersede",
     "rank",

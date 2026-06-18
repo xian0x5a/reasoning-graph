@@ -42,6 +42,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
         self.assertIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
+        self.assertIn("assign", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("stop_outcome", patch_schema["properties"])
         serialized_schemas = json.dumps({"state": state_schema, "patch": patch_schema})
@@ -449,6 +450,242 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(updated["events"][0], {"step": 1, "action": "init", "frontier": ["Q2", "Q3"]})
             self.assertEqual(updated["events"][1]["action"], "pop")
             self.assertEqual(updated["events"][1]["item"], "Q2")
+
+    def test_assign_records_async_probe_and_allows_next_pop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "search_policy": {"max_probe_concurrency": 2},
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First probe", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Second probe", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            first_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(first_pop.returncode, 0, first_pop.stderr)
+            assigned = self.run_rg(
+                "assign",
+                str(state_path),
+                "--item",
+                "Q1",
+                "--agent",
+                "researcher",
+                "--run-id",
+                "child-1",
+                "-i",
+            )
+            self.assertEqual(assigned.returncode, 0, assigned.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+            cursor = search_cursor(updated)
+            self.assertIsNone(cursor["pending_item"])
+            self.assertEqual(cursor["in_flight_ids"], {"Q1"})
+            self.assertEqual(cursor["active_ids"], {"Q2"})
+
+            second_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(second_pop.returncode, 0, second_pop.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop"])
+            self.assertEqual(updated["events"][2]["agent"], "researcher")
+            self.assertEqual(updated["events"][2]["run_id"], "child-1")
+            self.assertEqual(updated["events"][3]["item"], "Q2")
+
+    def test_assign_enforces_max_probe_concurrency(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First probe", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Second probe", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "--max-concurrency", "1", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            over_limit = self.run_rg("assign", str(state_path), "--item", "Q2", "--max-concurrency", "1", "-i")
+
+            self.assertNotEqual(over_limit.returncode, 0)
+            self.assertIn("max probe concurrency reached", over_limit.stderr)
+
+    def test_expand_can_merge_assigned_probe_out_of_pop_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_q1_path = Path(tmp_dir) / "patch-q1.json"
+            patch_q2_path = Path(tmp_dir) / "patch-q2.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Async probe", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Inline probe", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+            }
+            patch_q1_path.write_text(json.dumps({"no_new_work_reason": "delegated probe completed without new evidence"}), encoding="utf-8")
+            patch_q2_path.write_text(json.dumps({"no_new_work_reason": "inline probe closed"}), encoding="utf-8")
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "--agent", "researcher", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            expand_q2 = self.run_rg("expand", str(state_path), "--item", "Q2", "--patch", str(patch_q2_path), "-i")
+            self.assertEqual(expand_q2.returncode, 0, expand_q2.stderr)
+            expand_q1 = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(patch_q1_path), "-i")
+            self.assertEqual(expand_q1.returncode, 0, expand_q1.stderr)
+            audit = self.run_rg("stop", str(state_path), "--reason", "done", "--outcome", "frontier_exhausted", "-i")
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+            audit = self.run_rg("audit", str(state_path))
+
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(search_cursor(updated)["in_flight_ids"], set())
+            self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop", "expand", "expand", "stop"])
+
+    def test_stop_commands_reject_unresolved_in_flight_probe(self) -> None:
+        for command in ("stop", "finalize"):
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                state = {
+                    "nodes": [{"id": "A1", "type": "assumption", "text": "Async probe", "prior": 1.0}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                }
+                state_path.write_text(json.dumps(state), encoding="utf-8")
+
+                self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+                self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
+                stopped = self.run_rg(command, str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
+
+                self.assertNotEqual(stopped.returncode, 0)
+                self.assertIn("assigned items remain in-flight", stopped.stderr)
+
+    def test_expand_patch_stop_rejects_other_in_flight_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state = {
+                "search_policy": {"max_probe_concurrency": 2},
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First async probe", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Second async probe", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
+                ],
+            }
+            patch = {
+                "no_new_work_reason": "first probe complete",
+                "stop_reason": "done",
+                "stop_outcome": "frontier_exhausted",
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q2", "-i").returncode, 0)
+            stopped = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+
+            self.assertNotEqual(stopped.returncode, 0)
+            self.assertIn("assigned items remain in-flight", stopped.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertNotEqual(updated["events"][-1]["action"], "stop")
+
+    def test_audit_enforces_policy_max_probe_concurrency_without_event_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "search_policy": {"max_probe_concurrency": 1},
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Second", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                    {"step": 3, "action": "assign", "item": "Q1"},
+                    {"step": 4, "action": "pop", "item": "Q2", "cost": 0.1},
+                    {"step": 5, "action": "assign", "item": "Q2"},
+                    {"step": 6, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_rg("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0)
+            self.assertIn("max probe concurrency exceeded (2/1)", audit.stderr)
+
+    def test_audit_rejects_stop_with_unresolved_assigned_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Async probe", "prior": 1.0}],
+                "edges": [],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                    {"step": 3, "action": "assign", "item": "Q1", "max_concurrency": 2},
+                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_rg("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0)
+            self.assertIn("assigned items remain in-flight", audit.stderr)
+
+    def test_audit_rejects_second_pop_before_treating_pending_item(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First", "prior": 1.0},
+                    {"id": "A2", "type": "assumption", "text": "Second", "prior": 1.0},
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                    {"step": 3, "action": "pop", "item": "Q2", "cost": 0.1},
+                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_rg("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0)
+            self.assertIn("cannot pop while unresolved popped item Q1 is pending", audit.stderr)
 
     def test_expand_supersedes_existing_duplicate_when_new_item_is_cheaper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

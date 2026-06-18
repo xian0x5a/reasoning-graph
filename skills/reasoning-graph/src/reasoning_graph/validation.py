@@ -194,6 +194,15 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             errors.append("branch_policy.severity must be 'warning' or 'error' when present")
         if "enforce_on" in branch_policy and branch_policy.get("enforce_on") not in {"exhaustion_stop", "always"}:
             errors.append("branch_policy.enforce_on must be 'exhaustion_stop' or 'always' when present")
+    search_policy = state.get("search_policy", {})
+    if search_policy is not None:
+        if not isinstance(search_policy, dict):
+            errors.append("search_policy must be object when present")
+            search_policy = {}
+        if "max_probe_concurrency" in search_policy:
+            value = search_policy.get("max_probe_concurrency")
+            if not isinstance(value, int) or value < 1:
+                errors.append("search_policy.max_probe_concurrency must be a positive integer")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}

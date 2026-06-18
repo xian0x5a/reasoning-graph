@@ -675,6 +675,7 @@
           "enum": [
             "init",
             "pop",
+            "assign",
             "expand",
             "supersede",
             "rank",
@@ -689,6 +690,25 @@
         },
         "replacement": {
           "$ref": "#/$defs/id"
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "probe": {
+          "$ref": "#/$defs/id"
+        },
+        "concurrency_group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 1
         },
         "node": {
           "$ref": "#/$defs/id"
@@ -815,6 +835,23 @@
             "required": [
               "item",
               "cost"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "assign"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "item"
             ]
           }
         },
@@ -1010,6 +1047,10 @@
       "properties": {
         "estimated_remaining_weight": {
           "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "max_probe_concurrency": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

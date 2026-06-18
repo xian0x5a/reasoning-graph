@@ -131,12 +131,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     cursor = search_cursor(state)
     print("doctor: validation ok")
     print(
-        "doctor: nodes={nodes} edges={edges} frontier={frontier} active={active} pending={pending} stopped={stopped}".format(
+        "doctor: nodes={nodes} edges={edges} frontier={frontier} active={active} pending={pending} in_flight={in_flight} stopped={stopped}".format(
             nodes=len(state.get("nodes", [])),
             edges=len(state.get("edges", [])),
             frontier=len(state.get("frontier", [])),
             active=len(cursor["active_ids"]),
             pending=cursor["pending_item"] or "none",
+            in_flight=len(cursor.get("in_flight_ids", set())),
             stopped=str(cursor["stopped"]).lower(),
         )
     )
@@ -268,6 +269,9 @@ def cmd_frontier(args: argparse.Namespace) -> int:
             print("search stopped; active frontier empty unless --all is used", file=sys.stderr)
         if cursor["pending_item"] and not args.all:
             print(f"pending expansion: {cursor['pending_item']}", file=sys.stderr)
+        in_flight_ids = cursor.get("in_flight_ids", set())
+        if in_flight_ids and not args.all:
+            print(f"in-flight probes: {','.join(sorted(in_flight_ids))}", file=sys.stderr)
         for row in rows:
             related = f" related={row['related_brief']}" if row.get("related_brief") else ""
             scratch = f" scratch={row['scratch_brief']}" if row.get("scratch_brief") else ""
@@ -288,7 +292,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print("error: search already has a stop event", file=sys.stderr)
         return 1
     if cursor["pending_item"]:
-        print(f"error: pending popped item {cursor['pending_item']} must be expanded or ranked before next pop", file=sys.stderr)
+        print(f"error: pending popped item {cursor['pending_item']} must be expanded, assigned, or ranked before next pop", file=sys.stderr)
         return 1
     active = sorted_frontier_items(state, cursor["active_ids"])
     if args.pop and not cursor["initialized"]:
@@ -486,7 +490,20 @@ def _dedupe_frontier_additions(
     return frontier_to_keep, supersede_events
 
 
-def cmd_expand(args: argparse.Namespace) -> int:
+DEFAULT_MAX_PROBE_CONCURRENCY = 3
+
+
+def _max_probe_concurrency(state: dict[str, Any], cli_value: int | None) -> int:
+    if cli_value is not None:
+        return cli_value
+    search_policy = state.get("search_policy") if isinstance(state.get("search_policy"), dict) else {}
+    value = search_policy.get("max_probe_concurrency")
+    if isinstance(value, int) and value >= 1:
+        return value
+    return DEFAULT_MAX_PROBE_CONCURRENCY
+
+
+def cmd_assign(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     cursor = search_cursor(state)
     if cursor["stopped"] and not args.force:
@@ -494,7 +511,72 @@ def cmd_expand(args: argparse.Namespace) -> int:
         return 1
     if cursor["pending_item"] != args.item and not args.force:
         print(
-            f"error: expand must target pending popped item {cursor['pending_item']!r}; use `next --pop` first or pass --force",
+            f"error: assign must target pending popped item {cursor['pending_item']!r}; use `next --pop` first or pass --force",
+            file=sys.stderr,
+        )
+        return 1
+
+    max_concurrency = _max_probe_concurrency(state, args.max_concurrency)
+    if max_concurrency < 1:
+        print("error: --max-concurrency must be a positive integer", file=sys.stderr)
+        return 1
+    in_flight_ids = set(cursor.get("in_flight_ids", set()))
+    if len(in_flight_ids) >= max_concurrency and not args.force:
+        print(
+            f"error: max probe concurrency reached ({len(in_flight_ids)}/{max_concurrency}); merge an in-flight probe before assigning more",
+            file=sys.stderr,
+        )
+        return 1
+
+    items = by_id(state.get("frontier", []), "frontier item")
+    if args.item not in items:
+        print(f"error: frontier item not found: {args.item}", file=sys.stderr)
+        return 1
+
+    events = state.setdefault("events", [])
+    if not isinstance(events, list):
+        print("error: events must be a list before assign can append", file=sys.stderr)
+        return 1
+    event: dict[str, Any] = {
+        "step": next_event_step(state),
+        "action": "assign",
+        "item": args.item,
+        "max_concurrency": max_concurrency,
+    }
+    for attr, key in (
+        ("agent", "agent"),
+        ("run_id", "run_id"),
+        ("probe", "probe"),
+        ("concurrency_group", "concurrency_group"),
+        ("reason", "reason"),
+    ):
+        value = getattr(args, attr)
+        if value:
+            event[key] = value
+    events.append(event)
+
+    result = validate_state(state)
+    if result.errors:
+        for error in result.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    dump_state(state, args.output, args.state if args.in_place else None)
+    return 0
+
+
+def cmd_expand(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    cursor = search_cursor(state)
+    if cursor["stopped"] and not args.force:
+        print("error: search already has a stop event; use --force to append anyway", file=sys.stderr)
+        return 1
+    in_flight_ids = set(cursor.get("in_flight_ids", set()))
+    if cursor["pending_item"] != args.item and args.item not in in_flight_ids and not args.force:
+        print(
+            f"error: expand must target pending popped item {cursor['pending_item']!r} or an in-flight assigned item; use `next --pop`/`assign` first or pass --force",
             file=sys.stderr,
         )
         return 1
@@ -626,7 +708,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
         stop_outcome = patch.get("stop_outcome")
         if stop_outcome not in STOP_OUTCOMES:
             raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
-        events.append({"step": next_event_step(state), "action": "stop", "reason": stop_reason, "outcome": stop_outcome})
+        if append_stop_event(state, stop_reason, str(stop_outcome)) != 0:
+            return 1
 
     result = validate_state(state)
     if result.errors:
@@ -684,6 +767,20 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
     events = state.setdefault("events", [])
     if not isinstance(events, list):
         print("error: events must be a list before stop can append", file=sys.stderr)
+        return 1
+    cursor = search_cursor(state)
+    if cursor.get("pending_item"):
+        print(
+            f"error: cannot stop while pending popped item {cursor['pending_item']} is unresolved; expand, assign, or rank it first",
+            file=sys.stderr,
+        )
+        return 1
+    in_flight_ids = set(cursor.get("in_flight_ids", set()))
+    if in_flight_ids:
+        print(
+            f"error: cannot stop while assigned items remain in-flight: {sorted(in_flight_ids)}",
+            file=sys.stderr,
+        )
         return 1
     events.append({"step": next_event_step(state), "action": "stop", "reason": reason, "outcome": outcome})
     return 0
@@ -825,6 +922,20 @@ def build_parser() -> argparse.ArgumentParser:
     next_cmd.add_argument("-i", "--in-place", action="store_true", help="rewrite input file when --pop is used")
     next_cmd.add_argument("--json", action="store_true", help="print JSON item/path context")
     next_cmd.set_defaults(func=cmd_next)
+
+    assign = sub.add_parser("assign", help="record the pending popped frontier item as async in-flight probe work")
+    assign.add_argument("state", help="state JSON path, or - for stdin")
+    assign.add_argument("--item", required=True, help="pending popped frontier item being assigned")
+    assign.add_argument("--agent", help="subagent/worker name handling the probe")
+    assign.add_argument("--run-id", help="external async run id")
+    assign.add_argument("--probe", help="test/probe node id, when a graph node represents the assigned work")
+    assign.add_argument("--concurrency-group", help="optional group for human-readable async coordination")
+    assign.add_argument("--max-concurrency", type=int, help="maximum allowed in-flight probes; defaults to search_policy.max_probe_concurrency or 3")
+    assign.add_argument("--reason", help="why this item is being delegated")
+    assign.add_argument("-o", "--output", help="write mutated state to path")
+    assign.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    assign.add_argument("--force", action="store_true", help="skip pending-pop and concurrency guards")
+    assign.set_defaults(func=cmd_assign)
 
     expand = sub.add_parser("expand", help="append nodes/edges/frontier from a JSON expansion patch and record an expand event")
     expand.add_argument("state", help="state JSON path, or - for stdin")

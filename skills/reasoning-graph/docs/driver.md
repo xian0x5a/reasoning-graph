@@ -202,9 +202,10 @@ Cost behavior:
 - Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
-- `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals. Without strict events, older loose states expose stored frontier items for compatibility.
-- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/ranked, `next --pop` refuses to continue.
-- `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
+- `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
+- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
+- `assign --item Q7 -i` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
+- `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - `path` reconstructs a proof/search path from parent pointers.
 - `audit` checks compact strict-search events for coherent best-first expansion.
 
@@ -263,7 +264,7 @@ An expansion patch can add or replace non-independent factors after the relevant
 
 ## Graph Driver Mode
 
-Graph driver mode is the default for complex reasoning. It uses a compact `events` log plus `next --pop` / `expand` commands so the graph controls the next work item before the agent reasons. This reduces post-hoc graph decoration and makes the search trace auditable.
+Graph driver mode is the default for complex reasoning. It uses a compact `events` log plus `next --pop` / `assign` / `expand` commands so the graph controls the next work item before the agent reasons. This reduces post-hoc graph decoration and makes the search trace auditable.
 
 Do not include full frontier before/after snapshots; state already stores frontier items. Events record only search deltas:
 
@@ -271,8 +272,11 @@ Do not include full frontier before/after snapshots; state already stores fronti
 "events": [
   {"step": 1, "action": "init", "frontier": ["Q1", "Q2", "Q3"]},
   {"step": 2, "action": "pop", "item": "Q1", "cost": 1.15},
+  {"step": 3, "action": "assign", "item": "Q1", "agent": "researcher", "run_id": "child-1", "max_concurrency": 3},
+  {"step": 4, "action": "pop", "item": "Q2", "cost": 1.3},
+  {"step": 5, "action": "assign", "item": "Q2", "agent": "scout", "run_id": "child-2", "max_concurrency": 3},
   {
-    "step": 3,
+    "step": 6,
     "action": "expand",
     "item": "Q1",
     "summary": "Generated coarse sibling explanations and cheap discriminator tests.",
@@ -282,8 +286,9 @@ Do not include full frontier before/after snapshots; state already stores fronti
     "updated_nodes": [{"id": "A1", "fields": ["posterior"]}],
     "no_new_work_reason": "A1 score changed, but no new A1-local work was implied."
   },
-  {"step": 4, "action": "rank", "best": "CS1", "belief": 0.91, "candidates": [{"node": "CS1", "belief": 0.91, "effective_truth_cost": 0.094311}]},
-  {"step": 5, "action": "stop", "reason": "three viable candidates compared; CS1 satisfies the accepted goal above threshold", "outcome": "candidate_count_met"}
+  {"step": 7, "action": "expand", "item": "Q2", "add_nodes": [], "add_edges": [], "add_frontier": [], "no_new_work_reason": "scout found no new local constraints"},
+  {"step": 8, "action": "rank", "best": "CS1", "belief": 0.91, "candidates": [{"node": "CS1", "belief": 0.91, "effective_truth_cost": 0.094311}]},
+  {"step": 9, "action": "stop", "reason": "three viable candidates compared; CS1 satisfies the accepted goal above threshold", "outcome": "candidate_count_met"}
 ]
 ```
 
@@ -291,7 +296,8 @@ Allowed actions:
 
 - `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
-- `expand` — nodes/edges/frontier items created from the popped item. Add an outgoing edge from the popped node to at least one new test/result/child node so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
+- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
 - `stop` — why search stopped; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
@@ -302,7 +308,10 @@ Driver loop for search moves:
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
 # inspect popped node, parent path, active assumptions, and related nodes
-# write expansion.json containing coarse child branches/tests/evidence
+# for async observation-heavy work:
+uv run rg assign state.json --item Q7 --agent researcher -i
+# continue popping eligible work; assigning more async work is blocked at max_probe_concurrency
+# write expansion.json containing child findings, branches/tests/evidence, or no_new_work_reason
 uv run rg expand state.json --item Q7 --patch expansion.json -i
 uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
@@ -345,7 +354,7 @@ Required checks:
 - contradictions/failures penalize only affected branches
 - final answer draft matches graph state and invents no new evidence
 
-Do not call `next --pop` again until the pending popped item is expanded, ranked, or intentionally stopped. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
+Do not call `next --pop` again until the pending popped item is expanded, assigned, ranked, or intentionally stopped. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
 Before final in driver mode, run:
 
@@ -367,7 +376,8 @@ Audit checks:
 - `init` appears before search events
 - `pop` item is currently in virtual frontier
 - popped item has lowest current `search_cost`
-- `expand` follows the most recent pop
+- `assign` follows the current pending pop and respects declared max concurrency
+- `expand` follows the pending pop or targets an in-flight assigned item
 - `add_frontier` items exist and usually parent to expanded item
 - expansions whose popped graph node has no outgoing edge to added nodes get a soft trace-topology warning
 - one-child non-terminal expansions get a soft under-branching warning only when the final stop claims exhaustion/completion, unless `under_branching_reason` or `existing_sibling_frontier` is recorded
@@ -376,4 +386,4 @@ Audit checks:
 - `rank.best` matches the derived highest-belief viable `candidate_solution`
 - `stop` has a reason
 
-Limit: driver mode still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
+Limit: driver mode still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
