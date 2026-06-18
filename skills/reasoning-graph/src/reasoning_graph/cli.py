@@ -110,6 +110,119 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_premise_groups", "premise_groups", "update_factors", "factors"}
+
+
+def cmd_seed(args: argparse.Namespace) -> int:
+    state = load_state(args.state)
+    cursor = search_cursor(state)
+    events = state.get("events")
+    if isinstance(events, list) and events:
+        print("error: seed can only run before the first driver event; use expand after next --pop", file=sys.stderr)
+        return 1
+    if events is not None and not isinstance(events, list):
+        print("error: events must be a list before seed can validate first-use state", file=sys.stderr)
+        return 1
+    if cursor["initialized"] or cursor["pending_item"] or cursor["stopped"] or cursor.get("in_flight_ids"):
+        print("error: seed can only run before first next --pop", file=sys.stderr)
+        return 1
+
+    patch = load_state(args.patch)
+    if not isinstance(patch, dict):
+        raise ValueError("seed patch must be a JSON object")
+    patch_errors = patch_schema_errors(patch)
+    if patch_errors:
+        for error in patch_errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    unsupported_fields = sorted(set(patch) - SEED_PATCH_FIELDS)
+    if unsupported_fields:
+        print(f"error: seed patch field(s) not allowed before first pop: {', '.join(unsupported_fields)}", file=sys.stderr)
+        return 1
+
+    nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    edges_to_add = _object_list(patch.get("edges"), "edges")
+    frontier_to_add = _object_list(patch.get("frontier"), "frontier")
+    premise_groups_to_update = _object_list(
+        patch.get("update_premise_groups", patch.get("premise_groups")),
+        "update_premise_groups",
+    )
+    factors_to_update = _object_list(
+        patch.get("update_factors", patch.get("factors")),
+        "update_factors",
+    )
+    if not frontier_to_add:
+        print("error: seed patch must add at least one frontier item", file=sys.stderr)
+        return 1
+    for index, item in enumerate(frontier_to_add):
+        parent = item.get("parent")
+        if parent not in (None, ""):
+            print(f"error: seed frontier[{index}] must be a root item without parent", file=sys.stderr)
+            return 1
+        item.pop("parent", None)
+
+    existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
+    existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
+    existing_frontier = {item.get("id") for item in state.get("frontier", []) if isinstance(item, dict)}
+    _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
+    _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
+    _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
+    _ensure_object_ids(premise_groups_to_update, "update_premise_groups")
+    _ensure_object_ids(factors_to_update, "update_factors")
+
+    state.setdefault("nodes", []).extend(nodes_to_add)
+    state.setdefault("edges", []).extend(edges_to_add)
+    premise_groups = state.setdefault("premise_groups", [])
+    if not isinstance(premise_groups, list):
+        raise ValueError("premise_groups must be a list before seed can update it")
+    premise_group_indexes: dict[str, int] = {}
+    for index, group in enumerate(premise_groups):
+        if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group.get("id"):
+            continue
+        group_id = str(group["id"])
+        if group_id in premise_group_indexes:
+            raise ValueError(f"premise_groups has duplicate id {group_id}")
+        premise_group_indexes[group_id] = index
+    for group in premise_groups_to_update:
+        group_id = str(group["id"])
+        if group_id in premise_group_indexes:
+            premise_groups[premise_group_indexes[group_id]] = group
+        else:
+            premise_group_indexes[group_id] = len(premise_groups)
+            premise_groups.append(group)
+    factors = state.setdefault("factors", [])
+    if not isinstance(factors, list):
+        raise ValueError("factors must be a list before seed can update it")
+    factor_indexes: dict[str, int] = {}
+    for index, factor in enumerate(factors):
+        if not isinstance(factor, dict) or not isinstance(factor.get("id"), str) or not factor.get("id"):
+            continue
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            raise ValueError(f"factors has duplicate id {factor_id}")
+        factor_indexes[factor_id] = index
+    for factor in factors_to_update:
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            factors[factor_indexes[factor_id]] = factor
+        else:
+            factor_indexes[factor_id] = len(factors)
+            factors.append(factor)
+    state.setdefault("frontier", []).extend(frontier_to_add)
+    sorted_frontier(state)
+
+    result = validate_state(state)
+    if result.errors:
+        for error in result.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    dump_state(state, args.output, args.state if args.in_place else None)
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     result = validate_state(state)
@@ -872,6 +985,13 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--strict", action="store_true", help="shortcut for --profile strict")
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
+
+    seed = sub.add_parser("seed", help="apply an initial ledger/frontier patch before first next --pop")
+    seed.add_argument("state", help="state JSON path, or - for stdin")
+    seed.add_argument("--patch", required=True, help="initial seed patch JSON path, or - for stdin")
+    seed.add_argument("-o", "--output", help="write seeded state to path")
+    seed.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    seed.set_defaults(func=cmd_seed)
 
     validate = sub.add_parser("validate", help="validate graph/search state")
     validate.add_argument("state", help="state JSON path, or - for stdin")

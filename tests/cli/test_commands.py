@@ -122,6 +122,101 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_rg("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
+    def test_seed_enables_fresh_init_next_pop_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            seed_path = Path(tmp_dir) / "seed.json"
+            init = self.run_rg("init", "--goal", "Diagnose outage", "--strict", "-o", str(state_path))
+            self.assertEqual(init.returncode, 0, init.stderr)
+
+            empty_next = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertNotEqual(empty_next.returncode, 0, empty_next.stdout)
+            self.assertIn("active frontier is empty", empty_next.stderr)
+
+            seed_path.write_text(
+                json.dumps({
+                    "nodes": [
+                        {"id": "E1", "type": "evidence", "text": "API error rate increased", "confidence": 0.9},
+                        {"id": "A1", "type": "assumption", "text": "Database latency is causing errors", "prior": 0.4},
+                        {"id": "T1", "type": "test", "text": "Check database latency metrics", "status": "proposed"},
+                    ],
+                    "edges": [
+                        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+                        {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
+                    ],
+                    "frontier": [
+                        {
+                            "id": "Q1",
+                            "node": "T1",
+                            "related": ["E1", "A1"],
+                            "cost_components": {"truth": "auto", "verification": 0.1, "effort_budget": 0.2},
+                            "budget": {"max_seconds": 300, "stop_after": "first discriminating metric"},
+                        }
+                    ],
+                }),
+                encoding="utf-8",
+            )
+
+            seeded = self.run_rg("seed", str(state_path), "--patch", str(seed_path), "-i")
+            self.assertEqual(seeded.returncode, 0, seeded.stderr)
+            seeded_state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("events", seeded_state)
+            self.assertNotIn("parent", seeded_state["frontier"][0])
+            self.assertIn("search_cost", seeded_state["frontier"][0])
+
+            valid = self.run_rg("validate", str(state_path))
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+            popped = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(popped.returncode, 0, popped.stderr)
+            self.assertIn("next Q1", popped.stdout)
+            popped_state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in popped_state["events"]], ["init", "pop"])
+            self.assertEqual(popped_state["events"][0]["frontier"], ["Q1"])
+
+            template_state_path = Path(tmp_dir) / "template-state.json"
+            template = self.run_rg("template", "strict", "-o", str(template_state_path))
+            self.assertEqual(template.returncode, 0, template.stderr)
+            template_seeded = self.run_rg("seed", str(template_state_path), "--patch", str(seed_path), "-i")
+            self.assertEqual(template_seeded.returncode, 0, template_seeded.stderr)
+            template_popped = self.run_rg("next", str(template_state_path), "--pop", "-i")
+            self.assertEqual(template_popped.returncode, 0, template_popped.stderr)
+            self.assertIn("next Q1", template_popped.stdout)
+
+    def test_seed_rejects_non_root_frontier_and_post_pop_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            bad_seed_path = Path(tmp_dir) / "bad-seed.json"
+            good_seed_path = Path(tmp_dir) / "good-seed.json"
+            init = self.run_rg("init", "--goal", "Diagnose outage", "-o", str(state_path))
+            self.assertEqual(init.returncode, 0, init.stderr)
+
+            bad_seed_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs", "status": "proposed"}],
+                    "frontier": [{"id": "Q1", "node": "T1", "parent": "Q0"}],
+                }),
+                encoding="utf-8",
+            )
+            bad = self.run_rg("seed", str(state_path), "--patch", str(bad_seed_path), "-i")
+            self.assertNotEqual(bad.returncode, 0, bad.stdout)
+            self.assertIn("must be a root item without parent", bad.stderr)
+
+            good_seed_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs", "status": "proposed"}],
+                    "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+            good = self.run_rg("seed", str(state_path), "--patch", str(good_seed_path), "-i")
+            self.assertEqual(good.returncode, 0, good.stderr)
+            popped = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(popped.returncode, 0, popped.stderr)
+            after_pop = self.run_rg("seed", str(state_path), "--patch", str(good_seed_path), "-i")
+            self.assertNotEqual(after_pop.returncode, 0, after_pop.stdout)
+            self.assertIn("before the first driver event", after_pop.stderr)
+
     def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
         ok = self.run_rg("stop-review", str(FIXTURE))
         self.assertEqual(ok.returncode, 0, ok.stderr)

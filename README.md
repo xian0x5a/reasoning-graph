@@ -23,11 +23,25 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 # bootstrap and inspect state
 uv run rg template strict -o state.json
 uv run rg init --goal "Diagnose outage" --strict -o state.json
+cat > seed.json <<'JSON'
+{
+  "nodes": [
+    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
+    {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
+    {"id": "T1", "type": "test", "text": "Check the plausible cause", "status": "proposed"}
+  ],
+  "edges": [
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+  ],
+  "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
+}
+JSON
+uv run rg seed state.json --patch seed.json -i
 uv run rg doctor state.json
 
-# validate and audit a graph state
+# validate before driving search; audit after driver events exist
 uv run rg validate state.json
-uv run rg audit state.json
 
 # drive graph search
 uv run rg frontier state.json
@@ -47,6 +61,8 @@ uv run rg stop-review state.stopped.json
 uv run rg mermaid state.stopped.json > graph.mmd
 uv run rg html state.stopped.json -o graph.html
 ```
+
+`rg seed` is the safe first-use path from empty `init`/`template` states: it appends initial evidence/constraints/assumptions/tests plus root frontier items, validates the result, and leaves driver events empty so the first `next --pop` records the real `init`/`pop` events.
 
 ## Schemas
 

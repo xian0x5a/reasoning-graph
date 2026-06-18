@@ -66,7 +66,7 @@ Children must not decide the final answer or mutate canonical graph state; they 
 
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
-3. **Initialize frontier.** Add unresolved assumptions/tests/candidate-support work as frontier items with coarse priors/costs.
+3. **Initialize frontier.** From a fresh `init`/`template` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `uv run rg seed state.json --patch seed.json -i`. Do this before first `next --pop`; seed frontier items must not fake parent refs.
 4. **Pop focus.** For complex graph mode, run `uv run rg sort state.json -i` and `uv run rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
 5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
 6. **Assign or update.** For async work, run `uv run rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge findings/expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
@@ -127,6 +127,21 @@ Run with `uv run rg` so dependencies come from `uv.lock`. This works from the re
 ```bash
 uv run rg template strict -o state.json
 uv run rg init --goal "Diagnose outage" --strict -o state.json
+cat > seed.json <<'JSON'
+{
+  "nodes": [
+    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
+    {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
+    {"id": "T1", "type": "test", "text": "Check the plausible cause", "status": "proposed"}
+  ],
+  "edges": [
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+  ],
+  "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
+}
+JSON
+uv run rg seed state.json --patch seed.json -i
 uv run rg doctor state.json
 uv run rg validate state.json
 uv run rg costs state.json -i
