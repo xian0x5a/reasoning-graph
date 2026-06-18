@@ -23,3 +23,8 @@ reasoning_graph = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/cli", "tests/integration"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]

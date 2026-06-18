@@ -63,7 +63,7 @@ Schemas describe the modern interchange contract and explicitly reject known leg
 uv run python -m py_compile skills/reasoning-graph/src/reasoning_graph/*.py
 uv run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
 uv run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
-uv run pytest tests/cli tests/integration -q
+uv run --group dev pytest tests/cli tests/integration -q
 ```
 
 Generated reports, Mermaid files, and benchmark outputs belong in `test-results/` or `/tmp`, not git.

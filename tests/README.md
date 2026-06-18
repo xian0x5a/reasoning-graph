@@ -23,7 +23,7 @@ Human/eval prompt packets live under `scenarios/`. Detailed scenario layout, pro
 ## Run
 
 ```bash
-uv run pytest tests/cli tests/integration -q
+uv run --group dev pytest tests/cli tests/integration -q
 uv run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
 uv run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
