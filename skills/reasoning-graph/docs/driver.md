@@ -101,7 +101,7 @@ uv run rg frontier state.json       # show active frontier derived from events
 uv run rg next state.json           # show lowest-cost active item + path context
 uv run rg next state.json --pop -i  # persist init/pop event for lowest-cost item
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg path state.json Q7        # reconstruct parent-pointer path
 uv run rg mermaid state.json        # emit Mermaid source
 uv run rg html state.json -o /tmp/reasoning-graph-example.html
@@ -240,7 +240,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Use `finalize` when ending search; it records the current best viable `candidate_solution` derived from graph belief when the outcome needs a candidate, then appends the stop event. Low-level `rank` and `stop` remain available for unusual manual traces. Stop events must include structured `outcome`: `solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, or `inconclusive`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Stop events must include structured `outcome`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
 An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
@@ -300,7 +300,12 @@ Allowed actions:
 - `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
-- `stop` — why search stopped; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
+- `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
+
+Ending commands:
+
+- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event.
+- For non-candidate outcomes, `stop` only writes the terminal event.
 
 Driver loop for search moves:
 
@@ -313,7 +318,7 @@ uv run rg assign state.json --item Q7 --agent researcher -i
 # continue popping eligible work; assigning more async work is blocked at max_probe_concurrency
 # write expansion.json containing child findings, branches/tests/evidence, or no_new_work_reason
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
 uv run rg audit state.stopped.json
 # semantic-review stopped candidate; promote only on pass
@@ -327,7 +332,7 @@ Stop is two gates:
 
 Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
 
-1. `uv run rg finalize ... -o state.stopped.json` appends rank/stop events without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
+1. `uv run rg stop ... -o state.stopped.json` appends rank/stop events for candidate-bearing outcomes without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
 2. A semantic reviewer approves `state.stopped.json` before it is promoted.
 
 If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.
@@ -354,7 +359,7 @@ Required checks:
 - contradictions/failures penalize only affected branches
 - final answer draft matches graph state and invents no new evidence
 
-Do not call `next --pop` again until the pending popped item is expanded, assigned, ranked, or intentionally stopped. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
+Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
 Before final in driver mode, run:
 

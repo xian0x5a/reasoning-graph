@@ -686,7 +686,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
 
-    if patch.get("rank") is True:
+    patch_ranked = patch.get("rank") is True
+    if patch_ranked:
         ranked = ranked_viable_candidates(state)
         if not ranked:
             raise ValueError("rank requested but no viable candidate_solution answers an accepted goal")
@@ -708,6 +709,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
         stop_outcome = patch.get("stop_outcome")
         if stop_outcome not in STOP_OUTCOMES:
             raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
+        if stop_outcome in CANDIDATE_STOP_OUTCOMES and not patch_ranked and append_rank_event(state, item_id=args.item, top=10) != 0:
+            return 1
         if append_stop_event(state, stop_reason, str(stop_outcome)) != 0:
             return 1
 
@@ -797,14 +800,6 @@ def cmd_rank(args: argparse.Namespace) -> int:
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
-    if append_stop_event(state, args.reason, args.outcome) != 0:
-        return 1
-    dump_state(state, args.output, args.state if args.in_place else None)
-    return 0
-
-
-def cmd_finalize(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     if args.outcome in CANDIDATE_STOP_OUTCOMES:
         cursor = search_cursor(state)
@@ -954,20 +949,12 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
     rank.set_defaults(func=cmd_rank)
 
-    finalize = sub.add_parser("finalize", help="rank current candidates when needed, then append a stop event")
-    finalize.add_argument("state", help="state JSON path, or - for stdin")
-    finalize.add_argument("--reason", required=True, help="why search is stopping")
-    finalize.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
-    finalize.add_argument("--item", help="frontier item id for the rank event; defaults to pending popped item when one exists")
-    finalize.add_argument("--top", type=int, default=10, help="number of ranked candidates to include when ranking is needed")
-    finalize.add_argument("-o", "--output", help="write mutated state to path")
-    finalize.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
-    finalize.set_defaults(func=cmd_finalize)
-
-    stop = sub.add_parser("stop", help="append a stop event")
+    stop = sub.add_parser("stop", help="rank candidate-bearing outcomes when needed, then append a stop event")
     stop.add_argument("state", help="state JSON path, or - for stdin")
     stop.add_argument("--reason", required=True, help="why search is stopping")
     stop.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
+    stop.add_argument("--item", help="frontier item id for the rank event; defaults to pending popped item when one exists")
+    stop.add_argument("--top", type=int, default=10, help="number of ranked candidates to include for candidate-bearing outcomes")
     stop.add_argument("-o", "--output", help="write mutated state to path")
     stop.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
     stop.set_defaults(func=cmd_stop)

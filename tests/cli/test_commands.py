@@ -556,23 +556,22 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(search_cursor(updated)["in_flight_ids"], set())
             self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop", "expand", "expand", "stop"])
 
-    def test_stop_commands_reject_unresolved_in_flight_probe(self) -> None:
-        for command in ("stop", "finalize"):
-            with self.subTest(command=command), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = Path(tmp_dir) / "state.json"
-                state = {
-                    "nodes": [{"id": "A1", "type": "assumption", "text": "Async probe", "prior": 1.0}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-                }
-                state_path.write_text(json.dumps(state), encoding="utf-8")
+    def test_stop_rejects_unresolved_in_flight_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Async probe", "prior": 1.0}],
+                "edges": [],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
 
-                self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-                self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
-                stopped = self.run_rg(command, str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
+            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
+            stopped = self.run_rg("stop", str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
 
-                self.assertNotEqual(stopped.returncode, 0)
-                self.assertIn("assigned items remain in-flight", stopped.stderr)
+            self.assertNotEqual(stopped.returncode, 0)
+            self.assertIn("assigned items remain in-flight", stopped.stderr)
 
     def test_expand_patch_stop_rejects_other_in_flight_probe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1498,7 +1497,29 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-1]["action"], "stop")
             self.assertEqual(stopped["events"][-1]["outcome"], "user_stopped")
 
-    def test_finalize_ranks_then_stops_without_mutating_input_file(self) -> None:
+    def test_expand_patch_with_ranked_candidate_stop_does_not_duplicate_rank(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+            patch = {
+                "rank": True,
+                "no_new_work_reason": "candidate already supported; closing pending item",
+                "stop_reason": "CS1 answers G1 and sample frontier is complete",
+                "stop_outcome": "solved",
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
+
+            result = self.run_rg("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in updated["events"][-3:]], ["expand", "rank", "stop"])
+            self.assertEqual(sum(1 for event in updated["events"] if event.get("action") == "rank"), 1)
+
+    def test_stop_ranks_candidate_outcomes_without_mutating_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             stopped_path = Path(tmp_dir) / "stopped.json"
@@ -1508,7 +1529,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(original, encoding="utf-8")
 
             result = self.run_rg(
-                "finalize",
+                "stop",
                 str(state_path),
                 "--reason",
                 "CS1 answers G1 and sample frontier is complete",

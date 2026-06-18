@@ -60,7 +60,7 @@ Subagent probe output should include:
 - suggested next probes
 - blocked/stop reason when applicable
 
-Children must not finalize the answer or mutate canonical graph state; they may produce isolated patch/artifact proposals for parent review when explicitly assigned. When generic orchestration mechanics matter, follow `delegation-orchestrator` and `pi-subagents`; this skill defines how delegation maps onto reasoning-graph probes.
+Children must not decide the final answer or mutate canonical graph state; they may produce isolated patch/artifact proposals for parent review when explicitly assigned. When generic orchestration mechanics matter, follow `delegation-orchestrator` and `pi-subagents`; this skill defines how delegation maps onto reasoning-graph probes.
 
 ## Core operating loop
 
@@ -136,14 +136,14 @@ uv run rg frontier state.json
 uv run rg next state.json --pop -i
 uv run rg assign state.json --item Q7 --agent researcher -i
 uv run rg expand state.json --item Q7 --patch expansion.json -i
-uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 uv run rg validate state.stopped.json
 uv run rg audit state.stopped.json
 uv run rg mermaid state.json > graph.mmd
 uv run rg html state.json -o graph.html
 ```
 
-Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, `rank`, or `stop`. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
+Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
 
 Details: `docs/driver.md`.
 

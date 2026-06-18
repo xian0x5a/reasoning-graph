@@ -21,7 +21,8 @@ command handlers:
   stop-review command validates stopped state, audits event traces when present, checks selected candidate presence/viability, optionally compares final draft against selected candidate ids/text, prints YAML-like verdict, and returns nonzero on required fixes
   call validation, audit, cost, frontier, render, or event helpers
   assign command records the pending popped item as async in-flight probe work, enforcing max concurrency from CLI or search_policy before allowing later pops
-  stop/finalize/patch stop paths reject stop while a pending popped item or assigned in-flight probe remains unresolved
+  stop command is the only terminal command: for candidate-bearing outcomes it ranks the current best viable candidate_solution before writing the stop event; for non-candidate outcomes it writes only the stop event
+  stop and patch stop paths reject stop while a pending popped item or assigned in-flight probe remains unresolved
   expand command validates patch JSON against packaged patch schema before applying it
   expand may target the pending popped item or an in-flight assigned item so async probe results can be merged out of order
   expand patches can append nodes, edges, frontier items, upsert premise_groups through update_premise_groups, and upsert factors through update_factors, then record matching event ids

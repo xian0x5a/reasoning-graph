@@ -34,7 +34,7 @@ uv run rg audit state.json
 uv run rg frontier state.json
 uv run rg next state.json --pop -i
 uv run rg expand state.json --item Q1 --patch expansion.json -i
-uv run rg finalize state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+uv run rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 
 # render artifacts
 uv run rg mermaid state.json > graph.mmd
