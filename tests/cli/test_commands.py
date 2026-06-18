@@ -86,6 +86,22 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             patch_validator.validate({"stop_reason": "missing outcome"})
 
+    def test_costs_reject_legacy_path_cost_at_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "legacy-path-cost.json"
+            state_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "G1", "type": "goal", "text": "Solve"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = self.run_rg("costs", str(state_path))
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("rejected legacy field path_cost", result.stderr)
+
     def test_template_and_init_emit_valid_starter_states(self) -> None:
         template = self.run_rg("template", "benchmark")
         self.assertEqual(template.returncode, 0, template.stderr)

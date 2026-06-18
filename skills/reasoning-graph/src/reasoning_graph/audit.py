@@ -272,7 +272,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: item {item_id} is not in current virtual frontier")
 
             item = items[item_id]
-            expected_cost = float(item.get("search_cost", item.get("path_cost", math.inf)))
+            expected_cost = float(item.get("search_cost", math.inf))
             try:
                 event_cost = float(event.get("cost"))
             except (TypeError, ValueError):
@@ -285,9 +285,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
             if virtual_frontier:
                 frontier_costs_changed_later = any(item_cost_changed_after(q, current_step) for q in virtual_frontier if q in items)
-                lowest_cost = min(float(items[q].get("search_cost", items[q].get("path_cost", math.inf))) for q in virtual_frontier if q in items)
+                lowest_cost = min(float(items[q].get("search_cost", math.inf)) for q in virtual_frontier if q in items)
                 if expected_cost > lowest_cost + tolerance and not frontier_costs_changed_later:
-                    lowest_items = sorted(q for q in virtual_frontier if q in items and abs(float(items[q].get("search_cost", items[q].get("path_cost", math.inf))) - lowest_cost) <= tolerance)
+                    lowest_items = sorted(q for q in virtual_frontier if q in items and abs(float(items[q].get("search_cost", math.inf)) - lowest_cost) <= tolerance)
                     errors.append(f"{label}: popped {item_id} cost {expected_cost} but lowest frontier search_cost is {lowest_cost} at {lowest_items[:3]}")
 
             virtual_frontier.discard(item_id)
@@ -560,8 +560,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: replacement {replacement_id} is not in current virtual frontier")
             if expansion_signature(items[item_id]) != expansion_signature(items[replacement_id]):
                 errors.append(f"{label}: item {item_id} and replacement {replacement_id} have different expansion_signature")
-            item_cost = float(items[item_id].get("search_cost", items[item_id].get("path_cost", math.inf)))
-            replacement_cost = float(items[replacement_id].get("search_cost", items[replacement_id].get("path_cost", math.inf)))
+            item_cost = float(items[item_id].get("search_cost", math.inf))
+            replacement_cost = float(items[replacement_id].get("search_cost", math.inf))
             if replacement_cost >= item_cost - tolerance:
                 errors.append(
                     f"{label}: replacement {replacement_id} cost {replacement_cost} must be lower than superseded item {item_id} cost {item_cost}"

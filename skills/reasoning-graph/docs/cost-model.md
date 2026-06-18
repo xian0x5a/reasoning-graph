@@ -18,7 +18,7 @@ Helper-generated reports derive table `belief` from `effective_truth_cost`. `pos
 
 Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
 
-Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas reject legacy `path_cost`. Run `uv run rg costs legacy-state.json -o state.json` to rewrite old frontier cost fields.
+Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas and runtime cost commands reject legacy `path_cost`. It is not auto-migrated; replace old frontier cost fields with `search_cost`/`cost_components` before running `validate`, `costs`, `sort`, or `next`.
 
 Recommended hybrid cost model:
 

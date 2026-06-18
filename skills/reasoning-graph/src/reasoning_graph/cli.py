@@ -321,7 +321,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             "step": next_event_step(state),
             "action": "pop",
             "item": item["id"],
-            "cost": item.get("search_cost", item.get("path_cost")),
+            "cost": item.get("search_cost"),
         }
         evidence_version = item.get("evidence_version", state.get("evidence_version"))
         if evidence_version is not None:
@@ -348,7 +348,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             path_item = step["item"]
             path_node = step["node"]
             print(
-                f"  {path_item.get('id')} search={path_item.get('search_cost', path_item.get('path_cost'))} "
+                f"  {path_item.get('id')} search={path_item.get('search_cost')} "
                 f"base={path_item.get('base_search_cost')} truth={path_item.get('truth_cost')} "
                 f"node={path_node.get('id')} type={path_node.get('type')} text={path_node.get('text', '')}"
             )
@@ -389,7 +389,7 @@ def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], 
 
 
 def _frontier_search_cost(item: dict[str, Any]) -> float:
-    return float(item.get("search_cost", item.get("path_cost", float("inf"))))
+    return float(item.get("search_cost", float("inf")))
 
 
 def _frontier_item_positions(state: dict[str, Any]) -> dict[str, int]:
@@ -822,7 +822,7 @@ def cmd_path(args: argparse.Namespace) -> int:
             item = step["item"]
             node = step["node"]
             print(
-                f"{item.get('id')} search={item.get('search_cost', item.get('path_cost'))} base={item.get('base_search_cost')} "
+                f"{item.get('id')} search={item.get('search_cost')} base={item.get('base_search_cost')} "
                 f"truth={item.get('truth_cost')} node={node.get('id')} type={node.get('type')} text={node.get('text', '')}"
             )
     return 0

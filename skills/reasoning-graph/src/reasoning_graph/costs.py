@@ -480,6 +480,8 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
     for item in frontier:
         if not isinstance(item, dict):
             continue
+        if "path_cost" in item:
+            raise ValueError(f"frontier item {item.get('id')} uses rejected legacy field path_cost; use search_cost/cost_components")
         if "cost_components" not in item and "cost" not in item and "step_cost" in item:
             node_id = str(item.get("node"))
             truth_cost = finite_float(item.get("step_truth_cost"))
@@ -516,7 +518,6 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
         item["step_truth_cost"] = round(truth_cost, 6)
         item["step_cost"] = round(search_cost, 6)
         item["search_cost"] = round(search_cost, 6)
-        item.pop("path_cost", None)
     return state
 
 
@@ -524,7 +525,7 @@ def sorted_frontier(state: dict[str, Any]) -> dict[str, Any]:
     compute_costs(state)
     state["frontier"] = sorted(
         state.get("frontier", []),
-        key=lambda item: (float(item.get("search_cost", item.get("path_cost", math.inf))), str(item.get("id", ""))),
+        key=lambda item: (float(item.get("search_cost", math.inf)), str(item.get("id", ""))),
     )
     return state
 
@@ -533,4 +534,4 @@ def sorted_frontier_items(state: dict[str, Any], item_ids: Iterable[str] | None 
     compute_costs(state)
     items = by_id(state.get("frontier", []), "frontier item")
     selected = items.values() if item_ids is None else (items[item_id] for item_id in item_ids if item_id in items)
-    return sorted(selected, key=lambda item: (float(item.get("search_cost", item.get("path_cost", math.inf))), str(item.get("id", ""))))
+    return sorted(selected, key=lambda item: (float(item.get("search_cost", math.inf)), str(item.get("id", ""))))

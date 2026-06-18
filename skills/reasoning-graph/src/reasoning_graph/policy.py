@@ -143,7 +143,7 @@ def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
     except (TypeError, ValueError):
         truth_cost = math.inf
     try:
-        search_cost = float(candidate.get("search_cost", candidate.get("path_cost")))
+        search_cost = float(candidate.get("search_cost"))
     except (TypeError, ValueError):
         search_cost = math.inf
     return (truth_cost, search_cost, str(candidate.get("id") or candidate.get("name") or ""))
@@ -169,8 +169,6 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         node = nodes.get(candidate_id, {})
         enriched = dict(candidate)
         search_cost = finite_float(enriched.get("search_cost"))
-        if search_cost is None:
-            search_cost = finite_float(enriched.get("path_cost"))
         if search_cost is not None:
             enriched["search_cost"] = round(search_cost, 6)
         truth_cost = node_truth_costs.get(candidate_id)

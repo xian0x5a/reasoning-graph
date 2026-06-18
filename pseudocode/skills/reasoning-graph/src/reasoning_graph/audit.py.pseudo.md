@@ -12,7 +12,7 @@ audit_state(state):
   if validation reports errors:
     return those errors and warnings without deeper audit
   replay init/pop/assign/expand/select/stop events
-  verify frontier pops are coherent and lowest cost
+  verify frontier pops are coherent and lowest current search_cost; do not read legacy path_cost fallbacks
   verify assign events target the current pending popped item, record it as in-flight, and do not exceed effective max concurrency from event max_concurrency, search_policy.max_probe_concurrency, or the default limit
   verify expansions and selections match pending items or assigned in-flight items and graph topology
   reject stop events that occur while the most recent popped item is still unresolved by expand/select/assign or while assigned items remain in-flight
