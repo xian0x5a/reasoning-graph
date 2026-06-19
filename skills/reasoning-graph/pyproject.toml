@@ -22,7 +22,7 @@ where = ["src"]
 reasoning_graph = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["../../tests/cli", "../../tests/integration"]
+testpaths = ["../../tests"]
 
 [dependency-groups]
 dev = [
