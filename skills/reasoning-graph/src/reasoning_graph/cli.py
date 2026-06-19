@@ -962,7 +962,8 @@ def cmd_html(args: argparse.Namespace) -> int:
     if not result.ok:
         return 1
     source = to_mermaid(state, group_by_type=True)
-    document = html_document(state, source, args.spacing)
+    render_mode = "offline" if args.offline else "mermaid"
+    document = html_document(state, source, args.spacing, render_mode)
     if args.output:
         Path(args.output).write_text(document, encoding="utf-8")
     else:
@@ -1092,10 +1093,11 @@ def build_parser() -> argparse.ArgumentParser:
     mermaid.add_argument("--grouped", action="store_true", help="group nodes into Mermaid subgraphs by node type")
     mermaid.set_defaults(func=cmd_mermaid)
 
-    html_cmd = sub.add_parser("html", help="render CDN Mermaid HTML")
+    html_cmd = sub.add_parser("html", help="render Mermaid HTML report")
     html_cmd.add_argument("state", help="state JSON path, or - for stdin")
     html_cmd.add_argument("-o", "--output", help="write HTML to path")
-    html_cmd.add_argument("--spacing", choices=("default", "relaxed", "wide", "compact"), default="default", help="Mermaid flowchart spacing preset")
+    html_cmd.add_argument("--offline", action="store_true", help="render inline SVG fallback with no CDN/network dependency")
+    html_cmd.add_argument("--spacing", choices=("default", "relaxed", "wide", "compact"), default="default", help="graph spacing preset")
     html_cmd.set_defaults(func=cmd_html)
 
     return parser

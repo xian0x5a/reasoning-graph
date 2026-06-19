@@ -69,7 +69,7 @@ Artifact location:
 - ad hoc/default: `/tmp/reasoning-graph-<slug>-<timestamp>.html`
 - persistent project artifact only when useful or requested: `./docs/reasoning-graphs/<slug>.html`
 
-Prefer local Mermaid rendering if available; otherwise use Mermaid CDN. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `uv run rg html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
+`uv run rg html` uses Mermaid by default for better graph layout. `uv run rg html --offline` switches to deterministic inline SVG fallback for air-gapped/no-network contexts and keeps Mermaid source in collapsible source blocks. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `uv run rg html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
 
 For non-trivial HTML report generation, delegate presentation work to a low-thinking agent when possible. The solver should focus on the reasoning state; the renderer should consume `state.json` as source of truth and not solve again. If delegation is not available from the current context, write/validate `state.json` and clearly state that polished HTML rendering is a follow-up step for a low-thinking agent.
 
@@ -86,7 +86,7 @@ Recommended graph-mode flow:
 3. Run `uv run rg costs state.json -i` or `uv run rg sort state.json -i` when candidate/frontier ranking matters.
 4. Run `uv run rg validate state.json` and fix errors.
 5. If driver events exist, run `uv run rg audit state.json` and fix errors or explain remaining warnings.
-6. Generate the requested graph HTML path with `uv run rg html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid spacing presets; default leaves Mermaid spacing unchanged.
+6. Generate the requested graph HTML path with `uv run rg html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
 7. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph mode was requested.
 8. For separate graph sources, run `uv run rg mermaid state.json > <slug>.mmd`.
 9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
@@ -132,6 +132,6 @@ HTML report design guidance:
 - Use a small presentation graph for the main story; use the full audit graph only as an inspectable canvas.
 - Keep graph labels short, preferably ID/type-only for dense graphs; route evidence text to filterable details cards and modal popups.
 - Do not add a separate evidence/constraints section if the node details list already covers evidence and constraints with sources.
-- Use Mermaid flowchart spacing (for example `nodeSpacing`, `rankSpacing`, curved edges) only when dense graphs look compressed; compare against default spacing first.
-- Use `mermaid.initialize({ startOnLoad: true, securityLevel: "loose", flowchart: { htmlLabels: true, useMaxWidth: false } })` when using Mermaid click links and canvas sizing, and add spacing options only if needed.
-- If using a full SVG graph, add pan/zoom controls or viewBox-based pointer navigation.
+- Use `rg html --spacing relaxed|wide|compact|default` when dense graphs look compressed; compare against default spacing first.
+- Use `rg html --offline` when generated HTML must not require network access. Keep Mermaid source as source/fallback text in offline mode, not as a CDN runtime dependency.
+- If using a full SVG graph fallback, add pan/zoom controls or viewBox-based pointer navigation.

@@ -1672,6 +1672,18 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("<!doctype html>", html_text.lower())
             self.assertIn("Best explanation graph", html_text)
+            self.assertIn("https://cdn.jsdelivr.net", html_text)
+            self.assertIn("type=\"module\"", html_text)
+            self.assertIn("class=\"mermaid\"", html_text)
+
+            offline_path = Path(tmp_dir) / "graph-offline.html"
+            offline = self.run_rg("html", str(FIXTURE), "--offline", "-o", str(offline_path))
+            self.assertEqual(offline.returncode, 0, offline.stderr)
+            offline_text = offline_path.read_text(encoding="utf-8")
+            self.assertIn("<svg", offline_text)
+            self.assertIn("Mermaid source", offline_text)
+            self.assertNotIn("https://cdn.jsdelivr.net", offline_text)
+            self.assertNotIn("type=\"module\"", offline_text)
 
     def test_mermaid_and_html_render_virtual_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1707,12 +1719,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("grouped supports", mermaid.stdout)
             self.assertIn("supports factor", mermaid.stdout)
 
-            html = self.run_rg("html", str(state_path), "-o", str(html_path))
+            html = self.run_rg("html", str(state_path), "--offline", "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("F1", html_text)
             self.assertIn("grouped supports", html_text)
             self.assertIn("supports factor", html_text)
+            self.assertNotIn("https://cdn.jsdelivr.net", html_text)
 
 
 if __name__ == "__main__":

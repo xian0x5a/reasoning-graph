@@ -14,6 +14,7 @@ from .costs import (
     node_truth_cost,
 )
 from .models import CLASS_BY_NODE_TYPE
+from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
 from .utils import finite_float
@@ -478,7 +479,25 @@ def candidate_focus_options(state: dict[str, Any]) -> str:
     return "".join(options)
 
 
-def graph_panel(title: str, mermaid_source: str, graph_id: str, canvas_kind: str = "audit", focus_options: str = "") -> str:
+
+def mermaid_flowchart_config(spacing: str) -> str:
+    base = 'htmlLabels: true, useMaxWidth: false'
+    presets = {
+        "default": base,
+        "relaxed": base + ', nodeSpacing: 70, rankSpacing: 90, curve: "basis"',
+        "wide": base + ', nodeSpacing: 100, rankSpacing: 130, curve: "basis"',
+        "compact": base + ', nodeSpacing: 35, rankSpacing: 45, curve: "linear"',
+    }
+    return presets.get(spacing, base)
+
+def graph_panel(
+    title: str,
+    mermaid_source: str,
+    graph_id: str,
+    canvas_kind: str = "audit",
+    focus_options: str = "",
+    svg_graph: str | None = None,
+) -> str:
     mermaid_escaped = html.escape(mermaid_source)
     section_id = html_anchor(graph_id, "section")
     kind_class = "graph-canvas-presentation" if canvas_kind == "presentation" else "graph-canvas-audit"
@@ -490,6 +509,10 @@ def graph_panel(title: str, mermaid_source: str, graph_id: str, canvas_kind: str
             f'<select data-candidate-focus-select aria-label="Focus candidate">{focus_options}</select>'
             '</div>'
         )
+    graph_markup = svg_graph if svg_graph is not None else f'<pre class="mermaid">{mermaid_escaped}</pre>'
+    source_details = ""
+    if svg_graph is not None:
+        source_details = f'<details class="graph-source"><summary>Mermaid source</summary><pre>{mermaid_escaped}</pre></details>'
     return f"""
 <section id="{section_id}" class="graph-section">
   <div class="section-head">
@@ -502,8 +525,9 @@ def graph_panel(title: str, mermaid_source: str, graph_id: str, canvas_kind: str
     </div>
   </div>
   <div id="{graph_id}" class="mermaid-wrap graph-canvas {kind_class}">
-    <pre class="mermaid">{mermaid_escaped}</pre>
+    {graph_markup}
   </div>
+  {source_details}
 </section>
 """
 
@@ -523,17 +547,6 @@ def detail_filter_buttons() -> str:
         for value, label in filters
     ]
     return '<div class="detail-filters" aria-label="Filter node details">' + "".join(buttons) + "</div>"
-
-
-def mermaid_flowchart_config(spacing: str) -> str:
-    base = 'htmlLabels: true, useMaxWidth: false'
-    presets = {
-        "default": base,
-        "relaxed": base + ', nodeSpacing: 70, rankSpacing: 90, curve: "basis"',
-        "wide": base + ', nodeSpacing: 100, rankSpacing: 130, curve: "basis"',
-        "compact": base + ', nodeSpacing: 35, rankSpacing: 45, curve: "linear"',
-    }
-    return presets.get(spacing, base)
 
 
 def graph_edge_connections(state: dict[str, Any], include_nodes: set[str] | None = None) -> list[dict[str, str]]:
@@ -648,13 +661,21 @@ def goal_policy_html(state: dict[str, Any]) -> str:
   </section>"""
 
 
-def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "default") -> str:
+def html_document(
+    state: dict[str, Any],
+    mermaid_source: str,
+    spacing: str = "default",
+    render_mode: str = "mermaid",
+) -> str:
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
     title = html.escape(str(summary.get("title") or report.get("title") or "Reasoning Graph"))
     answer = html.escape(str(summary.get("answer") or report.get("answer") or "See report sections."))
     presentation_ids = presentation_node_ids(state)
     presentation_source = to_mermaid(state, presentation_ids, group_by_type=False) if presentation_ids else "flowchart TD\n"
+    offline_mode = render_mode == "offline"
+    presentation_svg = offline_graph_svg(state, presentation_ids, spacing, "presentation-graph") if offline_mode else None
+    audit_svg = offline_graph_svg(state, None, spacing, "audit-graph") if offline_mode else None
     candidates_html = candidate_rows(state)
     focus_options = candidate_focus_options(state)
     goal_policy_section = goal_policy_html(state)
@@ -694,6 +715,16 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
         ensure_ascii=False,
     ).replace("</", "<\\/")
     candidate_focus_json = json.dumps(candidate_focus_map(state), ensure_ascii=False).replace("</", "<\\/")
+    script_open = "<script>"
+    script_setup = '  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupGraphs);\n  else setupGraphs();'
+    if not offline_mode:
+        script_open = f'''<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});'''
+        script_setup = '''  mermaid.run({ querySelector: ".mermaid" }).then(setupGraphs).catch((error) => {
+    console.error("Mermaid render failed", error);
+    setupGraphs();
+  });'''
 
     return f"""<!doctype html>
 <html>
@@ -733,8 +764,10 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
     [data-canvas-mode][aria-pressed="true"] {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }}
     .graph-canvas-presentation {{ height: min(58vh, 560px); min-height: 380px; }}
     .graph-canvas-audit {{ height: min(78vh, 860px); min-height: 560px; }}
-    .graph-canvas .mermaid {{ width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }}
+    .graph-canvas .offline-graph {{ width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }}
     .graph-canvas svg {{ width: 100% !important; height: 100% !important; max-width: none !important; display: block; }}
+    .graph-source {{ margin-top: .6rem; color: var(--muted); }}
+    .graph-source pre {{ white-space: pre-wrap; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: .75rem; color: var(--ink); }}
     .graph-canvas a {{ cursor: pointer; }}
     .graph-canvas svg .edgePath, .graph-canvas svg .edge-path, .graph-canvas svg .flowchart-link {{ cursor: crosshair; pointer-events: stroke; outline: none; }}
     .graph-canvas svg .edge-hitbox {{ stroke: transparent !important; stroke-width: 14px !important; fill: none !important; pointer-events: stroke; cursor: crosshair; outline: none; }}
@@ -831,8 +864,8 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
 
   {next_verification_section}
 
-  {graph_panel(presentation_title, presentation_source, "presentation-graph", "presentation", focus_options)}
-  {graph_panel("Full audit graph", mermaid_source, "audit-graph", "audit", focus_options)}
+  {graph_panel(presentation_title, presentation_source, "presentation-graph", "presentation", focus_options, presentation_svg)}
+  {graph_panel("Full audit graph", mermaid_source, "audit-graph", "audit", focus_options, audit_svg)}
 
   <section id="node-details-section">
     <h2>Node details</h2>
@@ -848,9 +881,7 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
   </div>
   <div id="node-modal-content" class="modal-shell"></div>
 </dialog>
-<script type="module">
-  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
+{script_open}
   const graphEdgeMaps = {edge_maps_json};
   const candidateFocusMap = {candidate_focus_json};
 
@@ -1310,10 +1341,7 @@ def html_document(state: dict[str, Any], mermaid_source: str, spacing: str = "de
     runSetup("floating nav", setupFloatingNav);
   }}
 
-  mermaid.run({{ querySelector: ".mermaid" }}).then(setupGraphs).catch((error) => {{
-    console.error("Mermaid render failed", error);
-    setupGraphs();
-  }});
+{script_setup}
 </script>
 </body>
 </html>
