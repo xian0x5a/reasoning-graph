@@ -9,6 +9,7 @@ Use it when an agent needs to compare hypotheses, track assumptions, keep altern
 ```text
 skills/reasoning-graph/          # installable skill instructions and reference docs
 packages/reasoning-graph/        # Python library, rg CLI, schemas, and package tests
+tests/scenarios/                 # repository-level human/eval prompt packets
 ```
 
 The skill directory is docs/instructions only. The Python project lives under `packages/reasoning-graph/`, with source under `packages/reasoning-graph/src/reasoning_graph/`.

@@ -3,7 +3,7 @@
 - `cli/` — executable CLI contract tests for `uv --project packages/reasoning-graph run rg ...`.
 - `integration/` — broader driver, cost, and invariant tests.
 - `fixtures/` — reusable JSON states, patches, and golden outputs.
-- `scenarios/` — human/eval prompt packets.
+- Root `tests/scenarios/` — human/eval prompt packets for skill evaluation, not package tests.
 
 Installed skill users should install the CLI with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`; package tests use the explicit project commands below so they do not depend on ambient PATH state.
 

@@ -14,6 +14,6 @@ This repo contains the `reasoning-graph` skill and helper package.
 ## Tests
 
 - Put CLI command tests under `packages/reasoning-graph/tests/cli/` and broader driver/invariant tests under `packages/reasoning-graph/tests/integration/`.
-- Keep reusable JSON fixtures under `packages/reasoning-graph/tests/fixtures/` when possible; keep human/eval prompt packets under `packages/reasoning-graph/tests/scenarios/`.
+- Keep reusable JSON fixtures under `packages/reasoning-graph/tests/fixtures/` when possible; keep human/eval prompt packets under root `tests/scenarios/`.
 - Run package checks with `uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q`.
 - Do not add generated reports, HTML, Mermaid, or benchmark outputs to git; keep those under ignored `test-results/` or `/tmp`.

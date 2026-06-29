@@ -17,6 +17,7 @@ reasoning-graph/
 - Keep `skills/reasoning-graph/` copyable by skill installers that only copy the skill directory.
 - Move the Python project to `packages/reasoning-graph/`.
 - Put package tests under `packages/reasoning-graph/tests/`.
+- Keep repository-level human/eval scenarios under root `tests/scenarios/`.
 - Do not add a shim/wrapper under the skill directory.
 - Skill docs must tell agents to install the CLI with `uv tool install` from the Git URL when the CLI is missing.
 - Keep the current console script name `rg` for this migration; command rename is separate scope.
@@ -29,6 +30,7 @@ In scope:
 - Update docs and tests for new paths and install model.
 - Add a package README usable as Python package metadata.
 - Update repository agent/test guidance for the new test location.
+- Preserve root `tests/scenarios/` as repository-level eval prompt packets, separate from package tests.
 - Validate package import, CLI behavior, schema loading, and tests.
 
 Out of scope:
@@ -42,7 +44,7 @@ Out of scope:
 
 1. Create `packages/reasoning-graph/`.
 2. Move `skills/reasoning-graph/pyproject.toml`, `uv.lock`, and `src/` into the package area.
-3. Move `tests/cli`, `tests/integration`, `tests/fixtures`, and `tests/README.md` under `packages/reasoning-graph/tests/`.
+3. Move `tests/cli`, `tests/integration`, `tests/fixtures`, and package-test README under `packages/reasoning-graph/tests/`; keep human/eval scenarios under root `tests/scenarios/`.
 4. Change package metadata from `readme = "SKILL.md"` to package-local `README.md`.
 5. Add or adjust root workspace config only if it reduces command friction without coupling installed skills to the repo checkout.
 6. Update imports, schema paths, and subprocess helpers in tests.
@@ -91,6 +93,7 @@ rg validate packages/reasoning-graph/tests/fixtures/valid/minimal-state.json
 - 2026-06-29: Review fanout found no correctness blockers. Docs review requested install guidance in `docs/cost-model.md` and `docs/schema.md`; both were updated.
 - 2026-06-29: Parent re-ran lock check, import, compile, `rg validate`, `rg audit`, `rg stop-review`, pytest, and `uv build`; all passed.
 - 2026-06-29: Isolated `uv tool install --force ./packages/reasoning-graph` smoke passed using temporary `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR`; installed `rg` validated the minimal fixture.
+- 2026-06-29: Follow-up corrected scenario placement back to root `tests/scenarios/`; package `tests/` now contains only package tests/fixtures.
 - 2026-06-29: Temporary orchestration outputs moved out of the repo to `~/.agents/artifacts/outputs/2026-06-29/formalize-package-layout/`.
 
 ## Outcomes
@@ -99,3 +102,4 @@ rg validate packages/reasoning-graph/tests/fixtures/valid/minimal-state.json
 - Python package now builds from `packages/reasoning-graph/` and includes schemas as package data.
 - Tests now run against explicit `uv --project packages/reasoning-graph` package paths, avoiding old editable-environment false passes.
 - Skill docs now describe installed `rg` usage plus `uv tool install` from the package Git subdirectory when the CLI is missing or resolves to ripgrep.
+- Human/eval scenarios remain root-level repo assets under `tests/scenarios/`.
