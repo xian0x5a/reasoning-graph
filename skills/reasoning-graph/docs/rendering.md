@@ -68,8 +68,9 @@ Create an HTML artifact as a report, not a fixed template. Choose the layout tha
 
 Artifact location:
 
-- ad hoc/default: `/tmp/reasoning-graph-<slug>-<timestamp>.html`
-- persistent project artifact only when useful or requested: `./docs/reasoning-graphs/<slug>.html`
+- requested/durable artifact path first, when the user or task names one
+- project artifact path only when useful or requested, e.g. `./docs/reasoning-graphs/<slug>.html`
+- ad hoc fallback only: `/tmp/reasoning-graph-<slug>-<timestamp>.html`
 
 `rg html` uses Mermaid by default for better graph layout. `rg html --offline` switches to deterministic inline SVG fallback for air-gapped/no-network contexts and keeps Mermaid source in collapsible source blocks. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `rg html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
 
@@ -83,7 +84,7 @@ Read state.json. Generate polished self-contained HTML report. Do not solve agai
 
 Recommended graph-mode flow:
 
-1. Persist the graph/search state as JSON in `/tmp` unless the user asked for a project artifact.
+1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
 2. For complex reasoning, build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
 3. Run `rg costs state.json -i` or `rg sort state.json -i` when candidate/frontier ranking matters.
 4. Run `rg validate state.json` and fix errors.

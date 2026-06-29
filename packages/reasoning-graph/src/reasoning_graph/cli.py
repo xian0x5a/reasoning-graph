@@ -93,12 +93,6 @@ def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, An
     return state
 
 
-def cmd_template(args: argparse.Namespace) -> int:
-    state = starter_state(args.profile)
-    dump_state(state, args.output)
-    return 0
-
-
 def cmd_init(args: argparse.Namespace) -> int:
     goal = args.goal.strip()
     if not goal:
@@ -974,11 +968,6 @@ def cmd_html(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Reasoning graph helper")
     sub = parser.add_subparsers(dest="command", required=True)
-
-    template = sub.add_parser("template", help="emit a starter state template")
-    template.add_argument("profile", choices=("minimal", "strict", "benchmark"), help="template profile")
-    template.add_argument("-o", "--output", help="write result to path instead of stdout")
-    template.set_defaults(func=cmd_template)
 
     init = sub.add_parser("init", help="emit a starter state for a goal")
     init.add_argument("--goal", required=True, help="goal text for G1")

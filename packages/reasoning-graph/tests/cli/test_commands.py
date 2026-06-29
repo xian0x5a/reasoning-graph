@@ -116,13 +116,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("rejected legacy field path_cost", result.stderr)
 
-    def test_template_and_init_emit_valid_starter_states(self) -> None:
-        template = self.run_rg("template", "benchmark")
-        self.assertEqual(template.returncode, 0, template.stderr)
-        template_state = json.loads(template.stdout)
-        self.assertEqual(template_state["nodes"][0]["id"], "G1")
-        self.assertEqual(template_state["stop_policy"]["severity"], "error")
-        self.assertEqual(template_state["branch_policy"]["enforce_on"], "always")
+    def test_init_emits_valid_starter_states(self) -> None:
+        benchmark = self.run_rg("init", "--goal", "Benchmark solve", "--profile", "benchmark")
+        self.assertEqual(benchmark.returncode, 0, benchmark.stderr)
+        benchmark_state = json.loads(benchmark.stdout)
+        self.assertEqual(benchmark_state["nodes"][0]["id"], "G1")
+        self.assertEqual(benchmark_state["nodes"][0]["text"], "Benchmark solve")
+        self.assertEqual(benchmark_state["stop_policy"]["severity"], "error")
+        self.assertEqual(benchmark_state["branch_policy"]["enforce_on"], "always")
 
         init = self.run_rg("init", "--goal", "Diagnose production outage", "--strict")
         self.assertEqual(init.returncode, 0, init.stderr)
@@ -132,7 +133,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "starter.json"
-            state_path.write_text(template.stdout, encoding="utf-8")
+            state_path.write_text(benchmark.stdout, encoding="utf-8")
             valid = self.run_rg("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
@@ -188,14 +189,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual([event["action"] for event in popped_state["events"]], ["init", "pop"])
             self.assertEqual(popped_state["events"][0]["frontier"], ["Q1"])
 
-            template_state_path = Path(tmp_dir) / "template-state.json"
-            template = self.run_rg("template", "strict", "-o", str(template_state_path))
-            self.assertEqual(template.returncode, 0, template.stderr)
-            template_seeded = self.run_rg("seed", str(template_state_path), "--patch", str(seed_path), "-i")
-            self.assertEqual(template_seeded.returncode, 0, template_seeded.stderr)
-            template_popped = self.run_rg("next", str(template_state_path), "--pop", "-i")
-            self.assertEqual(template_popped.returncode, 0, template_popped.stderr)
-            self.assertIn("next Q1", template_popped.stdout)
+            second_state_path = Path(tmp_dir) / "second-state.json"
+            second_init = self.run_rg("init", "--goal", "Solve the problem", "--strict", "-o", str(second_state_path))
+            self.assertEqual(second_init.returncode, 0, second_init.stderr)
+            second_seeded = self.run_rg("seed", str(second_state_path), "--patch", str(seed_path), "-i")
+            self.assertEqual(second_seeded.returncode, 0, second_seeded.stderr)
+            second_popped = self.run_rg("next", str(second_state_path), "--pop", "-i")
+            self.assertEqual(second_popped.returncode, 0, second_popped.stderr)
+            self.assertIn("next Q1", second_popped.stdout)
 
     def test_seed_rejects_non_root_frontier_and_post_pop_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

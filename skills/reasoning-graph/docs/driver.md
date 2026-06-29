@@ -88,7 +88,6 @@ For complex reasoning, use the helper as the search driver. The graph should cho
 Use the helper for graph mode, multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
-rg template strict -o state.json      # emit starter state profile
 rg init --goal "Diagnose outage" --strict -o state.json
 rg doctor state.json                  # validate, summarize frontier, audit when events exist
 rg validate state.json                # schema/reference/cost sanity checks
@@ -105,7 +104,7 @@ rg audit state.stopped.json  # audit strict-search compact events after driver e
 rg stop-review state.stopped.json --draft answer.md  # final stop checklist after stop
 rg path state.json Q7        # reconstruct parent-pointer path for an item id
 rg mermaid state.json        # emit Mermaid source
-rg html state.json -o /tmp/reasoning-graph-example.html
+rg html state.json -o graph.html  # replace with requested/durable path; use /tmp only as ad hoc fallback
 ```
 
 The skill directory is docs-only. Use the installed `rg` CLI. If `rg --help` is missing or shows ripgrep, install the reasoning-graph CLI with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`. In a repository checkout, developers may run `uv --project packages/reasoning-graph run rg ...`.
@@ -192,6 +191,8 @@ State JSON shape:
   }
 }
 ```
+
+`branch_policy.high_salience_min_children` is an audit heuristic, not a hard branch count. It asks the driver to justify narrow high-salience expansions; use `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof instead of inventing weak branches.
 
 Cost behavior:
 

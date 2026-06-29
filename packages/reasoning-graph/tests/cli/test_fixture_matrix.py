@@ -150,8 +150,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
 
     def test_golden_cli_outputs_stay_stable(self) -> None:
         commands = {
-            "template-strict.json": ("template", "strict"),
-            "template-benchmark.json": ("template", "benchmark"),
+            "init-strict.json": ("init", "--goal", "Solve the problem", "--strict"),
+            "init-benchmark.json": ("init", "--goal", "Solve the problem", "--profile", "benchmark"),
             "doctor-strict-driver.txt": ("doctor", str(FIXTURES / "valid" / "strict-driver-state.json")),
             "stop-review-pass.txt": ("stop-review", str(FIXTURES / "valid" / "stopped-reviewed-state.json")),
         }

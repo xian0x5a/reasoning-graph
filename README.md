@@ -43,7 +43,6 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 
 ```bash
 # bootstrap and inspect state
-uv --project packages/reasoning-graph run rg template strict -o state.json
 uv --project packages/reasoning-graph run rg init --goal "Diagnose outage" --strict -o state.json
 cat > seed.json <<'JSON'
 {
@@ -84,7 +83,7 @@ uv --project packages/reasoning-graph run rg mermaid state.stopped.json > graph.
 uv --project packages/reasoning-graph run rg html state.stopped.json -o graph.html
 ```
 
-`rg seed` is the safe first-use path from empty `init`/`template` states: it appends initial evidence/constraints/assumptions/tests plus root frontier items, validates the result, and leaves driver events empty so the first `next --pop` records the real `init`/`pop` events.
+`rg seed` is the safe first-use path from an empty `init` state: it appends initial evidence/constraints/assumptions/tests plus root frontier items, validates the result, and leaves driver events empty so the first `next --pop` records the real `init`/`pop` events.
 
 ## Schemas
 
