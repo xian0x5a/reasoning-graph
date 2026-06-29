@@ -11,8 +11,9 @@ except ImportError:  # pragma: no cover - optional developer dependency
     jsonschema = None
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = REPO_ROOT / "tests" / "fixtures"
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = PACKAGE_ROOT.parents[1]
+FIXTURES = PACKAGE_ROOT / "tests" / "fixtures"
 VALID_FIXTURES = sorted((FIXTURES / "valid").glob("*.json"))
 VALIDATE_INVALID_FIXTURES = {
     "bad-likelihood-direction.json": "supports likelihood ratio must be > 1",
@@ -26,14 +27,14 @@ AUDIT_INVALID_FIXTURES = {
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
 }
-STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
+STATE_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphFixtureTests(unittest.TestCase):
     def run_rg(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["uv", "run", "rg", *args],
+            ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", *args],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,
@@ -43,7 +44,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
     def test_installed_console_entrypoint_validates_fixture(self) -> None:
         try:
             result = subprocess.run(
-                ["uv", "run", "rg", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
+                ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,

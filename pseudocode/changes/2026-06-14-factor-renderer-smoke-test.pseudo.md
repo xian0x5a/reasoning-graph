@@ -1,6 +1,6 @@
 ---
 affects:
-  - tests/cli/test_commands.py
+  - packages/reasoning-graph/tests/cli/test_commands.py
 ---
 
 # Factor Renderer Smoke Test

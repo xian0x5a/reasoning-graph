@@ -12,22 +12,36 @@ except ImportError:  # pragma: no cover - optional developer dependency
     jsonschema = None
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_SRC_ROOT = REPO_ROOT / "skills" / "reasoning-graph" / "src"
-sys.path.insert(0, str(SKILL_SRC_ROOT))
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = PACKAGE_ROOT.parents[1]
+PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
+sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
 from reasoning_graph.frontier import search_cursor
 
 
-FIXTURE = REPO_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
-STATE_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
-PATCH_SCHEMA = REPO_ROOT / "skills" / "reasoning-graph" / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"
+FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
+STATE_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "state.schema.json"
+PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.json"
 
 
 class ReasoningGraphCliBasicTests(unittest.TestCase):
+    def test_repository_layout_keeps_skill_docs_only_and_package_separate(self) -> None:
+        self.assertTrue((PACKAGE_ROOT / "pyproject.toml").is_file())
+        self.assertTrue((PACKAGE_ROOT / "src" / "reasoning_graph").is_dir())
+        self.assertTrue((PACKAGE_ROOT / "tests" / "cli").is_dir())
+        skill_root = REPO_ROOT / "skills" / "reasoning-graph"
+        self.assertTrue((skill_root / "SKILL.md").is_file())
+        self.assertTrue((skill_root / "docs").is_dir())
+        self.assertTrue((skill_root / ".dotman-skip").is_file())
+        self.assertFalse((skill_root / "src").exists())
+        self.assertFalse((skill_root / "pyproject.toml").exists())
+        self.assertFalse((skill_root / "uv.lock").exists())
+        self.assertFalse((skill_root / "bin").exists())
+
     def run_rg(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["uv", "run", "rg", *args],
+            ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", *args],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,

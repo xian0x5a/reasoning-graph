@@ -66,10 +66,10 @@ Children must not decide the final answer or mutate canonical graph state; they 
 
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
-3. **Initialize frontier.** From a fresh `init`/`template` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `uv run rg seed state.json --patch seed.json -i`. Do this before first `next --pop`; seed frontier items must not fake parent refs.
-4. **Pop focus.** For complex graph mode, run `uv run rg sort state.json -i` and `uv run rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
+3. **Initialize frontier.** From a fresh `init`/`template` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `rg seed state.json --patch seed.json -i`. Do this before first `next --pop`; seed frontier items must not fake parent refs.
+4. **Pop focus.** For complex graph mode, run `rg sort state.json -i` and `rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
 5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
-6. **Assign or update.** For async work, run `uv run rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge findings/expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
+6. **Assign or update.** For async work, run `rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge findings/expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
 7. **Re-rank frontier.** Sort after every meaningful update.
 8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
@@ -122,11 +122,17 @@ Details: `docs/cost-model.md`.
 
 ## Helper commands
 
-Run from this skill directory with `uv run rg` so dependencies come from this skill's `uv.lock`. From the repo root, use `uv --project skills/reasoning-graph run rg ...`.
+The skill directory contains instructions only; the helper CLI is installed separately. If `rg --help` is missing or shows ripgrep instead of the reasoning-graph CLI, install it with:
 
 ```bash
-uv run rg template strict -o state.json
-uv run rg init --goal "Diagnose outage" --strict -o state.json
+uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
+```
+
+Then run `rg ...`. In a repository checkout, developers may use `uv --project packages/reasoning-graph run rg ...` instead.
+
+```bash
+rg template strict -o state.json
+rg init --goal "Diagnose outage" --strict -o state.json
 cat > seed.json <<'JSON'
 {
   "nodes": [
@@ -141,23 +147,23 @@ cat > seed.json <<'JSON'
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }
 JSON
-uv run rg seed state.json --patch seed.json -i
-uv run rg doctor state.json
-uv run rg validate state.json
-uv run rg costs state.json -i
-uv run rg sort state.json -i
-uv run rg frontier state.json
-uv run rg next state.json --pop -i
+rg seed state.json --patch seed.json -i
+rg doctor state.json
+rg validate state.json
+rg costs state.json -i
+rg sort state.json -i
+rg frontier state.json
+rg next state.json --pop -i
 cat > expansion.json <<'JSON'
 {"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
 JSON
-uv run rg expand state.json --item Q1 --patch expansion.json -i
-uv run rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
-uv run rg validate state.stopped.json
-uv run rg audit state.stopped.json
-uv run rg stop-review state.stopped.json
-uv run rg mermaid state.stopped.json > graph.mmd
-uv run rg html state.stopped.json -o graph.html
+rg expand state.json --item Q1 --patch expansion.json -i
+rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
+rg validate state.stopped.json
+rg audit state.stopped.json
+rg stop-review state.stopped.json
+rg mermaid state.stopped.json > graph.mmd
+rg html state.stopped.json -o graph.html
 ```
 
 Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
@@ -200,9 +206,9 @@ For benchmark/search tasks, prefer:
 Before final in driver mode, validate/audit the stopped state and run semantic stop-review:
 
 ```bash
-uv run rg validate state.stopped.json
-uv run rg audit state.stopped.json
-uv run rg stop-review state.stopped.json --draft answer.md
+rg validate state.stopped.json
+rg audit state.stopped.json
+rg stop-review state.stopped.json --draft answer.md
 ```
 
 Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
@@ -222,7 +228,7 @@ Graph mode when requested:
 
 1. persist state JSON, usually in `/tmp`
 2. validate/audit
-3. generate baseline artifact with `uv run rg html state.json -o <path>.html`
+3. generate baseline artifact with `rg html state.json -o <path>.html`
 4. include summary, candidate table, readable evidence/constraint details, curated presentation graph, and full audit graph
 
 Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.
@@ -250,4 +256,4 @@ Details: `docs/rendering.md`.
 - `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
 - `docs/driver.md` — state JSON, helper commands, event/audit semantics
 - `docs/rendering.md` — compact output, graph mode, HTML/canvas rules
-- `src/reasoning_graph/schemas/state.schema.json` and `src/reasoning_graph/schemas/patch.schema.json` — machine-readable state/patch contracts
+- Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. In this repository they live under `packages/reasoning-graph/src/reasoning_graph/schemas/`.

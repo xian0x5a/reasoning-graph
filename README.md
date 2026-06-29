@@ -4,7 +4,28 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-The installable Python project lives inside `skills/reasoning-graph/`, with source under `skills/reasoning-graph/src/reasoning_graph/`. Run the CLI from that skill directory with `uv run rg ...`, or from the repo root with `uv --project skills/reasoning-graph run rg ...`. Agents should update relevant pseudocode before touching matching source code.
+## Repository layout
+
+```text
+skills/reasoning-graph/          # installable skill instructions and reference docs
+packages/reasoning-graph/        # Python library, rg CLI, schemas, and package tests
+```
+
+The skill directory is docs/instructions only. The Python project lives under `packages/reasoning-graph/`, with source under `packages/reasoning-graph/src/reasoning_graph/`.
+
+Installed-skill users should install the CLI when `rg` is missing or is ripgrep:
+
+```bash
+uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
+```
+
+Development commands should be explicit from the repo root:
+
+```bash
+uv --project packages/reasoning-graph run rg validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+```
+
+Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
@@ -20,11 +41,9 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 ## Helper commands
 
 ```bash
-cd skills/reasoning-graph
-
 # bootstrap and inspect state
-uv run rg template strict -o state.json
-uv run rg init --goal "Diagnose outage" --strict -o state.json
+uv --project packages/reasoning-graph run rg template strict -o state.json
+uv --project packages/reasoning-graph run rg init --goal "Diagnose outage" --strict -o state.json
 cat > seed.json <<'JSON'
 {
   "nodes": [
@@ -39,49 +58,50 @@ cat > seed.json <<'JSON'
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }
 JSON
-uv run rg seed state.json --patch seed.json -i
-uv run rg doctor state.json
+uv --project packages/reasoning-graph run rg seed state.json --patch seed.json -i
+uv --project packages/reasoning-graph run rg doctor state.json
 
 # validate before driving search; audit after driver events exist
-uv run rg validate state.json
+uv --project packages/reasoning-graph run rg validate state.json
 
 # drive graph search
-uv run rg frontier state.json
-uv run rg next state.json --pop -i
+uv --project packages/reasoning-graph run rg frontier state.json
+uv --project packages/reasoning-graph run rg next state.json --pop -i
 cat > expansion.json <<'JSON'
 {"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
 JSON
-uv run rg expand state.json --item Q1 --patch expansion.json -i
-uv run rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
+uv --project packages/reasoning-graph run rg expand state.json --item Q1 --patch expansion.json -i
+uv --project packages/reasoning-graph run rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
 
 # final review for a stopped driver state
-uv run rg validate state.stopped.json
-uv run rg audit state.stopped.json
-uv run rg stop-review state.stopped.json
+uv --project packages/reasoning-graph run rg validate state.stopped.json
+uv --project packages/reasoning-graph run rg audit state.stopped.json
+uv --project packages/reasoning-graph run rg stop-review state.stopped.json
 
 # render artifacts
-uv run rg mermaid state.stopped.json > graph.mmd
-uv run rg html state.stopped.json -o graph.html
+uv --project packages/reasoning-graph run rg mermaid state.stopped.json > graph.mmd
+uv --project packages/reasoning-graph run rg html state.stopped.json -o graph.html
 ```
 
 `rg seed` is the safe first-use path from empty `init`/`template` states: it appends initial evidence/constraints/assumptions/tests plus root frontier items, validates the result, and leaves driver events empty so the first `next --pop` records the real `init`/`pop` events.
 
 ## Schemas
 
-Machine-readable JSON Schemas live under `skills/reasoning-graph/src/reasoning_graph/schemas/`:
+Machine-readable JSON Schemas live under `packages/reasoning-graph/src/reasoning_graph/schemas/`:
 
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches
 
-Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `uv run rg validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
+Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `rg validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
 
 ## Checks
 
 ```bash
-uv --project skills/reasoning-graph run python -m py_compile skills/reasoning-graph/src/reasoning_graph/*.py
-uv --project skills/reasoning-graph run rg validate tests/fixtures/valid/reasoning-graph-strict-good.json
-uv --project skills/reasoning-graph run rg audit tests/fixtures/valid/reasoning-graph-strict-good.json
-uv --project skills/reasoning-graph run --group dev pytest tests/cli tests/integration -q
+uv --project packages/reasoning-graph run python -m py_compile packages/reasoning-graph/src/reasoning_graph/*.py
+uv --project packages/reasoning-graph run rg validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project packages/reasoning-graph run rg audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
+uv build packages/reasoning-graph --out-dir /tmp/reasoning-graph-dist
 ```
 
 Generated reports, Mermaid files, and benchmark outputs belong in `test-results/` or `/tmp`, not git.

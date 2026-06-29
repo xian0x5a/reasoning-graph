@@ -1,5 +1,7 @@
 # Reasoning Graph Rendering Guide
 
+Commands below assume the reasoning-graph `rg` CLI is installed. If `rg --help` is missing or shows ripgrep, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
+
 Compact output, graph mode, HTML artifacts, and visual presentation rules.
 
 ## Output Modes
@@ -69,7 +71,7 @@ Artifact location:
 - ad hoc/default: `/tmp/reasoning-graph-<slug>-<timestamp>.html`
 - persistent project artifact only when useful or requested: `./docs/reasoning-graphs/<slug>.html`
 
-`uv run rg html` uses Mermaid by default for better graph layout. `uv run rg html --offline` switches to deterministic inline SVG fallback for air-gapped/no-network contexts and keeps Mermaid source in collapsible source blocks. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `uv run rg html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
+`rg html` uses Mermaid by default for better graph layout. `rg html --offline` switches to deterministic inline SVG fallback for air-gapped/no-network contexts and keeps Mermaid source in collapsible source blocks. When the user or prompt asks for a reasoning graph, graph canvas, or an HTML report from this skill, the requested HTML output path must be generated from the validated state with `rg html`. Custom self-contained SVG/HTML is allowed only as an additional artifact, or when the user explicitly asks for a bespoke non-helper report; do not replace the baseline graph/canvas report with a hand-written summary page.
 
 For non-trivial HTML report generation, delegate presentation work to a low-thinking agent when possible. The solver should focus on the reasoning state; the renderer should consume `state.json` as source of truth and not solve again. If delegation is not available from the current context, write/validate `state.json` and clearly state that polished HTML rendering is a follow-up step for a low-thinking agent.
 
@@ -83,12 +85,12 @@ Recommended graph-mode flow:
 
 1. Persist the graph/search state as JSON in `/tmp` unless the user asked for a project artifact.
 2. For complex reasoning, build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
-3. Run `uv run rg costs state.json -i` or `uv run rg sort state.json -i` when candidate/frontier ranking matters.
-4. Run `uv run rg validate state.json` and fix errors.
-5. If driver events exist, run `uv run rg audit state.json` and fix errors or explain remaining warnings.
-6. Generate the requested graph HTML path with `uv run rg html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
+3. Run `rg costs state.json -i` or `rg sort state.json -i` when candidate/frontier ranking matters.
+4. Run `rg validate state.json` and fix errors.
+5. If driver events exist, run `rg audit state.json` and fix errors or explain remaining warnings.
+6. Generate the requested graph HTML path with `rg html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
 7. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph mode was requested.
-8. For separate graph sources, run `uv run rg mermaid state.json > <slug>.mmd`.
+8. For separate graph sources, run `rg mermaid state.json > <slug>.mmd`.
 9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
 10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.
 

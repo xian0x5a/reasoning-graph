@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "reasoning-graph"
 version = "0.1.0"
 description = "Reasoning graph CLI and helper library"
-readme = "SKILL.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "jsonschema>=4.23",
@@ -22,7 +22,7 @@ where = ["src"]
 reasoning_graph = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["../../tests"]
+testpaths = ["tests"]
 
 [dependency-groups]
 dev = [

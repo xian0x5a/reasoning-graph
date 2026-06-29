@@ -1,6 +1,6 @@
 ---
 affects:
-  - skills/reasoning-graph/scripts/reasoning_graph/render.py
+  - packages/reasoning-graph/src/reasoning_graph/render.py
 ---
 
 # Shared Node Probability Fields
