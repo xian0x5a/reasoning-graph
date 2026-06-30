@@ -1,6 +1,6 @@
 # reasoning-graph package
 
-Python library and `rg` CLI for the reasoning-graph skill.
+Python library and `reasoning-graph` CLI for the reasoning-graph skill.
 
 ## Install from Git
 
@@ -11,19 +11,19 @@ uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.
 Then run:
 
 ```bash
-rg validate state.json
-rg audit state.json
-rg html state.json -o graph.html
+reasoning-graph validate state.json
+reasoning-graph audit state.json
+reasoning-graph html state.json -o graph.html
 ```
 
-If `rg --help` shows ripgrep instead of the reasoning-graph CLI, put the uv tool bin directory earlier on `PATH` or run the package through a project environment.
+If `reasoning-graph --help` is unavailable, ensure the uv tool bin directory is on `PATH` or run the package through a project environment.
 
 ## Development
 
 From the repository root:
 
 ```bash
-uv --project packages/reasoning-graph run rg validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project packages/reasoning-graph run reasoning-graph validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
 ```
 

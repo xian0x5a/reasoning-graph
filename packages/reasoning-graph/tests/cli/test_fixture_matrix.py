@@ -32,9 +32,9 @@ PATCH_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.sch
 
 
 class ReasoningGraphFixtureTests(unittest.TestCase):
-    def run_rg(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+    def run_cli(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", *args],
+            ["uv", "--project", str(PACKAGE_ROOT), "run", "reasoning-graph", *args],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,
@@ -44,7 +44,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
     def test_installed_console_entrypoint_validates_fixture(self) -> None:
         try:
             result = subprocess.run(
-                ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
+                ["uv", "--project", str(PACKAGE_ROOT), "run", "reasoning-graph", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,
@@ -60,14 +60,14 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         self.assertGreaterEqual(len(VALID_FIXTURES), 5)
         for fixture in VALID_FIXTURES:
             with self.subTest(fixture=fixture.name):
-                result = self.run_rg("validate", str(fixture))
+                result = self.run_cli("validate", str(fixture))
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("ok", result.stdout)
 
     def test_invalid_validate_fixture_matrix_fails_with_expected_errors(self) -> None:
         for fixture_name, expected in VALIDATE_INVALID_FIXTURES.items():
             with self.subTest(fixture=fixture_name):
-                result = self.run_rg("validate", str(FIXTURES / "invalid" / "validate" / fixture_name))
+                result = self.run_cli("validate", str(FIXTURES / "invalid" / "validate" / fixture_name))
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn(expected, result.stderr)
 
@@ -75,9 +75,9 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         for fixture_name, expected in AUDIT_INVALID_FIXTURES.items():
             fixture = FIXTURES / "invalid" / "audit" / fixture_name
             with self.subTest(fixture=fixture_name):
-                valid = self.run_rg("validate", str(fixture))
+                valid = self.run_cli("validate", str(fixture))
                 self.assertEqual(valid.returncode, 0, valid.stderr)
-                audit = self.run_rg("audit", str(fixture))
+                audit = self.run_cli("audit", str(fixture))
                 self.assertNotEqual(audit.returncode, 0, audit.stdout)
                 self.assertIn(expected, audit.stderr)
 
@@ -116,7 +116,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            result = self.run_rg("validate", str(state_path))
+            result = self.run_cli("validate", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("schema $.frontier[0]", result.stderr)
             self.assertIn("path_cost", result.stderr)
@@ -157,7 +157,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         }
         for golden_name, args in commands.items():
             with self.subTest(golden=golden_name):
-                result = self.run_rg(*args)
+                result = self.run_cli(*args)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 golden = (FIXTURES / "golden" / golden_name).read_text(encoding="utf-8")
                 self.assertEqual(result.stdout, golden)
@@ -175,11 +175,11 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             with self.subTest(patch=patch.name), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = Path(tmp_dir) / "state.json"
                 state_path.write_text(json.dumps(base_state), encoding="utf-8")
-                popped = self.run_rg("next", str(state_path), "--pop", "-i")
+                popped = self.run_cli("next", str(state_path), "--pop", "-i")
                 self.assertEqual(popped.returncode, 0, popped.stderr)
-                expanded = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(patch), "-i")
+                expanded = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch), "-i")
                 self.assertEqual(expanded.returncode, 0, expanded.stderr)
-                valid = self.run_rg("validate", str(state_path))
+                valid = self.run_cli("validate", str(state_path))
                 self.assertEqual(valid.returncode, 0, valid.stderr)
 
 

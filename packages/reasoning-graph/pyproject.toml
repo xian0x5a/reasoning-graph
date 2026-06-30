@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rg = "reasoning_graph.cli:main"
+reasoning-graph = "reasoning_graph.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

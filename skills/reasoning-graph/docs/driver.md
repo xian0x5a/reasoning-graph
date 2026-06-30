@@ -88,27 +88,27 @@ For complex reasoning, use the helper as the search driver. The graph should cho
 Use the helper for graph mode, multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
-rg init --goal "Diagnose outage" --strict -o state.json
-rg doctor state.json                  # validate, summarize frontier, audit when events exist
-rg validate state.json                # schema/reference/cost sanity checks
-rg costs state.json                   # compute truth_cost/search_cost
-rg sort state.json           # compute costs and sort frontier by search_cost
-rg sort state.json -i        # rewrite state.json sorted in place
-rg frontier state.json       # show active frontier derived from events
-rg next state.json           # show lowest-cost active item + path context
-rg next state.json --pop -i  # persist init/pop event for lowest-cost item
-rg expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
-rg seed state.json --patch later-root-seed.json -i        # add unrelated root inspiration; requires reason after driver init
-rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
-rg validate state.stopped.json
-rg audit state.stopped.json  # audit strict-search compact events after driver events exist
-rg stop-review state.stopped.json --draft answer.md  # final stop checklist after stop
-rg path state.json Q7        # reconstruct parent-pointer path for an item id
-rg mermaid state.json        # emit Mermaid source
-rg html state.json -o graph.html  # replace with requested/durable path; use /tmp only as ad hoc fallback
+reasoning-graph init --goal "Diagnose outage" --strict -o state.json
+reasoning-graph doctor state.json                  # validate, summarize frontier, audit when events exist
+reasoning-graph validate state.json                # schema/reference/cost sanity checks
+reasoning-graph costs state.json                   # compute truth_cost/search_cost
+reasoning-graph sort state.json           # compute costs and sort frontier by search_cost
+reasoning-graph sort state.json -i        # rewrite state.json sorted in place
+reasoning-graph frontier state.json       # show active frontier derived from events
+reasoning-graph next state.json           # show lowest-cost active item + path context
+reasoning-graph next state.json --pop -i  # persist init/pop event for lowest-cost item
+reasoning-graph expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
+reasoning-graph seed state.json --patch later-root-seed.json -i        # add unrelated root inspiration; requires reason after driver init
+reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json  # audit strict-search compact events after driver events exist
+reasoning-graph stop-review state.stopped.json --draft answer.md  # final stop checklist after stop
+reasoning-graph path state.json Q7        # reconstruct parent-pointer path for an item id
+reasoning-graph mermaid state.json        # emit Mermaid source
+reasoning-graph html state.json -o graph.html  # replace with requested/durable path; use /tmp only as ad hoc fallback
 ```
 
-The skill directory is docs-only. Use the installed `rg` CLI. If `rg --help` is missing or shows ripgrep, install the reasoning-graph CLI with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`. In a repository checkout, developers may run `uv --project packages/reasoning-graph run rg ...`.
+The skill directory is docs-only. Use the installed `reasoning-graph` CLI. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`. In a repository checkout, developers may run `uv --project packages/reasoning-graph run reasoning-graph ...`.
 
 State JSON shape:
 
@@ -314,21 +314,21 @@ Ending commands:
 Driver loop for search moves:
 
 ```bash
-rg frontier state.json
-rg next state.json --pop -i
+reasoning-graph frontier state.json
+reasoning-graph next state.json --pop -i
 # inspect the printed item id, parent path, active assumptions, and related nodes
 # for async observation-heavy work, assign that exact popped item id:
-rg assign state.json --item <popped-item-id> --agent researcher -i
+reasoning-graph assign state.json --item <popped-item-id> --agent researcher -i
 # continue popping eligible work; assigning more async work is blocked at max_probe_concurrency
 # write expansion.json containing child findings, branches/tests/evidence, or no_new_work_reason
-rg expand state.json --item <assigned-or-pending-item-id> --patch expansion.json -i
-rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
-rg validate state.stopped.json
-rg audit state.stopped.json
-rg stop-review state.stopped.json --draft answer.md
+reasoning-graph expand state.json --item <assigned-or-pending-item-id> --patch expansion.json -i
+reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json
+reasoning-graph stop-review state.stopped.json --draft answer.md
 # semantic-review stopped candidate; promote only on pass
 cp state.stopped.json state.json
-rg frontier state.json
+reasoning-graph frontier state.json
 ```
 
 ### Semantic Stop Review
@@ -337,7 +337,7 @@ Stop is two gates:
 
 Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
 
-1. `rg stop ... -o state.stopped.json` appends rank/stop events for candidate-bearing outcomes without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
+1. `reasoning-graph stop ... -o state.stopped.json` appends rank/stop events for candidate-bearing outcomes without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
 2. A semantic reviewer approves `state.stopped.json` before it is promoted.
 
 If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.
@@ -369,9 +369,9 @@ Do not call `next --pop` again until the pending popped item is expanded, assign
 Before final in driver mode, validate, audit, and semantically review the stopped state:
 
 ```bash
-rg validate state.stopped.json
-rg audit state.stopped.json
-rg stop-review state.stopped.json --draft answer.md
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json
+reasoning-graph stop-review state.stopped.json --draft answer.md
 ```
 
 Treat audit/stop-review warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:

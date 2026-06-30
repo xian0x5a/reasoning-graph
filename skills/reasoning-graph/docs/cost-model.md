@@ -2,7 +2,7 @@
 
 Truth/search cost, likelihood updates, confidence, bounded probes, and correlated evidence.
 
-Use the installed `rg` CLI for helper commands. If `rg --help` is missing or shows ripgrep instead, install the reasoning-graph CLI with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
+Use the installed `reasoning-graph` CLI for helper commands. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
 
 ## Priors, Confidence, and Costs
 

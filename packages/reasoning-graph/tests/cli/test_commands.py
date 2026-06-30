@@ -39,9 +39,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertFalse((skill_root / "uv.lock").exists())
         self.assertFalse((skill_root / "bin").exists())
 
-    def run_rg(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+    def run_cli(self, *args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["uv", "--project", str(PACKAGE_ROOT), "run", "rg", *args],
+            ["uv", "--project", str(PACKAGE_ROOT), "run", "reasoning-graph", *args],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,
@@ -113,12 +113,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = self.run_rg("costs", str(state_path))
+            result = self.run_cli("costs", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("rejected legacy field path_cost", result.stderr)
 
     def test_init_emits_valid_starter_states(self) -> None:
-        benchmark = self.run_rg("init", "--goal", "Benchmark solve", "--profile", "benchmark")
+        benchmark = self.run_cli("init", "--goal", "Benchmark solve", "--profile", "benchmark")
         self.assertEqual(benchmark.returncode, 0, benchmark.stderr)
         benchmark_state = json.loads(benchmark.stdout)
         self.assertEqual(benchmark_state["nodes"][0]["id"], "G1")
@@ -126,7 +126,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(benchmark_state["stop_policy"]["severity"], "error")
         self.assertEqual(benchmark_state["branch_policy"]["enforce_on"], "always")
 
-        init = self.run_rg("init", "--goal", "Diagnose production outage", "--strict")
+        init = self.run_cli("init", "--goal", "Diagnose production outage", "--strict")
         self.assertEqual(init.returncode, 0, init.stderr)
         init_state = json.loads(init.stdout)
         self.assertEqual(init_state["nodes"][0]["text"], "Diagnose production outage")
@@ -135,17 +135,17 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "starter.json"
             state_path.write_text(benchmark.stdout, encoding="utf-8")
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
     def test_seed_enables_fresh_init_next_pop_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             seed_path = Path(tmp_dir) / "seed.json"
-            init = self.run_rg("init", "--goal", "Diagnose outage", "--strict", "-o", str(state_path))
+            init = self.run_cli("init", "--goal", "Diagnose outage", "--strict", "-o", str(state_path))
             self.assertEqual(init.returncode, 0, init.stderr)
 
-            empty_next = self.run_rg("next", str(state_path), "--pop", "-i")
+            empty_next = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertNotEqual(empty_next.returncode, 0, empty_next.stdout)
             self.assertIn("active frontier is empty", empty_next.stderr)
 
@@ -173,17 +173,17 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            seeded = self.run_rg("seed", str(state_path), "--patch", str(seed_path), "-i")
+            seeded = self.run_cli("seed", str(state_path), "--patch", str(seed_path), "-i")
             self.assertEqual(seeded.returncode, 0, seeded.stderr)
             seeded_state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertNotIn("events", seeded_state)
             self.assertNotIn("parent", seeded_state["frontier"][0])
             self.assertIn("search_cost", seeded_state["frontier"][0])
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-            popped = self.run_rg("next", str(state_path), "--pop", "-i")
+            popped = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(popped.returncode, 0, popped.stderr)
             self.assertIn("next Q1", popped.stdout)
             popped_state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -191,11 +191,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(popped_state["events"][0]["frontier"], ["Q1"])
 
             second_state_path = Path(tmp_dir) / "second-state.json"
-            second_init = self.run_rg("init", "--goal", "Solve the problem", "--strict", "-o", str(second_state_path))
+            second_init = self.run_cli("init", "--goal", "Solve the problem", "--strict", "-o", str(second_state_path))
             self.assertEqual(second_init.returncode, 0, second_init.stderr)
-            second_seeded = self.run_rg("seed", str(second_state_path), "--patch", str(seed_path), "-i")
+            second_seeded = self.run_cli("seed", str(second_state_path), "--patch", str(seed_path), "-i")
             self.assertEqual(second_seeded.returncode, 0, second_seeded.stderr)
-            second_popped = self.run_rg("next", str(second_state_path), "--pop", "-i")
+            second_popped = self.run_cli("next", str(second_state_path), "--pop", "-i")
             self.assertEqual(second_popped.returncode, 0, second_popped.stderr)
             self.assertIn("next Q1", second_popped.stdout)
 
@@ -204,7 +204,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             bad_seed_path = Path(tmp_dir) / "bad-seed.json"
             good_seed_path = Path(tmp_dir) / "good-seed.json"
-            init = self.run_rg("init", "--goal", "Diagnose outage", "-o", str(state_path))
+            init = self.run_cli("init", "--goal", "Diagnose outage", "-o", str(state_path))
             self.assertEqual(init.returncode, 0, init.stderr)
 
             bad_seed_path.write_text(
@@ -214,7 +214,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            bad = self.run_rg("seed", str(state_path), "--patch", str(bad_seed_path), "-i")
+            bad = self.run_cli("seed", str(state_path), "--patch", str(bad_seed_path), "-i")
             self.assertNotEqual(bad.returncode, 0, bad.stdout)
             self.assertIn("must be a root item without parent", bad.stderr)
 
@@ -225,9 +225,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            good = self.run_rg("seed", str(state_path), "--patch", str(good_seed_path), "-i")
+            good = self.run_cli("seed", str(state_path), "--patch", str(good_seed_path), "-i")
             self.assertEqual(good.returncode, 0, good.stderr)
-            popped = self.run_rg("next", str(state_path), "--pop", "-i")
+            popped = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(popped.returncode, 0, popped.stderr)
             later_without_reason_path = Path(tmp_dir) / "later-without-reason.json"
             later_with_reason_path = Path(tmp_dir) / "later-with-reason.json"
@@ -238,7 +238,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            missing_reason = self.run_rg("seed", str(state_path), "--patch", str(later_without_reason_path), "-i")
+            missing_reason = self.run_cli("seed", str(state_path), "--patch", str(later_without_reason_path), "-i")
             self.assertNotEqual(missing_reason.returncode, 0, missing_reason.stdout)
             self.assertIn("requires patch.reason", missing_reason.stderr)
 
@@ -250,7 +250,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            later_seed = self.run_rg("seed", str(state_path), "--patch", str(later_with_reason_path), "-i")
+            later_seed = self.run_cli("seed", str(state_path), "--patch", str(later_with_reason_path), "-i")
             self.assertEqual(later_seed.returncode, 0, later_seed.stderr)
             seeded_later_state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual([event["action"] for event in seeded_later_state["events"]], ["init", "pop", "seed"])
@@ -259,14 +259,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             expansion_path = Path(tmp_dir) / "expansion.json"
             expansion_path.write_text(json.dumps({"no_new_work_reason": "first root item closed"}), encoding="utf-8")
-            expanded = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(expansion_path), "-i")
+            expanded = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(expansion_path), "-i")
             self.assertEqual(expanded.returncode, 0, expanded.stderr)
-            later_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            later_pop = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(later_pop.returncode, 0, later_pop.stderr)
             self.assertIn("next Q2", later_pop.stdout)
 
     def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
-        ok = self.run_rg("stop-review", str(FIXTURE))
+        ok = self.run_cli("stop-review", str(FIXTURE))
         self.assertEqual(ok.returncode, 0, ok.stderr)
         self.assertIn("verdict: pass", ok.stdout)
         self.assertIn("best candidate answers an accepted goal", ok.stdout)
@@ -277,7 +277,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state["edges"] = [edge for edge in state["edges"] if edge.get("type") != "answers"]
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            missing = self.run_rg("stop-review", str(state_path))
+            missing = self.run_cli("stop-review", str(state_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("verdict: fail", missing.stdout)
             self.assertIn("requires a viable candidate_solution", missing.stdout)
@@ -286,17 +286,17 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Candidate from A1 is the answer.", encoding="utf-8")
-            ok = self.run_rg("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
+            ok = self.run_cli("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
             self.assertEqual(ok.returncode, 0, ok.stderr)
             self.assertIn("verdict: pass", ok.stdout)
 
             draft_path.write_text("Unrelated answer.", encoding="utf-8")
-            missing = self.run_rg("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
+            missing = self.run_cli("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("draft does not mention best candidate", missing.stdout)
 
     def test_doctor_reports_validation_and_audit_health(self) -> None:
-        ok = self.run_rg("doctor", str(FIXTURE))
+        ok = self.run_cli("doctor", str(FIXTURE))
         self.assertEqual(ok.returncode, 0, ok.stderr)
         self.assertIn("doctor: validation ok", ok.stdout)
         self.assertIn("doctor: audit ok", ok.stdout)
@@ -304,17 +304,17 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             invalid_path = Path(tmp_dir) / "invalid.json"
             invalid_path.write_text(json.dumps({"nodes": [{"id": "X1", "type": "fact"}]}), encoding="utf-8")
-            invalid = self.run_rg("doctor", str(invalid_path))
+            invalid = self.run_cli("doctor", str(invalid_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("invalid type 'fact'", invalid.stderr)
             self.assertIn("doctor: validation failed", invalid.stdout)
 
     def test_validate_and_audit_fixture_pass(self) -> None:
-        validate = self.run_rg("validate", str(FIXTURE))
+        validate = self.run_cli("validate", str(FIXTURE))
         self.assertEqual(validate.returncode, 0, validate.stderr)
         self.assertIn("ok", validate.stdout)
 
-        audit = self.run_rg("audit", str(FIXTURE))
+        audit = self.run_cli("audit", str(FIXTURE))
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
 
@@ -333,7 +333,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            audit = self.run_rg("audit", str(state_path))
+            audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0, audit.stdout)
             self.assertIn("stop_policy.max_live_frontier_items must be a non-negative integer", audit.stderr)
@@ -370,11 +370,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(evidence_state), encoding="utf-8")
             legacy_path.write_text(json.dumps(legacy_state), encoding="utf-8")
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("ok", valid.stdout)
 
-            invalid = self.run_rg("validate", str(legacy_path))
+            invalid = self.run_cli("validate", str(legacy_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("invalid type 'fact'", invalid.stderr)
             self.assertIn("invalid type 'contradiction'", invalid.stderr)
@@ -397,7 +397,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
 
-            invalid = self.run_rg("validate", str(invalid_path))
+            invalid = self.run_cli("validate", str(invalid_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("candidate_solution -> goal must use answers", invalid.stderr)
             self.assertIn("answers edge must connect candidate_solution -> goal", invalid.stderr)
@@ -415,7 +415,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("ok", valid.stdout)
 
@@ -462,11 +462,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             del missing_state["events"][4]["no_new_work_reason"]
             missing_path.write_text(json.dumps(missing_state), encoding="utf-8")
 
-            ok = self.run_rg("audit", str(ok_path))
+            ok = self.run_cli("audit", str(ok_path))
             self.assertEqual(ok.returncode, 0, ok.stderr)
             self.assertNotIn("evidence updated visited node", ok.stderr)
 
-            missing = self.run_rg("audit", str(missing_path))
+            missing = self.run_cli("audit", str(missing_path))
             self.assertEqual(missing.returncode, 0, missing.stderr)
             self.assertIn("evidence updated visited node A1", missing.stderr)
             self.assertIn("no_new_work_reason", missing.stderr)
@@ -489,7 +489,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Prior odds 1 * (0.75/0.25) * (0.2/0.4) = odds 1.5 => posterior 0.6 => -ln(.6).
@@ -513,7 +513,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
@@ -580,7 +580,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("audit", str(state_path))
+            result = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("must be lower than superseded item", result.stderr)
@@ -602,7 +602,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("next", str(state_path), "--pop", "-i")
+            result = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
@@ -627,9 +627,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            first_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            first_pop = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(first_pop.returncode, 0, first_pop.stderr)
-            assigned = self.run_rg(
+            assigned = self.run_cli(
                 "assign",
                 str(state_path),
                 "--item",
@@ -647,7 +647,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(cursor["in_flight_ids"], {"Q1"})
             self.assertEqual(cursor["active_ids"], {"Q2"})
 
-            second_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            second_pop = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(second_pop.returncode, 0, second_pop.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop"])
@@ -671,10 +671,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "--max-concurrency", "1", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            over_limit = self.run_rg("assign", str(state_path), "--item", "Q2", "--max-concurrency", "1", "-i")
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "--max-concurrency", "1", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            over_limit = self.run_cli("assign", str(state_path), "--item", "Q2", "--max-concurrency", "1", "-i")
 
             self.assertNotEqual(over_limit.returncode, 0)
             self.assertIn("max probe concurrency reached", over_limit.stderr)
@@ -699,16 +699,16 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_q2_path.write_text(json.dumps({"no_new_work_reason": "inline probe closed"}), encoding="utf-8")
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "--agent", "researcher", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            expand_q2 = self.run_rg("expand", str(state_path), "--item", "Q2", "--patch", str(patch_q2_path), "-i")
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "--agent", "researcher", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            expand_q2 = self.run_cli("expand", str(state_path), "--item", "Q2", "--patch", str(patch_q2_path), "-i")
             self.assertEqual(expand_q2.returncode, 0, expand_q2.stderr)
-            expand_q1 = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(patch_q1_path), "-i")
+            expand_q1 = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_q1_path), "-i")
             self.assertEqual(expand_q1.returncode, 0, expand_q1.stderr)
-            audit = self.run_rg("stop", str(state_path), "--reason", "done", "--outcome", "frontier_exhausted", "-i")
+            audit = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", "frontier_exhausted", "-i")
             self.assertEqual(audit.returncode, 0, audit.stderr)
-            audit = self.run_rg("audit", str(state_path))
+            audit = self.run_cli("audit", str(state_path))
 
             self.assertEqual(audit.returncode, 0, audit.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
@@ -725,9 +725,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
-            stopped = self.run_rg("stop", str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
+            stopped = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
 
             self.assertNotEqual(stopped.returncode, 0)
             self.assertIn("assigned items remain in-flight", stopped.stderr)
@@ -756,11 +756,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_rg("assign", str(state_path), "--item", "Q2", "-i").returncode, 0)
-            stopped = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q2", "-i").returncode, 0)
+            stopped = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
 
             self.assertNotEqual(stopped.returncode, 0)
             self.assertIn("assigned items remain in-flight", stopped.stderr)
@@ -792,7 +792,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            audit = self.run_rg("audit", str(state_path))
+            audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0)
             self.assertIn("max probe concurrency exceeded (2/1)", audit.stderr)
@@ -813,7 +813,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            audit = self.run_rg("audit", str(state_path))
+            audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0)
             self.assertIn("assigned items remain in-flight", audit.stderr)
@@ -840,7 +840,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            audit = self.run_rg("audit", str(state_path))
+            audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0)
             self.assertIn("cannot pop while unresolved popped item Q1 is pending", audit.stderr)
@@ -872,7 +872,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
+            result = self.run_cli("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
@@ -911,7 +911,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
+            result = self.run_cli("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
@@ -948,7 +948,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("sort", str(state_path), "-o", str(output_path))
+            result = self.run_cli("sort", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             by_id = {item["id"]: item for item in costed["frontier"]}
@@ -974,7 +974,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("validate", str(state_path))
+            result = self.run_cli("validate", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("cost_components.estimated_remaining_cost must be top-level", result.stderr)
 
@@ -995,7 +995,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path))
+            result = self.run_cli("costs", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("estimated_remaining_cost must be finite and non-negative", result.stderr)
 
@@ -1010,7 +1010,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path))
+            result = self.run_cli("costs", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("search_policy.estimated_remaining_weight must be finite and non-negative", result.stderr)
 
@@ -1035,7 +1035,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             by_id = {item["id"]: item for item in costed["frontier"]}
@@ -1073,13 +1073,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Group cost -ln(.18) replaces A1/B1 member costs; C1 remains independent: -ln(.18) + -ln(.5).
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 2.407946, places=6)
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
     def test_costs_factor_replaces_correlated_likelihood_updates(self) -> None:
@@ -1112,13 +1112,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Prior odds 1 * grouped LR 3 * independent LR 2 = odds 6 => posterior 6/7 => -ln(6/7).
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.154151, places=6)
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
     def test_costs_leads_to_factor_replaces_independent_member_costs(self) -> None:
@@ -1151,12 +1151,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 2.407946, places=6)
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
     def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
@@ -1186,7 +1186,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            invalid = self.run_rg("validate", str(state_path))
+            invalid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("cycle in truth dependency graph", invalid.stderr)
 
@@ -1208,7 +1208,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("should include reason", valid.stderr)
 
@@ -1241,7 +1241,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg(
+            result = self.run_cli(
                 "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -1292,7 +1292,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg(
+            result = self.run_cli(
                 "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -1332,7 +1332,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg(
+            result = self.run_cli(
                 "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -1382,7 +1382,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("audit", str(state_path))
+            result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_audit_accepts_updated_factors(self) -> None:
@@ -1427,7 +1427,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("audit", str(state_path))
+            result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_costs_explicit_posterior_overrides_graph_updates(self) -> None:
@@ -1444,7 +1444,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.356675, places=6)
@@ -1467,7 +1467,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             by_id = {item["id"]: item for item in costed["frontier"]}
@@ -1490,12 +1490,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_rg("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.693147, places=6)
 
-            valid = self.run_rg("validate", str(state_path))
+            valid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(valid.returncode, 0, valid.stdout)
             self.assertIn("ignored legacy field(s) strength", valid.stderr)
             self.assertIn("schema $.edges[0]", valid.stderr)
@@ -1524,7 +1524,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            invalid = self.run_rg("validate", str(state_path))
+            invalid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("supports likelihood ratio must be > 1", invalid.stderr)
             self.assertIn("likelihood/likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
@@ -1568,7 +1568,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            invalid = self.run_rg("validate", str(state_path))
+            invalid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("factors[0] must not set likelihood_ratio directly", invalid.stderr)
             self.assertIn("factors[0] supports likelihood ratio must be > 1", invalid.stderr)
@@ -1612,7 +1612,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            invalid = self.run_rg("validate", str(state_path))
+            invalid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("premise_groups[0] must not set effective_truth_cost", invalid.stderr)
             self.assertIn("premise_groups[1] premise 'C1' must have a leads_to edge to target 'D1'", invalid.stderr)
@@ -1623,7 +1623,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_costs_writes_computed_frontier_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output = Path(tmp_dir) / "costs.json"
-            result = self.run_rg("costs", str(FIXTURE), "-o", str(output))
+            result = self.run_cli("costs", str(FIXTURE), "-o", str(output))
 
             self.assertEqual(result.returncode, 0, result.stderr)
             state = json.loads(output.read_text(encoding="utf-8"))
@@ -1639,7 +1639,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             original = FIXTURE.read_text(encoding="utf-8")
             state_path.write_text(original, encoding="utf-8")
 
-            result = self.run_rg(
+            result = self.run_cli(
                 "stop",
                 str(state_path),
                 "--reason",
@@ -1671,7 +1671,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_rg("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
+            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
@@ -1687,7 +1687,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             original = json.dumps(state, indent=2) + "\n"
             state_path.write_text(original, encoding="utf-8")
 
-            result = self.run_rg(
+            result = self.run_cli(
                 "stop",
                 str(state_path),
                 "--reason",
@@ -1705,17 +1705,17 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-2]["best"], "CS1")
             self.assertEqual(stopped["events"][-1]["outcome"], "solved")
 
-            audit = self.run_rg("audit", str(stopped_path))
+            audit = self.run_cli("audit", str(stopped_path))
             self.assertEqual(audit.returncode, 0, audit.stderr)
 
     def test_mermaid_and_html_smoke(self) -> None:
-        mermaid = self.run_rg("mermaid", str(FIXTURE))
+        mermaid = self.run_cli("mermaid", str(FIXTURE))
         self.assertEqual(mermaid.returncode, 0, mermaid.stderr)
         self.assertIn("flowchart", mermaid.stdout)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             html_path = Path(tmp_dir) / "graph.html"
-            html = self.run_rg("html", str(FIXTURE), "-o", str(html_path))
+            html = self.run_cli("html", str(FIXTURE), "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("<!doctype html>", html_text.lower())
@@ -1725,7 +1725,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("class=\"mermaid\"", html_text)
 
             offline_path = Path(tmp_dir) / "graph-offline.html"
-            offline = self.run_rg("html", str(FIXTURE), "--offline", "-o", str(offline_path))
+            offline = self.run_cli("html", str(FIXTURE), "--offline", "-o", str(offline_path))
             self.assertEqual(offline.returncode, 0, offline.stderr)
             offline_text = offline_path.read_text(encoding="utf-8")
             self.assertIn("<svg", offline_text)
@@ -1761,13 +1761,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            mermaid = self.run_rg("mermaid", str(state_path))
+            mermaid = self.run_cli("mermaid", str(state_path))
             self.assertEqual(mermaid.returncode, 0, mermaid.stderr)
             self.assertIn("F1", mermaid.stdout)
             self.assertIn("grouped supports", mermaid.stdout)
             self.assertIn("supports factor", mermaid.stdout)
 
-            html = self.run_rg("html", str(state_path), "--offline", "-o", str(html_path))
+            html = self.run_cli("html", str(state_path), "--offline", "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("F1", html_text)

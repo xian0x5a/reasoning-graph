@@ -16,7 +16,7 @@ Default output is compact. Create graph/HTML artifacts only when requested or wh
 ## Mode selection
 
 - **Compact mode:** small/direct tasks where a short answer plus visible proof path is enough. No state file required.
-- **Driver mode:** multi-branch, uncertain, benchmark, artifact-producing, or high-stakes reasoning where search order and stop conditions need auditability. Use `rg` state, frontier, audit, and stop-review.
+- **Driver mode:** multi-branch, uncertain, benchmark, artifact-producing, or high-stakes reasoning where search order and stop conditions need auditability. Use the `reasoning-graph` CLI state, frontier, audit, and stop-review.
 - If unsure, start compact; switch to driver mode when alternatives multiply, evidence conflicts, or stopping needs a measurable rule.
 
 ## Controller-only probe delegation
@@ -53,7 +53,7 @@ Frontier treatments may compose:
 - verify after probe results support a candidate
 - create follow-up frontier items from any result
 
-Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment. Use async subagents for independent probes. Default max concurrency is 3 unless top-level `search_policy.max_probe_concurrency` or explicit `rg assign --max-concurrency` overrides it.
+Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment. Use async subagents for independent probes. Default max concurrency is 3 unless top-level `search_policy.max_probe_concurrency` or explicit `reasoning-graph assign --max-concurrency` overrides it.
 
 Subagent probe output should include:
 
@@ -66,16 +66,16 @@ Subagent probe output should include:
 - suggested next probes
 - blocked/stop reason when applicable
 
-Children must not decide the final answer or mutate canonical graph state. Child returns observations and optional proposed patch/artifact; parent reviews and applies accepted changes with `rg expand --item <assigned-item> --patch <patch> -i`. When generic orchestration mechanics matter, use the available subagent system; this skill defines how delegation maps onto reasoning-graph probes.
+Children must not decide the final answer or mutate canonical graph state. Child returns observations and optional proposed patch/artifact; parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch> -i`. When generic orchestration mechanics matter, use the available subagent system; this skill defines how delegation maps onto reasoning-graph probes.
 
 ## Core operating loop
 
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
-3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `rg seed state.json --patch seed.json -i`. Initial seed should happen before first `next --pop`; seed frontier items must not fake parent refs.
-4. **Pop focus.** In driver mode, run `rg sort state.json -i` and `rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
+3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `reasoning-graph seed state.json --patch seed.json -i`. Initial seed should happen before first `next --pop`; seed frontier items must not fake parent refs.
+4. **Pop focus.** In driver mode, run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
 5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
-6. **Assign or update.** For async work, run `rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Use `rg seed` for later root inspirations or new user clues unrelated to the current popped item; include `reason` after driver init. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
+6. **Assign or update.** For async work, run `reasoning-graph assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Use `reasoning-graph seed` for later root inspirations or new user clues unrelated to the current popped item; include `reason` after driver init. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
 7. **Re-rank frontier.** Sort after every meaningful update.
 8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
@@ -144,16 +144,16 @@ Details: `docs/cost-model.md`.
 
 ## Helper commands
 
-The skill directory contains instructions only; the helper CLI is installed separately. If `rg --help` is missing or shows ripgrep instead of the reasoning-graph CLI, install it with:
+The skill directory contains instructions only; the helper CLI is installed separately. If `reasoning-graph --help` is unavailable, install it with:
 
 ```bash
 uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
 ```
 
-Then run `rg ...`. In a repository checkout, developers may use `uv --project packages/reasoning-graph run rg ...` instead.
+Then run `reasoning-graph ...`. In a repository checkout, developers may use `uv --project packages/reasoning-graph run reasoning-graph ...` instead.
 
 ```bash
-rg init --goal "Diagnose outage" --strict -o state.json
+reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 cat > seed.json <<'JSON'
 {
   "nodes": [
@@ -168,23 +168,23 @@ cat > seed.json <<'JSON'
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }
 JSON
-rg seed state.json --patch seed.json -i
-rg doctor state.json
-rg validate state.json
-rg costs state.json -i
-rg sort state.json -i
-rg frontier state.json
-rg next state.json --pop -i
+reasoning-graph seed state.json --patch seed.json -i
+reasoning-graph doctor state.json
+reasoning-graph validate state.json
+reasoning-graph costs state.json -i
+reasoning-graph sort state.json -i
+reasoning-graph frontier state.json
+reasoning-graph next state.json --pop -i
 cat > expansion.json <<'JSON'
 {"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
 JSON
-rg expand state.json --item Q1 --patch expansion.json -i
-rg stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
-rg validate state.stopped.json
-rg audit state.stopped.json
-rg stop-review state.stopped.json
-rg mermaid state.stopped.json > graph.mmd
-rg html state.stopped.json -o graph.html
+reasoning-graph expand state.json --item Q1 --patch expansion.json -i
+reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json
+reasoning-graph stop-review state.stopped.json
+reasoning-graph mermaid state.stopped.json > graph.mmd
+reasoning-graph html state.stopped.json -o graph.html
 ```
 
 Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Use `seed` for root frontier items: initial bootstrap before driver events, or later unrelated root inspirations with patch `reason`; use `expand` for work caused by the current popped/assigned item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
@@ -227,9 +227,9 @@ For benchmark/search tasks, prefer this top-level state config. The strict `init
 Before final in driver mode, validate/audit the stopped state and run semantic stop-review:
 
 ```bash
-rg validate state.stopped.json
-rg audit state.stopped.json
-rg stop-review state.stopped.json --draft answer.md
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json
+reasoning-graph stop-review state.stopped.json --draft answer.md
 ```
 
 Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
@@ -249,7 +249,7 @@ Graph mode when requested:
 
 1. persist state JSON in the requested output path or durable artifact location; use `/tmp` only as ad hoc fallback
 2. validate/audit
-3. generate baseline artifact with `rg html state.json -o <path>.html`
+3. generate baseline artifact with `reasoning-graph html state.json -o <path>.html`
 4. include summary, candidate table, readable evidence/constraint details, curated presentation graph, and full audit graph
 
 Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.

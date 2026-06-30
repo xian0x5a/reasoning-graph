@@ -1,6 +1,6 @@
 # reasoning-graph tests
 
-- `cli/` — executable CLI contract tests for `uv --project packages/reasoning-graph run rg ...`.
+- `cli/` — executable CLI contract tests for `uv --project packages/reasoning-graph run reasoning-graph ...`.
 - `integration/` — broader driver, cost, and invariant tests.
 - `fixtures/` — reusable JSON states, patches, and golden outputs.
 - Root `tests/scenarios/` — human/eval prompt packets for skill evaluation, not package tests.
@@ -11,6 +11,6 @@ From the repository root:
 
 ```bash
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
-uv --project packages/reasoning-graph run rg validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
-uv --project packages/reasoning-graph run rg audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project packages/reasoning-graph run reasoning-graph validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
+uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
