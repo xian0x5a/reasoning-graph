@@ -56,6 +56,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
         self.assertIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
+        self.assertIn("seed", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
         self.assertIn("assign", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("stop_outcome", patch_schema["properties"])
@@ -198,7 +199,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(second_popped.returncode, 0, second_popped.stderr)
             self.assertIn("next Q1", second_popped.stdout)
 
-    def test_seed_rejects_non_root_frontier_and_post_pop_state(self) -> None:
+    def test_seed_rejects_non_root_frontier_and_can_add_later_root_work(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             bad_seed_path = Path(tmp_dir) / "bad-seed.json"
@@ -228,9 +229,41 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(good.returncode, 0, good.stderr)
             popped = self.run_rg("next", str(state_path), "--pop", "-i")
             self.assertEqual(popped.returncode, 0, popped.stderr)
-            after_pop = self.run_rg("seed", str(state_path), "--patch", str(good_seed_path), "-i")
-            self.assertNotEqual(after_pop.returncode, 0, after_pop.stdout)
-            self.assertIn("before the first driver event", after_pop.stderr)
+            later_without_reason_path = Path(tmp_dir) / "later-without-reason.json"
+            later_with_reason_path = Path(tmp_dir) / "later-with-reason.json"
+            later_without_reason_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log", "status": "proposed"}],
+                    "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+            missing_reason = self.run_rg("seed", str(state_path), "--patch", str(later_without_reason_path), "-i")
+            self.assertNotEqual(missing_reason.returncode, 0, missing_reason.stdout)
+            self.assertIn("requires patch.reason", missing_reason.stderr)
+
+            later_with_reason_path.write_text(
+                json.dumps({
+                    "reason": "New root hypothesis from user inspiration",
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log", "status": "proposed"}],
+                    "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+            later_seed = self.run_rg("seed", str(state_path), "--patch", str(later_with_reason_path), "-i")
+            self.assertEqual(later_seed.returncode, 0, later_seed.stderr)
+            seeded_later_state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in seeded_later_state["events"]], ["init", "pop", "seed"])
+            self.assertEqual(seeded_later_state["events"][-1]["add_frontier"], ["Q2"])
+            self.assertNotIn("parent", next(item for item in seeded_later_state["frontier"] if item["id"] == "Q2"))
+
+            expansion_path = Path(tmp_dir) / "expansion.json"
+            expansion_path.write_text(json.dumps({"no_new_work_reason": "first root item closed"}), encoding="utf-8")
+            expanded = self.run_rg("expand", str(state_path), "--item", "Q1", "--patch", str(expansion_path), "-i")
+            self.assertEqual(expanded.returncode, 0, expanded.stderr)
+            later_pop = self.run_rg("next", str(state_path), "--pop", "-i")
+            self.assertEqual(later_pop.returncode, 0, later_pop.stderr)
+            self.assertIn("next Q2", later_pop.stdout)
 
     def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
         ok = self.run_rg("stop-review", str(FIXTURE))

@@ -16,7 +16,7 @@ main(argv):
 command handlers:
   load state when needed
   init command emits starter state JSON from a goal string, with minimal, strict, or benchmark policies
-  seed command applies an initial ledger/frontier patch only before first pop/init events, rejects non-root frontier parent refs, recomputes costs, validates state, and writes the seeded state without appending driver events
+  seed command applies root ledger/frontier patches; before the first driver event it bootstraps state without appending an event, and after driver init it requires a reason and appends a seed event that activates the new root frontier items
   doctor command validates a state, attempts cost/frontier summary only after validation passes, audits when events exist, prints concise diagnostics, and returns nonzero on validation or audit errors
   stop-review command validates stopped state, audits event traces when present, checks selected candidate presence/viability, optionally compares final draft against selected candidate ids/text, prints YAML-like verdict, and returns nonzero on required fixes
   call validation, audit, cost, frontier, render, or event helpers

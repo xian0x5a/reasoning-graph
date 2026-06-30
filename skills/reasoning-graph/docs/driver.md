@@ -98,6 +98,7 @@ rg frontier state.json       # show active frontier derived from events
 rg next state.json           # show lowest-cost active item + path context
 rg next state.json --pop -i  # persist init/pop event for lowest-cost item
 rg expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
+rg seed state.json --patch later-root-seed.json -i        # add unrelated root inspiration; requires reason after driver init
 rg stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 rg validate state.stopped.json
 rg audit state.stopped.json  # audit strict-search compact events after driver events exist
@@ -207,6 +208,7 @@ Cost behavior:
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
 - `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
 - `assign --item Q7 -i` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
+- `seed --patch seed.json -i` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - `path` reconstructs a proof/search path from parent pointers.
 - `audit` checks compact strict-search events for coherent best-first expansion.

@@ -258,6 +258,44 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             errors.append(f"{label}: init event must appear before {action}")
             continue
 
+        if action == "seed":
+            if not str(event.get("reason") or "").strip():
+                errors.append(f"{label}: seed requires a non-empty reason")
+            added_node_ids = as_string_list(event.get("add_nodes"), f"{label}.add_nodes", errors)
+            for node_id in added_node_ids:
+                if node_id not in nodes:
+                    errors.append(f"{label}: add_nodes references missing node {node_id}")
+                else:
+                    event_added_nodes.add(node_id)
+            added_edge_ids = as_string_list(event.get("add_edges"), f"{label}.add_edges", errors)
+            for edge_id in added_edge_ids:
+                if edge_ids and edge_id not in edge_ids:
+                    errors.append(f"{label}: add_edges references missing edge id {edge_id}")
+                elif not edge_ids:
+                    warnings.append(f"{label}: add_edges cannot be cross-checked because edges have no ids")
+            for group_id in as_string_list(event.get("update_premise_groups"), f"{label}.update_premise_groups", errors):
+                if group_id not in premise_groups_by_id:
+                    errors.append(f"{label}: update_premise_groups references missing premise group id {group_id}")
+            for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
+                if factor_id not in factors_by_id:
+                    errors.append(f"{label}: update_factors references missing factor id {factor_id}")
+            added_frontier_ids = as_string_list(event.get("add_frontier"), f"{label}.add_frontier", errors)
+            for item_id in added_frontier_ids:
+                item = items.get(item_id)
+                if item is None:
+                    errors.append(f"{label}: add_frontier references missing frontier item {item_id}")
+                    continue
+                if item_id in popped_items:
+                    errors.append(f"{label}: add_frontier item {item_id} was already popped")
+                    continue
+                if item_id in virtual_frontier:
+                    errors.append(f"{label}: add_frontier item {item_id} is already active")
+                parent_id = item.get("parent")
+                if parent_id not in (None, ""):
+                    errors.append(f"{label}: seeded frontier item {item_id} must be root without parent")
+                virtual_frontier.add(item_id)
+            continue
+
         if action == "pop":
             if last_popped_item is not None:
                 errors.append(f"{label}: cannot pop while unresolved popped item {last_popped_item} is pending; expand, assign, or rank it first")

@@ -72,10 +72,10 @@ Children must not decide the final answer or mutate canonical graph state. Child
 
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
-3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `rg seed state.json --patch seed.json -i`. Do this before first `next --pop`; seed frontier items must not fake parent refs.
+3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `rg seed state.json --patch seed.json -i`. Initial seed should happen before first `next --pop`; seed frontier items must not fake parent refs.
 4. **Pop focus.** In driver mode, run `rg sort state.json -i` and `rg next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
 5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
-6. **Assign or update.** For async work, run `rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
+6. **Assign or update.** For async work, run `rg assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Use `rg seed` for later root inspirations or new user clues unrelated to the current popped item; include `reason` after driver init. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
 7. **Re-rank frontier.** Sort after every meaningful update.
 8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
@@ -187,7 +187,7 @@ rg mermaid state.stopped.json > graph.mmd
 rg html state.stopped.json -o graph.html
 ```
 
-Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
+Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Use `seed` for root frontier items: initial bootstrap before driver events, or later unrelated root inspirations with patch `reason`; use `expand` for work caused by the current popped/assigned item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
 
 Details: `docs/driver.md`.
 

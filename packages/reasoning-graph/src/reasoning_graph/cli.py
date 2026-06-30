@@ -104,21 +104,18 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_premise_groups", "premise_groups", "update_factors", "factors"}
+SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_premise_groups", "premise_groups", "update_factors", "factors", "reason"}
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     cursor = search_cursor(state)
     events = state.get("events")
-    if isinstance(events, list) and events:
-        print("error: seed can only run before the first driver event; use expand after next --pop", file=sys.stderr)
-        return 1
     if events is not None and not isinstance(events, list):
-        print("error: events must be a list before seed can validate first-use state", file=sys.stderr)
+        print("error: events must be a list before seed can validate driver state", file=sys.stderr)
         return 1
-    if cursor["initialized"] or cursor["pending_item"] or cursor["stopped"] or cursor.get("in_flight_ids"):
-        print("error: seed can only run before first next --pop", file=sys.stderr)
+    if cursor["stopped"]:
+        print("error: search already has a stop event; seed cannot append root work", file=sys.stderr)
         return 1
 
     patch = load_state(args.patch)
@@ -131,7 +128,12 @@ def cmd_seed(args: argparse.Namespace) -> int:
         return 1
     unsupported_fields = sorted(set(patch) - SEED_PATCH_FIELDS)
     if unsupported_fields:
-        print(f"error: seed patch field(s) not allowed before first pop: {', '.join(unsupported_fields)}", file=sys.stderr)
+        print(f"error: seed patch field(s) not allowed: {', '.join(unsupported_fields)}", file=sys.stderr)
+        return 1
+    is_driver_seed = bool(cursor["initialized"])
+    seed_reason = str(patch.get("reason") or "").strip()
+    if is_driver_seed and not seed_reason:
+        print("error: seed after driver init requires patch.reason", file=sys.stderr)
         return 1
 
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
@@ -202,8 +204,30 @@ def cmd_seed(args: argparse.Namespace) -> int:
         else:
             factor_indexes[factor_id] = len(factors)
             factors.append(factor)
+    supersede_events: list[dict[str, Any]] = []
+    if is_driver_seed:
+        frontier_to_add, supersede_events = _dedupe_frontier_additions(state, set(cursor["active_ids"]), frontier_to_add)
     state.setdefault("frontier", []).extend(frontier_to_add)
     sorted_frontier(state)
+
+    if is_driver_seed:
+        events = state.setdefault("events", [])
+        if not isinstance(events, list):
+            raise ValueError("events must be a list before seed can append")
+        events.append(
+            {
+                "step": next_event_step(state),
+                "action": "seed",
+                "reason": seed_reason,
+                "add_nodes": [node["id"] for node in nodes_to_add],
+                "add_edges": [edge["id"] for edge in edges_to_add],
+                "add_frontier": [item["id"] for item in frontier_to_add],
+                "update_premise_groups": [group["id"] for group in premise_groups_to_update],
+                "update_factors": [factor["id"] for factor in factors_to_update],
+            }
+        )
+        for supersede_event in supersede_events:
+            events.append({"step": next_event_step(state), **supersede_event})
 
     result = validate_state(state)
     if result.errors:
@@ -976,7 +1000,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
 
-    seed = sub.add_parser("seed", help="apply an initial ledger/frontier patch before first next --pop")
+    seed = sub.add_parser("seed", help="apply root ledger/frontier seed patch")
     seed.add_argument("state", help="state JSON path, or - for stdin")
     seed.add_argument("--patch", required=True, help="initial seed patch JSON path, or - for stdin")
     seed.add_argument("-o", "--output", help="write seeded state to path")

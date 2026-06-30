@@ -83,7 +83,7 @@ uv --project packages/reasoning-graph run rg mermaid state.stopped.json > graph.
 uv --project packages/reasoning-graph run rg html state.stopped.json -o graph.html
 ```
 
-`rg seed` is the safe first-use path from an empty `init` state: it appends initial evidence/constraints/assumptions/tests plus root frontier items, validates the result, and leaves driver events empty so the first `next --pop` records the real `init`/`pop` events.
+`rg seed` appends evidence/constraints/assumptions/tests plus root frontier items. Before the first driver event it leaves events empty so `next --pop` records the real `init`/`pop` events; after driver init it records a `seed` event and requires patch `reason` for provenance.
 
 ## Schemas
 

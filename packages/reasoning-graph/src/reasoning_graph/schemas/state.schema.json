@@ -674,6 +674,7 @@
         "action": {
           "enum": [
             "init",
+            "seed",
             "pop",
             "assign",
             "expand",
@@ -817,6 +818,26 @@
           "then": {
             "required": [
               "frontier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "seed"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason",
+              "add_nodes",
+              "add_edges",
+              "add_frontier"
             ]
           }
         },

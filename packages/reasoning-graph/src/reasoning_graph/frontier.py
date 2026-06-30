@@ -89,6 +89,11 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(item_id, str) and item_id in items and item_id not in popped_ids:
                     active_ids.add(item_id)
             initialized = True
+        elif action == "seed":
+            added_frontier = event.get("add_frontier") if isinstance(event.get("add_frontier"), list) else []
+            for item_id in added_frontier:
+                if isinstance(item_id, str) and item_id in items and item_id not in popped_ids:
+                    active_ids.add(item_id)
         elif action == "pop":
             item_id = event.get("item")
             if isinstance(item_id, str) and item_id in items:
