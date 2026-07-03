@@ -11,7 +11,7 @@ User input often arrives as an unstructured block, not labeled evidence/constrai
 Workflow:
 
 1. Extract the `goal` from explicit request wording. If multiple goals conflict, ask or state the chosen primary goal.
-2. Build the initial ledger from observed/source-backed inputs and requirements using the canonical node types in `schema.md`.
+2. Build the initial ledger from observed/source-backed inputs and requirements using the agent schema reference in `SKILL.md`.
 3. Keep plausible interpretations as initial assumptions/frontier branches, not evidence.
 4. If a constraint is inferred from intent rather than explicit, mark it as inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
 5. Record source metadata on evidence/constraint nodes when useful:

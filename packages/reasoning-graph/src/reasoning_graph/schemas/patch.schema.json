@@ -32,18 +32,6 @@
         "$ref": "state.schema.json#/$defs/frontierItem"
       }
     },
-    "update_premise_groups": {
-      "type": "array",
-      "items": {
-        "$ref": "state.schema.json#/$defs/premiseGroup"
-      }
-    },
-    "premise_groups": {
-      "type": "array",
-      "items": {
-        "$ref": "state.schema.json#/$defs/premiseGroup"
-      }
-    },
     "update_factors": {
       "type": "array",
       "items": {
@@ -148,6 +136,16 @@
   ],
   "not": {
     "anyOf": [
+      {
+        "required": [
+          "premise_groups"
+        ]
+      },
+      {
+        "required": [
+          "update_premise_groups"
+        ]
+      },
       {
         "required": [
           "add_node_objects"

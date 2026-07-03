@@ -10,7 +10,6 @@ from typing import Any
 from .costs import (
     NODE_DISPLAY_PROBABILITY_FIELDS,
     compute_costs,
-    legacy_premise_group_factor,
     node_truth_cost,
 )
 from .models import CLASS_BY_NODE_TYPE
@@ -137,11 +136,6 @@ def iter_visual_factors(state: dict[str, Any]) -> list[dict[str, Any]]:
     visual: list[dict[str, Any]] = []
     for factor in state.get("factors", []) if isinstance(state.get("factors", []), list) else []:
         if isinstance(factor, dict):
-            visual.append(factor)
-    for group in state.get("premise_groups", []) if isinstance(state.get("premise_groups", []), list) else []:
-        if isinstance(group, dict):
-            factor = legacy_premise_group_factor(group)
-            factor["reason"] = group.get("reason")
             visual.append(factor)
     return visual
 

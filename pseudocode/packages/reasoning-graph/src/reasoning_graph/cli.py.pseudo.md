@@ -25,7 +25,7 @@ command handlers:
   stop and patch stop paths reject stop while a pending popped item or assigned in-flight probe remains unresolved
   expand command validates patch JSON against packaged patch schema before applying it
   expand may target the pending popped item or an in-flight assigned item so async probe results can be merged out of order
-  expand patches can append nodes, edges, frontier items, upsert premise_groups through update_premise_groups, and upsert factors through update_factors, then record matching event ids
+  seed and expand patches can append nodes, edges, and frontier items, upsert factors through factors/update_factors input, then record changed factor ids on update_factors events
   use one shared frontier insertion chooser for seed/init and expand dedupe
   frontier, next, path, pop, and duplicate-selection output uses modern search_cost only; legacy path_cost is never read as a fallback
   frontier and next text output shows estimated remaining heuristic details when present

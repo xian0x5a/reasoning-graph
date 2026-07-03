@@ -107,16 +107,6 @@ def factor_label(source: str, index: int) -> str:
     return f"{source}[{index}]"
 
 
-def legacy_premise_group_factor(group: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "id": group.get("id"),
-        "relation": "leads_to",
-        "target": group.get("target"),
-        "inputs": group.get("premises"),
-        "aggregation": {"kind": "joint_probability", "probability": group.get("joint_probability")},
-    }
-
-
 def iter_numeric_factor_specs(state: dict[str, Any]) -> Iterable[tuple[str, int, dict[str, Any]]]:
     factors = state.get("factors", [])
     if factors is None:
@@ -138,21 +128,6 @@ def iter_numeric_factor_specs(state: dict[str, Any]) -> Iterable[tuple[str, int,
                 f"factors[{index}].aggregation must not set likelihood_ratio directly; use if_target_true and if_target_false"
             )
         yield "factors", index, factor
-
-    premise_groups = state.get("premise_groups", [])
-    if premise_groups is None:
-        premise_groups = []
-    if not isinstance(premise_groups, list):
-        raise ValueError("premise_groups must be a list when present")
-    for index, group in enumerate(premise_groups):
-        if not isinstance(group, dict):
-            raise ValueError(f"premise_groups[{index}] must be object")
-        if "effective_truth_cost" in group:
-            raise ValueError(
-                f"premise_groups[{index}] must not set effective_truth_cost; it is computed from joint_probability"
-            )
-        yield "premise_groups", index, legacy_premise_group_factor(group)
-
 
 def joint_probability_cost_from_factor(factor: dict[str, Any], label: str) -> float:
     aggregation = factor.get("aggregation")
@@ -235,7 +210,7 @@ def node_truth_cost(node: dict[str, Any] | None) -> float:
 
 
 def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:
-    """Reject raw `leads_to` cycles before any premise-group cost replacement."""
+    """Reject raw `leads_to` cycles before any factor cost replacement."""
 
     visiting: set[str] = set()
     visited: set[str] = set()
@@ -259,8 +234,8 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
     Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. Top-level premise_groups or `leads_to`
-    factors replace grouped member costs with a calibrated joint_probability.
+    cost to the target's base belief. Top-level `leads_to` factors replace
+    grouped member costs with a calibrated joint_probability.
     Incoming `supports`/`contradicts` edges with `likelihood` or
     `likelihood_ratio` update that base belief in odds space; grouped likelihood
     factors replace correlated member likelihood updates.
@@ -304,7 +279,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         if not isinstance(target, str) or target not in nodes:
             raise ValueError(f"{label}.target references missing node {target!r}")
         inputs = factor.get("inputs")
-        input_label = "premises" if source == "premise_groups" else "inputs"
+        input_label = "inputs"
         if not isinstance(inputs, list) or len(inputs) < 2:
             raise ValueError(f"{label}.{input_label} must be a list of at least two node ids")
         input_ids: list[str] = []
@@ -370,8 +345,8 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             for source_id in premise_sources.get(node_id, [])
             if source_id not in grouped_sources
         )
-        # Premise groups are explicit non-independent bundles; their calibrated
-        # joint_probability replaces member costs.
+        # Factors are explicit non-independent bundles; their calibrated
+        # aggregation replaces grouped member costs.
         premise_cost = sum(premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
         ungrouped_likelihood_edges = [

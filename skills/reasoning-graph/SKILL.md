@@ -80,33 +80,89 @@ Children must not decide the final answer or mutate canonical graph state. Child
 8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
 
-## Canonical model quick reference
+## Agent schema reference
+
+This section is the agent-facing schema reference: enough structure to build and review graph state during normal work. Keep rare, debugging-heavy, or example-heavy details in `docs/schema/`. Validate real state files with the installed JSON schemas and `reasoning-graph validate`.
+
+Top-level state fields:
+
+- `summary` — optional human summary of the current graph state
+- `nodes` — truth-bearing graph objects: goals, evidence, constraints, assumptions, derivations, tests, candidates
+- `edges` — directed relationships between nodes
+- `frontier` — pending work items; lower `search_cost` pops first after sorting
+- `factors` — non-independent input groups for anti-double-counting numeric belief updates
+- `events` — driver-mode audit log for init/seed/pop/assign/expand/rank/stop actions
+- `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
+- `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
-- `evidence` — observed/given/verified/source-backed statement
-- `constraint` — boundary valid answers must satisfy
-- `derived` — conclusion from prior nodes
-- `assumption` — uncertain branch point with numeric `prior`
-- `test` — action/check; use `status: proposed|performed|inconclusive`
-- `candidate_solution` — possible answer; must have `answer_kind` and `candidate_solution -> goal` `answers` edge
+- `evidence` — observed, given, verified, or source-backed statement; use `confidence` when observation/transcription/source reliability matters
+- `constraint` — boundary valid answers must satisfy; connect with `requires`
+- `derived` — conclusion from prior nodes or conditional branch reasoning
+- `assumption` — uncertain branch point with numeric `prior`; keep atomic and testable
+- `test` — action/check/procedure; only node type that may use `status: proposed|performed|inconclusive`
+- `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
 
 Edge types:
 
-- `requires` — hard dependency, usually `goal -> constraint` or candidate/branch -> constraint
-- `supports` — positive evidence update; numeric form uses `likelihood` or `likelihood_ratio > 1`
-- `contradicts` — negative evidence update; numeric form uses `0 < likelihood_ratio < 1`; does not delete target
-- `prompts` — non-evidential provenance from clue/claim to test/follow-up
-- `leads_to` — premise/dependency for deriving target base belief
-- `assumes` — branch proceeds under assumption
-- `answers` — `candidate_solution -> goal`
+- `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
+- `supports` — positive belief update for an existing target; numeric form uses `likelihood` or `likelihood_ratio > 1`
+- `contradicts` — negative belief update for an existing target; numeric form uses `likelihood` or `0 < likelihood_ratio < 1`; it does not delete/disqualify the target by itself
+- `prompts` — non-evidential provenance from clue/claim/branch to test or follow-up; no belief update
+- `leads_to` — premise/dependency used to derive a target's base belief
+- `assumes` — branch or derived node proceeds under an assumption
+- `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 
-Direction examples: `candidate_solution -> constraint` means candidate must satisfy constraint; `evidence -> assumption` supports or contradicts belief in that assumption; `clue -> test` prompts follow-up but is not itself evidence for the test result. Use `supports`/`contradicts` for evidence updates; use `leads_to` for premises that derive a target's base belief.
+Direction and relation rules:
 
-Use top-level `factors` for correlated/non-independent incoming numeric inputs. Example: two log lines from the same failed request should not count as two independent supports. Prefer `factors` over legacy `premise_groups`.
+- `candidate_solution -> constraint` means the candidate must satisfy the constraint.
+- `evidence -> assumption` with `supports`/`contradicts` updates belief in the assumption.
+- `clue/evidence -> test` with `prompts` proposes follow-up but is not evidence for the test result.
+- Use `supports`/`contradicts` for evidence updates to an existing target.
+- Use `leads_to` for premises that derive a target's base belief.
+- Use `requires` for hard constraints or external dependencies.
+- Plain incoming numeric edges are treated as independent unless grouped by `factors`.
 
-Details: `docs/schema.md`.
+`factors`: non-independent input groups:
+
+- A factor is a top-level anti-double-counting record. It says: these incoming numeric edges to the same target are related, so count them together instead of multiplying them as independent evidence.
+- A factor is not a node, edge, claim, candidate, proof step, or frontier item.
+- Use `factors` for shared source, duplicate observation, logical overlap, common latent cause, or repeated logs from one event.
+- Do not use `factors` for independent evidence, visual grouping, non-numeric relationships, or candidate grouping.
+- `leads_to` factors use `aggregation: {"kind": "joint_probability", "probability": ...}`.
+- `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`. Do not set direct factor `likelihood_ratio`.
+- Ungrouped incoming edges still contribute normally.
+- In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; `update_factors` is the audit-event field.
+- Details and examples: `docs/schema/factors.md`.
+
+Test lifecycle:
+
+- `status: proposed` means recommended check; do not treat as evidence.
+- `status: performed` means the check ran; add result `evidence` or `derived` nodes.
+- `status: inconclusive` means the check ran but did not settle the claim.
+- Canonical pattern: `claim --prompts--> test`, `test --leads_to--> result evidence`, `result evidence --supports|contradicts--> claim`.
+- Details and examples: `docs/schema/tests.md`.
+
+Candidate and goal rules:
+
+- `candidate_solution` requires `answer_kind`.
+- `answer_kind` values: `exact_answer`, `exact_method`, `method_hypothesis`, `clue_path`, `blocker`.
+- For concrete solve/exact-answer goals, only `exact_answer` and `exact_method` may connect to the accepted goal.
+- `method_hypothesis`, `clue_path`, and `blocker` need explicit method/clue/epistemic goals or should remain assumptions/derived nodes.
+- Do not make “not solved”, “cannot establish”, or “missing dependency” a candidate for a normal solve goal. That is a stop outcome or derived blocker unless the user accepted an epistemic/negative goal.
+- Use multiple `goal` nodes only when the user accepts multiple outcomes, e.g. solve, prove impossible, or conclude evidence is insufficient.
+- If `goal_policy.accepted_goals` is absent, all goal nodes are acceptable destinations. `preferred_goals` affects presentation/priority, not validity.
+- Details and examples: `docs/schema/goals.md`.
+
+Report and presentation metadata:
+
+- `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`.
+- `presentation` may include curated `include_nodes`, `highlight_nodes`, `dim_nodes`, `title`, and `layout_hint`.
+- Do not encode rank/status words such as `Best`, `Second`, `viable`, or `rejected` into node text/status. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
+- `status` belongs only on `test` nodes.
+- Details and examples: `docs/schema/reporting.md`.
 
 ## Cost and priority quick reference
 
@@ -272,7 +328,10 @@ Details: `docs/rendering.md`.
 
 ## Reference docs
 
-- `docs/schema.md` — full schema, factors, goal policy, report metadata
+- `docs/schema/factors.md` — detailed `factors` examples and validation rules
+- `docs/schema/goals.md` — candidate, answer-kind, hypothetical branch, and multiple-goal rules
+- `docs/schema/tests.md` — detailed test lifecycle and result evidence pattern
+- `docs/schema/reporting.md` — report and presentation metadata examples
 - `docs/cost-model.md` — probability/cost math, likelihoods, bounded probes
 - `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
 - `docs/driver.md` — state JSON, helper commands, event/audit semantics

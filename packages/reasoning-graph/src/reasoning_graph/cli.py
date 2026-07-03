@@ -104,7 +104,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_premise_groups", "premise_groups", "update_factors", "factors", "reason"}
+SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_factors", "factors", "reason"}
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
@@ -139,10 +139,6 @@ def cmd_seed(args: argparse.Namespace) -> int:
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     frontier_to_add = _object_list(patch.get("frontier"), "frontier")
-    premise_groups_to_update = _object_list(
-        patch.get("update_premise_groups", patch.get("premise_groups")),
-        "update_premise_groups",
-    )
     factors_to_update = _object_list(
         patch.get("update_factors", patch.get("factors")),
         "update_factors",
@@ -163,29 +159,10 @@ def cmd_seed(args: argparse.Namespace) -> int:
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
-    _ensure_object_ids(premise_groups_to_update, "update_premise_groups")
     _ensure_object_ids(factors_to_update, "update_factors")
 
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
-    premise_groups = state.setdefault("premise_groups", [])
-    if not isinstance(premise_groups, list):
-        raise ValueError("premise_groups must be a list before seed can update it")
-    premise_group_indexes: dict[str, int] = {}
-    for index, group in enumerate(premise_groups):
-        if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group.get("id"):
-            continue
-        group_id = str(group["id"])
-        if group_id in premise_group_indexes:
-            raise ValueError(f"premise_groups has duplicate id {group_id}")
-        premise_group_indexes[group_id] = index
-    for group in premise_groups_to_update:
-        group_id = str(group["id"])
-        if group_id in premise_group_indexes:
-            premise_groups[premise_group_indexes[group_id]] = group
-        else:
-            premise_group_indexes[group_id] = len(premise_groups)
-            premise_groups.append(group)
     factors = state.setdefault("factors", [])
     if not isinstance(factors, list):
         raise ValueError("factors must be a list before seed can update it")
@@ -222,7 +199,6 @@ def cmd_seed(args: argparse.Namespace) -> int:
                 "add_nodes": [node["id"] for node in nodes_to_add],
                 "add_edges": [edge["id"] for edge in edges_to_add],
                 "add_frontier": [item["id"] for item in frontier_to_add],
-                "update_premise_groups": [group["id"] for group in premise_groups_to_update],
                 "update_factors": [factor["id"] for factor in factors_to_update],
             }
         )
@@ -724,10 +700,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     frontier_to_add = _object_list(patch.get("frontier"), "frontier")
-    premise_groups_to_update = _object_list(
-        patch.get("update_premise_groups", patch.get("premise_groups")),
-        "update_premise_groups",
-    )
     factors_to_update = _object_list(
         patch.get("update_factors", patch.get("factors")),
         "update_factors",
@@ -739,7 +711,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
-    premise_group_update_ids = _ensure_object_ids(premise_groups_to_update, "update_premise_groups")
     factor_update_ids = _ensure_object_ids(factors_to_update, "update_factors")
 
     for child in frontier_to_add:
@@ -749,24 +720,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
     active_ids = set(cursor["active_ids"])
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
-    premise_groups = state.setdefault("premise_groups", [])
-    if not isinstance(premise_groups, list):
-        raise ValueError("premise_groups must be a list before expand can update it")
-    premise_group_indexes: dict[str, int] = {}
-    for index, group in enumerate(premise_groups):
-        if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group.get("id"):
-            continue
-        group_id = str(group["id"])
-        if group_id in premise_group_indexes:
-            raise ValueError(f"premise_groups has duplicate id {group_id}")
-        premise_group_indexes[group_id] = index
-    for group in premise_groups_to_update:
-        group_id = str(group["id"])
-        if group_id in premise_group_indexes:
-            premise_groups[premise_group_indexes[group_id]] = group
-        else:
-            premise_group_indexes[group_id] = len(premise_groups)
-            premise_groups.append(group)
     factors = state.setdefault("factors", [])
     if not isinstance(factors, list):
         raise ValueError("factors must be a list before expand can update it")
@@ -799,7 +752,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "add_nodes": [node["id"] for node in nodes_to_add],
         "add_edges": [edge["id"] for edge in edges_to_add],
         "add_frontier": [item["id"] for item in frontier_to_add],
-        "update_premise_groups": premise_group_update_ids,
         "update_factors": factor_update_ids,
     }
     for key in (

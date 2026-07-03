@@ -36,13 +36,6 @@
       },
       "default": []
     },
-    "premise_groups": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/premiseGroup"
-      },
-      "default": []
-    },
     "events": {
       "type": "array",
       "items": {
@@ -462,43 +455,6 @@
         ]
       }
     },
-    "premiseGroup": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": [
-        "id",
-        "target",
-        "premises",
-        "joint_probability"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
-        "target": {
-          "$ref": "#/$defs/id"
-        },
-        "premises": {
-          "type": "array",
-          "minItems": 2,
-          "items": {
-            "$ref": "#/$defs/id"
-          },
-          "uniqueItems": true
-        },
-        "joint_probability": {
-          "$ref": "#/$defs/probability"
-        },
-        "reason": {
-          "type": "string"
-        }
-      },
-      "not": {
-        "required": [
-          "effective_truth_cost"
-        ]
-      }
-    },
     "costComponents": {
       "type": "object",
       "additionalProperties": true,
@@ -730,11 +686,23 @@
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["node", "belief", "effective_truth_cost"],
+            "required": [
+              "node",
+              "belief",
+              "effective_truth_cost"
+            ],
             "properties": {
-              "node": {"$ref": "#/$defs/id"},
-              "belief": {"type": "number", "minimum": 0, "maximum": 1},
-              "effective_truth_cost": {"type": "number"}
+              "node": {
+                "$ref": "#/$defs/id"
+              },
+              "belief": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "effective_truth_cost": {
+                "type": "number"
+              }
             }
           }
         },
@@ -760,9 +728,6 @@
           "$ref": "#/$defs/stringList"
         },
         "add_frontier": {
-          "$ref": "#/$defs/stringList"
-        },
-        "update_premise_groups": {
           "$ref": "#/$defs/stringList"
         },
         "update_factors": {
@@ -957,6 +922,11 @@
       ],
       "not": {
         "anyOf": [
+          {
+            "required": [
+              "update_premise_groups"
+            ]
+          },
           {
             "required": [
               "add_premise_groups"
@@ -1186,6 +1156,11 @@
           {
             "required": [
               "solutions"
+            ]
+          },
+          {
+            "required": [
+              "premise_groups"
             ]
           }
         ]

@@ -244,7 +244,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, `update_factors`, and legacy `update_premise_groups` ids for appended or replaced objects. Stop events must include structured `outcome`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records `add_nodes`, `add_edges`, `add_frontier`, and `update_factors` ids for appended or replaced objects. In patch input, use `factors` to add or replace factors by id; `update_factors` is the audit-event field name. Stop events must include structured `outcome`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
 
 An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
@@ -253,7 +253,7 @@ An expansion patch can add or replace non-independent factors after the relevant
   "edges": [
     {"id": "E31", "from": "B1", "to": "D1", "type": "leads_to"}
   ],
-  "update_factors": [
+  "factors": [
     {
       "id": "F1",
       "relation": "leads_to",

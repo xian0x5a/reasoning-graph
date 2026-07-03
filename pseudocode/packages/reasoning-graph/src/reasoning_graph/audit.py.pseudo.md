@@ -17,7 +17,7 @@ audit_state(state):
   verify expansions and selections match pending items or assigned in-flight items and graph topology
   reject stop events that occur while the most recent popped item is still unresolved by expand/select/assign or while assigned items remain in-flight
   verify supersede events reference same-signature active items, require the replacement to have strictly lower current cost than the retired item, and remove the stale item from the active frontier
-  verify expansion update_premise_groups and update_factors reference existing ids and treat their targets as numeric belief updates
+  verify expansion update_factors references existing ids and treats their targets as numeric belief updates
   treat candidate additions and contradicts-edge penalties as terminal/penalizing expansion signals
   verify stop events include valid outcomes and satisfy stop policy
   report errors/warnings without mutating state

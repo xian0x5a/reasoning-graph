@@ -38,11 +38,8 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
     edges_raw = state.get("edges", [])
     frontier_raw = state.get("frontier", [])
     solutions_raw = state.get("solutions", [])
-    premise_groups_raw = state.get("premise_groups", [])
     factors_raw = state.get("factors", [])
 
-    if premise_groups_raw is None:
-        premise_groups_raw = []
     if factors_raw is None:
         factors_raw = []
     if not isinstance(nodes_raw, list):
@@ -59,12 +56,11 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
         solutions_raw = []
     elif solutions_raw:
         warnings.append("solutions list is deprecated; use candidate_solution nodes with answers edges to the goal")
-    if not isinstance(premise_groups_raw, list):
-        errors.append("premise_groups must be a list when present")
-        premise_groups_raw = []
     if not isinstance(factors_raw, list):
         errors.append("factors must be a list when present")
         factors_raw = []
+    if "premise_groups" in state:
+        errors.append("premise_groups is not supported; use factors with relation='leads_to'")
 
     node_ids: set[str] = set()
     for i, node in enumerate(nodes_raw):
@@ -270,83 +266,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                 f"edge {i} has constraint {src} requires goal {dst}; reverse direction to goal requires constraint"
             )
 
-    seen_premise_group_ids: set[str] = set()
-    grouped_premises_by_target: dict[str, set[str]] = {}
-    for i, group in enumerate(premise_groups_raw):
-        if not isinstance(group, dict):
-            errors.append(f"premise_groups[{i}] must be object")
-            continue
-        group_id = group.get("id")
-        if not isinstance(group_id, str) or not group_id:
-            errors.append(f"premise_groups[{i}] missing string id")
-        elif group_id in seen_premise_group_ids:
-            errors.append(f"duplicate premise group id {group_id}")
-        else:
-            seen_premise_group_ids.add(group_id)
-        target = group.get("target")
-        if not isinstance(target, str) or not target:
-            errors.append(f"premise_groups[{i}].target must be a non-empty string")
-            target_valid = False
-        elif target not in node_ids:
-            errors.append(f"premise_groups[{i}].target references missing node {target!r}")
-            target_valid = False
-        else:
-            target_valid = True
-            if "posterior" in nodes_by_id.get(target, {}):
-                warnings.append(
-                    f"premise_group {group_id or i} targets node {target} with explicit posterior; "
-                    "posterior overrides premise group costs"
-                )
-        premises = group.get("premises")
-        if not isinstance(premises, list) or len(premises) < 2:
-            errors.append(f"premise_groups[{i}].premises must be a list of at least two node ids")
-            premise_ids: list[str] = []
-        else:
-            premise_ids = []
-            for premise_index, premise_id in enumerate(premises):
-                if not isinstance(premise_id, str) or not premise_id:
-                    errors.append(f"premise_groups[{i}].premises[{premise_index}] must be a non-empty string")
-                    continue
-                premise_ids.append(premise_id)
-                if premise_id not in node_ids:
-                    errors.append(
-                        f"premise_groups[{i}].premises[{premise_index}] references missing node {premise_id!r}"
-                    )
-                if target_valid:
-                    if premise_id == target:
-                        errors.append(f"premise_groups[{i}] must not include target {target!r} as a premise")
-                    elif premise_id in node_ids and (premise_id, target) not in leads_to_pairs:
-                        errors.append(
-                            f"premise_groups[{i}] premise {premise_id!r} must have a leads_to edge to target {target!r}"
-                        )
-            if len(set(premise_ids)) != len(premise_ids):
-                errors.append(f"premise_groups[{i}].premises must not contain duplicates")
-        if target_valid and premise_ids:
-            grouped_for_target = grouped_premises_by_target.setdefault(str(target), set())
-            overlap = grouped_for_target.intersection(premise_ids)
-            if overlap:
-                errors.append(
-                    f"premise_groups for target {target!r} overlap on premise(s) {', '.join(sorted(overlap))}"
-                )
-            grouped_for_target.update(premise_ids)
-        if "joint_probability" not in group:
-            errors.append(f"premise_groups[{i}] missing joint_probability")
-        else:
-            try:
-                probability_cost(
-                    group["joint_probability"], f"premise_groups[{i}].joint_probability"
-                )
-            except ValueError as exc:
-                errors.append(f"premise_groups[{i}]: {exc}")
-        if "effective_truth_cost" in group:
-            errors.append(
-                f"premise_groups[{i}] must not set effective_truth_cost; it is computed from joint_probability"
-            )
-        if not str(group.get("reason") or "").strip():
-            warnings.append(
-                f"premise_group {group_id or i} should include reason explaining why premises are non-independent"
-            )
-
+    grouped_leads_to_inputs_by_target: dict[str, set[str]] = {}
     seen_factor_ids: set[str] = set()
     grouped_likelihood_inputs_by_target_relation: dict[tuple[str, str], set[str]] = {}
     for i, factor in enumerate(factors_raw):
@@ -408,7 +328,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
 
         if target_valid and relation_valid and input_ids:
             if relation == "leads_to":
-                grouped_for_target = grouped_premises_by_target.setdefault(str(target), set())
+                grouped_for_target = grouped_leads_to_inputs_by_target.setdefault(str(target), set())
                 overlap = grouped_for_target.intersection(input_ids)
                 if overlap:
                     errors.append(

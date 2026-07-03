@@ -129,7 +129,9 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "solutions": {**modern_state, "solutions": ["CS1"]},
             "edge-label": {**modern_state, "edges": [{"from": "G1", "to": "G1", "label": "supports"}]},
             "frontier-path-cost": {**modern_state, "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}]},
+            "premise-groups": {**modern_state, "premise_groups": []},
             "event-solution-action": {**modern_state, "events": [{"step": 1, "action": "solution", "item": "Q1", "node": "CS1", "cost": 0}]},
+            "event-update-premise-groups": {**modern_state, "events": [{"step": 1, "action": "expand", "item": "Q1", "add_nodes": [], "add_edges": [], "add_frontier": [], "update_premise_groups": ["PG1"]}]},
             "event-add-factors": {**modern_state, "events": [{"step": 1, "action": "expand", "item": "Q1", "add_nodes": [], "add_edges": [], "add_frontier": [], "add_factors": ["F1"]}]},
         }
         for name, state in legacy_state_variants.items():
@@ -141,6 +143,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "add-node-objects": {**modern_patch, "add_node_objects": []},
             "solution": {**modern_patch, "solution": "CS1"},
             "solution-node": {**modern_patch, "solution_node": "CS1"},
+            "premise-groups": {**modern_patch, "premise_groups": []},
+            "update-premise-groups": {**modern_patch, "update_premise_groups": []},
             "no-reopen-reason": {**modern_patch, "no_reopen_reason": "legacy"},
             "stop-alias": {**modern_patch, "stop": "legacy stop", "outcome": "user_stopped"},
         }

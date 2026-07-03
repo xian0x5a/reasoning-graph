@@ -113,12 +113,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     edges = [edge for edge in state.get("edges", []) if isinstance(edge, dict)]
     edges_by_id = {edge.get("id"): edge for edge in edges if isinstance(edge.get("id"), str) and edge.get("id")}
     edge_ids = set(edges_by_id)
-    premise_groups = [group for group in state.get("premise_groups", []) if isinstance(group, dict)]
-    premise_groups_by_id = {
-        group.get("id"): group
-        for group in premise_groups
-        if isinstance(group.get("id"), str) and group.get("id")
-    }
     factors = [factor for factor in state.get("factors", []) if isinstance(factor, dict)]
     factors_by_id = {
         factor.get("id"): factor
@@ -162,18 +156,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             if not is_numeric_update:
                 continue
             target = edge.get("to")
-            if isinstance(target, str):
-                evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
-        premise_group_ids = []
-        if isinstance(event.get("update_premise_groups"), list):
-            premise_group_ids.extend(event["update_premise_groups"])
-        if isinstance(event.get("add_premise_groups"), list):
-            premise_group_ids.extend(event["add_premise_groups"])
-        for group_id in premise_group_ids:
-            group = premise_groups_by_id.get(str(group_id))
-            if not group:
-                continue
-            target = group.get("target")
             if isinstance(target, str):
                 evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
         factor_ids = []
@@ -273,9 +255,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
                 elif not edge_ids:
                     warnings.append(f"{label}: add_edges cannot be cross-checked because edges have no ids")
-            for group_id in as_string_list(event.get("update_premise_groups"), f"{label}.update_premise_groups", errors):
-                if group_id not in premise_groups_by_id:
-                    errors.append(f"{label}: update_premise_groups references missing premise group id {group_id}")
             for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
                 if factor_id not in factors_by_id:
                     errors.append(f"{label}: update_factors references missing factor id {factor_id}")
@@ -389,16 +368,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
                 elif not edge_ids:
                     warnings.append(f"{label}: add_edges cannot be cross-checked because edges have no ids")
-            updated_premise_group_ids = as_string_list(
-                event.get("update_premise_groups"), f"{label}.update_premise_groups", errors
-            )
-            legacy_added_premise_group_ids = as_string_list(
-                event.get("add_premise_groups"), f"{label}.add_premise_groups", errors
-            )
-            premise_group_event_ids = updated_premise_group_ids + legacy_added_premise_group_ids
-            for group_id in premise_group_event_ids:
-                if group_id not in premise_groups_by_id:
-                    errors.append(f"{label}: update_premise_groups references missing premise group id {group_id}")
             updated_factor_ids = as_string_list(
                 event.get("update_factors"), f"{label}.update_factors", errors
             )
@@ -412,11 +381,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             item_node_id = str(items[item_id].get("node") or "")
             added_node_set = set(added_node_ids)
             added_edges = [edges_by_id[edge_id] for edge_id in added_edge_ids if edge_id in edges_by_id]
-            updated_premise_groups = [
-                premise_groups_by_id[group_id]
-                for group_id in premise_group_event_ids
-                if group_id in premise_groups_by_id
-            ]
             updated_factors = [
                 factors_by_id[factor_id]
                 for factor_id in factor_event_ids
@@ -464,9 +428,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 )
                 and isinstance(edge.get("to"), str)
             }
-            evidence_update_targets.update(
-                str(group.get("target")) for group in updated_premise_groups if isinstance(group.get("target"), str)
-            )
             evidence_update_targets.update(
                 str(factor.get("target")) for factor in updated_factors if isinstance(factor.get("target"), str)
             )
