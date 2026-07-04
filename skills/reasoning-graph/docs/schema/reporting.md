@@ -1,17 +1,20 @@
 # Report and Presentation Metadata
 
-Use optional `report` metadata when graph/presentation mode needs a readable human report. This is presentation metadata only; source of truth remains `nodes`, `edges`, `frontier`, and optional `events`.
+Use this page as the shape and example reference for optional human-facing metadata. Source of truth remains `nodes`, `edges`, `frontier`, `factors`, and `events`.
 
-## Report shape
+## `report` shape
 
 ```json
 "report": {
+  "title": "Why candidate 1 wins",
+  "answer": "Short final answer for the report",
   "candidates": [
     {
       "id": "CS1",
       "name": "Candidate label",
       "belief": 0.45,
       "truth_cost": 0.798508,
+      "effective_truth_cost": 0.798508,
       "search_cost": 2.24,
       "weight": 0.72,
       "path_nodes": ["E1", "D2", "CS1"],
@@ -20,38 +23,13 @@ Use optional `report` metadata when graph/presentation mode needs a readable hum
     }
   ],
   "winning_path": ["Evidence A", "Assumption B", "Derived C", "Candidate D"],
-  "next_verification": "..."
+  "next_verification": "Run the decisive verification"
 }
 ```
 
-Do not encode rank words such as `Best:`, `Second:`, `Third:`, or `Weak:` in candidate `name` or node `text`. Frontier rank is derived by sorting items by `search_cost`; candidate belief ranking is derived from `truth_cost` or `belief`. Renderers can display ordinal rank.
+`report.candidates[].path_nodes` lists node ids highlighted when a viewer focuses that candidate. If omitted, viewers should focus the candidate and directly connected support where possible.
 
-Avoid storing a `rank` field unless ordering comes from an external criterion that is not derivable from cost/belief.
-
-## Candidate display metadata
-
-Do not put `status` on `candidate_solution` nodes. Candidate rank/viability is derived from belief/effective truth cost, search cost, goal `answers` edges, and `answer_kind`.
-
-If the candidate table needs labels such as viable or contradicted, express them in `why`, `next_test`, likelihood edges, or graph relationships, not node `status`.
-
-Optional `path_nodes` on a candidate lists the main node IDs highlighted when a report viewer focuses that candidate. Renderers may include upstream support evidence/constraints for positive path nodes so entry evidence remains visible. Contradicting evidence/test nodes may be highlighted when explicitly listed, but should not automatically pull in their own upstream evidence unless the UI has a separate “why rejected” mode.
-
-If `path_nodes` is omitted, viewers should conservatively focus the candidate node and directly connected support where possible.
-
-## Weights and probabilities
-
-Do not present computed weights as calibrated posterior probabilities. If useful, compute:
-
-```txt
-belief = exp(-effective_truth_cost)
-weight = belief / sum(belief of displayed candidates)
-```
-
-Label `weight` as relative among displayed candidates, not a calibrated real-world probability. Use `posterior` only when explicit evidence/test updates a prior/confidence and uncertainty remains clearly labeled.
-
-## Presentation views
-
-Use optional `presentation` metadata for curated graph/report views.
+## `presentation` shape
 
 ```json
 "presentation": {
@@ -63,6 +41,67 @@ Use optional `presentation` metadata for curated graph/report views.
 }
 ```
 
-Baseline HTML uses the fixed graph heading “Best explanation graph”. `presentation.title` may describe the story for custom renderers, but should not replace the default graph heading.
+Presentation views are curated and may omit low-value nodes for readability. They must not introduce claims absent from the reasoning state.
 
-Presentation views may omit low-value nodes for readability. They must not introduce claims absent from the reasoning state.
+## `view` shape
+
+```json
+"view": {
+  "winning_path": ["E1", "D2", "CS1"],
+  "dimmed_branches": ["CS2", "CS3"],
+  "frontier": ["F1", "F2"]
+}
+```
+
+## Weight formula
+
+When useful, compute candidate display weight from displayed candidates:
+
+```txt
+belief = exp(-effective_truth_cost)
+weight = belief / sum(belief of displayed candidates)
+```
+
+`weight` is relative among displayed candidates, not calibrated real-world probability. Use `posterior` only when explicit evidence/test updates a prior/confidence.
+
+## Example
+
+```json
+{
+  "report": {
+    "title": "Cache staleness is most likely",
+    "answer": "Most evidence points to stale config loaded at startup.",
+    "candidates": [
+      {
+        "id": "CS1",
+        "name": "Stale config",
+        "belief": 0.67,
+        "effective_truth_cost": 0.400478,
+        "search_cost": 1.4,
+        "weight": 0.78,
+        "path_nodes": ["E1", "A1", "CS1"],
+        "why": "Deploy-time mtime and restart behavior support this branch.",
+        "next_test": "Restart with config hash logging."
+      }
+    ],
+    "winning_path": ["Config mtime evidence", "Stale config assumption", "Stale config candidate"],
+    "next_verification": "Restart with config hash logging."
+  },
+  "presentation": {
+    "include_nodes": ["E1", "A1", "CS1", "CS2"],
+    "highlight_nodes": ["E1", "A1", "CS1"],
+    "dim_nodes": ["CS2"],
+    "title": "Why stale config wins",
+    "layout_hint": "evidence-left-candidates-right"
+  }
+}
+```
+
+## Validation checklist
+
+- Do not encode rank words such as `Best`, `Second`, or `Weak` in candidate `name` or node `text`.
+- Avoid storing a `rank` field unless ordering comes from an external criterion not derivable from cost or belief.
+- Do not put `status` on `candidate_solution` nodes; `status` belongs only on `test` nodes.
+- Use `weight` only as relative display weight among listed candidates.
+- `presentation.include_nodes`, `highlight_nodes`, and `dim_nodes` reference existing node ids.
+- Presentation/report metadata does not add claims missing from graph state.
