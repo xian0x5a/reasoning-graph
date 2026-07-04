@@ -160,13 +160,6 @@
         "posterior": {
           "$ref": "#/$defs/probability"
         },
-        "status": {
-          "enum": [
-            "proposed",
-            "performed",
-            "inconclusive"
-          ]
-        },
         "answer_kind": {
           "enum": [
             "exact_answer",
@@ -192,36 +185,6 @@
         }
       },
       "allOf": [
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "test"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "properties": {
-              "status": {
-                "enum": [
-                  "proposed",
-                  "performed",
-                  "inconclusive"
-                ]
-              }
-            }
-          },
-          "else": {
-            "not": {
-              "required": [
-                "status"
-              ]
-            }
-          }
-        },
         {
           "if": {
             "properties": {

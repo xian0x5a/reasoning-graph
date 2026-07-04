@@ -101,7 +101,7 @@ weight = belief / sum(belief of displayed candidates)
 
 - Do not encode rank words such as `Best`, `Second`, or `Weak` in candidate `name` or node `text`.
 - Avoid storing a `rank` field unless ordering comes from an external criterion not derivable from cost or belief.
-- Do not put `status` on `candidate_solution` nodes; `status` belongs only on `test` nodes.
+- Candidate viability should come from graph relationships and report text.
 - Use `weight` only as relative display weight among listed candidates.
 - `presentation.include_nodes`, `highlight_nodes`, and `dim_nodes` reference existing node ids.
 - Presentation/report metadata does not add claims missing from graph state.

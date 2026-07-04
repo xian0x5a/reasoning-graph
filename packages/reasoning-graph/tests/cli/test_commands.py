@@ -154,7 +154,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     "nodes": [
                         {"id": "E1", "type": "evidence", "text": "API error rate increased", "confidence": 0.9},
                         {"id": "A1", "type": "assumption", "text": "Database latency is causing errors", "prior": 0.4},
-                        {"id": "T1", "type": "test", "text": "Check database latency metrics", "status": "proposed"},
+                        {"id": "T1", "type": "test", "text": "Check database latency metrics"},
                     ],
                     "edges": [
                         {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
@@ -209,7 +209,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             bad_seed_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs", "status": "proposed"}],
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
                     "frontier": [{"id": "Q1", "node": "T1", "parent": "Q0"}],
                 }),
                 encoding="utf-8",
@@ -220,7 +220,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             good_seed_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs", "status": "proposed"}],
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
                     "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -233,7 +233,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             later_with_reason_path = Path(tmp_dir) / "later-with-reason.json"
             later_without_reason_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log", "status": "proposed"}],
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
                     "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -245,7 +245,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             later_with_reason_path.write_text(
                 json.dumps({
                     "reason": "New root hypothesis from user inspiration",
-                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log", "status": "proposed"}],
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
                     "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -408,7 +408,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state = {
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
-                    {"id": "T1", "type": "test", "text": "Check likely cause", "status": "proposed"},
+                    {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
                 "edges": [{"from": "A1", "to": "T1", "type": "prompts"}],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
@@ -423,7 +423,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         base_state = {
             "nodes": [
                 {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 1.0},
-                {"id": "T1", "type": "test", "text": "Check likely cause", "status": "performed"},
+                {"id": "T1", "type": "test", "text": "Check likely cause"},
                 {"id": "D1", "type": "derived", "text": "A1 explored once"},
                 {"id": "E2", "type": "evidence", "text": "Negative result", "confidence": 0.8},
             ],

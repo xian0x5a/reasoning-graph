@@ -66,13 +66,6 @@ STOP_OUTCOMES = {
 }
 
 
-TEST_STATUSES = {
-    "proposed",
-    "performed",
-    "inconclusive",
-}
-
-
 ANSWER_KINDS = {
     "exact_answer",
     "exact_method",

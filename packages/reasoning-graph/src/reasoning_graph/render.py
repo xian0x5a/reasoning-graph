@@ -53,9 +53,6 @@ def compact_node_label(node: dict[str, Any]) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    status = str(node.get("status") or "").strip()
-    if node_type == "test" and status:
-        type_label = status
     return f"{node_id}\n{type_label}"
 
 
@@ -68,11 +65,6 @@ def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
         cls = CLASS_BY_NODE_TYPE.get(raw_type, "derived")
         node_id = str(node.get("id"))
         classes.setdefault(cls, set()).add(node_id)
-        if raw_type == "test":
-            status = str(node.get("status") or "").strip()
-            if status:
-                classes.setdefault(f"test_{status}", set()).add(node_id)
-
     view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
     presentation = state.get("presentation", {}) if isinstance(state.get("presentation"), dict) else {}
     for cls_name, key in (("winning", "winning_path"), ("dim", "dimmed_branches"), ("frontier", "frontier")):
@@ -299,9 +291,6 @@ def to_mermaid(
             "  classDef derived fill:#f8fafc,stroke:#64748b;",
             "  classDef assumption fill:#f5f3ff,stroke:#7c3aed;",
             "  classDef test fill:#e0f2fe,stroke:#0284c7;",
-            "  classDef test_proposed fill:#fef3c7,stroke:#d97706,stroke-dasharray:5 5;",
-            "  classDef test_performed fill:#dcfce7,stroke:#16a34a;",
-            "  classDef test_inconclusive fill:#f3f4f6,stroke:#71717a,stroke-dasharray:5 5;",
             "  classDef candidate fill:#dbeafe,stroke:#2563eb,stroke-width:2px;",
             "  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:3px;",
             "  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;",
@@ -441,9 +430,8 @@ def node_detail_cards(state: dict[str, Any]) -> str:
             continue
         raw_id = str(node.get("id", ""))
         raw_type = str(node.get("type", "node"))
-        raw_status = str(node.get("status") or "").strip()
         node_type = html.escape(raw_type)
-        pill_text = f"{raw_type} · {raw_status}" if raw_status else raw_type
+        pill_text = raw_type
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)

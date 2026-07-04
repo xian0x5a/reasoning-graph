@@ -32,9 +32,6 @@ def _compact_node_label(node: dict[str, Any]) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    status = str(node.get("status") or "").strip()
-    if node_type == "test" and status:
-        type_label = status
     return f"{node_id}\n{type_label}"
 
 

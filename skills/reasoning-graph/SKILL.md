@@ -102,7 +102,7 @@ Node types:
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
 - `derived` — conclusion from prior nodes or conditional branch reasoning
 - `assumption` — uncertain branch point with numeric `prior`; keep atomic and testable
-- `test` — action/check/procedure; only node type that may use `status: proposed|performed|inconclusive`
+- `test` — action/check/procedure; not evidence until connected to result `evidence` or `derived` nodes
 - `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
 
 Edge types:
@@ -137,12 +137,11 @@ Direction and relation rules:
 - In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; audit events are recorded automatically.
 - Details and examples: `docs/schema/factors.md`.
 
-Test lifecycle:
+Test result pattern:
 
-- `status: proposed` means recommended check; do not treat as evidence.
-- `status: performed` means the check ran; add result `evidence` or `derived` nodes.
-- `status: inconclusive` means the check ran but did not settle the claim.
+- A `test` node is a procedure, not evidence.
 - Canonical pattern: `claim --prompts--> test`, `test --leads_to--> result evidence`, `result evidence --supports|contradicts--> claim`.
+- Inconclusive checks should add result evidence explaining why the check did not settle the claim.
 - Details and examples: `docs/schema/tests.md`.
 
 Candidate and goal rules:
@@ -160,8 +159,7 @@ Report and presentation metadata:
 
 - `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`.
 - `presentation` may include curated `include_nodes`, `highlight_nodes`, `dim_nodes`, `title`, and `layout_hint`.
-- Do not encode rank/status words such as `Best`, `Second`, `viable`, or `rejected` into node text/status. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
-- `status` belongs only on `test` nodes.
+- Do not encode rank or viability words such as `Best`, `Second`, `viable`, or `rejected` into candidate names or node text. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
 - Details and examples: `docs/schema/reporting.md`.
 
 ## Cost and priority quick reference
@@ -215,7 +213,7 @@ cat > seed.json <<'JSON'
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause", "status": "proposed"}
+    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
   ],
   "edges": [
     {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},

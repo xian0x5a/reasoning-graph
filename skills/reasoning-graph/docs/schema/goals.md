@@ -97,7 +97,7 @@ Fields:
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Recover the exact plaintext"},
     {"id": "A1", "type": "assumption", "text": "The cipher likely uses columnar transposition"},
-    {"id": "T1", "type": "test", "text": "Try columnar transposition keys", "status": "proposed"}
+    {"id": "T1", "type": "test", "text": "Try columnar transposition keys"}
   ],
   "edges": [
     {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}

@@ -49,7 +49,7 @@ cat > seed.json <<'JSON'
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause", "status": "proposed"}
+    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
   ],
   "edges": [
     {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},

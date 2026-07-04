@@ -17,7 +17,7 @@ from .costs import (
     text_looks_probe_like,
     uncertainty_cost_from_prior,
 )
-from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, TEST_STATUSES, ValidationResult
+from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
 from .schema_validation import state_schema_errors
 from .utils import as_string_list
@@ -104,15 +104,6 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             errors.append(f"node {node_id or i} exhausted must be boolean when present")
         if node.get("exhausted") is True and not str(node.get("exhaustion_reason") or "").strip():
             warnings.append(f"node {node_id or i} exhausted=true should include exhaustion_reason")
-        if "status" in node and node_type != "test":
-            errors.append(f"node {node_id or i} has status but only test nodes may use status")
-        if node_type == "test":
-            status = node.get("status")
-            if status is None:
-                warnings.append(f"test {node_id} missing status; use proposed/performed/inconclusive")
-            elif str(status) not in TEST_STATUSES:
-                warnings.append(f"test {node_id} has non-standard status {status!r}")
-
     nodes_by_id = {str(node.get("id")): node for node in nodes_raw if isinstance(node, dict) and isinstance(node.get("id"), str)}
     goal_ids = {node.get("id") for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}
     goal_groups = state.get("goal_groups", [])
