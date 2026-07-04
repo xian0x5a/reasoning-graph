@@ -230,7 +230,7 @@ reasoning-graph sort state.json -i
 reasoning-graph frontier state.json
 reasoning-graph next state.json --pop -i
 cat > expansion.json <<'JSON'
-{"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
+{"no_new_work_reason": "Smoke run intentionally closes the popped item without modeling test execution or adding real follow-up branches."}
 JSON
 reasoning-graph expand state.json --item Q1 --patch expansion.json -i
 reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
