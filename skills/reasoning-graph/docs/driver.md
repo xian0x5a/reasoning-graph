@@ -210,6 +210,7 @@ Cost behavior:
 - `assign --item Q7 -i` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
 - `seed --patch seed.json -i` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
+- Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "A1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
 - `path` reconstructs a proof/search path from parent pointers.
 - `audit` checks compact strict-search events for coherent best-first expansion.
 
@@ -221,6 +222,9 @@ Expansion patch shape:
   "nodes": [
     {"id": "A8", "type": "assumption", "text": "WebCrypto AES-GCM layout family", "prior": 0.45},
     {"id": "A9", "type": "assumption", "text": "libsodium/secretbox layout family", "prior": 0.2}
+  ],
+  "update_nodes": [
+    {"id": "A4", "set": {"posterior": 0.62}}
   ],
   "edges": [
     {"id": "E20", "from": "A8", "to": "A4", "type": "supports"},

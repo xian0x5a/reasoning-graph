@@ -20,6 +20,33 @@
         "$ref": "state.schema.json#/$defs/node"
       }
     },
+    "update_nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "set"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "set": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": true,
+            "not": {
+              "required": [
+                "id"
+              ]
+            }
+          }
+        }
+      }
+    },
     "edges": {
       "type": "array",
       "items": {

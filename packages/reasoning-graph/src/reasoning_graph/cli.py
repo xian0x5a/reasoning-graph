@@ -104,7 +104,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-SEED_PATCH_FIELDS = {"nodes", "edges", "frontier", "update_factors", "factors", "reason"}
+SEED_PATCH_FIELDS = {"nodes", "update_nodes", "edges", "frontier", "update_factors", "factors", "reason"}
 
 
 def cmd_seed(args: argparse.Namespace) -> int:
@@ -137,6 +137,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
         return 1
 
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     frontier_to_add = _object_list(patch.get("frontier"), "frontier")
     factors_to_update = _object_list(
@@ -161,6 +162,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
     _ensure_object_ids(factors_to_update, "update_factors")
 
+    updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
     factors = state.setdefault("factors", [])
@@ -200,6 +202,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
                 "add_edges": [edge["id"] for edge in edges_to_add],
                 "add_frontier": [item["id"] for item in frontier_to_add],
                 "update_factors": [factor["id"] for factor in factors_to_update],
+                **({"updated_nodes": updated_node_specs} if updated_node_specs else {}),
             }
         )
         for supersede_event in supersede_events:
@@ -495,6 +498,54 @@ def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], 
             raise ValueError(f"{field} id {item_id} already exists")
 
 
+IMMUTABLE_NODE_UPDATE_FIELDS = {"id", "type"}
+
+
+def _node_update_list(value: Any, field: str) -> list[dict[str, Any]]:
+    updates = _object_list(value, field)
+    seen: set[str] = set()
+    for index, update in enumerate(updates):
+        node_id = update.get("id")
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError(f"{field}[{index}] missing string id")
+        if node_id in seen:
+            raise ValueError(f"{field}[{index}] duplicate id {node_id}")
+        seen.add(node_id)
+        changes = update.get("set")
+        if not isinstance(changes, dict) or not changes:
+            raise ValueError(f"{field}[{index}].set must be a non-empty object")
+        for immutable_field in sorted(IMMUTABLE_NODE_UPDATE_FIELDS):
+            if immutable_field in changes:
+                raise ValueError(f"{field}[{index}].set cannot change {immutable_field}")
+    return updates
+
+
+def _apply_node_updates(state: dict[str, Any], updates: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
+    if not updates:
+        return []
+    nodes = state.setdefault("nodes", [])
+    if not isinstance(nodes, list):
+        raise ValueError("nodes must be a list before node updates can be applied")
+    node_indexes: dict[str, int] = {}
+    for index, node in enumerate(nodes):
+        if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node.get("id"):
+            continue
+        node_id = str(node["id"])
+        if node_id in node_indexes:
+            raise ValueError(f"nodes has duplicate id {node_id}")
+        node_indexes[node_id] = index
+
+    updated_specs: list[dict[str, Any]] = []
+    for update in updates:
+        node_id = str(update["id"])
+        if node_id not in node_indexes:
+            raise ValueError(f"{field} id {node_id} does not exist")
+        changes = update["set"]
+        nodes[node_indexes[node_id]].update(changes)
+        updated_specs.append({"id": node_id, "fields": sorted(changes)})
+    return updated_specs
+
+
 def _frontier_search_cost(item: dict[str, Any]) -> float:
     return float(item.get("search_cost", float("inf")))
 
@@ -698,6 +749,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
         return 1
 
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     frontier_to_add = _object_list(patch.get("frontier"), "frontier")
     factors_to_update = _object_list(
@@ -718,6 +770,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
             child["parent"] = args.item
 
     active_ids = set(cursor["active_ids"])
+    updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
     factors = state.setdefault("factors", [])
@@ -758,13 +811,16 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "mode",
         "summary",
         "reason",
-        "updated_nodes",
         "no_new_work_reason",
         "under_branching_reason",
         "existing_sibling_frontier",
     ):
         if key in patch:
             event[key] = patch[key]
+    if updated_node_specs:
+        event["updated_nodes"] = updated_node_specs
+    elif "updated_nodes" in patch:
+        event["updated_nodes"] = patch["updated_nodes"]
     events.append(event)
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
@@ -952,7 +1008,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
 
-    seed = sub.add_parser("seed", help="apply root ledger/frontier seed patch")
+    seed = sub.add_parser("seed", help="apply root ledger/frontier seed patch and optional node updates")
     seed.add_argument("state", help="state JSON path, or - for stdin")
     seed.add_argument("--patch", required=True, help="initial seed patch JSON path, or - for stdin")
     seed.add_argument("-o", "--output", help="write seeded state to path")
@@ -1018,7 +1074,7 @@ def build_parser() -> argparse.ArgumentParser:
     assign.add_argument("--force", action="store_true", help="skip pending-pop and concurrency guards")
     assign.set_defaults(func=cmd_assign)
 
-    expand = sub.add_parser("expand", help="append nodes/edges/frontier from a JSON expansion patch and record an expand event")
+    expand = sub.add_parser("expand", help="append nodes/edges/frontier, update existing nodes, and record an expand event")
     expand.add_argument("state", help="state JSON path, or - for stdin")
     expand.add_argument("--item", required=True, help="popped frontier item being expanded")
     expand.add_argument("--patch", required=True, help="JSON patch path, or - for stdin")

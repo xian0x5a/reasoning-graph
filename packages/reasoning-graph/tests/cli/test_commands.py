@@ -76,6 +76,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         fixture_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         patch = {
             "nodes": [{"id": "A3", "type": "assumption", "text": "Third cause", "prior": 0.2}],
+            "update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}],
             "edges": [{"id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
             "frontier": [{"id": "Q4", "node": "A3", "cost_components": {"truth": "auto"}}],
             "stop_reason": "sample stop",
@@ -100,6 +101,69 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch_validator.validate(patch)
         with self.assertRaises(jsonschema.ValidationError):
             patch_validator.validate({"stop_reason": "missing outcome"})
+
+        with self.assertRaises(jsonschema.ValidationError):
+            patch_validator.validate({"update_nodes": [{"id": "A1", "set": {"id": "A2"}}]})
+
+    def test_expand_patch_updates_existing_node_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+            popped = self.run_cli("next", str(state_path), "--pop", "-i")
+            self.assertEqual(popped.returncode, 0, popped.stderr)
+
+            patch_path.write_text(
+                json.dumps({
+                    "update_nodes": [{"id": "A1", "set": {"posterior": 0.75, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
+                    "no_new_work_reason": "Only A1 score/exhaustion changed; no child work remains.",
+                }),
+                encoding="utf-8",
+            )
+
+            expanded = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            self.assertEqual(expanded.returncode, 0, expanded.stderr)
+            updated = json.loads(state_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(updated["nodes"][0]["posterior"], 0.75)
+            self.assertTrue(updated["nodes"][0]["exhausted"])
+            self.assertEqual(updated["nodes"][0]["exhaustion_reason"], "cheap checks complete")
+            self.assertEqual(
+                updated["events"][-1]["updated_nodes"],
+                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "posterior"]}],
+            )
+
+    def test_expand_patch_rejects_missing_or_identity_node_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+            popped = self.run_cli("next", str(state_path), "--pop", "-i")
+            self.assertEqual(popped.returncode, 0, popped.stderr)
+
+            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A2", "set": {"posterior": 0.5}}]}), encoding="utf-8")
+            missing = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            self.assertNotEqual(missing.returncode, 0, missing.stdout)
+            self.assertIn("update_nodes id A2 does not exist", missing.stderr)
+
+            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A1", "set": {"type": "derived"}}]}), encoding="utf-8")
+            identity = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            self.assertNotEqual(identity.returncode, 0, identity.stdout)
+            self.assertIn("update_nodes[0].set cannot change type", identity.stderr)
 
     def test_costs_reject_legacy_path_cost_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
