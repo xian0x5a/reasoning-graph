@@ -1,43 +1,8 @@
-# Factors: Non-independent Input Groups
+# Factors
 
-Use top-level `factors` when multiple incoming numeric relationships to the same target are not independent. A factor prevents double-counting.
+`factors` are top-level records for grouping dependent incoming numeric edges. Use this page as the shape and example reference; usage policy lives in `../../SKILL.md`.
 
-Default model: incoming numeric edges are independent. A factor overrides that default for its listed inputs. Ungrouped incoming edges still count normally.
-
-## Mental model
-
-A factor says:
-
-> These inputs point at the same target, but they share source/cause/logic. Count their combined impact once with this aggregation.
-
-A factor is not a node, edge, claim, proof step, candidate, or frontier item. Renderers may draw virtual factor boxes, but canonical state stores factors as top-level records.
-
-## When to use
-
-Use a factor when two or more inputs to the same target share dependence:
-
-- same source or copied source
-- duplicate observation
-- repeated logs from one event/request
-- same measurement pipeline
-- logical overlap between premises
-- common latent cause
-- one input partly derives from another
-
-## When not to use
-
-Do not use a factor for:
-
-- independent evidence
-- visual grouping only
-- non-numeric relationships
-- candidate grouping or ranking
-- connecting unrelated targets
-- replacing missing edges
-
-Each `input` must already have, or be added with, the matching relation edge to the same `target`.
-
-## Required shape
+## Factor shape
 
 ```json
 {
@@ -52,18 +17,46 @@ Each `input` must already have, or be added with, the matching relation edge to 
 
 Fields:
 
-- `id` — unique factor id
-- `relation` — one of `leads_to`, `supports`, `contradicts`
-- `target` — node receiving the grouped numeric update
-- `inputs` — at least two source node ids, each with a matching edge to `target`
-- `aggregation` — combined numeric impact for the group
-- `reason` — why the inputs are non-independent
+- `id` — unique factor id.
+- `relation` — `leads_to`, `supports`, or `contradicts`.
+- `target` — node receiving the grouped numeric update.
+- `inputs` — two or more source node ids.
+- `aggregation` — combined numeric impact for the group.
+- `reason` — short explanation for why these inputs are dependent.
 
-## Aggregation by relation
+Each input must have a matching edge to the same `target` with the same `relation`.
 
-### `leads_to`: grouped premises
+## Aggregation shapes
 
-Use `joint_probability` when dependent premises derive the target together.
+### `leads_to`
+
+```json
+"aggregation": {"kind": "joint_probability", "probability": 0.72}
+```
+
+`probability` is the calibrated joint probability for the grouped premises.
+
+### `supports`
+
+```json
+"aggregation": {"kind": "likelihood", "if_target_true": 0.54, "if_target_false": 0.18}
+```
+
+The implied likelihood ratio must be greater than `1`.
+
+### `contradicts`
+
+```json
+"aggregation": {"kind": "likelihood", "if_target_true": 0.1, "if_target_false": 0.5}
+```
+
+The implied likelihood ratio must be between `0` and `1`.
+
+Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_false`.
+
+## Examples
+
+### Grouped `leads_to` premises
 
 ```json
 {
@@ -83,17 +76,13 @@ Use `joint_probability` when dependent premises derive the target together.
       "target": "D1",
       "inputs": ["A1", "B1"],
       "aggregation": {"kind": "joint_probability", "probability": 0.72},
-      "reason": "A1 and B1 both depend on the same source, so multiplying 0.8 * 0.75 would overcount confidence."
+      "reason": "A1 and B1 both depend on the same source."
     }
   ]
 }
 ```
 
-The factor replaces the independent product for `A1` and `B1`. Other ungrouped incoming `leads_to` premises still contribute independently.
-
-### `supports`: grouped positive evidence
-
-Use conditional likelihood when dependent evidence supports a target.
+### Grouped supporting evidence
 
 ```json
 {
@@ -114,11 +103,7 @@ Use conditional likelihood when dependent evidence supports a target.
 }
 ```
 
-Here the group likelihood ratio is `0.54 / 0.18 = 3`. Do not store that ratio directly; store `if_target_true` and `if_target_false`.
-
-### `contradicts`: grouped negative evidence
-
-Use conditional likelihood when dependent evidence argues against a target.
+### Grouped contradicting evidence
 
 ```json
 {
@@ -139,13 +124,9 @@ Use conditional likelihood when dependent evidence argues against a target.
 }
 ```
 
-For `contradicts`, the implied likelihood ratio must be between 0 and 1.
+### Replace a factor in a patch
 
-## Adding or replacing factors in patches
-
-Seed and expansion patches should use `factors` to add or replace factors by `id`. If the `id` is new, the factor is appended. If the `id` already exists, the factor is replaced.
-
-To append an input, submit the full replacement factor with the updated `inputs` and recalibrated `aggregation`. Matching edges must already exist or be added in the same patch.
+Seed and expansion patches use `factors` to add or replace factors by `id`. To append an input, submit the full replacement factor with the updated `inputs` and recalibrated `aggregation`.
 
 ```json
 {
@@ -165,26 +146,15 @@ To append an input, submit the full replacement factor with the updated `inputs`
 }
 ```
 
-## Validation rules
+## Validation checklist
 
-- `inputs` length must be at least 2.
-- `inputs` must not contain duplicates.
-- `target` cannot be an input.
-- Every input and target must reference existing nodes.
-- Every input must have a matching `relation` edge to `target`.
-- Factor inputs cannot overlap for the same `relation` and `target`.
-- `leads_to` factors require `joint_probability` aggregation.
-- `supports` and `contradicts` factors require `likelihood` aggregation.
-- Do not set `effective_truth_cost` or direct `likelihood_ratio` on a factor.
-- If the target has explicit `posterior`, that posterior overrides graph-derived evidence and factors for that target.
-
-`update_factors` appears in audit events as the list of factor ids changed by an expansion.
-
-## Common mistakes
-
-- Creating a factor without the matching edges.
-- Grouping inputs that are merely similar but independent.
-- Using a factor as a visual cluster or candidate bucket.
-- Setting `likelihood_ratio` directly on the factor.
-- Forgetting to recalibrate aggregation when adding/removing inputs.
-- Grouping an input in two factors for the same target and relation.
+- `inputs` has at least two unique node ids.
+- `target` is not in `inputs`.
+- `target` and every input reference existing nodes.
+- Every input has a matching `relation` edge to `target`.
+- Factor inputs do not overlap for the same `relation` and `target`.
+- `leads_to` uses `joint_probability` with `probability`.
+- `supports` and `contradicts` use `likelihood` with `if_target_true` and `if_target_false`.
+- `supports` likelihood ratio is `> 1`; `contradicts` likelihood ratio is in `(0, 1)`.
+- Factor does not set `effective_truth_cost` or direct `likelihood_ratio`.
+- If `target` has explicit `posterior`, that posterior overrides graph-derived factor costs.

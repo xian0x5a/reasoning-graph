@@ -134,7 +134,7 @@ Direction and relation rules:
 - `leads_to` factors use `aggregation: {"kind": "joint_probability", "probability": ...}`.
 - `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`. Do not set direct factor `likelihood_ratio`.
 - Ungrouped incoming edges still contribute normally.
-- In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; `update_factors` is the audit-event field.
+- In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; audit events are recorded automatically.
 - Details and examples: `docs/schema/factors.md`.
 
 Test lifecycle:
