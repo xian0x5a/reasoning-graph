@@ -1,7 +1,5 @@
 # Reasoning Graph Exploration Guide
 
-Commands below assume the `reasoning-graph` CLI is installed. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
-
 Input ledger extraction, branching/candidate hygiene, stopping rules, and final quality checks.
 
 ## Input Ledger Extraction

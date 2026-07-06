@@ -108,7 +108,7 @@ reasoning-graph mermaid state.json        # emit Mermaid source
 reasoning-graph html state.json -o graph.html  # replace with requested/durable path; use /tmp only as ad hoc fallback
 ```
 
-The skill directory is docs-only. Use the installed `reasoning-graph` CLI. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`. In a repository checkout, developers may run `uv --project packages/reasoning-graph run reasoning-graph ...`.
+Use the installed `reasoning-graph` CLI. In a repository checkout, developers may run `uv --project packages/reasoning-graph run reasoning-graph ...`.
 
 State JSON shape:
 

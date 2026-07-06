@@ -1,7 +1,5 @@
 # Reasoning Graph Rendering Guide
 
-Commands below assume the `reasoning-graph` CLI is installed. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
-
 Compact output, graph mode, HTML artifacts, and visual presentation rules.
 
 ## Output Modes

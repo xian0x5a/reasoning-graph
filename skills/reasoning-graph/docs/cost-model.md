@@ -2,8 +2,6 @@
 
 Truth/search cost, likelihood updates, confidence, bounded probes, and correlated evidence.
 
-Use the installed `reasoning-graph` CLI for helper commands. If `reasoning-graph --help` is unavailable, install it with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`.
-
 ## Priors, Confidence, and Costs
 
 Use probabilities only where they mean something.

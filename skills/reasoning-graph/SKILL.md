@@ -198,13 +198,7 @@ Details: `docs/cost-model.md`.
 
 ## Helper commands
 
-The skill directory contains instructions only; the helper CLI is installed separately. If `reasoning-graph --help` is unavailable, install it with:
-
-```bash
-uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
-```
-
-Then run `reasoning-graph ...`. In a repository checkout, developers may use `uv --project packages/reasoning-graph run reasoning-graph ...` instead.
+The skill directory contains instructions only; the helper CLI is installed separately. If `reasoning-graph --help` is unavailable, see `docs/install.md`. Then run `reasoning-graph ...`.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
@@ -334,4 +328,5 @@ Details: `docs/rendering.md`.
 - `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
 - `docs/driver.md` — state JSON, helper commands, event/audit semantics
 - `docs/rendering.md` — compact output, graph mode, HTML/canvas rules
+- `docs/install.md` — one-time helper CLI install
 - Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. In this repository they live under `packages/reasoning-graph/src/reasoning_graph/schemas/`.
