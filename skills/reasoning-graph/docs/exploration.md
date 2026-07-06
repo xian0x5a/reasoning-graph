@@ -9,7 +9,7 @@ User input often arrives as an unstructured block, not labeled evidence/constrai
 Workflow:
 
 1. Extract the `goal` from explicit request wording. If multiple goals conflict, ask or state the chosen primary goal.
-2. Build the initial ledger from observed/source-backed inputs and requirements using the agent schema reference in `SKILL.md`.
+2. Build the initial ledger from observed/source-backed inputs and requirements using the agent schema reference in `../SKILL.md`.
 3. Keep plausible interpretations as initial assumptions/frontier branches, not evidence.
 4. If a constraint is inferred from intent rather than explicit, mark it as inferred in the text or `source`; ask the user if it is high-impact or ambiguous.
 5. Record source metadata on evidence/constraint nodes when useful:
@@ -42,10 +42,10 @@ Use this workflow:
 3. If cheap missing evidence is needed before branching, do a bounded context pass and add observed results to the ledger with sources.
 4. Try direct derivation if obvious; otherwise initialize frontier from plausible assumptions or unresolved claims.
 5. For each assumption, assign `prior`, truth cost, and reason. For uncertain evidence/results, assign `confidence`. Prefer branching from generic/structural assumptions first, then specialize with derived nodes or candidate solutions. Assumptions should be atomic/testable premises, not whole-solution-shaped duplicates of candidate answers.
-6. Pop the frontier item with lowest current `search_cost`. Use `reasoning-graph next state.json --pop -i` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
+6. Pop the frontier item with lowest current `search_cost` before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Bookkeeping that does not change the search does not need a pop.
 7. Choose treatment for the popped focus. Expand it directly when structure is missing; record async observation-heavy work with `reasoning-graph assign state.json --item <id> -i`; rank/close it when no new work is needed. Assigned items become in-flight and no longer block `next --pop`; assigning additional async work is blocked at the configured concurrency limit.
 8. Digest expansion/probe results. Ask: what does this imply, what sibling hypotheses split from here, what cheap tests discriminate them, what contradictions would penalize them, and what candidate answer becomes possible? Add multiple meaningful child branches when available. In discovery-style tasks, create `candidate_solution` nodes only after a branch has enough clue/evidence support to be answer-shaped; do not preload final candidates as unexplored buckets.
-9. If a result arrives from direct expansion or async probe work, add it as evidence/derived evidence and add calibrated `supports`/`contradicts` likelihood edges or an explicit `posterior` update. Then add child frontier items and re-sort. Let best-first priority choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
+9. If a result arrives from direct expansion or async probe work, add it as evidence/derived evidence and add calibrated `supports`/`contradicts` likelihood edges or an explicit `posterior` update. Then add child frontier items. Let `next` recompute best-first priority and choose which child to explore next. Reopen only when evidence creates new work; score-only updates stay closed.
 10. Continue until adaptive stopping conditions are met and no assigned probe needed for the stop remains in-flight.
 11. Return compact prose or graph/HTML artifact depending on requested output.
 

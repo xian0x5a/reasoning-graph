@@ -83,8 +83,8 @@ Read state.json. Generate polished self-contained HTML report. Do not solve agai
 Recommended graph/HTML flow:
 
 1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
-2. Build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
-3. Run `reasoning-graph costs state.json -i` or `reasoning-graph sort state.json -i` when candidate/frontier ranking matters.
+2. Build/update the state through the required driver loop in `../SKILL.md`: `next --pop -i` -> resolve with `expand --item`, `assign`, `rank`, or `stop`; repeat until stopping conditions are met.
+3. Run `reasoning-graph costs state.json -i` or `reasoning-graph sort state.json -i` when recomputing candidate/frontier ranking outside the normal loop.
 4. Run `reasoning-graph validate state.json` and fix errors.
 5. If driver events exist, run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
 6. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.

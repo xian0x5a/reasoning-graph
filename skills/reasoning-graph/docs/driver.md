@@ -81,11 +81,11 @@ Guidelines:
 - If path-specific context should affect expansion, encode it as `active_assumptions`, a more specific child node, or explicit params/scope/budget; parent path alone is provenance, not separate live work.
 - If new evidence changes likelihood updates, an explicit posterior, or frontier ordering, recompute active costs and supersede stale duplicate active items instead of carrying duplicate work.
 
-## Helper Script and Driver
+## Helper CLI Reference
 
-Use the helper as the search driver. The graph should choose the next work item before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. If the task is too small for this overhead, do not use the reasoning-graph skill. Bookkeeping that does not change the search can be done without popping a new item.
+Use the helper as the search driver. The executable loop and minimal patch shape live in `../SKILL.md`; this page documents command variants, full state shape, events, and audit behavior.
 
-Use the helper for multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
+Bookkeeping that does not change the search can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
@@ -98,6 +98,8 @@ reasoning-graph frontier state.json       # show active frontier derived from ev
 reasoning-graph next state.json           # show lowest-cost active item + path context
 reasoning-graph next state.json --pop -i  # persist init/pop event for lowest-cost item
 reasoning-graph expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
+reasoning-graph assign state.json --item Q7 --agent researcher -i      # record async in-flight probe work
+reasoning-graph rank state.json --item Q7 -i  # close pending item by recording current best viable candidate
 reasoning-graph seed state.json --patch later-root-seed.json -i        # add unrelated root inspiration; requires reason after driver init
 reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 reasoning-graph validate state.stopped.json
@@ -204,9 +206,9 @@ Cost behavior:
 - `estimated_remaining_cost` is optional top-level heuristic remaining work.
 - Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
-- `sort` keeps all frontier ledger items but orders them by ascending `search_cost`.
+- `sort` keeps all frontier ledger items but orders them by ascending `search_cost`; it is optional before `next` because `next` computes costs and sorts active items internally.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
-- `next --pop -i` appends a deduped `init` when needed, keeping one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
+- `next --pop -i` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
 - `assign --item Q7 -i` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
 - `seed --patch seed.json -i` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
@@ -314,26 +316,6 @@ Ending commands:
 
 - `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event.
 - For non-candidate outcomes, `stop` only writes the terminal event.
-
-Driver loop for search moves:
-
-```bash
-reasoning-graph frontier state.json
-reasoning-graph next state.json --pop -i
-# inspect the printed item id, parent path, active assumptions, and related nodes
-# for async observation-heavy work, assign that exact popped item id:
-reasoning-graph assign state.json --item <popped-item-id> --agent researcher -i
-# continue popping eligible work; assigning more async work is blocked at max_probe_concurrency
-# write expansion.json containing child findings, branches/tests/evidence, or no_new_work_reason
-reasoning-graph expand state.json --item <assigned-or-pending-item-id> --patch expansion.json -i
-reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
-reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json
-reasoning-graph stop-review state.stopped.json --draft answer.md
-# semantic-review stopped candidate; promote only on pass
-cp state.stopped.json state.json
-reasoning-graph frontier state.json
-```
 
 ### Semantic Stop Review
 

@@ -13,73 +13,79 @@ Use this skill when a messy task is worth explicit graph/search state instead of
 
 Default final output is compact prose. Create graph/HTML artifacts only when requested or when they materially improve understanding; ask first if artifact generation was not requested.
 
-## Required driver discipline
+## Required driver loop
 
-- Every reasoning-graph skill use keeps explicit state and follows the driver loop.
-- Before major search, test, file inspection, verification, or branch selection, run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i`.
-- Resolve each popped item through `expand`, `assign`, `rank`, or `stop`; do not pop again while an item is pending.
-- Final output may be compact prose, but the process is still graph/state driven.
+Every reasoning-graph skill use keeps explicit state and follows the driver loop. If the task does not justify this overhead, do not use this skill.
+
+1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
+2. **Seed graph.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Seed initial nodes, edges, tests, and root frontier items.
+3. **Pop focus before major work.** Run `next --pop -i` before major search, test, file inspection, verification, or branch selection; `next` computes current costs and selects the lowest-cost active item.
+4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, `rank`, or `stop`. Use subagents for observation-heavy probe/verify work.
+5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort -i` only when you want to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
+6. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
+7. **Review final.** Validate, audit, run semantic stop-review, then ensure final prose matches graph and invents no evidence.
+
+Executable skeleton:
+
+```bash
+reasoning-graph init --goal "<goal>" --strict -o state.json
+reasoning-graph seed state.json --patch seed.json -i
+reasoning-graph next state.json --pop -i
+# inspect popped item id, path, assumptions, related nodes
+
+# Resolve popped item by one treatment:
+reasoning-graph expand state.json --item <popped-item-id> --patch expansion.json -i
+# or: reasoning-graph assign state.json --item <popped-item-id> --agent <agent> -i
+# or: reasoning-graph rank state.json --item <popped-item-id> -i
+
+# repeat pop -> resolve until stop policy is satisfied
+
+reasoning-graph stop state.json --reason "<policy-grounded reason>" --outcome <outcome> -o state.stopped.json
+reasoning-graph validate state.stopped.json
+reasoning-graph audit state.stopped.json
+reasoning-graph stop-review state.stopped.json --draft answer.md
+```
+
+Minimal patch shapes:
+
+```json
+{
+  "nodes": [
+    {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "confidence": 0.9},
+    {"id": "A1", "type": "assumption", "text": "Plausible branch", "prior": 0.4},
+    {"id": "T1", "type": "test", "text": "Check branch"}
+  ],
+  "edges": [
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2},
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+  ],
+  "frontier": [
+    {"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}}
+  ]
+}
+```
+
+Use the same patch shape for `seed` and `expand`; `expand` may also use `update_nodes`, `factors`, `no_new_work_reason`, `under_branching_reason`, and `existing_sibling_frontier`. Details: `docs/driver.md` and `docs/schema/`.
+
+Rules that prevent fake traces:
+
+- Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`; candidate-bearing `stop` may close a pending item.
+- Use `seed` for initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
+- Assigned items are in-flight, not active frontier; merge returned work with `expand --item <assigned-item>`.
+- For parallel work, decompose one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy.
+- The helper CLI is installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`. Detailed mechanics: `docs/driver.md`.
 
 ## Controller-only probe delegation
 
-For non-trivial reasoning-graph work, the main thread is a controller, not an explorer. The parent owns goal framing, canonical graph/state, branch/frontier definition, priority, stop policy, merge decisions, and final answer.
+For non-trivial reasoning-graph work, the main thread is a controller, not an explorer. Parent owns goal framing, canonical graph/state, frontier definition, priority, stop policy, merge decisions, and final answer.
 
-Delegate observation-heavy work when a subagent backend is available:
+Delegate observation-heavy work when a subagent backend is available: source research, code/file inspection, external docs lookup, hypothesis probes, evidence collection, validation checks, candidate audits, and adversarial review. Parent may do targeted inspection needed to frame probes, adjudicate conflicts, or verify high-impact child claims. If no backend is available, run bounded probes inline and keep raw observations out of final prose unless needed.
 
-- source research
-- codebase/file inspection
-- external documentation lookup
-- hypothesis probes
-- evidence collection
-- validation checks
-- candidate audits
-- adversarial review
+Delegation unit = bounded probe: one frontier item, hypothesis, test, source family, or candidate audit; bounded scope and stop rule; explicit output contract; no final decision authority.
 
-Do not let the parent do broad research, large file inspection, or detailed verification when a child can do it. This protects main-thread context from raw evidence noise. Parent may do targeted inspection needed to frame probes, adjudicate conflicts, or verify high-impact child claims. Simple answer-only tasks, trivial bookkeeping, and unavailable delegation backends are exceptions. If no subagent backend is available, run bounded probes inline and keep raw observations out of the final answer unless needed.
+Parent chooses treatment for each popped item: expand, assign async probe/verify work, rank/close, or compose these. Children return observations plus optional proposed patch/artifact. Parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch> -i`.
 
-Delegation unit = bounded probe:
-
-- one frontier item, hypothesis, test, source family, or candidate audit
-- bounded scope and stop rule
-- explicit output contract
-- no final decision authority
-
-The frontier driver (`sort`/`next`) chooses the next focus item. Parent chooses treatment: expand, assign async probe/verify work, close, or a mix. Subagents collect observations. Parent updates graph and decides.
-
-Frontier treatments may compose:
-
-- probe first when expansion needs missing context
-- expand first when probe targets are unclear
-- probe several child branches in parallel after expansion
-- verify after probe results support a candidate
-- create follow-up frontier items from any result
-
-Parent owns the treatment decision and records why when the choice is non-obvious. Subagents do observation-heavy probe/verify work; parent handles graph structure, merge, priority, and final judgment. Use async subagents for independent probes. Default max concurrency is 3 unless top-level `search_policy.max_probe_concurrency` or explicit `reasoning-graph assign --max-concurrency` overrides it.
-
-Subagent probe output should include:
-
-- probe target
-- evidence found with source/file refs
-- evidence against the target
-- proposed graph nodes/edges
-- confidence or likelihood impact
-- residual uncertainty
-- suggested next probes
-- blocked/stop reason when applicable
-
-Children must not decide the final answer or mutate canonical graph state. Child returns observations and optional proposed patch/artifact; parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch> -i`. When generic orchestration mechanics matter, use the available subagent system; this skill defines how delegation maps onto reasoning-graph probes.
-
-## Core operating loop
-
-1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
-2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
-3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `reasoning-graph seed state.json --patch seed.json -i`. Initial seed should happen before first `next --pop`; seed frontier items must not fake parent refs.
-4. **Pop focus.** Run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
-5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
-6. **Assign or update.** For async work, run `reasoning-graph assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Use `reasoning-graph seed` for later root inspirations or new user clues unrelated to the current popped item; include `reason` after driver init. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
-7. **Re-rank frontier.** Sort after every meaningful update.
-8. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
-9. **Review final.** Validate/audit state, then ensure final prose matches graph and invents no evidence.
+Subagent probe output should include target, evidence for/against with source refs, proposed graph nodes/edges, confidence or likelihood impact, residual uncertainty, suggested next probes, and blocked/stop reason when applicable.
 
 ## Agent schema reference
 
@@ -197,49 +203,6 @@ Minimal frontier example:
 
 Details: `docs/cost-model.md`.
 
-## Helper commands
-
-The skill directory contains instructions only; the helper CLI is installed separately. If `reasoning-graph --help` is unavailable, see `docs/install.md`. Then run `reasoning-graph ...`.
-
-```bash
-reasoning-graph init --goal "Diagnose outage" --strict -o state.json
-cat > seed.json <<'JSON'
-{
-  "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
-    {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
-  ],
-  "edges": [
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
-  ],
-  "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
-}
-JSON
-reasoning-graph seed state.json --patch seed.json -i
-reasoning-graph doctor state.json
-reasoning-graph validate state.json
-reasoning-graph costs state.json -i
-reasoning-graph sort state.json -i
-reasoning-graph frontier state.json
-reasoning-graph next state.json --pop -i
-cat > expansion.json <<'JSON'
-{"no_new_work_reason": "Smoke run intentionally closes the popped item without modeling test execution or adding real follow-up branches."}
-JSON
-reasoning-graph expand state.json --item Q1 --patch expansion.json -i
-reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
-reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json
-reasoning-graph stop-review state.stopped.json
-reasoning-graph mermaid state.stopped.json > graph.mmd
-reasoning-graph html state.stopped.json -o graph.html
-```
-
-Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Use `seed` for root frontier items: initial bootstrap before driver events, or later unrelated root inspirations with patch `reason`; use `expand` for work caused by the current popped/assigned item. If delegating, record the popped item with `assign`, launch async work, and merge the returned result later with `expand --item <assigned-item>`. For parallel work, prefer decomposing one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy unless each assignment is recorded in state and concurrency remains within budget.
-
-Details: `docs/driver.md`.
-
 ## Expansion rules that matter most
 
 - Assumptions should be atomic/testable, not answer-shaped bundles.
@@ -273,15 +236,7 @@ For benchmark/search tasks, prefer this top-level state config. The strict `init
 }
 ```
 
-Before final, validate/audit the stopped state and run semantic stop-review:
-
-```bash
-reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json
-reasoning-graph stop-review state.stopped.json --draft answer.md
-```
-
-Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
+Before final, use the validation/audit/stop-review gate from the driver skeleton. Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
 
 ## Output formats
 
