@@ -1,10 +1,10 @@
 # Reasoning Graph Rendering Guide
 
-Compact output, graph mode, HTML artifacts, and visual presentation rules.
+Final prose, HTML artifacts, and visual presentation rules.
 
-## Output Modes
+## Output Formats
 
-### Compact Mode
+### Default Final Response
 
 Default. Return:
 
@@ -40,11 +40,11 @@ Remaining uncertainty:
 - verify T2 before treating S1 as final
 ```
 
-### Graph Mode
+### Graph/HTML Artifacts
 
-Use when user asks for graph/visualization/HTML, or when agent recommends it and user approves.
+Create when user asks for graph/visualization/HTML, or when agent recommends it and user approves.
 
-Graph mode has two useful views:
+Graph/HTML artifacts have two useful views:
 
 - `audit graph` — complete/debuggable reasoning graph; good for checking reasoning completeness.
 - best explanation graph — curated/lossy human report; good for communicating why the answer wins.
@@ -80,15 +80,15 @@ Delegation contract:
 Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent evidence. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
 ```
 
-Recommended graph-mode flow:
+Recommended graph/HTML flow:
 
 1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
-2. For complex reasoning, build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
+2. Build/update the state through the driver loop: `frontier` -> `next --pop -i` -> `expand --patch -i` -> repeat until stopping conditions are met.
 3. Run `reasoning-graph costs state.json -i` or `reasoning-graph sort state.json -i` when candidate/frontier ranking matters.
 4. Run `reasoning-graph validate state.json` and fix errors.
 5. If driver events exist, run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
 6. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with a best explanation graph, full audit graph, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
-7. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph mode was requested.
+7. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph/HTML output was requested.
 8. For separate graph sources, run `reasoning-graph mermaid state.json > <slug>.mmd`.
 9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
 10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.

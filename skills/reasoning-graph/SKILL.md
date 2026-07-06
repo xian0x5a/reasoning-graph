@@ -9,15 +9,16 @@ description: >
 
 # Reasoning Graph
 
-Use this skill when a messy task needs explicit alternatives instead of one hidden linear chain: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty, or any case where assumptions, evidence, and candidate answers can diverge.
+Use this skill when a messy task is worth explicit graph/search state instead of one hidden linear chain: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty, or any case where assumptions, evidence, and candidate answers can diverge. If the task does not justify driver-loop overhead, do not use this skill.
 
-Default output is compact. Create graph/HTML artifacts only when requested or when they materially improve understanding; ask first if artifact generation was not requested.
+Default final output is compact prose. Create graph/HTML artifacts only when requested or when they materially improve understanding; ask first if artifact generation was not requested.
 
-## Mode selection
+## Required driver discipline
 
-- **Compact mode:** small/direct tasks where a short answer plus visible proof path is enough. No state file required.
-- **Driver mode:** multi-branch, uncertain, benchmark, artifact-producing, or high-stakes reasoning where search order and stop conditions need auditability. Use the `reasoning-graph` CLI state, frontier, audit, and stop-review.
-- If unsure, start compact; switch to driver mode when alternatives multiply, evidence conflicts, or stopping needs a measurable rule.
+- Every reasoning-graph skill use keeps explicit state and follows the driver loop.
+- Before major search, test, file inspection, verification, or branch selection, run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i`.
+- Resolve each popped item through `expand`, `assign`, `rank`, or `stop`; do not pop again while an item is pending.
+- Final output may be compact prose, but the process is still graph/state driven.
 
 ## Controller-only probe delegation
 
@@ -73,7 +74,7 @@ Children must not decide the final answer or mutate canonical graph state. Child
 1. **Frame goal.** Identify accepted goal(s). If the user only asked to solve, use one `goal`; add epistemic/blocker goals only when accepted by user or task wording.
 2. **Extract ledger.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Do not treat plausible interpretations as evidence.
 3. **Initialize frontier.** From a fresh `init` state, write a seed patch with initial evidence/constraints/assumptions/tests and root frontier items, then run `reasoning-graph seed state.json --patch seed.json -i`. Initial seed should happen before first `next --pop`; seed frontier items must not fake parent refs.
-4. **Pop focus.** In driver mode, run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
+4. **Pop focus.** Run `reasoning-graph sort state.json -i` and `reasoning-graph next state.json --pop -i` before major search, test, file inspection, verification, or branch-selection work.
 5. **Choose treatment.** Decide whether the popped item needs expansion, async probe assignment, verification, closure/deprioritization, or a composed treatment. Use subagents for observation-heavy probe/verify work.
 6. **Assign or update.** For async work, run `reasoning-graph assign state.json --item Q7 -i`, launch the child, then continue popping eligible work; assigning more async work is blocked at the concurrency limit. For immediate work or returned child results, merge only reviewed findings/expansions into nodes, edges, costs, and frontier changes. Use `reasoning-graph seed` for later root inspirations or new user clues unrelated to the current popped item; include `reason` after driver init. Reject unsupported claims and calibrate `supports`/`contradicts` likelihoods or explicit posterior.
 7. **Re-rank frontier.** Sort after every meaningful update.
@@ -91,7 +92,7 @@ Top-level state fields:
 - `edges` — directed relationships between nodes
 - `frontier` — pending work items; lower `search_cost` pops first after sorting
 - `factors` — non-independent input groups for anti-double-counting numeric belief updates
-- `events` — driver-mode audit log for init/seed/pop/assign/expand/rank/stop actions
+- `events` — driver audit log for init/seed/pop/assign/expand/rank/stop actions
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
@@ -272,7 +273,7 @@ For benchmark/search tasks, prefer this top-level state config. The strict `init
 }
 ```
 
-Before final in driver mode, validate/audit the stopped state and run semantic stop-review:
+Before final, validate/audit the stopped state and run semantic stop-review:
 
 ```bash
 reasoning-graph validate state.stopped.json
@@ -282,9 +283,9 @@ reasoning-graph stop-review state.stopped.json --draft answer.md
 
 Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
 
-## Output modes
+## Output formats
 
-Compact mode default:
+Default final response:
 
 1. answer/recommendation
 2. concise proof path
@@ -293,7 +294,7 @@ Compact mode default:
 5. contradictions only if important
 6. next test/action if uncertainty remains
 
-Graph mode when requested:
+Graph/HTML artifact when requested:
 
 1. persist state JSON in the requested output path or durable artifact location; use `/tmp` only as ad hoc fallback
 2. validate/audit
@@ -314,8 +315,8 @@ Details: `docs/rendering.md`.
 - High-salience clue families expanded, live, or exhausted with reason?
 - Priors/costs shown only when useful?
 - Uncertainty labeled?
-- Driver loop used before major search moves on complex tasks?
-- Stopped state semantically reviewed before final, if driver mode was used?
+- Driver loop used before major search moves?
+- Stopped state semantically reviewed before final?
 - Graph HTML, if requested, generated from validated state with helper?
 
 ## Reference docs
@@ -327,6 +328,6 @@ Details: `docs/rendering.md`.
 - `docs/cost-model.md` — probability/cost math, likelihoods, bounded probes
 - `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
 - `docs/driver.md` — state JSON, helper commands, event/audit semantics
-- `docs/rendering.md` — compact output, graph mode, HTML/canvas rules
+- `docs/rendering.md` — final prose, graph/HTML artifacts, canvas rules
 - `docs/install.md` — one-time helper CLI install
 - Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. In this repository they live under `packages/reasoning-graph/src/reasoning_graph/schemas/`.

@@ -4,7 +4,7 @@ State shape, helper commands, strict driver loop, audit checks, and semantic sto
 
 ## Search State
 
-For complex tasks or graph mode, maintain explicit graph/search state in scratch notes. Do not dump raw state to the user unless useful or requested.
+For every reasoning-graph skill use, maintain explicit graph/search state. Do not dump raw state to the user unless useful or requested.
 
 Separate graph nodes from search frontier items.
 
@@ -83,9 +83,9 @@ Guidelines:
 
 ## Helper Script and Driver
 
-For complex reasoning, use the helper as the search driver. The graph should choose the next work item before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. Skip the driver when the task is small enough that graph overhead would dominate, or when doing bookkeeping that does not change the search.
+Use the helper as the search driver. The graph should choose the next work item before major search moves: substantial reasoning, branch selection, evidence-gathering tool use, searches, or tests. If the task is too small for this overhead, do not use the reasoning-graph skill. Bookkeeping that does not change the search can be done without popping a new item.
 
-Use the helper for graph mode, multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
+Use the helper for multi-branch reasoning, frontier ranking, path reconstruction, and auditable artifacts. Bookkeeping can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
@@ -270,9 +270,9 @@ An expansion patch can add or replace non-independent factors after the relevant
 }
 ```
 
-## Graph Driver Mode
+## Driver Loop
 
-Graph driver mode is the default for complex reasoning. It uses a compact `events` log plus `next --pop` / `assign` / `expand` commands so the graph controls the next work item before the agent reasons. This reduces post-hoc graph decoration and makes the search trace auditable.
+The driver loop is required for reasoning-graph skill use. It uses a compact `events` log plus `next --pop` / `assign` / `expand` commands so the graph controls the next work item before the agent reasons. This reduces post-hoc graph decoration and makes the search trace auditable.
 
 Do not include full frontier before/after snapshots; state already stores frontier items. Events record only search deltas:
 
@@ -370,7 +370,7 @@ Required checks:
 
 Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
-Before final in driver mode, validate, audit, and semantically review the stopped state:
+Before final, validate, audit, and semantically review the stopped state:
 
 ```bash
 reasoning-graph validate state.stopped.json
@@ -402,4 +402,4 @@ Audit checks:
 - `rank.best` matches the derived highest-belief viable `candidate_solution`
 - `stop` has a reason
 
-Limit: driver mode still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
+Limit: the driver loop still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
