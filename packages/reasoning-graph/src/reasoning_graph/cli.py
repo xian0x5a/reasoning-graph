@@ -15,7 +15,7 @@ from .models import STOP_OUTCOMES
 from .policy import best_candidate_ids, ranked_viable_candidates
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors
-from .state import by_id, dump_state, load_state
+from .state import by_id, dump_state, load_state, write_output_text
 from .validation import validate_state
 
 
@@ -35,7 +35,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_costs(args: argparse.Namespace) -> int:
     state = compute_costs(load_state(args.state))
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -91,6 +91,16 @@ def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, An
         state["stop_policy"] = dict(STRICT_STOP_POLICY)
         state["branch_policy"] = dict(BENCHMARK_BRANCH_POLICY if profile == "benchmark" else DEFAULT_BRANCH_POLICY)
     return state
+
+
+def default_in_place_source(args: argparse.Namespace) -> str | None:
+    """Return the input state path used as the default mutation target."""
+    if args.output:
+        return None
+    state_path = getattr(args, "state", None)
+    if not state_path or state_path == "-":
+        return None
+    return str(state_path)
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -216,7 +226,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
 
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -361,7 +371,7 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
 
 def cmd_sort(args: argparse.Namespace) -> int:
     state = sorted_frontier(load_state(args.state))
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -417,9 +427,6 @@ def cmd_next(args: argparse.Namespace) -> int:
     path = reconstruct_path(state, str(item["id"]))
 
     if args.pop:
-        if not args.in_place and not args.output:
-            print("error: --pop requires --in-place or --output so the pop event is persisted", file=sys.stderr)
-            return 1
         events = state.setdefault("events", [])
         if not isinstance(events, list):
             print("error: events must be a list before --pop can append", file=sys.stderr)
@@ -437,7 +444,9 @@ def cmd_next(args: argparse.Namespace) -> int:
         if evidence_version is not None:
             pop_event["evidence_version"] = evidence_version
         events.append(pop_event)
-        dump_state(state, args.output, args.state if args.in_place else None)
+        dump_state(state, args.output, default_in_place_source(args))
+        if args.output == "-" or (args.state == "-" and not args.output):
+            return 0
 
     if args.json:
         print(json.dumps({"item": view, "path": path}, indent=2, ensure_ascii=False))
@@ -721,7 +730,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
 
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -861,7 +870,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
 
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -934,7 +943,7 @@ def cmd_rank(args: argparse.Namespace) -> int:
     item_id = args.item or cursor.get("pending_item")
     if append_rank_event(state, item_id=item_id, top=args.top) != 0:
         return 1
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -947,7 +956,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
             return 1
     if append_stop_event(state, args.reason, args.outcome) != 0:
         return 1
-    dump_state(state, args.output, args.state if args.in_place else None)
+    dump_state(state, args.output, default_in_place_source(args))
     return 0
 
 
@@ -971,10 +980,7 @@ def cmd_mermaid(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     include_nodes = presentation_node_ids(state) if args.view == "presentation" else None
     source = to_mermaid(state, include_nodes, group_by_type=args.grouped or args.view == "audit")
-    if args.output:
-        Path(args.output).write_text(source, encoding="utf-8")
-    else:
-        sys.stdout.write(source)
+    write_output_text(source, args.output)
     return 0
 
 
@@ -990,10 +996,7 @@ def cmd_html(args: argparse.Namespace) -> int:
     source = to_mermaid(state, group_by_type=True)
     render_mode = "offline" if args.offline else "mermaid"
     document = html_document(state, source, args.spacing, render_mode)
-    if args.output:
-        Path(args.output).write_text(document, encoding="utf-8")
-    else:
-        sys.stdout.write(document)
+    write_output_text(document, args.output)
     return 0
 
 
@@ -1012,7 +1015,7 @@ def build_parser() -> argparse.ArgumentParser:
     seed.add_argument("state", help="state JSON path, or - for stdin")
     seed.add_argument("--patch", required=True, help="initial seed patch JSON path, or - for stdin")
     seed.add_argument("-o", "--output", help="write seeded state to path")
-    seed.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    seed.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     seed.set_defaults(func=cmd_seed)
 
     validate = sub.add_parser("validate", help="validate graph/search state")
@@ -1031,8 +1034,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     costs = sub.add_parser("costs", help="compute truth_cost/search_cost")
     costs.add_argument("state", help="state JSON path, or - for stdin")
-    costs.add_argument("-o", "--output", help="write result to path instead of stdout")
-    costs.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    costs.add_argument("-o", "--output", help="write result to path, or - for stdout, instead of default in-place/stdout")
+    costs.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     costs.set_defaults(func=cmd_costs)
 
     audit = sub.add_parser("audit", help="audit strict-search compact events")
@@ -1041,8 +1044,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sort = sub.add_parser("sort", help="compute costs and sort frontier by search_cost")
     sort.add_argument("state", help="state JSON path, or - for stdin")
-    sort.add_argument("-o", "--output", help="write result to path instead of stdout")
-    sort.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    sort.add_argument("-o", "--output", help="write result to path, or - for stdout, instead of default in-place/stdout")
+    sort.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     sort.set_defaults(func=cmd_sort)
 
     frontier = sub.add_parser("frontier", help="show sorted active frontier derived from events")
@@ -1056,7 +1059,7 @@ def build_parser() -> argparse.ArgumentParser:
     next_cmd.add_argument("state", help="state JSON path, or - for stdin")
     next_cmd.add_argument("--pop", action="store_true", help="append init/pop events for the lowest-cost item")
     next_cmd.add_argument("-o", "--output", help="write mutated state to path when --pop is used")
-    next_cmd.add_argument("-i", "--in-place", action="store_true", help="rewrite input file when --pop is used")
+    next_cmd.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file when --pop is used")
     next_cmd.add_argument("--json", action="store_true", help="print JSON item/path context")
     next_cmd.set_defaults(func=cmd_next)
 
@@ -1070,7 +1073,7 @@ def build_parser() -> argparse.ArgumentParser:
     assign.add_argument("--max-concurrency", type=int, help="maximum allowed in-flight probes; defaults to search_policy.max_probe_concurrency or 3")
     assign.add_argument("--reason", help="why this item is being delegated")
     assign.add_argument("-o", "--output", help="write mutated state to path")
-    assign.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    assign.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     assign.add_argument("--force", action="store_true", help="skip pending-pop and concurrency guards")
     assign.set_defaults(func=cmd_assign)
 
@@ -1079,7 +1082,7 @@ def build_parser() -> argparse.ArgumentParser:
     expand.add_argument("--item", required=True, help="popped frontier item being expanded")
     expand.add_argument("--patch", required=True, help="JSON patch path, or - for stdin")
     expand.add_argument("-o", "--output", help="write mutated state to path")
-    expand.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    expand.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     expand.add_argument("--force", action="store_true", help="skip pending-pop guard")
     expand.set_defaults(func=cmd_expand)
 
@@ -1088,7 +1091,7 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--item", help="frontier item id; defaults to pending popped item when one exists")
     rank.add_argument("--top", type=int, default=10, help="number of ranked candidates to include in the event")
     rank.add_argument("-o", "--output", help="write mutated state to path")
-    rank.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    rank.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     rank.set_defaults(func=cmd_rank)
 
     stop = sub.add_parser("stop", help="rank candidate-bearing outcomes when needed, then append a stop event")
@@ -1098,7 +1101,7 @@ def build_parser() -> argparse.ArgumentParser:
     stop.add_argument("--item", help="frontier item id for the rank event; defaults to pending popped item when one exists")
     stop.add_argument("--top", type=int, default=10, help="number of ranked candidates to include for candidate-bearing outcomes")
     stop.add_argument("-o", "--output", help="write mutated state to path")
-    stop.add_argument("-i", "--in-place", action="store_true", help="rewrite input file")
+    stop.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     stop.set_defaults(func=cmd_stop)
 
     path = sub.add_parser("path", help="reconstruct parent-pointer path for a frontier item")

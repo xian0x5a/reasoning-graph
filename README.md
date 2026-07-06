@@ -41,6 +41,8 @@ The skill treats reasoning as heuristic uniform-cost search over a graph:
 
 ## Helper commands
 
+File-input mutating commands rewrite the input state by default; use `-o <path>` for a separate file or `-o -` for stdout.
+
 ```bash
 # bootstrap and inspect state
 uv --project packages/reasoning-graph run reasoning-graph init --goal "Diagnose outage" --strict -o state.json
@@ -58,7 +60,7 @@ cat > seed.json <<'JSON'
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }
 JSON
-uv --project packages/reasoning-graph run reasoning-graph seed state.json --patch seed.json -i
+uv --project packages/reasoning-graph run reasoning-graph seed state.json --patch seed.json
 uv --project packages/reasoning-graph run reasoning-graph doctor state.json
 
 # validate before driving search; audit after driver events exist
@@ -66,11 +68,11 @@ uv --project packages/reasoning-graph run reasoning-graph validate state.json
 
 # drive graph search
 uv --project packages/reasoning-graph run reasoning-graph frontier state.json
-uv --project packages/reasoning-graph run reasoning-graph next state.json --pop -i
+uv --project packages/reasoning-graph run reasoning-graph next state.json --pop
 cat > expansion.json <<'JSON'
 {"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
 JSON
-uv --project packages/reasoning-graph run reasoning-graph expand state.json --item Q1 --patch expansion.json -i
+uv --project packages/reasoning-graph run reasoning-graph expand state.json --item Q1 --patch expansion.json
 uv --project packages/reasoning-graph run reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
 
 # final review for a stopped driver state

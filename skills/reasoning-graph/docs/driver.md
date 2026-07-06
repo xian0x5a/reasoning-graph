@@ -85,22 +85,23 @@ Guidelines:
 
 Use the helper as the search driver. The executable loop and minimal patch shape live in `../SKILL.md`; this page documents command variants, full state shape, events, and audit behavior.
 
-Bookkeeping that does not change the search can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state.
+Bookkeeping that does not change the search can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state. Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph doctor state.json                  # validate, summarize frontier, audit when events exist
 reasoning-graph validate state.json                # schema/reference/cost sanity checks
-reasoning-graph costs state.json                   # compute truth_cost/search_cost
-reasoning-graph sort state.json           # compute costs and sort frontier by search_cost
-reasoning-graph sort state.json -i        # rewrite state.json sorted in place
+reasoning-graph costs state.json                   # compute truth_cost/search_cost in place
+reasoning-graph sort state.json                    # compute costs and sort frontier in place
+reasoning-graph costs state.json -o -              # print updated state without mutating state.json
+reasoning-graph costs - < state.json               # stdin input prints updated state to stdout
 reasoning-graph frontier state.json       # show active frontier derived from events
 reasoning-graph next state.json           # show lowest-cost active item + path context
-reasoning-graph next state.json --pop -i  # persist init/pop event for lowest-cost item
-reasoning-graph expand state.json --item Q7 --patch expansion.json -i  # Q7 is an example popped/assigned item id
-reasoning-graph assign state.json --item Q7 --agent researcher -i      # record async in-flight probe work
-reasoning-graph rank state.json --item Q7 -i  # close pending item by recording current best viable candidate
-reasoning-graph seed state.json --patch later-root-seed.json -i        # add unrelated root inspiration; requires reason after driver init
+reasoning-graph next state.json --pop  # persist init/pop event for lowest-cost item
+reasoning-graph expand state.json --item Q7 --patch expansion.json  # Q7 is an example popped/assigned item id
+reasoning-graph assign state.json --item Q7 --agent researcher      # record async in-flight probe work
+reasoning-graph rank state.json --item Q7  # close pending item by recording current best viable candidate
+reasoning-graph seed state.json --patch later-root-seed.json        # add unrelated root inspiration; requires reason after driver init
 reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
 reasoning-graph validate state.stopped.json
 reasoning-graph audit state.stopped.json  # audit strict-search compact events after driver events exist
@@ -208,9 +209,9 @@ Cost behavior:
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`; it is optional before `next` because `next` computes costs and sorts active items internally.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
-- `next --pop -i` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
-- `assign --item Q7 -i` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
-- `seed --patch seed.json -i` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
+- `next --pop` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
+- `assign --item Q7` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
+- `seed --patch seed.json` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "A1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
 - `path` reconstructs a proof/search path from parent pointers.

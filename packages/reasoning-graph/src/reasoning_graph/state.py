@@ -18,10 +18,14 @@ def load_state(path: str) -> dict[str, Any]:
 def dump_state(state: dict[str, Any], path: str | None, in_place_source: str | None = None) -> None:
     text = json.dumps(state, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
     target = path or (in_place_source if in_place_source != "-" else None)
-    if target:
-        Path(target).write_text(text, encoding="utf-8")
-    else:
-        sys.stdout.write(text)
+    write_output_text(text, target)
+
+
+def write_output_text(text: str, path: str | None) -> None:
+    if path and path != "-":
+        Path(path).write_text(text, encoding="utf-8")
+        return
+    sys.stdout.write(text)
 
 
 def by_id(items: Iterable[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:

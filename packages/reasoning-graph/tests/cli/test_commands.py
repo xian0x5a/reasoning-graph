@@ -69,6 +69,100 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertNotIn('"solution_node"', patch_schema["properties"])
         self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
 
+    def test_mutating_commands_rewrite_state_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state_path.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+            result = self.run_cli("costs", str(state_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertTrue(all("search_cost" in item for item in state["frontier"]))
+
+    def test_output_path_overrides_default_in_place(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            output_path = Path(tmp_dir) / "costs.json"
+            original = FIXTURE.read_text(encoding="utf-8")
+            state_path.write_text(original, encoding="utf-8")
+
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            self.assertTrue(output_path.is_file())
+
+    def test_output_dash_emits_stdout_without_mutating_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            original = FIXTURE.read_text(encoding="utf-8")
+            state_path.write_text(original, encoding="utf-8")
+
+            result = self.run_cli("costs", str(state_path), "-o", "-")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            state = json.loads(result.stdout)
+            self.assertTrue(all("search_cost" in item for item in state["frontier"]))
+
+    def test_next_pop_rewrites_state_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state_path.write_text(
+                json.dumps({
+                    "nodes": [{"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+                }),
+                encoding="utf-8",
+            )
+
+            result = self.run_cli("next", str(state_path), "--pop")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("next Q1", result.stdout)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in state["events"]], ["init", "pop"])
+
+    def test_next_pop_output_dash_emits_mutated_state_without_mutating_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            original_state = {
+                "nodes": [{"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2}],
+                "edges": [],
+                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+            }
+            original = json.dumps(original_state)
+            state_path.write_text(original, encoding="utf-8")
+
+            result = self.run_cli("next", str(state_path), "--pop", "-o", "-")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            persisted = json.loads(result.stdout)
+            self.assertEqual([event["action"] for event in persisted["events"]], ["init", "pop"])
+
+    def test_next_pop_stdin_emits_mutated_state_to_stdout(self) -> None:
+        state = json.dumps({
+            "nodes": [{"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2}],
+            "edges": [],
+            "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
+        })
+
+        result = self.run_cli("next", "-", "--pop", input=state)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        persisted = json.loads(result.stdout)
+        self.assertEqual([event["action"] for event in persisted["events"]], ["init", "pop"])
+
+    def test_text_output_dash_emits_stdout(self) -> None:
+        result = self.run_cli("mermaid", str(FIXTURE), "-o", "-")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("flowchart", result.stdout)
+
     @unittest.skipIf(jsonschema is None, "jsonschema not installed")
     def test_json_schema_validates_fixture_and_patch_examples(self) -> None:
         state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))

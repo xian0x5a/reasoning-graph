@@ -17,11 +17,13 @@ Default final output is compact prose. Create graph/HTML artifacts only when req
 
 Every reasoning-graph skill use keeps explicit state and follows the driver loop. If the task does not justify this overhead, do not use this skill.
 
+Mutating CLI commands rewrite the input state file by default. Use `-o <path>` for a separate output file or `-o -` for stdout.
+
 1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
 2. **Seed graph.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Seed initial nodes, edges, tests, and root frontier items.
-3. **Pop focus before major work.** Run `next --pop -i` before major search, test, file inspection, verification, or branch selection; `next` computes current costs and selects the lowest-cost active item.
+3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; `next` computes current costs and selects the lowest-cost active item.
 4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, `rank`, or `stop`. Use subagents for observation-heavy probe/verify work.
-5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort -i` only when you want to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
+5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort` only when you want to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
 6. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
 7. **Review final.** Validate, audit, run semantic stop-review, then ensure final prose matches graph and invents no evidence.
 
@@ -29,14 +31,14 @@ Executable skeleton:
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
-reasoning-graph seed state.json --patch seed.json -i
-reasoning-graph next state.json --pop -i
+reasoning-graph seed state.json --patch seed.json
+reasoning-graph next state.json --pop
 # inspect popped item id, path, assumptions, related nodes
 
 # Resolve popped item by one treatment:
-reasoning-graph expand state.json --item <popped-item-id> --patch expansion.json -i
-# or: reasoning-graph assign state.json --item <popped-item-id> --agent <agent> -i
-# or: reasoning-graph rank state.json --item <popped-item-id> -i
+reasoning-graph expand state.json --item <popped-item-id> --patch expansion.json
+# or: reasoning-graph assign state.json --item <popped-item-id> --agent <agent>
+# or: reasoning-graph rank state.json --item <popped-item-id>
 
 # repeat pop -> resolve until stop policy is satisfied
 
@@ -83,7 +85,7 @@ Delegate observation-heavy work when a subagent backend is available: source res
 
 Delegation unit = bounded probe: one frontier item, hypothesis, test, source family, or candidate audit; bounded scope and stop rule; explicit output contract; no final decision authority.
 
-Parent chooses treatment for each popped item: expand, assign async probe/verify work, rank/close, or compose these. Children return observations plus optional proposed patch/artifact. Parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch> -i`.
+Parent chooses treatment for each popped item: expand, assign async probe/verify work, rank/close, or compose these. Children return observations plus optional proposed patch/artifact. Parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch>`.
 
 Subagent probe output should include target, evidence for/against with source refs, proposed graph nodes/edges, confidence or likelihood impact, residual uncertainty, suggested next probes, and blocked/stop reason when applicable.
 
