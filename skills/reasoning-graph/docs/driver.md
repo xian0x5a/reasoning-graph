@@ -251,27 +251,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id. Stop events must include structured `outcome`. For high-salience branch policy, record `under_branching_reason` or `existing_sibling_frontier` when a narrow expansion is justified by the rules in `SKILL.md`.
-
-An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
-
-```json
-{
-  "edges": [
-    {"id": "E31", "from": "B1", "to": "D1", "type": "leads_to"}
-  ],
-  "factors": [
-    {
-      "id": "F1",
-      "relation": "leads_to",
-      "target": "D1",
-      "inputs": ["A1", "B1"],
-      "aggregation": {"kind": "joint_probability", "probability": 0.72},
-      "reason": "A1 and B1 share the same source."
-    }
-  ]
-}
-```
+`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id; detailed factor shapes live in `docs/schema/factors.md`. Stop events must include structured `outcome`. For high-salience branch policy, record `under_branching_reason` or `existing_sibling_frontier` when a narrow expansion is justified by the rules in `SKILL.md`.
 
 ## Driver Loop
 
