@@ -230,7 +230,7 @@ Branch and candidate hygiene:
 High-salience clue/family branching:
 
 - Official hints, docs, maintainer comments, theorem conditions, logs, test failures, or other authoritative clues deserve interpretation branches before brute force.
-- When dropping a clue family would materially change search, mark it `clue_family: true` with `salience`; cheap clue interpretations should outrank broad/brute-force probes.
+- For high-stakes search/benchmark tasks, mark high-salience clue families with `clue_family: true` and `salience` when dropping or under-expanding them would materially change the answer. Lightweight tasks may just record sibling branches or an exhaustion reason. Cheap clue interpretations should outrank broad/brute-force probes.
 - Expand coarse possibility families before micro-variants; concrete variants belong inside the popped family expansion/test.
 - Failed bounded tests penalize only the exact tested interpretation, not the whole clue family. Add sibling/refined interpretations or explicit exhaustion proof.
 - Partial clue/family expansion is not exhaustion: leave live child frontier, explicit `exhausted: true` with `exhaustion_reason`, or revive by adding a child branch under the original family. When continuing from reports without prior graph state, reconstruct high-salience clue families as graph nodes, not generic “prior probes failed” evidence.
