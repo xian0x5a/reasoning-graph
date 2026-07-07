@@ -51,7 +51,7 @@ Example frontier item:
   evidence_version: E1
 ```
 
-Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not evidence, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `evidence`/`derived`/`test`/`assumption` node. After popping an item, digest the node, parent path, active assumptions, related nodes, and scratch, then generate multiple meaningful child branches, tests, or contradictions.
+Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not evidence, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `evidence`/`derived`/`test`/`assumption` node. After popping an item, digest the node, parent path, active assumptions, related nodes, and scratch, then record the resulting child branches, tests, or contradictions.
 
 Use parent pointers instead of copying full paths. Reconstruct a path by walking parent links.
 
@@ -251,7 +251,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id. Stop events must include structured `outcome`. Expansion events may include `under_branching_reason` and `existing_sibling_frontier` when a high-salience branch legitimately adds fewer children than the branch policy floor.
+`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id. Stop events must include structured `outcome`. For high-salience branch policy, record `under_branching_reason` or `existing_sibling_frontier` when a narrow expansion is justified by the rules in `SKILL.md`.
 
 An expansion patch can add or replace non-independent factors after the relevant relation edges already exist or are included in the same patch. To append a newly discovered input to an existing factor, submit the full replacement factor with the expanded `inputs` list and recalibrated aggregation:
 
@@ -308,7 +308,7 @@ Allowed actions:
 - `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
 - `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
-- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. For partial family/clue expansion, add child branch nodes and frontier items for remaining live interpretations; use the same popped node again only as a temporary continuation when no child branch can yet be named. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`assumption` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
 - `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
