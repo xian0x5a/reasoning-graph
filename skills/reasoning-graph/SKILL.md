@@ -219,7 +219,7 @@ Branch and candidate hygiene:
 - If a candidate enters frontier before support is expanded, mark it provisional and give high truth/constraint-tension cost so it cannot outrank evidence-backed branches.
 - A valid `candidate_solution` reaches an accepted goal or actionable answer, satisfies known constraints, has no unresolved contradiction, and states remaining assumptions/uncertainty.
 - Constraint violations should add explicit cost/blocking evidence to affected branches.
-- For concrete solve goals, only `exact_answer` and `exact_method` should answer the accepted goal. Do not make “not solved” / “insufficient evidence” a candidate unless the goal is explicitly epistemic.
+- For concrete solve goals, candidate answers must follow the accepted-goal and `answer_kind` rules above.
 - Ranked report candidates must correspond to explored, tested, or evidence-penalized branches; mention unexplored alternatives as possibilities, not ranked candidates.
 
 High-salience clue/family branching:
