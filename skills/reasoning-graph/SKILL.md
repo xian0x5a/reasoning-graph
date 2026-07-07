@@ -205,40 +205,58 @@ Minimal frontier example:
 
 Details: `docs/cost-model.md`.
 
-## Expansion rules that matter most
+## Exploration rules that matter most
 
-- Assumptions should be atomic/testable, not answer-shaped bundles.
-- Candidate solutions are usually conclusions of explored branches, not initial buckets.
-- For concrete solve goals, only `exact_answer` and `exact_method` should answer accepted goal.
-- Do not make “not solved” / “insufficient evidence” a candidate unless goal is explicitly epistemic.
-- Authoritative clues deserve interpretation branches before broad brute-force branches.
-- Failed bounded tests penalize exact tested interpretation, not whole clue family.
-- High-salience clue/family expansions should consider multiple distinct interpretations, such as direct/literal, structural/transform, or low-prior wildcard when meaningful. Do not invent branches to satisfy a count; if only one or two meaningful branches exist, record `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof.
+Input ledger essentials:
 
-Details: `docs/exploration.md`.
+- Extract the accepted `goal` first. If multiple goals conflict, ask or state the chosen primary goal.
+- Classify given/source-backed facts as `evidence`, answer boundaries as `constraint`s, and plausible interpretations as `assumption`s/frontier items. Do not turn guesses into evidence.
+- Before initial frontier, one bounded context pass may add cheap source-backed evidence. After search starts, model non-trivial checks/searches/experiments as `test`/frontier work and append result evidence during `expand`.
+- Mark inferred constraints as inferred in text/source; ask the user when the inference is high-impact or ambiguous.
+- Keep evidence concise but separate facts that play different logical roles. Add source/confidence when reliability matters.
+
+Branch and candidate hygiene:
+
+- Try direct derivation only when obvious; otherwise branch from generic, atomic, testable assumptions before specializing into derived nodes or candidate solutions.
+- After each expansion/probe, record implications, sibling hypotheses, cheap discriminator tests, contradiction penalties, and any answer-shaped candidate. Reopen/continue only when new evidence creates new work; score-only updates stay closed.
+- Assumptions should not bundle whole answers or multiple uncertain premises. If it already answers the goal, make it a derived/candidate chain instead.
+- Candidate solutions are usually conclusions of explored branches, not initial buckets. Early placeholders are valid only when user-supplied, obvious from strong direct evidence, or explicitly weak/low-priority.
+- If a candidate enters frontier before support is expanded, mark it provisional and give high truth/constraint-tension cost so it cannot outrank evidence-backed branches.
+- A valid `candidate_solution` reaches an accepted goal or actionable answer, satisfies known constraints, has no unresolved contradiction, and states remaining assumptions/uncertainty.
+- Constraint violations should add explicit cost/blocking evidence to affected branches.
+- For concrete solve goals, only `exact_answer` and `exact_method` should answer the accepted goal. Do not make “not solved” / “insufficient evidence” a candidate unless the goal is explicitly epistemic.
+- Ranked report candidates must correspond to explored, tested, or evidence-penalized branches; mention unexplored alternatives as possibilities, not ranked candidates.
+
+High-salience clue/family branching:
+
+- Official hints, docs, maintainer comments, theorem conditions, logs, test failures, or other authoritative clues deserve interpretation branches before brute force.
+- When dropping a clue family would materially change search, mark it `clue_family: true` with `salience`; cheap clue interpretations should outrank broad/brute-force probes.
+- Expand coarse possibility families before micro-variants; concrete variants belong inside the popped family expansion/test.
+- Failed bounded tests penalize only the exact tested interpretation, not the whole clue family. Add sibling/refined interpretations or explicit exhaustion proof.
+- Partial clue/family expansion is not exhaustion: leave live child frontier, explicit `exhausted: true` with `exhaustion_reason`, or revive by adding a child branch under the original family. When continuing from reports without prior graph state, reconstruct high-salience clue families as graph nodes, not generic “prior probes failed” evidence.
+- For high-salience clue/family nodes, consider distinct meaningful branches such as direct/literal, structural/transform, and low-prior wildcard. Do not invent branches to satisfy a count; if fewer are meaningful, record `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof.
+- One-child expansion is allowed but should trigger a check for missed siblings before claiming exhaustion/completion.
 
 ## Stop and audit rules
 
-Default stopping must be metric-gated, not discretionary. Normal stop is allowed when at least one is true:
+Stop is metric-gated, not discretionary. A normal stop is allowed only when at least one holds:
 
-- event-reachable frontier exhausted
-- enough viable candidates explored, usually `min_viable_candidates: 3` for comparisons
-- strongest viable candidate crosses explicit threshold, e.g. `belief_threshold: 0.8`
-- external budget reached and remaining live frontier is recorded as unfinished
+- event-reachable frontier is exhausted
+- enough viable candidates have been explored, usually `min_viable_candidates: 3` for comparison/search tasks
+- strongest viable candidate crosses an explicit threshold, usually `belief_threshold: 0.8`
+- explicit external budget is reached and remaining live frontier is recorded as unfinished, not exhausted
 
-For benchmark/search tasks, prefer this top-level state config. The strict `init` profile already includes similar defaults.
+Do not stop on an epistemic/blocker candidate while meaningful answer-goal frontier remains live unless `stop_policy` explicitly allows it. For benchmark/search tasks, set or expect strict `stop_policy`: `min_viable_candidates: 3`, `belief_threshold: 0.8`, `max_live_frontier_items: 0`, `require_frontier_exhausted_for_epistemic_stop: true`, `severity: "error"`.
 
-```json
-"stop_policy": {
-  "min_viable_candidates": 3,
-  "belief_threshold": 0.8,
-  "max_live_frontier_items": 0,
-  "require_frontier_exhausted_for_epistemic_stop": true,
-  "severity": "error"
-}
-```
+Other stop rules:
 
-Before final, use the validation/audit/stop-review gate from the driver skeleton. Treat audit warnings as actionable for benchmark/published artifacts: fix state/events or explicitly explain remaining warnings.
+- Early threshold stop is allowed, but do not pad ranked candidates with unexplored alternatives.
+- Trivial or directly contradicted alternatives may be closed only when likelihood/cost updates make them clearly dominated.
+- Contradicted candidates may remain visible with lower belief, but should not satisfy high-confidence stop targets unless effective truth cost still passes.
+- Ask user before deepening search when remaining exploration would cost meaningful time.
+- Stop reasons must name the real gate: threshold met, candidate count met, frontier exhausted, budget exhausted, or blocker reached.
+
+Before final, run driver validation/audit/stop-review mechanics in `docs/driver.md`. Treat warnings as actionable for benchmark/published artifacts: fix state/events or explain why the warning is acceptable.
 
 ## Output formats
 
@@ -264,17 +282,15 @@ Details: `docs/rendering.md`.
 
 ## Final checklist
 
-- Goal explicit?
-- Evidence separated from constraints?
-- Assumptions scoped and assigned priors?
-- Every viable candidate actually answers accepted goal?
-- Alternatives kept alive or explicitly contradicted/exhausted?
-- High-salience clue families expanded, live, or exhausted with reason?
-- Priors/costs shown only when useful?
-- Uncertainty labeled?
-- Driver loop used before major search moves?
-- Stopped state semantically reviewed before final?
-- Graph HTML, if requested, generated from validated state with helper?
+- Accepted goal is explicit; evidence, constraints, assumptions, and uncertainty are separated.
+- Every viable candidate answers an accepted goal, satisfies constraints, and is not a placeholder/blocker for a normal solve goal.
+- Meaningful alternatives and high-salience clue families are expanded, live, contradicted, or explicitly exhausted with reason.
+- Failed bounded tests penalize only affected branches; constraints add explicit cost/blocking evidence for invalid branches.
+- Ranked candidates come from explored, tested, or evidence-penalized branches; unexplored alternatives are labeled as unexpanded possibilities.
+- Stop follows metric-gated policy; do not hide live answer frontier behind blocker/epistemic stops.
+- State is built/updated through driver events before major search moves; stopped state passes validation, audit, and semantic stop review.
+- Final prose matches graph state, invents no evidence, and keeps priors/costs visible only when useful.
+- Graph/HTML artifact, if requested, is generated from validated state and shows readable summary, candidates, evidence/constraints, and curated presentation graph.
 
 ## Reference docs
 
@@ -283,8 +299,7 @@ Details: `docs/rendering.md`.
 - `docs/schema/tests.md` — detailed test lifecycle and result evidence pattern
 - `docs/schema/reporting.md` — report and presentation metadata examples
 - `docs/cost-model.md` — probability/cost math, likelihoods, bounded probes
-- `docs/exploration.md` — ledger extraction, branching, stopping, candidate hygiene
-- `docs/driver.md` — state JSON, helper commands, event/audit semantics
+- `docs/driver.md` — state JSON, helper commands, event/audit/stop-review mechanics
 - `docs/rendering.md` — final prose, graph/HTML artifacts, canvas rules
 - `docs/install.md` — one-time helper CLI install
 - Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. In this repository they live under `packages/reasoning-graph/src/reasoning_graph/schemas/`.

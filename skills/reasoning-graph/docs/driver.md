@@ -320,6 +320,8 @@ Ending commands:
 
 ### Semantic Stop Review
 
+Policy semantics live in `SKILL.md`; this section covers the CLI stop, validation, audit, and reviewer mechanics.
+
 Stop is two gates:
 
 Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
