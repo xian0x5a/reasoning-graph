@@ -144,14 +144,12 @@ Direction and relation rules:
 - `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`. Do not set direct factor `likelihood_ratio`.
 - Ungrouped incoming edges still contribute normally.
 - In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; audit events are recorded automatically.
-- Details and examples: `docs/schema/factors.md`.
 
 Test result pattern:
 
 - A `test` node is a procedure, not evidence.
 - Canonical pattern: `claim --prompts--> test`, `test --leads_to--> result evidence`, `result evidence --supports|contradicts--> claim`.
 - Inconclusive checks should add result evidence explaining why the check did not settle the claim.
-- Details and examples: `docs/schema/tests.md`.
 
 Candidate and goal rules:
 
@@ -162,14 +160,12 @@ Candidate and goal rules:
 - Do not make “not solved”, “cannot establish”, or “missing dependency” a candidate for a normal solve goal. That is a stop outcome or derived blocker unless the user accepted an epistemic/negative goal.
 - Use multiple `goal` nodes only when the user accepts multiple outcomes, e.g. solve, prove impossible, or conclude evidence is insufficient.
 - If `goal_policy.accepted_goals` is absent, all goal nodes are acceptable destinations. `preferred_goals` affects presentation/priority, not validity.
-- Details and examples: `docs/schema/goals.md`.
 
 Report and presentation metadata:
 
 - `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`.
 - `presentation` may include curated `include_nodes`, `highlight_nodes`, `dim_nodes`, `title`, and `layout_hint`.
 - Do not encode rank or viability words such as `Best`, `Second`, `viable`, or `rejected` into candidate names or node text. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
-- Details and examples: `docs/schema/reporting.md`.
 
 ## Cost and priority quick reference
 
@@ -203,7 +199,6 @@ Minimal frontier example:
 }
 ```
 
-Details: `docs/cost-model.md`.
 
 ## Exploration rules that matter most
 
@@ -279,11 +274,9 @@ reasoning-graph audit state.json
 reasoning-graph html state.json -o <path>.html
 ```
 
-Rendering requirements and artifact layout live in `docs/rendering.md`.
+For layout, offline mode, canvas, and presentation rules, see `docs/rendering.md`.
 
 Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.
-
-Details: `docs/rendering.md`.
 
 ## Final checklist
 
