@@ -271,10 +271,15 @@ Default final response:
 
 Graph/HTML artifact when requested:
 
-1. persist state JSON in the requested output path or durable artifact location; use `/tmp` only as ad hoc fallback
-2. validate/audit
-3. generate baseline artifact with `reasoning-graph html state.json -o <path>.html`
-4. include summary, candidate table, readable evidence/constraint details, curated presentation graph, and full audit graph
+Graph mode means a visual HTML report generated from validated reasoning state. Use it only when requested or approved:
+
+```bash
+reasoning-graph validate state.json
+reasoning-graph audit state.json
+reasoning-graph html state.json -o <path>.html
+```
+
+Rendering requirements and artifact layout live in `docs/rendering.md`.
 
 Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.
 
@@ -290,7 +295,7 @@ Details: `docs/rendering.md`.
 - Stop follows metric-gated policy; do not hide live answer frontier behind blocker/epistemic stops.
 - State is built/updated through driver events before major search moves; stopped state passes validation, audit, and semantic stop review.
 - Final prose matches graph state, invents no evidence, and keeps priors/costs visible only when useful.
-- Graph/HTML artifact, if requested, is generated from validated state and shows readable summary, candidates, evidence/constraints, and curated presentation graph.
+- Graph/HTML artifact, if requested, is generated from validated state with `reasoning-graph html`.
 
 ## Reference docs
 
