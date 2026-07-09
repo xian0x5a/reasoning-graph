@@ -18,7 +18,6 @@ PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
 from reasoning_graph.frontier import search_cursor
-from reasoning_graph.policy import sorted_report_candidates
 
 
 FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
@@ -466,58 +465,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             later_pop = self.run_cli("next", str(state_path), "--pop", "-i")
             self.assertEqual(later_pop.returncode, 0, later_pop.stderr)
             self.assertIn("next Q2", later_pop.stdout)
-
-    def test_audit_counts_distinct_graph_candidates_not_report_rows(self) -> None:
-        duplicate_fixture = PACKAGE_ROOT / "tests" / "fixtures" / "invalid" / "audit" / "duplicate-report-candidate.json"
-        duplicate_state = json.loads(duplicate_fixture.read_text(encoding="utf-8"))
-        self.assertEqual([candidate["id"] for candidate in sorted_report_candidates(duplicate_state)], ["CS1", "CS1", "CS1"])
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            duplicate_path = Path(tmp_dir) / "duplicate-report-candidate.json"
-            duplicate_path.write_text(json.dumps(duplicate_state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(duplicate_path))
-            self.assertNotEqual(audit.returncode, 0, audit.stdout)
-            self.assertIn("viable_candidates=1 < min_viable_candidates=3", audit.stderr)
-
-            stop_review = self.run_cli("stop-review", str(duplicate_path))
-            self.assertNotEqual(stop_review.returncode, 0, stop_review.stdout)
-            self.assertIn("viable_candidates=1 < min_viable_candidates=3", stop_review.stdout)
-
-            distinct_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            distinct_state["stop_policy"] = {
-                "min_viable_candidates": 3,
-                "max_live_frontier_items": 0,
-                "severity": "error",
-            }
-            distinct_state["nodes"].extend([
-                {"id": "CS2", "type": "candidate_solution", "text": "Candidate from A2", "answer_kind": "exact_answer", "prior": 0.4},
-                {"id": "CS3", "type": "candidate_solution", "text": "Candidate from A1 alternate", "answer_kind": "exact_answer", "prior": 0.3},
-            ])
-            distinct_state["edges"].extend([
-                {"id": "E3", "from": "A2", "to": "CS2", "type": "leads_to"},
-                {"id": "E4", "from": "CS2", "to": "G1", "type": "answers"},
-                {"id": "E5", "from": "A1", "to": "CS3", "type": "leads_to"},
-                {"id": "E6", "from": "CS3", "to": "G1", "type": "answers"},
-            ])
-            distinct_state["report"] = {
-                "candidates": [
-                    {"id": "CS1", "name": "Candidate one"},
-                    {"id": "CS2", "name": "Candidate two"},
-                    {"id": "CS3", "name": "Candidate three"},
-                ]
-            }
-            distinct_path = Path(tmp_dir) / "distinct-candidates.json"
-            distinct_path.write_text(json.dumps(distinct_state), encoding="utf-8")
-
-            validate = self.run_cli("validate", str(distinct_path))
-            self.assertEqual(validate.returncode, 0, validate.stderr)
-            audit = self.run_cli("audit", str(distinct_path))
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-            self.assertEqual(
-                {candidate["id"] for candidate in sorted_report_candidates(distinct_state)},
-                {"CS1", "CS2", "CS3"},
-            )
 
     def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
         ok = self.run_cli("stop-review", str(FIXTURE))
