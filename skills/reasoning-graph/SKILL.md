@@ -71,7 +71,7 @@ Use the same patch shape for `seed` and `expand`; `expand` may also use `update_
 
 Rules that prevent fake traces:
 
-- Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`; candidate-bearing `stop` may close a pending item.
+- Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`; every `stop` requires no pending item, and candidate-bearing `stop` auto-ranks only after terminal preflight passes.
 - Use `seed` for initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
 - Assigned items are in-flight, not active frontier; merge returned work with `expand --item <assigned-item>`.
 - For parallel work, decompose one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy.

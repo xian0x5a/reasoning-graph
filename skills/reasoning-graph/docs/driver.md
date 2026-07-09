@@ -334,7 +334,7 @@ Required checks:
 - contradictions/failures penalize only affected branches
 - final answer draft matches graph state and invents no new evidence
 
-Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Candidate-bearing `stop` auto-ranks and may close a pending item; non-candidate `stop` requires no pending item. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
+Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Every `stop` requires no pending item; candidate-bearing `stop` auto-ranks only after terminal preflight passes. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
 Before final, validate, audit, and semantically review the stopped state:
 

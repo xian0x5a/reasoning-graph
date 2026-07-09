@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -771,7 +772,9 @@ def cmd_assign(args: argparse.Namespace) -> int:
 
 
 def cmd_expand(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
+    # Build expansion and terminal events on an isolated state so failed stop
+    # preflight cannot leak partial in-memory mutations to the caller.
+    state = copy.deepcopy(load_state(args.state))
     cursor = search_cursor(state)
     if cursor["stopped"] and not args.force:
         print("error: search already has a stop event; use --force to append anyway", file=sys.stderr)
@@ -792,6 +795,18 @@ def cmd_expand(args: argparse.Namespace) -> int:
         for error in patch_errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
+
+    stop_reason = patch.get("stop_reason")
+    stop_outcome = patch.get("stop_outcome")
+    if stop_reason is not None:
+        if not isinstance(stop_reason, str) or not stop_reason.strip():
+            raise ValueError("stop_reason must be a non-empty string")
+        if stop_outcome not in STOP_OUTCOMES:
+            raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
+        # A patch stop is still a terminal command: reject pending or in-flight
+        # work before expansion can close it or candidate ranking can append.
+        if _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
+            return 1
 
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
@@ -892,17 +907,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
             }
         )
 
-    stop_reason = patch.get("stop_reason")
     if stop_reason is not None:
-        if not isinstance(stop_reason, str) or not stop_reason.strip():
-            raise ValueError("stop_reason must be a non-empty string")
-        stop_outcome = patch.get("stop_outcome")
-        if stop_outcome not in STOP_OUTCOMES:
-            raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
-        # Preflight after expansion closes its pending/assigned item, but before
-        # candidate auto-ranking, so a rejected terminal state cannot gain a rank event.
-        if _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
-            return 1
         if stop_outcome in CANDIDATE_STOP_OUTCOMES and not patch_ranked and append_rank_event(state, item_id=args.item, top=10) != 0:
             return 1
         if append_stop_event(state, stop_reason, str(stop_outcome)) != 0:
@@ -953,13 +958,7 @@ def append_rank_event(state: dict[str, Any], item_id: str | None = None, top: in
     return 0
 
 
-def _stop_preflight(
-    state: dict[str, Any],
-    reason: str,
-    outcome: str,
-    *,
-    allow_pending_item: bool = False,
-) -> int:
+def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
     """Reject terminal events that would make the search cursor incoherent."""
     reason = reason.strip()
     if not reason:
@@ -981,7 +980,7 @@ def _stop_preflight(
         print("error: search already has a stop event", file=sys.stderr)
         return 1
     pending_item = cursor.get("pending_item")
-    if pending_item and not allow_pending_item:
+    if pending_item:
         print(
             f"error: cannot stop while pending popped item {pending_item} is unresolved; expand, assign, or rank it first",
             file=sys.stderr,
@@ -1025,14 +1024,9 @@ def cmd_rank(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    # Candidate stops may close one pending pop through auto-ranking; preflight
-    # everything else before appending that rank event.
-    if _stop_preflight(
-        state,
-        args.reason,
-        args.outcome,
-        allow_pending_item=args.outcome in CANDIDATE_STOP_OUTCOMES,
-    ) != 0:
+    # Preflight all terminal invariants before candidate auto-ranking can append
+    # a rank event.
+    if _stop_preflight(state, args.reason, args.outcome) != 0:
         return 1
     if args.outcome in CANDIDATE_STOP_OUTCOMES:
         cursor = search_cursor(state)

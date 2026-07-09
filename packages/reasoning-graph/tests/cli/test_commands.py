@@ -17,6 +17,7 @@ REPO_ROOT = PACKAGE_ROOT.parents[1]
 PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
+from reasoning_graph.cli import append_stop_event
 from reasoning_graph.frontier import search_cursor
 
 
@@ -933,6 +934,31 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(stopped.returncode, 0)
             self.assertIn("assigned items remain in-flight", stopped.stderr)
 
+    def test_stop_candidate_outcome_rejects_pending_item_without_persisting_rank_or_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+            original = json.dumps(state)
+            state_path.write_text(original, encoding="utf-8")
+
+            stopped = self.run_cli(
+                "stop",
+                str(state_path),
+                "--reason",
+                "candidate answers goal",
+                "--outcome",
+                "solved",
+                "-i",
+            )
+
+            self.assertNotEqual(stopped.returncode, 0)
+            self.assertIn("pending popped item", stopped.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("rank", [event["action"] for event in persisted["events"]])
+            self.assertNotIn("stop", [event["action"] for event in persisted["events"]])
+
     def test_stop_preflight_rejects_invalid_terminal_states_without_persisting(self) -> None:
         cases = {
             "uninitialized": (
@@ -1001,6 +1027,19 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 self.assertNotEqual(stopped.returncode, 0)
                 self.assertIn(expected_error, stopped.stderr)
                 self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+
+    def test_append_stop_event_rejects_pending_state_without_mutation(self) -> None:
+        state = {
+            "frontier": [{"id": "Q1", "node": "A1"}],
+            "events": [
+                {"step": 1, "action": "init", "frontier": ["Q1"]},
+                {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+            ],
+        }
+        original = json.loads(json.dumps(state))
+
+        self.assertNotEqual(append_stop_event(state, "done", "user_stopped"), 0)
+        self.assertEqual(state, original)
 
     def test_audit_rejects_invalid_terminal_states(self) -> None:
         cases = {
@@ -1103,12 +1142,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
             self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
             self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q2", "-i").returncode, 0)
+            before_rejected_expand = state_path.read_text(encoding="utf-8")
             stopped = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
 
             self.assertNotEqual(stopped.returncode, 0)
             self.assertIn("assigned items remain in-flight", stopped.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertNotEqual(updated["events"][-1]["action"], "stop")
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before_rejected_expand)
 
     def test_audit_enforces_policy_max_probe_concurrency_without_event_field(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1980,7 +2019,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+            state["events"] = [
+                event
+                for event in state["events"]
+                if event.get("action") not in {"rank", "stop"}
+                and not (event.get("action") == "pop" and event.get("item") == "Q3")
+            ]
             patch = {
                 "rank": True,
                 "no_new_work_reason": "candidate already supported; closing pending item",
@@ -1990,7 +2034,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
+            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "--force", "-i")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
@@ -2003,6 +2047,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             stopped_path = Path(tmp_dir) / "stopped.json"
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+            state["events"].append({"step": 5, "action": "expand", "item": "Q3", "add_nodes": [], "add_edges": [], "add_frontier": []})
             original = json.dumps(state, indent=2) + "\n"
             state_path.write_text(original, encoding="utf-8")
 
