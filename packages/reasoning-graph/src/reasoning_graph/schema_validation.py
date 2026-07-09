@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from functools import lru_cache
 from importlib import resources
@@ -68,6 +69,24 @@ def format_schema_error(error: jsonschema.ValidationError) -> str:
     return f"schema {schema_path(error)}: {error.message}"
 
 
+def _non_finite_number_errors(value: Any, path: str = "$") -> list[str]:
+    if isinstance(value, float) and not math.isfinite(value):
+        return [f"schema {path}: number must be finite"]
+    if isinstance(value, dict):
+        return [
+            error
+            for key, child in value.items()
+            for error in _non_finite_number_errors(child, f"{path}.{key}")
+        ]
+    if isinstance(value, list):
+        return [
+            error
+            for index, child in enumerate(value)
+            for error in _non_finite_number_errors(child, f"{path}[{index}]")
+        ]
+    return []
+
+
 def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list[str]:
     schema = load_schema(schema_name)
     if schema_name == STATE_SCHEMA:
@@ -76,7 +95,7 @@ def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list
         resolver = jsonschema.RefResolver.from_schema(schema, store=schema_store())
         validator = jsonschema.Draft202012Validator(schema, resolver=resolver)
     errors = sorted(validator.iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
-    return [format_schema_error(error) for error in errors]
+    return [format_schema_error(error) for error in errors] + _non_finite_number_errors(document)
 
 
 def state_schema_errors(state: dict[str, Any]) -> list[str]:

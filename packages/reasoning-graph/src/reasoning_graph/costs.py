@@ -84,7 +84,10 @@ def likelihood_ratio_from_likelihood(likelihood: Any, field: str = "likelihood")
     if_target_false = likelihood_probability_from_value(
         likelihood.get("if_target_false"), f"{field}.if_target_false"
     )
-    return if_target_true / if_target_false
+    likelihood_ratio = if_target_true / if_target_false
+    if not math.isfinite(likelihood_ratio):
+        raise ValueError(f"{field} ratio must be finite, got {likelihood_ratio}")
+    return likelihood_ratio
 
 
 def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
@@ -301,6 +304,9 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
+        # Validate every edge before posterior short-circuiting can hide malformed updates.
+        if "likelihood" in edge or "likelihood_ratio" in edge:
+            likelihood_ratio_from_edge(edge)
         edge_type = edge.get("type") or edge.get("label")
         src = edge.get("from")
         dst = edge.get("to")

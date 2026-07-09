@@ -1,4 +1,5 @@
 import io
+import json
 import math
 import sys
 import tempfile
@@ -11,7 +12,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
-from reasoning_graph.costs import compute_costs
+from reasoning_graph.costs import compute_costs, likelihood_ratio_from_likelihood
 from reasoning_graph.state import dump_state
 from reasoning_graph.validation import validate_state
 
@@ -140,6 +141,46 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
                 )
                 with self.assertRaises(ValueError):
                     compute_costs(state)
+
+    def test_likelihood_ratio_from_likelihood_rejects_extreme_overflow(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ratio must be finite"):
+            likelihood_ratio_from_likelihood({"if_target_true": 1.0, "if_target_false": 5e-324})
+
+        tiny_ratio = likelihood_ratio_from_likelihood(
+            {"if_target_true": 5e-324, "if_target_false": 1.0}
+        )
+        self.assertTrue(math.isfinite(tiny_ratio))
+        self.assertGreater(tiny_ratio, 0.0)
+
+    def test_compute_costs_rejects_extreme_edge_ratio_with_explicit_posterior(self) -> None:
+        state = self.base_state(
+            edges=[
+                {
+                    "id": "E1A1",
+                    "from": "E1",
+                    "to": "A1",
+                    "type": "supports",
+                    "likelihood": {"if_target_true": 1.0, "if_target_false": 5e-324},
+                }
+            ]
+        )
+        state["nodes"][2]["posterior"] = 0.7
+
+        with self.assertRaisesRegex(ValueError, "ratio must be finite"):
+            compute_costs(state)
+
+    def test_validator_reports_non_finite_json_numbers(self) -> None:
+        for invalid in (math.nan, math.inf, -math.inf):
+            with self.subTest(invalid=invalid):
+                state = json.loads(json.dumps(self.base_state()))
+                state["nodes"][2]["posterior"] = invalid
+
+                result = validate_state(state)
+
+                self.assertFalse(result.ok)
+                self.assertTrue(
+                    any("schema $.nodes[2].posterior: number must be finite" in error for error in result.errors)
+                )
 
     def test_validator_reports_invalid_probability_without_throwing(self) -> None:
         state = self.base_state(prior=0.5)
