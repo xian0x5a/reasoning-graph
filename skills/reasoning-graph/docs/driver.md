@@ -215,7 +215,7 @@ Cost behavior:
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
 - Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "A1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
 - `path` reconstructs a proof/search path from parent pointers.
-- `audit` checks compact strict-search events for coherent best-first expansion.
+- `audit` replays graph changes before each pop, then checks compact strict-search events for coherent best-first expansion. Later evidence can reorder remaining work, but cannot retroactively justify an earlier skipped cheaper item.
 
 Expansion patch shape:
 
@@ -275,6 +275,7 @@ Do not include full frontier before/after snapshots; state already stores fronti
     "add_edges": ["E1", "E2"],
     "add_frontier": ["Q4", "Q5"],
     "updated_nodes": [{"id": "A1", "fields": ["posterior"]}],
+    "updated_node_snapshots": [{"id": "A1", "before": {"id": "A1", "type": "assumption", "prior": 0.6}}],
     "no_new_work_reason": "A1 score changed, but no new A1-local work was implied."
   },
   {"step": 7, "action": "expand", "item": "Q2", "add_nodes": [], "add_edges": [], "add_frontier": [], "no_new_work_reason": "scout found no new local constraints"},
@@ -366,5 +367,6 @@ Audit checks:
 - candidate solutions contradicted by evidence remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
 - `rank.best` matches the derived highest-belief viable `candidate_solution`
 - `stop` has a reason
+- pop costs and remaining-frontier order are evaluated against graph evidence available before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
 
 Limit: the driver loop still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.

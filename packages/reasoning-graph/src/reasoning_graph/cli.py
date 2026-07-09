@@ -179,6 +179,8 @@ def cmd_seed(args: argparse.Namespace) -> int:
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
     _ensure_object_ids(factors_to_update, "update_factors")
 
+    node_update_snapshots = _node_update_snapshots(state, node_updates)
+    factor_update_snapshots = _factor_update_snapshots(state, factors_to_update)
     updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
@@ -220,6 +222,8 @@ def cmd_seed(args: argparse.Namespace) -> int:
                 "add_frontier": [item["id"] for item in frontier_to_add],
                 "update_factors": [factor["id"] for factor in factors_to_update],
                 **({"updated_nodes": updated_node_specs} if updated_node_specs else {}),
+                **({"updated_node_snapshots": node_update_snapshots} if node_update_snapshots else {}),
+                **({"updated_factor_snapshots": factor_update_snapshots} if factor_update_snapshots else {}),
             }
         )
         for supersede_event in supersede_events:
@@ -536,6 +540,31 @@ def _node_update_list(value: Any, field: str) -> list[dict[str, Any]]:
     return updates
 
 
+def _node_update_snapshots(state: dict[str, Any], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    nodes = by_id(state.get("nodes", []), "node")
+    return [
+        {
+            "id": str(update["id"]),
+            "before": json.loads(json.dumps(nodes[str(update["id"])])),
+        }
+        for update in updates
+        if str(update["id"]) in nodes
+    ]
+
+
+def _factor_update_snapshots(state: dict[str, Any], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    factors = by_id(state.get("factors", []), "factor")
+    return [
+        {
+            "id": str(update["id"]),
+            "before": json.loads(json.dumps(factors[str(update["id"])]))
+            if str(update["id"]) in factors
+            else None,
+        }
+        for update in updates
+    ]
+
+
 def _apply_node_updates(state: dict[str, Any], updates: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
     if not updates:
         return []
@@ -786,6 +815,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
             child["parent"] = args.item
 
     active_ids = set(cursor["active_ids"])
+    node_update_snapshots = _node_update_snapshots(state, node_updates)
+    factor_update_snapshots = _factor_update_snapshots(state, factors_to_update)
     updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
@@ -837,6 +868,10 @@ def cmd_expand(args: argparse.Namespace) -> int:
         event["updated_nodes"] = updated_node_specs
     elif "updated_nodes" in patch:
         event["updated_nodes"] = patch["updated_nodes"]
+    if node_update_snapshots:
+        event["updated_node_snapshots"] = node_update_snapshots
+    if factor_update_snapshots:
+        event["updated_factor_snapshots"] = factor_update_snapshots
     events.append(event)
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})

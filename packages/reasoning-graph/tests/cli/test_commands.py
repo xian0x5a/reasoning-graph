@@ -249,6 +249,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 updated["events"][-1]["updated_nodes"],
                 [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "posterior"]}],
             )
+            self.assertEqual(updated["events"][-1]["updated_node_snapshots"][0]["before"]["prior"], 0.2)
 
     def test_expand_patch_rejects_missing_or_identity_node_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1019,6 +1020,184 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(audit.returncode, 0)
             self.assertIn("cannot pop while unresolved popped item Q1 is pending", audit.stderr)
 
+    def test_audit_rejects_pop_that_skipped_cheaper_item_before_direct_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "direct-cost-update-out-of-order.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First branch", "prior": 0.5},
+                    {"id": "A2", "type": "assumption", "text": "Second branch", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Later contradiction"},
+                ],
+                "edges": [
+                    {"id": "E1A2", "from": "E1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.01},
+                ],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto"}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.793147},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q1",
+                        "add_nodes": [],
+                        "add_edges": ["E1A2"],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Evidence was recorded for later review; no child work added.",
+                    },
+                    {"step": 4, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_cli("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0, audit.stdout)
+            self.assertIn("lowest frontier search_cost", audit.stderr)
+
+    def test_audit_accepts_best_first_pop_after_direct_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "direct-cost-update-in-order.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First branch", "prior": 0.5},
+                    {"id": "A2", "type": "assumption", "text": "Second branch", "prior": 0.5},
+                    {"id": "E1", "type": "evidence", "text": "Later contradiction"},
+                ],
+                "edges": [
+                    {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.01},
+                ],
+                "frontier": [
+                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto"}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q2", "cost": 0.693147},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q2",
+                        "add_nodes": [],
+                        "add_edges": ["E1A1"],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Evidence changed Q1 priority but created no new work.",
+                    },
+                    {"step": 4, "action": "pop", "item": "Q1", "cost": 4.715121},
+                    {
+                        "step": 5,
+                        "action": "expand",
+                        "item": "Q1",
+                        "add_nodes": [],
+                        "add_edges": [],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Branch complete.",
+                    },
+                    {"step": 6, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_cli("audit", str(state_path))
+
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+
+    def test_audit_rejects_pop_that_skipped_cheaper_item_before_transitive_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "transitive-cost-update-out-of-order.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First premise", "prior": 0.5},
+                    {"id": "A2", "type": "assumption", "text": "Second premise", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "First derived branch"},
+                    {"id": "D2", "type": "derived", "text": "Second derived branch"},
+                    {"id": "E1", "type": "evidence", "text": "Later contradiction"},
+                ],
+                "edges": [
+                    {"id": "A1D1", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "A2D2", "from": "A2", "to": "D2", "type": "leads_to"},
+                    {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.01},
+                ],
+                "frontier": [
+                    {"id": "Q1", "node": "D1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "D2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q2", "cost": 0.893147},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q2",
+                        "add_nodes": [],
+                        "add_edges": ["E1A1"],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Evidence was recorded for later review; no child work added.",
+                    },
+                    {"step": 4, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_cli("audit", str(state_path))
+
+            self.assertNotEqual(audit.returncode, 0, audit.stdout)
+            self.assertIn("lowest frontier search_cost", audit.stderr)
+
+    def test_audit_accepts_best_first_pop_after_transitive_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "transitive-cost-update-in-order.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "First premise", "prior": 0.5},
+                    {"id": "A2", "type": "assumption", "text": "Second premise", "prior": 0.5},
+                    {"id": "D1", "type": "derived", "text": "First derived branch"},
+                    {"id": "D2", "type": "derived", "text": "Second derived branch"},
+                    {"id": "E1", "type": "evidence", "text": "Later contradiction"},
+                ],
+                "edges": [
+                    {"id": "A1D1", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "A2D2", "from": "A2", "to": "D2", "type": "leads_to"},
+                    {"id": "E1A2", "from": "E1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.01},
+                ],
+                "frontier": [
+                    {"id": "Q1", "node": "D1", "cost_components": {"truth": "auto", "verification": 0.1}},
+                    {"id": "Q2", "node": "D2", "cost_components": {"truth": "auto", "verification": 0.2}},
+                ],
+                "events": [
+                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
+                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.793147},
+                    {
+                        "step": 3,
+                        "action": "expand",
+                        "item": "Q1",
+                        "add_nodes": [],
+                        "add_edges": ["E1A2"],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Evidence changed Q2 priority but created no new work.",
+                    },
+                    {"step": 4, "action": "pop", "item": "Q2", "cost": 4.815121},
+                    {
+                        "step": 5,
+                        "action": "expand",
+                        "item": "Q2",
+                        "add_nodes": [],
+                        "add_edges": [],
+                        "add_frontier": [],
+                        "no_new_work_reason": "Branch complete.",
+                    },
+                    {"step": 6, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            audit = self.run_cli("audit", str(state_path))
+
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+
     def test_expand_supersedes_existing_duplicate_when_new_item_is_cheaper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
@@ -1394,6 +1573,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             expanded = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(expanded["factors"][0]["id"], "F1")
             self.assertEqual(expanded["events"][-1]["update_factors"], ["F1"])
+            self.assertEqual(expanded["events"][-1]["updated_factor_snapshots"][0]["before"], None)
             self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 0.287682, places=6)
 
     def test_audit_accepts_updated_factors(self) -> None:

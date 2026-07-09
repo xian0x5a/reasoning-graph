@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -12,6 +13,101 @@ from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, sali
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
+
+
+def _event_ids(event: dict[str, Any], field: str) -> set[str]:
+    values = event.get(field)
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values if isinstance(value, str) and value}
+
+
+def _remove_items_by_id(items: Any, removed_ids: set[str]) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    return [
+        item
+        for item in items
+        if not isinstance(item, dict) or str(item.get("id") or "") not in removed_ids
+    ]
+
+
+def _snapshot_specs(event: dict[str, Any], field: str) -> list[dict[str, Any]]:
+    snapshots = event.get(field)
+    if not isinstance(snapshots, list):
+        return []
+    return [snapshot for snapshot in snapshots if isinstance(snapshot, dict)]
+
+
+def _restore_snapshots(
+    items: list[dict[str, Any]],
+    snapshots: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_id = {str(item.get("id")): item for item in items if isinstance(item.get("id"), str)}
+    for snapshot in snapshots:
+        item_id = snapshot.get("id")
+        if not isinstance(item_id, str):
+            continue
+        before = snapshot.get("before")
+        if before is None:
+            by_id.pop(item_id, None)
+        elif isinstance(before, dict):
+            by_id[item_id] = json.loads(json.dumps(before))
+    return list(by_id.values())
+
+
+def _undo_replay_event(state: dict[str, Any], event: dict[str, Any]) -> None:
+    """Undo one event so state reflects the graph before that event.
+
+    The final state stores graph objects once, while events store insertion ids. Replaying
+    backwards lets audit evaluate each pop against only evidence that existed at that time.
+    Update snapshots are emitted by the CLI for mutable node/factor replacements; old traces
+    without snapshots retain their final value because their prior value is unknowable.
+    """
+
+    action = event.get("action")
+    if action not in {"seed", "expand"}:
+        return
+
+    node_snapshots = _snapshot_specs(event, "updated_node_snapshots")
+    if not node_snapshots:
+        node_snapshots = [
+            snapshot
+            for snapshot in _snapshot_specs(event, "updated_nodes")
+            if isinstance(snapshot.get("before"), dict)
+        ]
+    if node_snapshots:
+        state["nodes"] = _restore_snapshots(state.get("nodes", []), node_snapshots)
+
+    factor_snapshots = _snapshot_specs(event, "updated_factor_snapshots")
+    if factor_snapshots:
+        state["factors"] = _restore_snapshots(state.get("factors", []), factor_snapshots)
+
+    state["nodes"] = _remove_items_by_id(state.get("nodes", []), _event_ids(event, "add_nodes"))
+    removed_edge_ids = _event_ids(event, "add_edges")
+    retained_edge_ids: set[str] = set()
+    factors = [factor for factor in state.get("factors", []) if isinstance(factor, dict)]
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict) or str(edge.get("id") or "") not in removed_edge_ids:
+            continue
+        edge_type = edge.get("type") or edge.get("label")
+        if any(
+            factor.get("relation") == edge_type
+            and factor.get("target") == edge.get("to")
+            and isinstance(factor.get("inputs"), list)
+            and edge.get("from") in factor["inputs"]
+            for factor in factors
+        ):
+            retained_edge_ids.add(str(edge["id"]))
+    state["edges"] = _remove_items_by_id(state.get("edges", []), removed_edge_ids - retained_edge_ids)
+
+
+def _historical_state_before_event(state: dict[str, Any], events: list[Any], event_index: int) -> dict[str, Any]:
+    historical = json.loads(json.dumps(state))
+    for event in reversed(events[event_index:]):
+        if isinstance(event, dict):
+            _undo_replay_event(historical, event)
+    return historical
 
 
 def add_policy_violation(result: ValidationResult, message: str, severity: str) -> None:
@@ -107,9 +203,10 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         errors.append("events must be a non-empty list for strict search audit")
         return ValidationResult(errors=errors, warnings=warnings), stats
 
-    compute_costs(state)
+    costed_state = json.loads(json.dumps(state))
+    compute_costs(costed_state)
     nodes = by_id(state.get("nodes", []), "node")
-    items = by_id(state.get("frontier", []), "frontier item")
+    items = by_id(costed_state.get("frontier", []), "frontier item")
     edges = [edge for edge in state.get("edges", []) if isinstance(edge, dict)]
     edges_by_id = {edge.get("id"): edge for edge in edges if isinstance(edge.get("id"), str) and edge.get("id")}
     edge_ids = set(edges_by_id)
@@ -136,40 +233,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     last_popped_item: str | None = None
     event_added_nodes: set[str] = set()
     event_ranked_nodes: set[str] = set()
-    evidence_update_added_steps_by_node: dict[str, list[int]] = {}
-    for event in events:
-        if not isinstance(event, dict):
-            continue
-        try:
-            event_step = int(event.get("step"))
-        except (TypeError, ValueError):
-            continue
-        for edge_id in event.get("add_edges") if isinstance(event.get("add_edges"), list) else []:
-            edge = edges_by_id.get(str(edge_id))
-            if not edge:
-                continue
-            edge_type = edge.get("type") or edge.get("label")
-            is_likelihood_update = edge_type in {"supports", "contradicts"} and (
-                "likelihood_ratio" in edge or "likelihood" in edge
-            )
-            is_numeric_update = edge_type == "leads_to" or is_likelihood_update
-            if not is_numeric_update:
-                continue
-            target = edge.get("to")
-            if isinstance(target, str):
-                evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
-        factor_ids = []
-        if isinstance(event.get("update_factors"), list):
-            factor_ids.extend(event["update_factors"])
-        if isinstance(event.get("add_factors"), list):
-            factor_ids.extend(event["add_factors"])
-        for factor_id in factor_ids:
-            factor = factors_by_id.get(str(factor_id))
-            if not factor:
-                continue
-            target = factor.get("target")
-            if isinstance(target, str):
-                evidence_update_added_steps_by_node.setdefault(target, []).append(event_step)
 
     search_policy = state.get("search_policy") if isinstance(state.get("search_policy"), dict) else {}
     default_max_probe_concurrency = 3
@@ -191,13 +254,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
     def event_label(index: int, event: dict[str, Any]) -> str:
         return f"events[{index}] step={event.get('step')} action={event.get('action')}"
-
-    def item_cost_changed_after(item_id: str, step: int) -> bool:
-        item = items.get(item_id, {})
-        node_id = item.get("node")
-        if not isinstance(node_id, str):
-            return False
-        return any(change_step > step for change_step in evidence_update_added_steps_by_node.get(node_id, []))
 
     for index, raw_event in enumerate(events):
         stats["events"] += 1
@@ -289,22 +345,33 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: item {item_id} is not in current virtual frontier")
 
             item = items[item_id]
-            expected_cost = float(item.get("search_cost", math.inf))
+            historical_state = _historical_state_before_event(state, events, index)
+            compute_costs(historical_state)
+            historical_items = by_id(historical_state.get("frontier", []), "frontier item")
+            historical_item = historical_items.get(item_id, item)
+            expected_cost = float(historical_item.get("search_cost", math.inf))
             try:
                 event_cost = float(event.get("cost"))
             except (TypeError, ValueError):
                 errors.append(f"{label}: cost must be numeric")
                 event_cost = expected_cost
-            current_step = step if isinstance(step, int) else -1
-            popped_cost_changed_later = item_cost_changed_after(item_id, current_step)
-            if abs(event_cost - expected_cost) > tolerance and not popped_cost_changed_later:
+            if abs(event_cost - expected_cost) > tolerance:
                 errors.append(f"{label}: cost {event_cost} != item search_cost {expected_cost}")
 
             if virtual_frontier:
-                frontier_costs_changed_later = any(item_cost_changed_after(q, current_step) for q in virtual_frontier if q in items)
-                lowest_cost = min(float(items[q].get("search_cost", math.inf)) for q in virtual_frontier if q in items)
-                if expected_cost > lowest_cost + tolerance and not frontier_costs_changed_later:
-                    lowest_items = sorted(q for q in virtual_frontier if q in items and abs(float(items[q].get("search_cost", math.inf)) - lowest_cost) <= tolerance)
+                historical_frontier_costs = {
+                    q: float(historical_items[q].get("search_cost", math.inf))
+                    for q in virtual_frontier
+                    if q != item_id
+                    if q in historical_items
+                }
+                lowest_cost = min(historical_frontier_costs.values(), default=math.inf)
+                if expected_cost > lowest_cost + tolerance:
+                    lowest_items = sorted(
+                        q
+                        for q, cost in historical_frontier_costs.items()
+                        if abs(cost - lowest_cost) <= tolerance
+                    )
                     errors.append(f"{label}: popped {item_id} cost {expected_cost} but lowest frontier search_cost is {lowest_cost} at {lowest_items[:3]}")
 
             virtual_frontier.discard(item_id)
