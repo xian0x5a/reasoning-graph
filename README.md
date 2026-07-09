@@ -89,7 +89,14 @@ uv --project packages/reasoning-graph run reasoning-graph html state.stopped.jso
 
 ## Schemas
 
-Machine-readable JSON Schemas live under `packages/reasoning-graph/src/reasoning_graph/schemas/`:
+Machine-readable JSON Schemas are packaged with the CLI. Print them from any install:
+
+```bash
+reasoning-graph schema state
+reasoning-graph schema patch
+```
+
+In this repository, source schemas live under `packages/reasoning-graph/src/reasoning_graph/schemas/`:
 
 - `state.schema.json` for graph/search state files
 - `patch.schema.json` for expansion patches

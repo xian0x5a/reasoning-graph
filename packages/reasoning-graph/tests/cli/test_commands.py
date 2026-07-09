@@ -69,6 +69,22 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertNotIn('"solution_node"', patch_schema["properties"])
         self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
 
+    def test_schema_command_emits_packaged_schema_json(self) -> None:
+        result = self.run_cli("schema", "state")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), json.loads(STATE_SCHEMA.read_text(encoding="utf-8")))
+
+    def test_schema_command_writes_patch_schema_to_output_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "patch.schema.json"
+
+            result = self.run_cli("schema", "patch", "-o", str(output_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), json.loads(PATCH_SCHEMA.read_text(encoding="utf-8")))
+
     def test_mutating_commands_rewrite_state_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"

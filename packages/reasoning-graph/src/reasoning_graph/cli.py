@@ -14,7 +14,7 @@ from .frontier import expansion_signature, item_view, next_event_step, reconstru
 from .models import STOP_OUTCOMES
 from .policy import best_candidate_ids, ranked_viable_candidates
 from .render import html_document, presentation_node_ids, to_mermaid
-from .schema_validation import patch_schema_errors
+from .schema_validation import load_schema, patch_schema_errors
 from .state import by_id, dump_state, load_state, write_output_text
 from .validation import validate_state
 
@@ -31,6 +31,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         print(f"nodes={len(state.get('nodes', []))} edges={len(state.get('edges', []))} frontier={len(state.get('frontier', []))}")
         return 0
     return 1
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    schema_name = f"{args.name}.schema.json"
+    text = json.dumps(load_schema(schema_name), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    write_output_text(text, args.output)
+    return 0
 
 
 def cmd_costs(args: argparse.Namespace) -> int:
@@ -1021,6 +1028,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate = sub.add_parser("validate", help="validate graph/search state")
     validate.add_argument("state", help="state JSON path, or - for stdin")
     validate.set_defaults(func=cmd_validate)
+
+    schema = sub.add_parser("schema", help="emit a packaged JSON Schema")
+    schema.add_argument("name", choices=("state", "patch"), help="schema to emit")
+    schema.add_argument("-o", "--output", help="write schema JSON to path instead of stdout")
+    schema.set_defaults(func=cmd_schema)
 
     doctor = sub.add_parser("doctor", help="validate state and summarize costs/frontier/audit health")
     doctor.add_argument("state", help="state JSON path, or - for stdin")

@@ -199,7 +199,6 @@ Minimal frontier example:
 }
 ```
 
-
 ## Exploration rules that matter most
 
 Input ledger essentials:
@@ -269,8 +268,6 @@ Graph/HTML artifact when requested:
 Graph mode means a visual HTML report generated from validated reasoning state. Use it only when requested or approved:
 
 ```bash
-reasoning-graph validate state.json
-reasoning-graph audit state.json
 reasoning-graph html state.json -o <path>.html
 ```
 
@@ -300,4 +297,4 @@ Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing 
 - `docs/driver.md` — state JSON, helper commands, event/audit/stop-review mechanics
 - `docs/rendering.md` — final prose, graph/HTML artifacts, canvas rules
 - `docs/install.md` — one-time helper CLI install
-- Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. In this repository they live under `packages/reasoning-graph/src/reasoning_graph/schemas/`.
+- Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. Use `reasoning-graph schema state` or `reasoning-graph schema patch` to print them from an installed CLI.

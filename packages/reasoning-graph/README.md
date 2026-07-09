@@ -27,4 +27,9 @@ uv --project packages/reasoning-graph run reasoning-graph validate packages/reas
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
 ```
 
-Schemas are packaged under `src/reasoning_graph/schemas/`.
+Schemas are packaged under `src/reasoning_graph/schemas/` and can be printed from an install:
+
+```bash
+reasoning-graph schema state
+reasoning-graph schema patch
+```
