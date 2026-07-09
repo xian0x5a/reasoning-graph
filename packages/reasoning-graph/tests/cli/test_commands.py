@@ -2226,9 +2226,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             html = self.run_cli("html", str(state_path), "--offline", "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)
             html_text = html_path.read_text(encoding="utf-8")
-            self.assertIn("F1", html_text)
+            self.assertIn('data-factor-id="F1"', html_text)
+            self.assertIn('class="node factor"', html_text)
             self.assertIn("grouped supports", html_text)
             self.assertIn("supports factor", html_text)
+            self.assertNotIn('LS-E1 LE-A1', html_text)
             self.assertNotIn("https://cdn.jsdelivr.net", html_text)
 
 

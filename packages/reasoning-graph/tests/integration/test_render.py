@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -93,6 +94,41 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertIn(f'click {identities.node_ids["A-B"]} "#details-{identities.node_ids["A-B"]}"', source)
         self.assertIn(f'click {identities.node_ids["A B"]} "#details-{identities.node_ids["A B"]}"', source)
         self.assertNotIn(f'click {identities.node_ids["A_B"]} ', source)
+
+    def test_offline_svg_renders_factors_and_replaces_member_edges(self) -> None:
+        fixture = Path(__file__).resolve().parents[1] / "fixtures" / "valid" / "factors-state.json"
+        state = json.loads(fixture.read_text(encoding="utf-8"))
+        identities = render_identity_map(state)
+        svg = offline_graph_svg(state, identities=identities)
+        factor_id = identities.factor("F_SUPPORTS_A1")
+
+        self.assertIsNotNone(factor_id)
+        self.assertIn(f'<g id="{factor_id}" class="node factor" data-factor-id="F_SUPPORTS_A1"', svg)
+        self.assertIn(f"LS-{identities.node('E1')} LE-{factor_id}", svg)
+        self.assertIn(f"LS-{factor_id} LE-{identities.node('A1')}", svg)
+        self.assertNotIn(f"LS-{identities.node('E1')} LE-{identities.node('A1')}", svg)
+        self.assertIn("supports joint likelihood", svg)
+
+    def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
+        state = {
+            "nodes": [
+                {"id": "E1", "type": "evidence"},
+                {"id": "E2", "type": "evidence"},
+                {"id": "A1", "type": "assumption"},
+            ],
+            "edges": [
+                {"from": "E1", "to": "A1", "type": "supports"},
+                {"from": "E2", "to": "A1", "type": "supports"},
+            ],
+            "factors": [{"id": "F1", "relation": "supports", "inputs": ["E1", "E2"], "target": "A1"}],
+        }
+        identities = render_identity_map(state)
+        presentation_svg = offline_graph_svg(state, {"E1", "A1"}, identities=identities)
+        audit_svg = offline_graph_svg(state, identities=identities)
+
+        self.assertNotIn('data-factor-id="F1"', presentation_svg)
+        self.assertIn('data-factor-id="F1"', audit_svg)
+        self.assertNotIn(f"LE-{identities.factor('F1')}", presentation_svg)
 
 
 if __name__ == "__main__":

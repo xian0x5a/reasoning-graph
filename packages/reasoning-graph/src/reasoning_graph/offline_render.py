@@ -66,6 +66,10 @@ def _node_colors(node: dict[str, Any]) -> tuple[str, str]:
     }.get(node_type, ("#f8fafc", "#94a3b8"))
 
 
+def _factor_colors() -> tuple[str, str]:
+    return ("#f1f5f9", "#475569")
+
+
 def _label_tspans(label: str, x: int, y: int) -> str:
     lines = [line.strip() for line in str(label).split("\n") if line.strip()] or ["node"]
     start_y = y - (len(lines) - 1) * 9
@@ -97,7 +101,8 @@ def offline_graph_svg(
     margin_x = 70
     margin_y = 70
     selected_nodes: list[dict[str, Any]] = []
-    ranks: dict[int, list[dict[str, Any]]] = {}
+    node_ranks: dict[str, int] = {}
+    ranks: dict[int, list[tuple[str, dict[str, Any], bool]]] = {}
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
             continue
@@ -105,8 +110,42 @@ def offline_graph_svg(
         if include_nodes is not None and raw_id not in include_nodes:
             continue
         rank = _node_rank(node)
-        ranks.setdefault(rank, []).append(node)
+        node_ranks[raw_id] = rank
+        ranks.setdefault(rank, []).append((raw_id, node, False))
         selected_nodes.append(node)
+
+    # Keep factor validity and labels aligned with Mermaid without importing render.py
+    # at module load time (render.py imports this offline fallback).
+    from .render import compact_factor_label, iter_visual_factors
+
+    selected_factors: list[tuple[dict[str, Any], str, str]] = []
+    factor_member_edges: set[tuple[str, str, str]] = set()
+    for factor in iter_visual_factors(state):
+        relation = str(factor.get("relation") or "")
+        target = factor.get("target")
+        inputs = factor.get("inputs")
+        factor_id = factor.get("id")
+        if relation not in {"leads_to", "supports", "contradicts"}:
+            continue
+        if not isinstance(factor_id, str) or not factor_id:
+            continue
+        if not isinstance(target, str) or target not in node_ranks:
+            continue
+        if not isinstance(inputs, list) or not inputs or not all(isinstance(input_id, str) for input_id in inputs):
+            continue
+        if any(input_id not in node_ranks for input_id in inputs):
+            continue
+        if include_nodes is not None and any(input_id not in include_nodes for input_id in inputs):
+            continue
+        factor_mid = identities.factor(factor_id)
+        if factor_mid is None:
+            continue
+        factor_key = f"@factor:{factor_mid}"
+        selected_factors.append((factor, factor_mid, factor_key))
+        factor_rank = max(0, node_ranks[target] - 1)
+        ranks.setdefault(factor_rank, []).append((factor_key, factor, True))
+        for input_id in inputs:
+            factor_member_edges.add((input_id, target, relation))
 
     if not selected_nodes:
         return '<svg class="offline-graph" viewBox="0 0 640 240" role="img" aria-label="Empty graph"><text x="40" y="120">No graph nodes selected.</text></svg>'
@@ -116,10 +155,10 @@ def offline_graph_svg(
     positions: dict[str, tuple[int, int]] = {}
     max_rows = 1
     for rank in sorted_ranks:
-        rank_nodes = ranks[rank]
-        max_rows = max(max_rows, len(rank_nodes))
-        for row, node in enumerate(rank_nodes):
-            positions[str(node.get("id"))] = (rank_x[rank], margin_y + row * row_gap)
+        rank_items = ranks[rank]
+        max_rows = max(max_rows, len(rank_items))
+        for row, (key, _, _) in enumerate(rank_items):
+            positions[key] = (rank_x[rank], margin_y + row * row_gap)
 
     width = max(720, margin_x * 2 + (len(sorted_ranks) - 1) * rank_gap + node_width)
     height = max(360, margin_y * 2 + (max_rows - 1) * row_gap + node_height)
@@ -128,15 +167,14 @@ def offline_graph_svg(
 
     edge_parts: list[str] = []
     label_parts: list[str] = []
-    for index, edge in enumerate(state.get("edges", [])):
-        if not isinstance(edge, dict):
-            continue
-        src = str(edge.get("from"))
-        dst = str(edge.get("to"))
-        if src not in node_ids or dst not in node_ids:
-            continue
-        sx, sy = positions[src]
-        dx, dy = positions[dst]
+    rendered_edge_index = 0
+
+    def append_edge(position_source: str, source_key: str, position_target: str, target_key: str, label: str) -> None:
+        nonlocal rendered_edge_index
+        if position_source not in node_ids or position_target not in node_ids:
+            return
+        sx, sy = positions[position_source]
+        dx, dy = positions[position_target]
         start_x = sx + node_width
         start_y = sy + node_height // 2
         end_x = dx
@@ -149,15 +187,10 @@ def offline_graph_svg(
         control_gap = max(40, abs(end_x - start_x) // 2)
         c1x = start_x + control_gap
         c2x = end_x - control_gap
-        label = str(edge.get("type") or edge.get("label") or "leads_to")
         mid_x = (start_x + end_x) // 2
         mid_y = (start_y + end_y) // 2 - 8
-        source_key = identities.node(src)
-        target_key = identities.node(dst)
-        if source_key is None or target_key is None:
-            continue
         edge_parts.append(
-            f'<path id="edge-{index}" class="flowchart-link LS-{html.escape(source_key)} LE-{html.escape(target_key)}" '
+            f'<path id="edge-{rendered_edge_index}" class="flowchart-link LS-{html.escape(source_key)} LE-{html.escape(target_key)}" '
             f'd="M {start_x} {start_y} C {c1x} {start_y}, {c2x} {end_y}, {end_x} {end_y}" '
             f'fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#{marker_id})"/>'
         )
@@ -165,6 +198,34 @@ def offline_graph_svg(
             f'<text class="edgeLabel" x="{mid_x}" y="{mid_y}" text-anchor="middle">'
             f'<tspan>{html.escape(_clip_text(label, 24))}</tspan></text>'
         )
+        rendered_edge_index += 1
+
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        src = str(edge.get("from"))
+        dst = str(edge.get("to"))
+        label = str(edge.get("type") or edge.get("label") or "leads_to")
+        # Eligible factors replace their raw member edges in both renderers.
+        if (src, dst, label) in factor_member_edges:
+            continue
+        source_key = identities.node(src)
+        target_key = identities.node(dst)
+        if source_key is None or target_key is None:
+            continue
+        append_edge(src, source_key, dst, target_key, label)
+
+    for factor, factor_mid, factor_key in selected_factors:
+        relation = str(factor.get("relation") or "factor")
+        target = str(factor.get("target"))
+        inputs = factor.get("inputs") if isinstance(factor.get("inputs"), list) else []
+        for input_id in inputs:
+            input_key = identities.node(str(input_id))
+            if input_key is not None:
+                append_edge(str(input_id), input_key, factor_key, factor_mid, f"grouped {relation}")
+        target_key = identities.node(target)
+        if target_key is not None:
+            append_edge(factor_key, factor_mid, target, target_key, f"{relation} factor")
 
     node_parts: list[str] = []
     for node in selected_nodes:
@@ -183,6 +244,20 @@ def offline_graph_svg(
             f'<rect x="{x}" y="{y}" width="{node_width}" height="{node_height}" rx="12" fill="{fill}" stroke="{stroke}" stroke-width="2"/>'
             f'<text x="{x + node_width // 2}" y="{y + node_height // 2}" text-anchor="middle" dominant-baseline="middle" font-size="13">{label}</text>'
             '</g></a>'
+        )
+
+    factor_fill, factor_stroke = _factor_colors()
+    for factor, factor_mid, factor_key in selected_factors:
+        x, y = positions[factor_key]
+        escaped_mid = html.escape(factor_mid, quote=True)
+        escaped_factor_id = html.escape(str(factor.get("id")), quote=True)
+        label = _label_tspans(compact_factor_label(factor), x + node_width // 2, y + node_height // 2 - 4)
+        diamond = f"{x + node_width // 2},{y} {x + node_width},{y + node_height // 2} {x + node_width // 2},{y + node_height} {x},{y + node_height // 2}"
+        node_parts.append(
+            f'<g id="{escaped_mid}" class="node factor" data-factor-id="{escaped_factor_id}" data-node-type="factor">'
+            f'<polygon points="{diamond}" fill="{factor_fill}" stroke="{factor_stroke}" stroke-width="2"/>'
+            f'<text x="{x + node_width // 2}" y="{y + node_height // 2}" text-anchor="middle" dominant-baseline="middle" font-size="13">{label}</text>'
+            '</g>'
         )
 
     return f'''<svg class="offline-graph" viewBox="0 0 {width} {height}" role="img" aria-label="Reasoning graph" xmlns="http://www.w3.org/2000/svg">
