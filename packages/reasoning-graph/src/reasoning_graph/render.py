@@ -14,7 +14,7 @@ from .costs import (
     node_truth_cost,
     probability_from_cost,
 )
-from .identities import RenderIdentityMap, render_identity_map, safe_render_id
+from .identities import RenderIdentityMap, render_identity_map
 from .models import BELIEF_NODE_TYPES, CLASS_BY_NODE_TYPE
 from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
@@ -34,9 +34,6 @@ def clip_text(text: str, limit: int = 72) -> str:
         return compact
     return compact[: max(0, limit - 1)].rstrip() + "…"
 
-
-# Compatibility helper for callers that need a base ID outside a full state render.
-mermaid_id = safe_render_id
 
 
 def html_anchor(raw: str, prefix: str = "details") -> str:

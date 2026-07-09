@@ -2155,6 +2155,40 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotIn("https://cdn.jsdelivr.net", offline_text)
             self.assertNotIn("type=\"module\"", offline_text)
 
+    def test_offline_html_uses_collision_safe_render_identities(self) -> None:
+        state = {
+            "nodes": [
+                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer"},
+                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer"},
+                {"id": "A B", "type": "goal", "text": "space"},
+            ],
+            "edges": [
+                {"from": "A-B", "to": "A B", "type": "answers"},
+                {"from": "A_B", "to": "A B", "type": "answers"},
+            ],
+            "frontier": [],
+            "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            html_path = Path(tmp_dir) / "graph.html"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            result = self.run_cli("html", str(state_path), "--offline", "-o", str(html_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = html_path.read_text(encoding="utf-8")
+            for raw_id, render_id in (("A B", "A_B"), ("A-B", "A_B_2"), ("A_B", "A_B_3")):
+                self.assertIn(f'id="{render_id}" class="node" data-node-id="{raw_id}"', output)
+                self.assertIn(f'href="#details-{render_id}"', output)
+                self.assertIn(f'id="details-{render_id}"', output)
+            self.assertIn('"from": "A_B_2", "to": "A_B"', output)
+            self.assertIn('"from": "A_B_3", "to": "A_B"', output)
+            self.assertIn('<option value="A_B_2">A-B</option>', output)
+            self.assertIn('<option value="A_B_3">A_B</option>', output)
+            self.assertIn('"A_B_2": ["A_B_2"]', output)
+            self.assertIn('"A_B_3": ["A_B_3"]', output)
+
     def test_mermaid_and_html_render_virtual_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "factor-render-state.json"
