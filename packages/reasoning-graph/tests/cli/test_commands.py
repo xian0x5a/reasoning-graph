@@ -2014,17 +2014,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-1]["action"], "stop")
             self.assertEqual(stopped["events"][-1]["outcome"], "user_stopped")
 
-    def test_expand_patch_with_ranked_candidate_stop_does_not_duplicate_rank(self) -> None:
+    def test_pending_expand_with_ranked_candidate_stop_produces_auditable_trace(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [
-                event
-                for event in state["events"]
-                if event.get("action") not in {"rank", "stop"}
-                and not (event.get("action") == "pop" and event.get("item") == "Q3")
-            ]
+            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
             patch = {
                 "rank": True,
                 "no_new_work_reason": "candidate already supported; closing pending item",
@@ -2034,12 +2029,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
 
-            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "--force", "-i")
+            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual([event["action"] for event in updated["events"][-3:]], ["expand", "rank", "stop"])
             self.assertEqual(sum(1 for event in updated["events"] if event.get("action") == "rank"), 1)
+            audit = self.run_cli("audit", str(state_path))
+            self.assertEqual(audit.returncode, 0, audit.stderr)
 
     def test_stop_ranks_candidate_outcomes_without_mutating_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

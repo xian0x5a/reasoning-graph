@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import sys
 from pathlib import Path
@@ -772,9 +771,7 @@ def cmd_assign(args: argparse.Namespace) -> int:
 
 
 def cmd_expand(args: argparse.Namespace) -> int:
-    # Build expansion and terminal events on an isolated state so failed stop
-    # preflight cannot leak partial in-memory mutations to the caller.
-    state = copy.deepcopy(load_state(args.state))
+    state = load_state(args.state)
     cursor = search_cursor(state)
     if cursor["stopped"] and not args.force:
         print("error: search already has a stop event; use --force to append anyway", file=sys.stderr)
@@ -803,10 +800,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
             raise ValueError("stop_reason must be a non-empty string")
         if stop_outcome not in STOP_OUTCOMES:
             raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
-        # A patch stop is still a terminal command: reject pending or in-flight
-        # work before expansion can close it or candidate ranking can append.
-        if _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
-            return 1
 
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
@@ -890,6 +883,11 @@ def cmd_expand(args: argparse.Namespace) -> int:
     events.append(event)
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
+
+    # Expansion resolves its target. Check resulting terminal state before rank or
+    # stop persistence; command failures remain non-writing because dump happens last.
+    if stop_reason is not None and _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
+        return 1
 
     patch_ranked = patch.get("rank") is True
     if patch_ranked:
