@@ -721,16 +721,10 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 f"salient clue family {clue_id} has no event-reachable unpopped frontier continuation and is not marked exhausted; bounded negative tests must not silently drop high-value clues"
             )
 
-    report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
-    report_candidates = report.get("candidates") if isinstance(report.get("candidates"), list) else []
+    # Stop-policy thresholds count canonical graph candidates, not report metadata rows.
+    # Keep report rows untouched: rendering intentionally preserves duplicate metadata.
     viable_candidates = viable_candidate_ids(state)
-    report_viable_count = sum(
-        1
-        for candidate in report_candidates
-        if isinstance(candidate, dict)
-        and str(candidate.get("id") or "") in viable_candidates
-    )
-    candidate_count = max(len(viable_candidates), report_viable_count)
+    candidate_count = len(viable_candidates)
     stop_policy_result = audit_stop_policy(state, reachable_unpopped_frontier_items, candidate_count)
     errors.extend(stop_policy_result.errors)
     warnings.extend(stop_policy_result.warnings)

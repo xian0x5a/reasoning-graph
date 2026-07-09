@@ -24,6 +24,7 @@ VALIDATE_INVALID_FIXTURES = {
     "overlapping-factors.json": "supports factors for target 'A1' overlap",
 }
 AUDIT_INVALID_FIXTURES = {
+    "duplicate-report-candidate.json": "viable_candidates=1 < min_viable_candidates=3",
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
 }

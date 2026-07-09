@@ -1,0 +1,151 @@
+{
+  "summary": {
+    "title": "Strict audit sample",
+    "answer": "A1 wins."
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Pick best cause"
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Likely cause",
+      "prior": 0.6
+    },
+    {
+      "id": "A2",
+      "type": "assumption",
+      "text": "Less likely cause",
+      "prior": 0.4
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "Candidate from A1",
+      "answer_kind": "exact_answer"
+    }
+  ],
+  "edges": [
+    {
+      "id": "E1",
+      "from": "A1",
+      "to": "CS1",
+      "type": "leads_to"
+    },
+    {
+      "id": "E2",
+      "from": "CS1",
+      "to": "G1",
+      "type": "answers"
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "A1",
+      "parent": null,
+      "cost_components": {
+        "uncertainty": "auto",
+        "verification": 0.1
+      }
+    },
+    {
+      "id": "Q2",
+      "node": "A2",
+      "parent": null,
+      "cost_components": {
+        "uncertainty": "auto",
+        "verification": 0.1
+      }
+    },
+    {
+      "id": "Q3",
+      "node": "CS1",
+      "parent": "Q1",
+      "cost_components": {
+        "reasoning_complexity": 0.1
+      }
+    }
+  ],
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": [
+        "Q1",
+        "Q2"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "pop",
+      "item": "Q1",
+      "cost": 0.610826
+    },
+    {
+      "step": 3,
+      "action": "expand",
+      "item": "Q1",
+      "add_nodes": [
+        "CS1"
+      ],
+      "add_edges": [
+        "E1",
+        "E2"
+      ],
+      "add_frontier": [
+        "Q3"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "pop",
+      "item": "Q3",
+      "cost": 0.610826
+    },
+    {
+      "step": 5,
+      "action": "rank",
+      "item": "Q3",
+      "best": "CS1",
+      "belief": 0.6,
+      "candidates": [
+        {
+          "node": "CS1",
+          "belief": 0.6,
+          "effective_truth_cost": 0.510826
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "action": "stop",
+      "reason": "CS1 answers G1 and explored sample frontier is complete",
+      "outcome": "solved"
+    }
+  ],
+  "stop_policy": {
+    "min_viable_candidates": 3,
+    "max_live_frontier_items": 0,
+    "severity": "error"
+  },
+  "report": {
+    "candidates": [
+      {
+        "id": "CS1",
+        "name": "Repeated candidate row"
+      },
+      {
+        "id": "CS1",
+        "name": "Repeated candidate row"
+      },
+      {
+        "id": "CS1",
+        "name": "Repeated candidate row"
+      }
+    ]
+  }
+}
