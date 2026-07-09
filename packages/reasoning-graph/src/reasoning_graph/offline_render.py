@@ -102,23 +102,28 @@ def offline_graph_svg(
     margin_y = 70
     selected_nodes: list[dict[str, Any]] = []
     node_ranks: dict[str, int] = {}
-    ranks: dict[int, list[tuple[str, dict[str, Any], bool]]] = {}
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
             continue
         raw_id = str(node.get("id"))
         if include_nodes is not None and raw_id not in include_nodes:
             continue
-        rank = _node_rank(node)
-        node_ranks[raw_id] = rank
-        ranks.setdefault(rank, []).append((raw_id, node, False))
+        node_ranks[raw_id] = _node_rank(node)
         selected_nodes.append(node)
+
+    # Layout must not depend on record order. Render identities are stable across
+    # equivalent states, so use them first and raw IDs as a deterministic tie-breaker.
+    selected_nodes.sort(key=lambda node: (identities.node(str(node.get("id"))) or "", str(node.get("id"))))
+    ranks: dict[int, list[tuple[tuple[str, str], dict[str, Any], bool]]] = {}
+    for node in selected_nodes:
+        raw_id = str(node.get("id"))
+        ranks.setdefault(node_ranks[raw_id], []).append((("node", raw_id), node, False))
 
     # Keep factor validity and labels aligned with Mermaid without importing render.py
     # at module load time (render.py imports this offline fallback).
     from .render import compact_factor_label, iter_visual_factors
 
-    selected_factors: list[tuple[dict[str, Any], str, str]] = []
+    selected_factors: list[tuple[dict[str, Any], str, tuple[str, str]]] = []
     factor_member_edges: set[tuple[str, str, str]] = set()
     for factor in iter_visual_factors(state):
         relation = str(factor.get("relation") or "")
@@ -140,19 +145,23 @@ def offline_graph_svg(
         factor_mid = identities.factor(factor_id)
         if factor_mid is None:
             continue
-        factor_key = f"@factor:{factor_mid}"
+        factor_key = ("factor", factor_mid)
         selected_factors.append((factor, factor_mid, factor_key))
-        factor_rank = max(0, node_ranks[target] - 1)
-        ranks.setdefault(factor_rank, []).append((factor_key, factor, True))
         for input_id in inputs:
             factor_member_edges.add((input_id, target, relation))
+
+    selected_factors.sort(key=lambda item: (item[1], str(item[0].get("id"))))
+    for factor, factor_mid, factor_key in selected_factors:
+        target = str(factor.get("target"))
+        factor_rank = max(0, node_ranks[target] - 1)
+        ranks.setdefault(factor_rank, []).append((factor_key, factor, True))
 
     if not selected_nodes:
         return '<svg class="offline-graph" viewBox="0 0 640 240" role="img" aria-label="Empty graph"><text x="40" y="120">No graph nodes selected.</text></svg>'
 
     sorted_ranks = sorted(ranks)
     rank_x = {rank: margin_x + index * rank_gap for index, rank in enumerate(sorted_ranks)}
-    positions: dict[str, tuple[int, int]] = {}
+    positions: dict[tuple[str, str], tuple[int, int]] = {}
     max_rows = 1
     for rank in sorted_ranks:
         rank_items = ranks[rank]
@@ -169,7 +178,13 @@ def offline_graph_svg(
     label_parts: list[str] = []
     rendered_edge_index = 0
 
-    def append_edge(position_source: str, source_key: str, position_target: str, target_key: str, label: str) -> None:
+    def append_edge(
+        position_source: tuple[str, str],
+        source_key: str,
+        position_target: tuple[str, str],
+        target_key: str,
+        label: str,
+    ) -> None:
         nonlocal rendered_edge_index
         if position_source not in node_ids or position_target not in node_ids:
             return
@@ -200,9 +215,15 @@ def offline_graph_svg(
         )
         rendered_edge_index += 1
 
-    for edge in state.get("edges", []):
-        if not isinstance(edge, dict):
-            continue
+    edges = [edge for edge in state.get("edges", []) if isinstance(edge, dict)]
+    for edge in sorted(
+        edges,
+        key=lambda edge: (
+            str(edge.get("from")),
+            str(edge.get("to")),
+            str(edge.get("type") or edge.get("label") or "leads_to"),
+        ),
+    ):
         src = str(edge.get("from"))
         dst = str(edge.get("to"))
         label = str(edge.get("type") or edge.get("label") or "leads_to")
@@ -213,24 +234,25 @@ def offline_graph_svg(
         target_key = identities.node(dst)
         if source_key is None or target_key is None:
             continue
-        append_edge(src, source_key, dst, target_key, label)
+        append_edge(("node", src), source_key, ("node", dst), target_key, label)
 
     for factor, factor_mid, factor_key in selected_factors:
         relation = str(factor.get("relation") or "factor")
         target = str(factor.get("target"))
         inputs = factor.get("inputs") if isinstance(factor.get("inputs"), list) else []
-        for input_id in inputs:
+        input_ids = sorted(inputs, key=lambda input_id: (identities.node(str(input_id)) or "", str(input_id)))
+        for input_id in input_ids:
             input_key = identities.node(str(input_id))
             if input_key is not None:
-                append_edge(str(input_id), input_key, factor_key, factor_mid, f"grouped {relation}")
+                append_edge(("node", str(input_id)), input_key, factor_key, factor_mid, f"grouped {relation}")
         target_key = identities.node(target)
         if target_key is not None:
-            append_edge(factor_key, factor_mid, target, target_key, f"{relation} factor")
+            append_edge(factor_key, factor_mid, ("node", target), target_key, f"{relation} factor")
 
     node_parts: list[str] = []
     for node in selected_nodes:
         raw_id = str(node.get("id"))
-        x, y = positions[raw_id]
+        x, y = positions[("node", raw_id)]
         fill, stroke = _node_colors(node)
         mid = html.escape(identities.node(raw_id) or "", quote=True)
         anchor = html.escape(f"#{identities.node_anchor(raw_id)}", quote=True)

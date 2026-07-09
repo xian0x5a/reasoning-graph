@@ -109,6 +109,43 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertNotIn(f"LS-{identities.node('E1')} LE-{identities.node('A1')}", svg)
         self.assertIn("supports joint likelihood", svg)
 
+    def test_offline_svg_is_order_independent_for_nodes_edges_factors_and_inputs(self) -> None:
+        fixture = Path(__file__).resolve().parents[1] / "fixtures" / "valid" / "factors-state.json"
+        state = json.loads(fixture.read_text(encoding="utf-8"))
+        reversed_state = {
+            **state,
+            "nodes": list(reversed(state["nodes"])),
+            "edges": list(reversed(state["edges"])),
+            "factors": [
+                {**factor, "inputs": list(reversed(factor["inputs"]))}
+                for factor in reversed(state["factors"])
+            ],
+        }
+
+        self.assertEqual(offline_graph_svg(state), offline_graph_svg(reversed_state))
+
+    def test_offline_svg_keeps_raw_node_and_factor_positions_separate(self) -> None:
+        raw_node_id = "@factor:factor_F1"
+        state = {
+            "nodes": [
+                {"id": raw_node_id, "type": "evidence"},
+                {"id": "A1", "type": "assumption"},
+            ],
+            "edges": [{"from": raw_node_id, "to": "A1", "type": "supports"}],
+            "factors": [{"id": "F1", "relation": "supports", "inputs": [raw_node_id], "target": "A1"}],
+        }
+        identities = render_identity_map(state)
+        svg = offline_graph_svg(state, identities=identities)
+
+        node_id = identities.node(raw_node_id)
+        factor_id = identities.factor("F1")
+        self.assertIsNotNone(node_id)
+        self.assertIsNotNone(factor_id)
+        self.assertIn(f'<g id="{node_id}" class="node" data-node-id="{raw_node_id}"', svg)
+        self.assertIn(f'<g id="{factor_id}" class="node factor" data-factor-id="F1"', svg)
+        self.assertIn(f'<g id="{node_id}" class="node" data-node-id="{raw_node_id}"><rect x="70" y="70"', svg)
+        self.assertIn(f'<g id="{factor_id}" class="node factor" data-factor-id="F1" data-node-type="factor"><polygon points="165,190', svg)
+
     def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
         state = {
             "nodes": [
