@@ -1,6 +1,9 @@
+import io
 import math
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 
@@ -9,6 +12,7 @@ PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
 from reasoning_graph.costs import compute_costs
+from reasoning_graph.state import dump_state
 from reasoning_graph.validation import validate_state
 
 
@@ -111,6 +115,32 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
         self.assertAlmostEqual(explanatory, baseline, places=6)
 
+    def test_cost_components_reject_non_finite_and_negative_values(self) -> None:
+        for component in ("truth", "verification", "effort_budget", "reasoning_complexity", "constraint_tension"):
+            for invalid in (math.nan, math.inf, -math.inf, -0.1):
+                with self.subTest(component=component, invalid=invalid):
+                    state = self.base_state()
+                    state["frontier"][0]["cost_components"][component] = invalid
+                    with self.assertRaises(ValueError):
+                        compute_costs(state)
+
+    def test_likelihood_ratios_reject_non_finite_values(self) -> None:
+        for invalid in (math.nan, math.inf, -math.inf):
+            with self.subTest(invalid=invalid):
+                state = self.base_state(
+                    edges=[
+                        {
+                            "id": "E1A1",
+                            "from": "E1",
+                            "to": "A1",
+                            "type": "supports",
+                            "likelihood_ratio": invalid,
+                        }
+                    ]
+                )
+                with self.assertRaises(ValueError):
+                    compute_costs(state)
+
     def test_validator_reports_invalid_probability_without_throwing(self) -> None:
         state = self.base_state(prior=0.5)
         state["nodes"][2]["prior"] = "not-a-number"
@@ -120,6 +150,16 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("prior must be numeric" in error for error in result.errors))
         self.assertTrue(any("cost computation failed" in error for error in result.errors))
+
+    def test_state_serialization_rejects_non_finite_values_before_writing(self) -> None:
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp_dir, redirect_stdout(output):
+            output_path = Path(tmp_dir) / "state.json"
+            with self.assertRaises(ValueError):
+                dump_state({"not_json": math.nan}, str(output_path))
+            self.assertFalse(output_path.exists())
+
+        self.assertEqual(output.getvalue(), "")
 
 
 if __name__ == "__main__":

@@ -88,7 +88,8 @@
     "autoNumber": {
       "anyOf": [
         {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         },
         {
           "const": "auto"
@@ -444,22 +445,22 @@
           "$ref": "#/$defs/autoNumber"
         },
         "verification": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "effort_budget": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "resource_budget": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "compute_budget": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "reasoning_complexity": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "constraint_tension": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         }
       }
     },
@@ -537,25 +538,25 @@
           "$ref": "#/$defs/nonNegativeNumber"
         },
         "truth_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "work_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "base_search_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "heuristic_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "search_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "step_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         },
         "step_truth_cost": {
-          "type": "number"
+          "$ref": "#/$defs/nonNegativeNumber"
         }
       },
       "not": {

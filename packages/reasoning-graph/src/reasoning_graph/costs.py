@@ -7,7 +7,7 @@ from typing import Any, Iterable
 
 from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
 from .state import by_id
-from .utils import finite_float
+from .utils import require_finite_float, require_non_negative_float
 
 
 NEUTRAL_UPDATE_PRIOR = 0.5
@@ -21,10 +21,7 @@ NODE_SCORE_FIELDS = ("prior", "posterior")
 
 
 def require_probability(value: Any, field: str = "probability") -> float:
-    try:
-        probability = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{field} must be numeric, got {value!r}")
+    probability = require_finite_float(value, field)
     if not 0 < probability <= 1:
         raise ValueError(f"{field} must be in (0, 1], got {probability}")
     return probability
@@ -68,10 +65,7 @@ def probability_from_value(value: Any) -> float | None:
 
 
 def likelihood_ratio_from_value(value: Any, field: str = "likelihood_ratio") -> float:
-    try:
-        likelihood_ratio = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{field} must be numeric, got {value!r}")
+    likelihood_ratio = require_finite_float(value, field)
     if likelihood_ratio <= 0:
         raise ValueError(f"{field} must be > 0, got {likelihood_ratio}")
     return likelihood_ratio
@@ -173,6 +167,15 @@ def probability_from_cost(cost: float) -> float:
     if cost > 745:
         return 0.0
     return math.exp(-cost)
+
+
+def truth_cost_from_log_odds(log_odds: float) -> float:
+    """Compute finite truth cost without underflowing tiny probabilities to zero."""
+
+    log_odds = require_finite_float(log_odds, "log odds")
+    if log_odds >= 0:
+        return math.log1p(math.exp(-log_odds))
+    return -log_odds + math.log1p(math.exp(log_odds))
 
 
 def node_has_score(node: dict[str, Any] | None) -> bool:
@@ -416,13 +419,10 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
                 log_odds += math.log(likelihood_ratio_from_edge(edge))
             for likelihood_ratio in factor_lrs:
                 log_odds += math.log(likelihood_ratio)
-            updated_probability = probability_from_log_odds(log_odds)
-            if updated_probability <= 0.0:
-                cost = math.inf
-            else:
-                cost = -math.log(updated_probability)
+            cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost
+        cost = require_non_negative_float(cost, f"node {node_id} truth cost")
         visiting.remove(node_id)
         memo[node_id] = cost
         return cost
@@ -483,10 +483,10 @@ def cost_components_for_item(
             continue
         if raw_value is None or raw_value == "auto":
             continue
-        try:
-            components[key] = float(raw_value)
-        except (TypeError, ValueError):
-            raise ValueError(f"frontier item {item.get('id')} component {raw_key} must be numeric")
+        components[key] = require_non_negative_float(
+            raw_value,
+            f"frontier item {item.get('id')} component {raw_key}",
+        )
 
     node_id = str(item.get("node"))
     node = nodes.get(node_id)
@@ -511,10 +511,21 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"frontier item {item.get('id')} uses rejected legacy field path_cost; use search_cost/cost_components")
         if "cost_components" not in item and "cost" not in item and "step_cost" in item:
             node_id = str(item.get("node"))
-            truth_cost = finite_float(item.get("step_truth_cost"))
-            if truth_cost is None:
+            if "step_truth_cost" in item:
+                truth_cost = require_non_negative_float(
+                    item["step_truth_cost"],
+                    f"frontier item {item.get('id')} step_truth_cost",
+                )
+            else:
                 truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
-            legacy_search_cost = float(item["step_cost"])
+            truth_cost = require_non_negative_float(
+                truth_cost,
+                f"frontier item {item.get('id')} step_truth_cost",
+            )
+            legacy_search_cost = require_non_negative_float(
+                item["step_cost"],
+                f"frontier item {item.get('id')} step_cost",
+            )
             work_cost = max(0.0, legacy_search_cost - truth_cost)
             item["cost_components"] = {
                 "truth": round(truth_cost, 6),
@@ -529,10 +540,21 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             work_cost = sum(value for key, value in components.items() if key != "truth")
             item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
 
-        base_search_cost = truth_cost + work_cost
+        truth_cost = require_non_negative_float(truth_cost, f"frontier item {item.get('id')} truth cost")
+        work_cost = require_non_negative_float(work_cost, f"frontier item {item.get('id')} work cost")
+        base_search_cost = require_non_negative_float(
+            truth_cost + work_cost,
+            f"frontier item {item.get('id')} base search cost",
+        )
         estimated_remaining_cost, has_estimated_remaining_cost = estimated_remaining_cost_for_item(item)
-        heuristic_cost = estimated_remaining_weight * estimated_remaining_cost
-        search_cost = base_search_cost + heuristic_cost
+        heuristic_cost = require_non_negative_float(
+            estimated_remaining_weight * estimated_remaining_cost,
+            f"frontier item {item.get('id')} heuristic cost",
+        )
+        search_cost = require_non_negative_float(
+            base_search_cost + heuristic_cost,
+            f"frontier item {item.get('id')} search cost",
+        )
 
         item["truth_cost"] = round(truth_cost, 6)
         item["work_cost"] = round(work_cost, 6)

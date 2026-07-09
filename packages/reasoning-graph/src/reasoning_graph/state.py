@@ -15,8 +15,14 @@ def load_state(path: str) -> dict[str, Any]:
         return json.load(f)
 
 
+def strict_json_dumps(value: Any, **kwargs: Any) -> str:
+    """Serialize JSON without permitting non-standard NaN or Infinity values."""
+
+    return json.dumps(value, allow_nan=False, **kwargs)
+
+
 def dump_state(state: dict[str, Any], path: str | None, in_place_source: str | None = None) -> None:
-    text = json.dumps(state, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    text = strict_json_dumps(state, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
     target = path or (in_place_source if in_place_source != "-" else None)
     write_output_text(text, target)
 

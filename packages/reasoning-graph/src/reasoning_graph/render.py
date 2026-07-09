@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-import json
 import math
 from typing import Any
 
@@ -17,7 +16,7 @@ from .costs import (
 from .models import BELIEF_NODE_TYPES, CLASS_BY_NODE_TYPE
 from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
-from .state import by_id
+from .state import by_id, strict_json_dumps
 from .utils import finite_float
 
 
@@ -708,14 +707,14 @@ def html_document(
     details_html = node_detail_cards(state)
     filters_html = detail_filter_buttons()
     presentation_title = "Best explanation graph"
-    edge_maps_json = json.dumps(
+    edge_maps_json = strict_json_dumps(
         {
             "presentation-graph": graph_edge_connections(state, presentation_ids),
             "audit-graph": graph_edge_connections(state),
         },
         ensure_ascii=False,
     ).replace("</", "<\\/")
-    candidate_focus_json = json.dumps(candidate_focus_map(state), ensure_ascii=False).replace("</", "<\\/")
+    candidate_focus_json = strict_json_dumps(candidate_focus_map(state), ensure_ascii=False).replace("</", "<\\/")
     script_open = "<script>"
     script_setup = '  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupGraphs);\n  else setupGraphs();'
     if not offline_mode:

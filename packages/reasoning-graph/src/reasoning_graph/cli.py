@@ -15,7 +15,7 @@ from .models import STOP_OUTCOMES
 from .policy import best_candidate_ids, ranked_viable_candidates
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
-from .state import by_id, dump_state, load_state, write_output_text
+from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
 from .validation import validate_state
 
 
@@ -35,7 +35,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_schema(args: argparse.Namespace) -> int:
     schema_name = f"{args.name}.schema.json"
-    text = json.dumps(standalone_schema(schema_name), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    text = strict_json_dumps(standalone_schema(schema_name), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
     write_output_text(text, args.output)
     return 0
 
@@ -299,7 +299,7 @@ def _print_yaml_list(name: str, values: list[str]) -> None:
         print("  []")
         return
     for value in values:
-        print(f"  - {json.dumps(value, ensure_ascii=False)}")
+        print(f"  - {strict_json_dumps(value, ensure_ascii=False)}")
 
 
 def _stop_events(state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -394,7 +394,7 @@ def cmd_frontier(args: argparse.Namespace) -> int:
     if args.limit is not None:
         rows = rows[: args.limit]
     if args.json:
-        print(json.dumps(rows, indent=2, ensure_ascii=False))
+        print(strict_json_dumps(rows, indent=2, ensure_ascii=False))
     else:
         if cursor["stopped"] and not args.all:
             print("search stopped; active frontier empty unless --all is used", file=sys.stderr)
@@ -460,7 +460,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             return 0
 
     if args.json:
-        print(json.dumps({"item": view, "path": path}, indent=2, ensure_ascii=False))
+        print(strict_json_dumps({"item": view, "path": path}, indent=2, ensure_ascii=False))
     else:
         heuristic = ""
         if view.get("estimated_remaining_cost") is not None:
@@ -1041,7 +1041,7 @@ def cmd_path(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     path = reconstruct_path(state, args.item)
     if args.json:
-        print(json.dumps(path, indent=2, ensure_ascii=False))
+        print(strict_json_dumps(path, indent=2, ensure_ascii=False))
     else:
         for step in path:
             item = step["item"]
