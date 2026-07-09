@@ -6,6 +6,7 @@ import html
 from typing import Any
 
 from .costs import node_belief_label, node_effective_truth_costs
+from .identities import RenderIdentityMap, render_identity_map
 
 
 def _clip_text(text: str, limit: int = 72) -> str:
@@ -13,15 +14,6 @@ def _clip_text(text: str, limit: int = 72) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: max(0, limit - 1)].rstrip() + "…"
-
-
-def _mermaid_id(raw: str) -> str:
-    cleaned = "".join(ch if ch.isalnum() else "_" for ch in raw)
-    if not cleaned:
-        cleaned = "N"
-    if cleaned[0].isdigit():
-        cleaned = "N_" + cleaned
-    return cleaned
 
 
 def _html_anchor(raw: str, prefix: str = "details") -> str:
@@ -90,10 +82,13 @@ def offline_graph_svg(
     include_nodes: set[str] | None = None,
     spacing: str = "default",
     graph_id: str = "graph",
+    *,
+    identities: RenderIdentityMap | None = None,
 ) -> str:
     """Render a deterministic inline SVG fallback without network or browser-side layout."""
     # Compute from the full graph so hidden premises and factors still count.
     node_truth_costs = node_effective_truth_costs(state)
+    identities = identities or render_identity_map(state)
     metrics = _spacing_metrics(spacing)
     node_width = metrics["node_width"]
     node_height = metrics["node_height"]
@@ -157,8 +152,10 @@ def offline_graph_svg(
         label = str(edge.get("type") or edge.get("label") or "leads_to")
         mid_x = (start_x + end_x) // 2
         mid_y = (start_y + end_y) // 2 - 8
-        source_key = _mermaid_id(src)
-        target_key = _mermaid_id(dst)
+        source_key = identities.node(src)
+        target_key = identities.node(dst)
+        if source_key is None or target_key is None:
+            continue
         edge_parts.append(
             f'<path id="edge-{index}" class="flowchart-link LS-{html.escape(source_key)} LE-{html.escape(target_key)}" '
             f'd="M {start_x} {start_y} C {c1x} {start_y}, {c2x} {end_y}, {end_x} {end_y}" '
@@ -174,8 +171,8 @@ def offline_graph_svg(
         raw_id = str(node.get("id"))
         x, y = positions[raw_id]
         fill, stroke = _node_colors(node)
-        mid = html.escape(_mermaid_id(raw_id), quote=True)
-        anchor = html.escape(f"#{_html_anchor(raw_id)}", quote=True)
+        mid = html.escape(identities.node(raw_id) or "", quote=True)
+        anchor = html.escape(f"#{identities.node_anchor(raw_id)}", quote=True)
         label = _label_tspans(
             _compact_node_label(node, node_truth_costs[raw_id]),
             x + node_width // 2,

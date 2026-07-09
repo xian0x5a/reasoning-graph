@@ -14,6 +14,7 @@ from .costs import (
     node_truth_cost,
     probability_from_cost,
 )
+from .identities import RenderIdentityMap, render_identity_map, safe_render_id
 from .models import BELIEF_NODE_TYPES, CLASS_BY_NODE_TYPE
 from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
@@ -34,13 +35,8 @@ def clip_text(text: str, limit: int = 72) -> str:
     return compact[: max(0, limit - 1)].rstrip() + "…"
 
 
-def mermaid_id(raw: str) -> str:
-    cleaned = "".join(ch if ch.isalnum() else "_" for ch in raw)
-    if not cleaned:
-        cleaned = "N"
-    if cleaned[0].isdigit():
-        cleaned = "N_" + cleaned
-    return cleaned
+# Compatibility helper for callers that need a base ID outside a full state render.
+mermaid_id = safe_render_id
 
 
 def html_anchor(raw: str, prefix: str = "details") -> str:
@@ -179,11 +175,13 @@ def to_mermaid(
     *,
     group_by_type: bool = False,
     direction: str = "TD",
+    identities: RenderIdentityMap | None = None,
 ) -> str:
     # Presentation filtering hides premises, not their contribution to belief.
     node_truth_costs = node_effective_truth_costs(state)
     safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
     lines = [f"flowchart {safe_direction}"]
+    identities = identities or render_identity_map(state)
     node_id_map: dict[str, str] = {}
     factor_id_map: dict[str, str] = {}
     factor_member_edges: set[tuple[str, str, str]] = set()
@@ -195,7 +193,9 @@ def to_mermaid(
         raw_id = str(node.get("id"))
         if allowed is not None and raw_id not in allowed:
             continue
-        mid = mermaid_id(raw_id)
+        mid = identities.node(raw_id)
+        if mid is None:
+            continue
         node_id_map[raw_id] = mid
         selected_nodes.append(node)
 
@@ -214,8 +214,11 @@ def to_mermaid(
             continue
         if allowed is not None and any(input_id not in allowed for input_id in inputs):
             continue
-        raw_factor_id = f"{factor_mermaid_raw_id(factor, index)}:{index}"
-        factor_id_map[raw_factor_id] = mermaid_id(raw_factor_id)
+        raw_factor_id = factor_mermaid_raw_id(factor, index)
+        factor_mid = identities.factor(str(factor.get("id")))
+        if factor_mid is None:
+            continue
+        factor_id_map[raw_factor_id] = factor_mid
         selected_factors.append((factor, raw_factor_id))
         for input_id in inputs:
             factor_member_edges.add((input_id, target, relation))
@@ -334,13 +337,14 @@ def to_mermaid(
             lines.append(f"  class {','.join(mids)} {cls};")
 
     for raw_id, mid in sorted(node_id_map.items()):
-        anchor = html_anchor(raw_id)
+        anchor = identities.node_anchor(raw_id)
         tooltip = escape_mermaid_label(f"Open details for {raw_id}")
         lines.append(f'  click {mid} "#{anchor}" "{tooltip}"')
     return "\n".join(lines) + "\n"
 
 
 def ledger_rows(state: dict[str, Any], node_type: str) -> str:
+    identities = render_identity_map(state)
     rows: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict) or node.get("type") != node_type:
@@ -355,7 +359,7 @@ def ledger_rows(state: dict[str, Any], node_type: str) -> str:
             source_text = str(source)
         source_html = html.escape(source_text)
         rows.append(
-            f'<tr id="{html_anchor(raw_id, "ledger")}"><th scope="row">{node_id}</th><td>{text}</td><td>{source_html}</td></tr>'
+            f'<tr id="{identities.node_anchor(raw_id, "ledger")}"><th scope="row">{node_id}</th><td>{text}</td><td>{source_html}</td></tr>'
         )
     if not rows:
         return "<p class=\"empty\">None recorded.</p>"
@@ -428,8 +432,9 @@ def candidate_rows(state: dict[str, Any]) -> str:
     )
 
 
-def node_detail_cards(state: dict[str, Any]) -> str:
+def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
     node_truth_costs = node_effective_truth_costs(state)
+    identities = identities or render_identity_map(state)
     cards: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
@@ -459,7 +464,7 @@ def node_detail_cards(state: dict[str, Any]) -> str:
         reasoning_html = "<h4>Edge reasoning</h4><ul>" + "".join(edge_reasons) + "</ul>" if edge_reasons else ""
         type_class = html.escape(raw_type)
         cards.append(
-            f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{html_anchor(raw_id)}">'
+            f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}">'
             f'<header><code>{html.escape(raw_id)}</code><span class="pill">{html.escape(pill_text)}</span></header>'
             f'<p>{text}</p>'
             f'{"<p class=\"source\">Source: " + html.escape(source_text) + "</p>" if source_text else ""}'
@@ -470,11 +475,12 @@ def node_detail_cards(state: dict[str, Any]) -> str:
     return "".join(cards) or '<p class="empty">No node details recorded.</p>'
 
 
-def candidate_focus_options(state: dict[str, Any]) -> str:
+def candidate_focus_options(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
+    identities = identities or render_identity_map(state)
     options = ['<option value="">None</option>']
     for index, candidate in enumerate(sorted_report_candidates(state), 1):
         raw_cid = str(candidate.get("id", index))
-        key = html.escape(mermaid_id(raw_cid), quote=True)
+        key = html.escape(identities.node(raw_cid) or "", quote=True)
         text = html.escape(raw_cid)
         options.append(f'<option value="{key}">{text}</option>')
     return "".join(options)
@@ -550,7 +556,12 @@ def detail_filter_buttons() -> str:
     return '<div class="detail-filters" aria-label="Filter node details">' + "".join(buttons) + "</div>"
 
 
-def graph_edge_connections(state: dict[str, Any], include_nodes: set[str] | None = None) -> list[dict[str, str]]:
+def graph_edge_connections(
+    state: dict[str, Any],
+    include_nodes: set[str] | None = None,
+    identities: RenderIdentityMap | None = None,
+) -> list[dict[str, str]]:
+    identities = identities or render_identity_map(state)
     connections: list[dict[str, str]] = []
     allowed = include_nodes
     for edge in state.get("edges", []):
@@ -560,17 +571,26 @@ def graph_edge_connections(state: dict[str, Any], include_nodes: set[str] | None
         dst = str(edge.get("to"))
         if allowed is not None and (src not in allowed or dst not in allowed):
             continue
+        source_id = identities.node(src)
+        target_id = identities.node(dst)
+        if source_id is None or target_id is None:
+            continue
         connections.append(
             {
-                "from": mermaid_id(src),
-                "to": mermaid_id(dst),
+                "from": source_id,
+                "to": target_id,
                 "label": str(edge.get("type") or edge.get("label") or "leads_to"),
             }
         )
     return connections
 
 
-def candidate_focus_nodes(state: dict[str, Any], candidate: dict[str, Any]) -> list[str]:
+def candidate_focus_nodes(
+    state: dict[str, Any],
+    candidate: dict[str, Any],
+    identities: RenderIdentityMap | None = None,
+) -> list[str]:
+    identities = identities or render_identity_map(state)
     raw_id = str(candidate.get("id") or "")
     node_ids: list[str] = [raw_id] if raw_id else []
     explicit = False
@@ -621,19 +641,24 @@ def candidate_focus_nodes(state: dict[str, Any], candidate: dict[str, Any]) -> l
     for node_id in node_ids:
         if node_id not in nodes_by_id:
             continue
-        mid = mermaid_id(node_id)
+        mid = identities.node(node_id)
+        if mid is None:
+            continue
         if mid and mid not in seen:
             seen.add(mid)
             result.append(mid)
     return result
 
 
-def candidate_focus_map(state: dict[str, Any]) -> dict[str, list[str]]:
+def candidate_focus_map(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> dict[str, list[str]]:
+    identities = identities or render_identity_map(state)
     focus: dict[str, list[str]] = {}
     for candidate in sorted_report_candidates(state):
         if "id" not in candidate:
             continue
-        focus[mermaid_id(str(candidate["id"]))] = candidate_focus_nodes(state, candidate)
+        candidate_id = identities.node(str(candidate["id"]))
+        if candidate_id is not None:
+            focus[candidate_id] = candidate_focus_nodes(state, candidate, identities)
     return focus
 
 
@@ -672,13 +697,14 @@ def html_document(
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
     title = html.escape(str(summary.get("title") or report.get("title") or "Reasoning Graph"))
     answer = html.escape(str(summary.get("answer") or report.get("answer") or "See report sections."))
+    identities = render_identity_map(state)
     presentation_ids = presentation_node_ids(state)
-    presentation_source = to_mermaid(state, presentation_ids, group_by_type=False) if presentation_ids else "flowchart TD\n"
+    presentation_source = to_mermaid(state, presentation_ids, group_by_type=False, identities=identities) if presentation_ids else "flowchart TD\n"
     offline_mode = render_mode == "offline"
-    presentation_svg = offline_graph_svg(state, presentation_ids, spacing, "presentation-graph") if offline_mode else None
-    audit_svg = offline_graph_svg(state, None, spacing, "audit-graph") if offline_mode else None
+    presentation_svg = offline_graph_svg(state, presentation_ids, spacing, "presentation-graph", identities=identities) if offline_mode else None
+    audit_svg = offline_graph_svg(state, None, spacing, "audit-graph", identities=identities) if offline_mode else None
     candidates_html = candidate_rows(state)
-    focus_options = candidate_focus_options(state)
+    focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
 
     def nonempty_list(value: Any) -> bool:
@@ -705,17 +731,17 @@ def html_document(
     <p>{next_verification}</p>
   </section>"""
 
-    details_html = node_detail_cards(state)
+    details_html = node_detail_cards(state, identities)
     filters_html = detail_filter_buttons()
     presentation_title = "Best explanation graph"
     edge_maps_json = json.dumps(
         {
-            "presentation-graph": graph_edge_connections(state, presentation_ids),
-            "audit-graph": graph_edge_connections(state),
+            "presentation-graph": graph_edge_connections(state, presentation_ids, identities),
+            "audit-graph": graph_edge_connections(state, identities=identities),
         },
         ensure_ascii=False,
     ).replace("</", "<\\/")
-    candidate_focus_json = json.dumps(candidate_focus_map(state), ensure_ascii=False).replace("</", "<\\/")
+    candidate_focus_json = json.dumps(candidate_focus_map(state, identities), ensure_ascii=False).replace("</", "<\\/")
     script_open = "<script>"
     script_setup = '  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupGraphs);\n  else setupGraphs();'
     if not offline_mode:
