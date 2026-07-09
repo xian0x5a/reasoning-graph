@@ -75,6 +75,30 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), json.loads(STATE_SCHEMA.read_text(encoding="utf-8")))
 
+    @unittest.skipIf(jsonschema is None, "jsonschema not installed")
+    def test_emitted_patch_schema_validates_standalone(self) -> None:
+        result = self.run_cli("schema", "patch")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        emitted_schema = json.loads(result.stdout)
+        patch = {
+            "nodes": [
+                {"id": "A1", "type": "assumption", "text": "First"},
+                {"id": "A2", "type": "assumption", "text": "Second"},
+            ],
+            "edges": [{"id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
+            "frontier": [{"id": "Q1", "node": "A1"}],
+            "factors": [{
+                "id": "F1",
+                "relation": "leads_to",
+                "target": "A2",
+                "inputs": ["A1", "A2"],
+                "aggregation": {"kind": "joint_probability", "probability": 0.5},
+            }],
+        }
+
+        jsonschema.Draft202012Validator(emitted_schema).validate(patch)
+
     def test_schema_command_writes_patch_schema_to_output_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "patch.schema.json"
@@ -83,7 +107,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
-            self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), json.loads(PATCH_SCHEMA.read_text(encoding="utf-8")))
+            emitted_schema = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(emitted_schema["properties"]["nodes"]["items"]["$ref"], "#/$defs/state/node")
+            self.assertIn("state", emitted_schema["$defs"])
 
     def test_mutating_commands_rewrite_state_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

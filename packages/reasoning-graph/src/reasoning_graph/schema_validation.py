@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from functools import lru_cache
 from importlib import resources
 from typing import Any
@@ -20,6 +21,29 @@ def load_schema(name: str) -> dict[str, Any]:
 
     schema_text = resources.files(SCHEMA_PACKAGE).joinpath(name).read_text(encoding="utf-8")
     return json.loads(schema_text)
+
+
+def standalone_schema(name: str) -> dict[str, Any]:
+    """Load a schema that can be validated without a package resolver."""
+
+    schema = deepcopy(load_schema(name))
+    if name != PATCH_SCHEMA:
+        return schema
+
+    state_defs = deepcopy(load_schema(STATE_SCHEMA)["$defs"])
+
+    def rewrite_refs(value: Any, prefix: str, replacement: str) -> Any:
+        if isinstance(value, dict):
+            return {key: rewrite_refs(item, prefix, replacement) for key, item in value.items()}
+        if isinstance(value, list):
+            return [rewrite_refs(item, prefix, replacement) for item in value]
+        if isinstance(value, str) and value.startswith(prefix):
+            return replacement + value.removeprefix(prefix)
+        return value
+
+    schema = rewrite_refs(schema, "state.schema.json#/$defs/", "#/$defs/state/")
+    schema.setdefault("$defs", {})["state"] = rewrite_refs(state_defs, "#/$defs/", "#/$defs/state/")
+    return schema
 
 
 @lru_cache(maxsize=1)

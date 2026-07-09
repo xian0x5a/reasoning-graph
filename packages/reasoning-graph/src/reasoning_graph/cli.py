@@ -14,7 +14,7 @@ from .frontier import expansion_signature, item_view, next_event_step, reconstru
 from .models import STOP_OUTCOMES
 from .policy import best_candidate_ids, ranked_viable_candidates
 from .render import html_document, presentation_node_ids, to_mermaid
-from .schema_validation import load_schema, patch_schema_errors
+from .schema_validation import patch_schema_errors, standalone_schema
 from .state import by_id, dump_state, load_state, write_output_text
 from .validation import validate_state
 
@@ -35,7 +35,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_schema(args: argparse.Namespace) -> int:
     schema_name = f"{args.name}.schema.json"
-    text = json.dumps(load_schema(schema_name), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    text = json.dumps(standalone_schema(schema_name), indent=2, ensure_ascii=False, sort_keys=False) + "\n"
     write_output_text(text, args.output)
     return 0
 

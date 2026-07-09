@@ -34,4 +34,4 @@ Run from the repository root:
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
 ```
 
-Schemas are packaged with the CLI and exposed through the `schema` command.
+Schemas are packaged with the CLI and exposed through the `schema` command. Emitted schemas are standalone; the patch schema bundles the state definitions it references.
