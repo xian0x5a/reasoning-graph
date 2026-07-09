@@ -466,7 +466,7 @@
     },
     "frontierItem": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "id",
         "node"
@@ -550,12 +550,6 @@
           "$ref": "#/$defs/nonNegativeNumber"
         },
         "search_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "step_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "step_truth_cost": {
           "$ref": "#/$defs/nonNegativeNumber"
         }
       },

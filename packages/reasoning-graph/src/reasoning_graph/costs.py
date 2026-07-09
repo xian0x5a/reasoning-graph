@@ -175,7 +175,14 @@ def probability_from_cost(cost: float) -> float:
 def truth_cost_from_log_odds(log_odds: float) -> float:
     """Compute finite truth cost without underflowing tiny probabilities to zero."""
 
-    log_odds = require_finite_float(log_odds, "log odds")
+    try:
+        log_odds = float(log_odds)
+    except (TypeError, ValueError):
+        raise ValueError(f"log odds must be numeric, got {log_odds!r}")
+    if math.isnan(log_odds) or log_odds == -math.inf:
+        raise ValueError(f"log odds must be finite or positive certainty, got {log_odds}")
+    if log_odds == math.inf:
+        return 0.0
     if log_odds >= 0:
         return math.log1p(math.exp(-log_odds))
     return -log_odds + math.log1p(math.exp(log_odds))
@@ -444,27 +451,19 @@ def search_policy_estimated_remaining_weight(state: dict[str, Any]) -> float:
         policy = {}
     if not isinstance(policy, dict):
         raise ValueError("search_policy must be an object when present")
-    raw_weight = policy.get("estimated_remaining_weight", DEFAULT_ESTIMATED_REMAINING_WEIGHT)
-    try:
-        weight = float(raw_weight)
-    except (TypeError, ValueError):
-        raise ValueError(f"search_policy.estimated_remaining_weight must be numeric, got {raw_weight!r}")
-    if not math.isfinite(weight) or weight < 0:
-        raise ValueError(f"search_policy.estimated_remaining_weight must be finite and non-negative, got {weight}")
-    return weight
+    return require_non_negative_float(
+        policy.get("estimated_remaining_weight", DEFAULT_ESTIMATED_REMAINING_WEIGHT),
+        "search_policy.estimated_remaining_weight",
+    )
 
 
 def estimated_remaining_cost_for_item(item: dict[str, Any]) -> tuple[float, bool]:
     if ESTIMATED_REMAINING_COST_FIELD not in item:
         return 0.0, False
-    try:
-        estimated_remaining_cost = float(item.get(ESTIMATED_REMAINING_COST_FIELD))
-    except (TypeError, ValueError):
-        raise ValueError(f"frontier item {item.get('id')} estimated_remaining_cost must be numeric")
-    if not math.isfinite(estimated_remaining_cost) or estimated_remaining_cost < 0:
-        raise ValueError(
-            f"frontier item {item.get('id')} estimated_remaining_cost must be finite and non-negative"
-        )
+    estimated_remaining_cost = require_non_negative_float(
+        item.get(ESTIMATED_REMAINING_COST_FIELD),
+        f"frontier item {item.get('id')} estimated_remaining_cost",
+    )
     return estimated_remaining_cost, True
 
 
@@ -515,36 +514,10 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             continue
         if "path_cost" in item:
             raise ValueError(f"frontier item {item.get('id')} uses rejected legacy field path_cost; use search_cost/cost_components")
-        if "cost_components" not in item and "cost" not in item and "step_cost" in item:
-            node_id = str(item.get("node"))
-            if "step_truth_cost" in item:
-                truth_cost = require_non_negative_float(
-                    item["step_truth_cost"],
-                    f"frontier item {item.get('id')} step_truth_cost",
-                )
-            else:
-                truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
-            truth_cost = require_non_negative_float(
-                truth_cost,
-                f"frontier item {item.get('id')} step_truth_cost",
-            )
-            legacy_search_cost = require_non_negative_float(
-                item["step_cost"],
-                f"frontier item {item.get('id')} step_cost",
-            )
-            work_cost = max(0.0, legacy_search_cost - truth_cost)
-            item["cost_components"] = {
-                "truth": round(truth_cost, 6),
-                "verification": round(work_cost, 6),
-                "effort_budget": 0.0,
-                "reasoning_complexity": 0.0,
-                "constraint_tension": 0.0,
-            }
-        else:
-            components = cost_components_for_item(item, nodes, node_truth_costs)
-            truth_cost = components["truth"]
-            work_cost = sum(value for key, value in components.items() if key != "truth")
-            item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
+        components = cost_components_for_item(item, nodes, node_truth_costs)
+        truth_cost = components["truth"]
+        work_cost = sum(value for key, value in components.items() if key != "truth")
+        item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
 
         truth_cost = require_non_negative_float(truth_cost, f"frontier item {item.get('id')} truth cost")
         work_cost = require_non_negative_float(work_cost, f"frontier item {item.get('id')} work cost")
@@ -570,8 +543,6 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             item["heuristic_cost"] = round(heuristic_cost, 6)
         else:
             item.pop("heuristic_cost", None)
-        item["step_truth_cost"] = round(truth_cost, 6)
-        item["step_cost"] = round(search_cost, 6)
         item["search_cost"] = round(search_cost, 6)
     return state
 

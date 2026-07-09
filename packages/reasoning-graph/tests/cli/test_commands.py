@@ -1,4 +1,5 @@
 import json
+import math
 import subprocess
 import sys
 import tempfile
@@ -69,6 +70,25 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertNotIn("solution", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
         self.assertNotIn('"solution_node"', patch_schema["properties"])
         self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
+
+    def test_validate_rejects_undeclared_frontier_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "undeclared-frontier-field.json"
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "nodes": [{"id": "A1", "type": "assumption", "prior": 0.5}],
+                        "edges": [],
+                        "frontier": [{"id": "Q1", "node": "A1", "unexpected_metric": 1}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_cli("validate", str(state_path))
+
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Additional properties are not allowed", result.stderr)
 
     def test_schema_command_emits_packaged_schema_json(self) -> None:
         result = self.run_cli("schema", "state")
@@ -696,6 +716,42 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Prior odds 1 * (0.75/0.25) * (0.2/0.4) = odds 1.5 => posterior 0.6 => -ln(.6).
             self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
+
+    def test_costs_handle_certain_prior_with_finite_likelihood_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "certain-prior-state.json"
+            output_path = Path(tmp_dir) / "certain-prior-output.json"
+            state = {
+                "nodes": [
+                    {"id": "A1", "type": "assumption", "text": "Certain premise", "prior": 1.0},
+                    {"id": "E1", "type": "evidence", "text": "Finite supporting signal"},
+                ],
+                "edges": [
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+                ],
+                "frontier": [
+                    {
+                        "id": "Q1",
+                        "node": "A1",
+                        "cost_components": {"truth": "auto", "verification": 0.25},
+                    }
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            validation = self.run_cli("validate", str(state_path))
+            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
+
+            self.assertEqual(validation.returncode, 0, validation.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            frontier_item = costed["frontier"][0]
+            self.assertEqual(frontier_item["truth_cost"], 0.0)
+            self.assertEqual(frontier_item["search_cost"], 0.25)
+            self.assertTrue(math.isfinite(frontier_item["truth_cost"]))
+            self.assertTrue(math.isfinite(frontier_item["search_cost"]))
+            self.assertGreaterEqual(frontier_item["truth_cost"], 0.0)
+            self.assertGreaterEqual(frontier_item["search_cost"], 0.0)
 
     def test_costs_use_likelihood_ratio_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1563,7 +1619,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             result = self.run_cli("costs", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("estimated_remaining_cost must be finite and non-negative", result.stderr)
+            self.assertIn("estimated_remaining_cost must be non-negative", result.stderr)
 
     def test_costs_reject_invalid_estimated_remaining_weight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1578,7 +1634,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             result = self.run_cli("costs", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("search_policy.estimated_remaining_weight must be finite and non-negative", result.stderr)
+            self.assertIn("search_policy.estimated_remaining_weight must be non-negative", result.stderr)
 
     def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1607,7 +1663,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             by_id = {item["id"]: item for item in costed["frontier"]}
             self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.223144, places=6)
             # D1 truth is graph-derived from both premises; parent chain is audit context, not probability accumulation.
-            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.328504, places=6)
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
 
     def test_costs_factor_replaces_correlated_likelihood_updates(self) -> None:
