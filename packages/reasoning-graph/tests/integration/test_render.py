@@ -1,6 +1,7 @@
 import json
 import sys
 import unittest
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -109,6 +110,31 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertNotIn(f"LS-{identities.node('E1')} LE-{identities.node('A1')}", svg)
         self.assertIn("supports joint likelihood", svg)
 
+    def test_mermaid_preserves_declared_factor_and_input_order(self) -> None:
+        state = {
+            "nodes": [
+                {"id": "I_1", "type": "evidence"},
+                {"id": "I-1", "type": "evidence"},
+                {"id": "TZ", "type": "assumption"},
+                {"id": "TA", "type": "assumption"},
+            ],
+            "edges": [],
+            "factors": [
+                {"id": "Z", "relation": "supports", "inputs": ["I_1", "I-1"], "target": "TZ"},
+                {"id": "A", "relation": "supports", "inputs": ["I-1"], "target": "TA"},
+            ],
+        }
+        identities = render_identity_map(state)
+        source = to_mermaid(state, identities=identities)
+        z_factor_id = identities.factor("Z")
+        a_factor_id = identities.factor("A")
+
+        self.assertLess(source.index(f'{z_factor_id}{{{{"Z'), source.index(f'{a_factor_id}{{{{"A'))
+        self.assertLess(
+            source.index(f'{identities.node("I_1")} -. grouped supports .-> {z_factor_id}'),
+            source.index(f'{identities.node("I-1")} -. grouped supports .-> {z_factor_id}'),
+        )
+
     def test_offline_svg_is_order_independent_for_nodes_edges_factors_and_inputs(self) -> None:
         fixture = Path(__file__).resolve().parents[1] / "fixtures" / "valid" / "factors-state.json"
         state = json.loads(fixture.read_text(encoding="utf-8"))
@@ -141,10 +167,18 @@ class RenderIdentityTests(unittest.TestCase):
         factor_id = identities.factor("F1")
         self.assertIsNotNone(node_id)
         self.assertIsNotNone(factor_id)
-        self.assertIn(f'<g id="{node_id}" class="node" data-node-id="{raw_node_id}"', svg)
-        self.assertIn(f'<g id="{factor_id}" class="node factor" data-factor-id="F1"', svg)
-        self.assertIn(f'<g id="{node_id}" class="node" data-node-id="{raw_node_id}"><rect x="70" y="70"', svg)
-        self.assertIn(f'<g id="{factor_id}" class="node factor" data-factor-id="F1" data-node-type="factor"><polygon points="165,190', svg)
+        root = ElementTree.fromstring(svg)
+        node_group = next(element for element in root.iter() if element.get("data-node-id") == raw_node_id)
+        factor_group = next(element for element in root.iter() if element.get("data-factor-id") == "F1")
+        node_shape = next(element for element in node_group if element.tag.endswith("rect"))
+        factor_shape = next(element for element in factor_group if element.tag.endswith("polygon"))
+        factor_points = [tuple(map(int, point.split(","))) for point in factor_shape.get("points", "").split()]
+        node_position = (int(node_shape.get("x", "0")), int(node_shape.get("y", "0")))
+        factor_position = (min(x for x, _ in factor_points), min(y for _, y in factor_points))
+
+        self.assertEqual(node_group.get("id"), node_id)
+        self.assertEqual(factor_group.get("id"), factor_id)
+        self.assertNotEqual(node_position, factor_position)
 
     def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
         state = {
@@ -162,10 +196,14 @@ class RenderIdentityTests(unittest.TestCase):
         identities = render_identity_map(state)
         presentation_svg = offline_graph_svg(state, {"E1", "A1"}, identities=identities)
         audit_svg = offline_graph_svg(state, identities=identities)
+        presentation_mermaid = to_mermaid(state, {"E1", "A1"}, identities=identities)
+        audit_mermaid = to_mermaid(state, identities=identities)
 
         self.assertNotIn('data-factor-id="F1"', presentation_svg)
         self.assertIn('data-factor-id="F1"', audit_svg)
         self.assertNotIn(f"LE-{identities.factor('F1')}", presentation_svg)
+        self.assertNotIn("grouped supports", presentation_mermaid)
+        self.assertIn("grouped supports", audit_mermaid)
 
 
 if __name__ == "__main__":

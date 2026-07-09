@@ -7,6 +7,7 @@ from typing import Any
 
 from .costs import node_belief_label, node_effective_truth_costs
 from .identities import RenderIdentityMap, render_identity_map
+from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
 
 def _clip_text(text: str, limit: int = 72) -> str:
@@ -114,47 +115,25 @@ def offline_graph_svg(
     # Layout must not depend on record order. Render identities are stable across
     # equivalent states, so use them first and raw IDs as a deterministic tie-breaker.
     selected_nodes.sort(key=lambda node: (identities.node(str(node.get("id"))) or "", str(node.get("id"))))
-    ranks: dict[int, list[tuple[tuple[str, str], dict[str, Any], bool]]] = {}
+    ranks: dict[int, list[tuple[tuple[str, str], dict[str, Any]]]] = {}
     for node in selected_nodes:
         raw_id = str(node.get("id"))
-        ranks.setdefault(node_ranks[raw_id], []).append((("node", raw_id), node, False))
+        ranks.setdefault(node_ranks[raw_id], []).append((("node", raw_id), node))
 
-    # Keep factor validity and labels aligned with Mermaid without importing render.py
-    # at module load time (render.py imports this offline fallback).
-    from .render import compact_factor_label, iter_visual_factors
-
-    selected_factors: list[tuple[dict[str, Any], str, tuple[str, str]]] = []
-    factor_member_edges: set[tuple[str, str, str]] = set()
-    for factor in iter_visual_factors(state):
-        relation = str(factor.get("relation") or "")
-        target = factor.get("target")
-        inputs = factor.get("inputs")
-        factor_id = factor.get("id")
-        if relation not in {"leads_to", "supports", "contradicts"}:
-            continue
-        if not isinstance(factor_id, str) or not factor_id:
-            continue
-        if not isinstance(target, str) or target not in node_ranks:
-            continue
-        if not isinstance(inputs, list) or not inputs or not all(isinstance(input_id, str) for input_id in inputs):
-            continue
-        if any(input_id not in node_ranks for input_id in inputs):
-            continue
-        if include_nodes is not None and any(input_id not in include_nodes for input_id in inputs):
-            continue
-        factor_mid = identities.factor(factor_id)
+    factor_selection = select_visual_factors(state, node_ranks)
+    factor_member_edges = factor_selection.member_edges
+    selected_factors: list[tuple[VisualFactor, str, tuple[str, str]]] = []
+    for factor in factor_selection.factors:
+        factor_mid = identities.factor(factor.raw_id)
         if factor_mid is None:
             continue
         factor_key = ("factor", factor_mid)
         selected_factors.append((factor, factor_mid, factor_key))
-        for input_id in inputs:
-            factor_member_edges.add((input_id, target, relation))
 
-    selected_factors.sort(key=lambda item: (item[1], str(item[0].get("id"))))
-    for factor, factor_mid, factor_key in selected_factors:
-        target = str(factor.get("target"))
-        factor_rank = max(0, node_ranks[target] - 1)
-        ranks.setdefault(factor_rank, []).append((factor_key, factor, True))
+    selected_factors.sort(key=lambda item: (item[1], item[0].raw_id))
+    for factor, _, factor_key in selected_factors:
+        factor_rank = max(0, node_ranks[factor.target] - 1)
+        ranks.setdefault(factor_rank, []).append((factor_key, factor.record))
 
     if not selected_nodes:
         return '<svg class="offline-graph" viewBox="0 0 640 240" role="img" aria-label="Empty graph"><text x="40" y="120">No graph nodes selected.</text></svg>'
@@ -166,7 +145,7 @@ def offline_graph_svg(
     for rank in sorted_ranks:
         rank_items = ranks[rank]
         max_rows = max(max_rows, len(rank_items))
-        for row, (key, _, _) in enumerate(rank_items):
+        for row, (key, _) in enumerate(rank_items):
             positions[key] = (rank_x[rank], margin_y + row * row_gap)
 
     width = max(720, margin_x * 2 + (len(sorted_ranks) - 1) * rank_gap + node_width)
@@ -237,17 +216,23 @@ def offline_graph_svg(
         append_edge(("node", src), source_key, ("node", dst), target_key, label)
 
     for factor, factor_mid, factor_key in selected_factors:
-        relation = str(factor.get("relation") or "factor")
-        target = str(factor.get("target"))
-        inputs = factor.get("inputs") if isinstance(factor.get("inputs"), list) else []
-        input_ids = sorted(inputs, key=lambda input_id: (identities.node(str(input_id)) or "", str(input_id)))
+        input_ids = sorted(
+            factor.inputs,
+            key=lambda input_id: (identities.node(input_id) or "", input_id),
+        )
         for input_id in input_ids:
-            input_key = identities.node(str(input_id))
+            input_key = identities.node(input_id)
             if input_key is not None:
-                append_edge(("node", str(input_id)), input_key, factor_key, factor_mid, f"grouped {relation}")
-        target_key = identities.node(target)
+                append_edge(("node", input_id), input_key, factor_key, factor_mid, f"grouped {factor.relation}")
+        target_key = identities.node(factor.target)
         if target_key is not None:
-            append_edge(factor_key, factor_mid, ("node", target), target_key, f"{relation} factor")
+            append_edge(
+                factor_key,
+                factor_mid,
+                ("node", factor.target),
+                target_key,
+                f"{factor.relation} factor",
+            )
 
     node_parts: list[str] = []
     for node in selected_nodes:
@@ -272,8 +257,8 @@ def offline_graph_svg(
     for factor, factor_mid, factor_key in selected_factors:
         x, y = positions[factor_key]
         escaped_mid = html.escape(factor_mid, quote=True)
-        escaped_factor_id = html.escape(str(factor.get("id")), quote=True)
-        label = _label_tspans(compact_factor_label(factor), x + node_width // 2, y + node_height // 2 - 4)
+        escaped_factor_id = html.escape(factor.raw_id, quote=True)
+        label = _label_tspans(compact_factor_label(factor.record), x + node_width // 2, y + node_height // 2 - 4)
         diamond = f"{x + node_width // 2},{y} {x + node_width},{y + node_height // 2} {x + node_width // 2},{y + node_height} {x},{y + node_height // 2}"
         node_parts.append(
             f'<g id="{escaped_mid}" class="node factor" data-factor-id="{escaped_factor_id}" data-node-type="factor">'
