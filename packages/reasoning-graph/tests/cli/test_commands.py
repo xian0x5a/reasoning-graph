@@ -933,6 +933,148 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(stopped.returncode, 0)
             self.assertIn("assigned items remain in-flight", stopped.stderr)
 
+    def test_stop_preflight_rejects_invalid_terminal_states_without_persisting(self) -> None:
+        cases = {
+            "uninitialized": (
+                {"nodes": [{"id": "A1", "type": "assumption"}], "edges": [], "frontier": []},
+                "user_stopped",
+                "driver init",
+            ),
+            "duplicate": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "frontier": [],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": []},
+                        {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                    ],
+                },
+                "user_stopped",
+                "already has a stop",
+            ),
+            "false exhaustion": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [{"step": 1, "action": "init", "frontier": ["Q1"]}],
+                },
+                "frontier_exhausted",
+                "active frontier",
+            ),
+            "pending": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": ["Q1"]},
+                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                    ],
+                },
+                "user_stopped",
+                "pending popped item",
+            ),
+            "in-flight": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": ["Q1"]},
+                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                        {"step": 3, "action": "assign", "item": "Q1"},
+                    ],
+                },
+                "user_stopped",
+                "in-flight",
+            ),
+        }
+        for name, (state, outcome, expected_error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                original = json.dumps(state)
+                state_path.write_text(original, encoding="utf-8")
+                stopped = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", outcome, "-i")
+
+                self.assertNotEqual(stopped.returncode, 0)
+                self.assertIn(expected_error, stopped.stderr)
+                self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+
+    def test_audit_rejects_invalid_terminal_states(self) -> None:
+        cases = {
+            "uninitialized": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "frontier": [],
+                    "events": [{"step": 1, "action": "stop", "reason": "done", "outcome": "user_stopped"}],
+                },
+                "requires an init event",
+            ),
+            "duplicate": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "frontier": [],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": []},
+                        {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                        {"step": 3, "action": "stop", "reason": "again", "outcome": "user_stopped"},
+                    ],
+                },
+                "duplicate stop event",
+            ),
+            "false exhaustion": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": ["Q1"]},
+                        {"step": 2, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                    ],
+                },
+                "frontier_exhausted stop requires no active frontier work",
+            ),
+            "pending": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": ["Q1"]},
+                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                        {"step": 3, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                    ],
+                },
+                "stop cannot follow unresolved popped item",
+            ),
+            "in-flight": (
+                {
+                    "nodes": [{"id": "A1", "type": "assumption"}],
+                    "edges": [],
+                    "frontier": [{"id": "Q1", "node": "A1"}],
+                    "events": [
+                        {"step": 1, "action": "init", "frontier": ["Q1"]},
+                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+                        {"step": 3, "action": "assign", "item": "Q1"},
+                        {"step": 4, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                    ],
+                },
+                "assigned items remain in-flight",
+            ),
+        }
+        for name, (state, expected_error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                state_path.write_text(json.dumps(state), encoding="utf-8")
+                audit = self.run_cli("audit", str(state_path))
+
+                self.assertNotEqual(audit.returncode, 0)
+                self.assertIn(expected_error, audit.stderr)
+
     def test_expand_patch_stop_rejects_other_in_flight_probe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
@@ -1809,7 +1951,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             stopped_path = Path(tmp_dir) / "stopped.json"
-            original = FIXTURE.read_text(encoding="utf-8")
+            original_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+            # Terminal preflight rejects appending a second stop; use same
+            # otherwise-valid trace before its existing terminal event.
+            original_state["events"] = original_state["events"][:-1]
+            original = json.dumps(original_state)
             state_path.write_text(original, encoding="utf-8")
 
             result = self.run_cli(

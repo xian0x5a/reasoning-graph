@@ -275,8 +275,12 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         if action not in AUDIT_EVENT_ACTIONS:
             errors.append(f"{label}: invalid action {action!r}")
             continue
-        if seen_stop and action != "stop":
-            errors.append(f"{label}: no events allowed after stop")
+        if seen_stop:
+            if action == "stop":
+                errors.append(f"{label}: duplicate stop event; no events allowed after stop")
+            else:
+                errors.append(f"{label}: no events allowed after stop")
+            continue
 
         if action == "init":
             if seen_init:
@@ -686,8 +690,14 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: stop outcome must be one of {sorted(STOP_OUTCOMES)}, got {outcome!r}")
             else:
                 stop_outcomes.append(outcome)
+                if outcome == "frontier_exhausted" and virtual_frontier:
+                    errors.append(
+                        f"{label}: frontier_exhausted stop requires no active frontier work; remaining items: {sorted(virtual_frontier)}"
+                    )
             seen_stop = True
 
+    if not seen_init:
+        errors.append("strict search audit requires an init event before terminal search events")
     if not seen_stop:
         errors.append("strict search audit requires a stop event")
     if stop_outcomes:

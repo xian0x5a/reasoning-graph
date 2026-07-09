@@ -899,6 +899,10 @@ def cmd_expand(args: argparse.Namespace) -> int:
         stop_outcome = patch.get("stop_outcome")
         if stop_outcome not in STOP_OUTCOMES:
             raise ValueError(f"stop_outcome must be one of {sorted(STOP_OUTCOMES)}, got {stop_outcome!r}")
+        # Preflight after expansion closes its pending/assigned item, but before
+        # candidate auto-ranking, so a rejected terminal state cannot gain a rank event.
+        if _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
+            return 1
         if stop_outcome in CANDIDATE_STOP_OUTCOMES and not patch_ranked and append_rank_event(state, item_id=args.item, top=10) != 0:
             return 1
         if append_stop_event(state, stop_reason, str(stop_outcome)) != 0:
@@ -949,7 +953,14 @@ def append_rank_event(state: dict[str, Any], item_id: str | None = None, top: in
     return 0
 
 
-def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
+def _stop_preflight(
+    state: dict[str, Any],
+    reason: str,
+    outcome: str,
+    *,
+    allow_pending_item: bool = False,
+) -> int:
+    """Reject terminal events that would make the search cursor incoherent."""
     reason = reason.strip()
     if not reason:
         print("error: stop reason must be non-empty", file=sys.stderr)
@@ -957,14 +968,22 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
     if outcome not in STOP_OUTCOMES:
         print(f"error: --outcome must be one of {sorted(STOP_OUTCOMES)}, got {outcome!r}", file=sys.stderr)
         return 1
-    events = state.setdefault("events", [])
-    if not isinstance(events, list):
+
+    events = state.get("events")
+    if events is not None and not isinstance(events, list):
         print("error: events must be a list before stop can append", file=sys.stderr)
         return 1
     cursor = search_cursor(state)
-    if cursor.get("pending_item"):
+    if not cursor.get("initialized"):
+        print("error: cannot stop before driver init event", file=sys.stderr)
+        return 1
+    if cursor.get("stopped"):
+        print("error: search already has a stop event", file=sys.stderr)
+        return 1
+    pending_item = cursor.get("pending_item")
+    if pending_item and not allow_pending_item:
         print(
-            f"error: cannot stop while pending popped item {cursor['pending_item']} is unresolved; expand, assign, or rank it first",
+            f"error: cannot stop while pending popped item {pending_item} is unresolved; expand, assign, or rank it first",
             file=sys.stderr,
         )
         return 1
@@ -975,7 +994,22 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
             file=sys.stderr,
         )
         return 1
-    events.append({"step": next_event_step(state), "action": "stop", "reason": reason, "outcome": outcome})
+    if outcome == "frontier_exhausted" and cursor.get("active_ids"):
+        print(
+            "error: frontier_exhausted stop requires no active frontier work; "
+            f"remaining items: {sorted(cursor['active_ids'])}",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
+    if _stop_preflight(state, reason, outcome) != 0:
+        return 1
+    events = state["events"]
+    assert isinstance(events, list)
+    events.append({"step": next_event_step(state), "action": "stop", "reason": reason.strip(), "outcome": outcome})
     return 0
 
 
@@ -991,6 +1025,15 @@ def cmd_rank(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
+    # Candidate stops may close one pending pop through auto-ranking; preflight
+    # everything else before appending that rank event.
+    if _stop_preflight(
+        state,
+        args.reason,
+        args.outcome,
+        allow_pending_item=args.outcome in CANDIDATE_STOP_OUTCOMES,
+    ) != 0:
+        return 1
     if args.outcome in CANDIDATE_STOP_OUTCOMES:
         cursor = search_cursor(state)
         item_id = args.item or cursor.get("pending_item")
