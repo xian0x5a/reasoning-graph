@@ -30,7 +30,7 @@ Agents should update relevant pseudocode before touching matching source code.
 
 ## Algorithm
 
-The skill treats reasoning as heuristic uniform-cost search over a graph:
+The skill treats reasoning as heuristic best-first search over a graph:
 
 1. Extract goal, facts, constraints.
 2. Add assumptions/tests as frontier items.

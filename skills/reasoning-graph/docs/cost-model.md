@@ -43,7 +43,9 @@ search_cost =
 
 `truth_cost` measures current plausibility from the graph's probability model. `base_search_cost` measures local remaining effort/risk. Optional top-level `estimated_remaining_cost` is a heuristic estimate of remaining work: unmet criteria, missing evidence, unresolved constraints, confidence gap, dependency depth, or similar effort. It is not truth cost and should stay outside `cost_components`. `search_policy.estimated_remaining_weight` defaults to `1.0`; set it lower when rough heuristics should guide order without dominating local cost.
 
-`search_cost` is frontier priority. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone.
+`search_cost` is frontier priority. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone. Ties break by frontier item id.
+
+Two accumulation axes are easy to conflate. Belief accumulates through the claim graph: `leads_to` premises multiply into a derived node's belief, so premises `0.8` and `0.9` give `0.72` and cost `0.2231 + 0.1054`. Search depth does not accumulate: an item's priority reflects its own belief and remaining work, never the route taken to reach it, so items on the same node price identically at any depth.
 
 Exact math is optional. Rough costs are acceptable when they preserve ordering and make the search better.
 
