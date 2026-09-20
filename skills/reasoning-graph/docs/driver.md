@@ -122,11 +122,11 @@ State JSON shape:
     "answer": "Compact answer shown above the graph."
   },
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Solve the problem", "probability": 1.0},
+    {"id": "G1", "type": "goal", "text": "Solve the problem"},
     {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
-    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent", "confidence": 0.9},
+    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
-    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer", "confidence": 0.9}
+    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer", "prior": 0.5}
   ],
   "edges": [
     {"from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},

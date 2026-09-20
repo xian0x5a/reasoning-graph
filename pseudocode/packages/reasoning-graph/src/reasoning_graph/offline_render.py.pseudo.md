@@ -1,3 +1,3 @@
 # Offline renderer
 
-Render compact node identity, type, and shared explicit probability label in the three-line SVG node. Preserve escaping and layout.
+Render compact node identity, type, and the shared score label when the node carries one. Preserve escaping and layout.

@@ -11,7 +11,8 @@ validate_state(state):
   collect JSON Schema contract errors first
   continue semantic validation so one command reports both schema and graph-specific diagnostics
   check top-level collections and object ids
-  check node types, including evidence instead of legacy fact/contradiction nodes; check edge types, references, priors and other probability fields through shared numeric validation, and answer kinds
+  check node types, including evidence instead of legacy fact/contradiction nodes; check edge types, references, node scores through shared numeric validation, and answer kinds
+  reject a derived node without an incoming leads_to premise; posterior overrides belief, it does not replace the derivation
   check factors are virtual numeric relation groups with id, relation, target, at least two inputs, and relation-appropriate aggregation
   reject top-level premise_groups and patch/event update_premise_groups through schemas; reject overlapping leads_to/supports/contradicts factors for the same target and relation; warn when a grouped target has explicit posterior that overrides graph-derived costs
   check candidate solutions connect to accepted goals with `answers` edges only when semantically valid

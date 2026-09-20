@@ -7,7 +7,7 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
 ### Goal
 
 ```json
-{"id": "G1", "type": "goal", "text": "Recover the exact plaintext", "probability": 1.0}
+{"id": "G1", "type": "goal", "text": "Recover the exact plaintext"}
 ```
 
 ### Candidate solution
@@ -60,6 +60,20 @@ Fields:
 
 ## Examples
 
+### Single exact-answer goal
+
+```json
+{
+  "nodes": [
+    {"id": "G1", "type": "goal", "text": "Find the exact passcode"},
+    {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer", "prior": 0.5}
+  ],
+  "edges": [
+    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
+  ]
+}
+```
+
 ### Solve-or-identify-blocker goals
 
 ```json
@@ -67,9 +81,9 @@ Fields:
   "goal_policy": {"accepted_goals": ["G1", "G2"], "preferred_goals": ["G1"]},
   "goal_groups": [{"id": "GG1", "goals": ["G1", "G2"], "exclusive": true}],
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Find a valid solution", "probability": 1.0},
-    {"id": "G2", "type": "goal", "text": "Identify blocker proving no valid solution exists", "probability": 1.0},
-    {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker", "confidence": 0.9}
+    {"id": "G1", "type": "goal", "text": "Find a valid solution"},
+    {"id": "G2", "type": "goal", "text": "Identify blocker proving no valid solution exists"},
+    {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker", "prior": 0.5}
   ],
   "edges": [
     {"id": "CS2-G2", "from": "CS2", "to": "G2", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
@@ -77,8 +91,20 @@ Fields:
 }
 ```
 
-A method hypothesis remains an `assumption` (for example, `prior: 0.5`) with a
-`prompts` edge to a test. It cannot answer an exact-answer goal until verified.
+### Method hypothesis that is not final answer
+
+```json
+{
+  "nodes": [
+    {"id": "G1", "type": "goal", "text": "Recover the exact plaintext"},
+    {"id": "A1", "type": "assumption", "text": "The cipher likely uses columnar transposition", "prior": 0.5},
+    {"id": "T1", "type": "test", "text": "Try columnar transposition keys"}
+  ],
+  "edges": [
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
+  ]
+}
+```
 
 ## Validation checklist
 

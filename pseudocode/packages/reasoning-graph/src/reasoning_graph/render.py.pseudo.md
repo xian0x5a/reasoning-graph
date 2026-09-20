@@ -20,4 +20,4 @@ html_document(state, mermaid_source, render_mode):
 
 ## Required node scores and edge reasoning
 
-Display the explicit probability field name and value on every compact graph node, including derived nodes. Include escaped incident-edge reasoning in node detail cards.
+Display the score field name and value on compact graph nodes that carry one; goal and constraint stipulations render without a score line. Include escaped incident-edge reasoning in node detail cards.

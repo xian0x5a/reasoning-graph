@@ -63,7 +63,7 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
   "nodes": [
     {"id": "A1", "type": "assumption", "text": "Source says X", "prior": 0.8},
     {"id": "B1", "type": "assumption", "text": "Same source implies Y", "prior": 0.75},
-    {"id": "D1", "type": "derived", "text": "X and Y explain the result", "confidence": 0.9}
+    {"id": "D1", "type": "derived", "text": "X and Y explain the result"}
   ],
   "edges": [
     {"id": "A1-D1", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
@@ -81,9 +81,6 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
   ]
 }
 ```
-
-The derived local confidence `0.9` combines with the joint premise probability
-`0.72`, giving effective belief `0.648` before other updates.
 
 ### Grouped supporting evidence
 

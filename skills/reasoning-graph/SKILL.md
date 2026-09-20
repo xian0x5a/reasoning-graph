@@ -55,7 +55,7 @@ Minimal patch shapes:
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible branch", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check branch", "confidence": 0.95}
+    {"id": "T1", "type": "test", "text": "Check branch"}
   ],
   "edges": [
     {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2, "reasoning": "The observed signal is more likely when the target claim is true."},
@@ -104,19 +104,19 @@ Top-level state fields:
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
-Every node requires at least one explicit `prior`, `confidence`, `probability`, or `posterior` in `(0, 1]`, including derived nodes. A derived local confidence is conditional on its premises; use `posterior` for an already-calibrated overall belief. Use a justified estimate for uncertain claims: `prior: 0.5` is neutral, while `1.0` means certainty and must not stand in for an unknown score. See `docs/cost-model.md` for examples.
+Scores are type-bound: `assumption` and `candidate_solution` carry `prior` or `posterior`, `evidence` carries `confidence`, `derived` carries no local score because its `leads_to` premises give its belief (`posterior` once calibrated), and `goal`, `constraint`, and `test` carry none. See `docs/cost-model.md`.
 
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
-- `evidence` — observed, given, verified, or source-backed statement; include `confidence` for observation/transcription/source reliability
+- `evidence` — observed, given, verified, or source-backed statement; `confidence` records observation/transcription/source reliability
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
-- `derived` — conclusion from prior nodes or conditional branch reasoning
+- `derived` — conclusion from prior nodes; belief comes from its `leads_to` premises
 - `assumption` — uncertain branch point with numeric `prior`; keep atomic and testable
-- `test` — action/check/procedure; not evidence until connected to result `evidence` or `derived` nodes
+- `test` — action/check/procedure; carries no score and is not evidence until connected to result `evidence` or `derived` nodes
 - `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
 
-Every edge requires a nonblank `reasoning` string of one to five sentences explaining the directed relationship. This also applies to factor member edges and legacy aliases.
+Every edge requires a nonblank `reasoning` string of one to five sentences explaining the directed relationship, including factor member edges.
 
 Edge types:
 

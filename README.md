@@ -4,7 +4,7 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-Every node, including derived nodes, requires an explicit probability score (`prior`, `confidence`, `probability`, or `posterior`). Every edge requires `reasoning` in one to five sentences. See the [score examples](skills/reasoning-graph/docs/cost-model.md#probability-examples-and-derived-nodes).
+Node scores are type-bound: `prior` or `posterior` on hypotheses, `confidence` on evidence, derived belief from `leads_to` premises, and none on goals, constraints, and tests. Every edge requires `reasoning` of one to five sentences. See the [cost model](skills/reasoning-graph/docs/cost-model.md).
 
 ## Repository layout
 
@@ -53,7 +53,7 @@ cat > seed.json <<'JSON'
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause", "confidence": 0.95}
+    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
   ],
   "edges": [
     {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."},

@@ -24,4 +24,4 @@ patch_schema_errors(patch):
 
 ## Required node scores and edge reasoning
 
-Require at least one explicit node probability field (prior/confidence/probability/posterior) on every node type. Require edge reasoning as nonblank text with one to five sentences. Register a reasoning-sentences format checker for both state and patch validation; split on sentence punctuation followed by whitespace, allowing decimal numbers and a final sentence without punctuation. Reject punctuation-only text.
+Require type-bound node scores: prior or posterior on assumptions and candidate solutions, confidence on evidence, no local score on derived nodes (posterior only, once calibrated), none on goals, constraints, and tests; reject the removed generic probability field. Require edge reasoning as nonblank text with one to five sentences. Register a reasoning-sentences format checker for both state and patch validation; split on sentence punctuation followed by whitespace, allowing decimal numbers and a final sentence without punctuation. Reject punctuation-only text.

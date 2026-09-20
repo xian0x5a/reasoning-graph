@@ -38,4 +38,4 @@ command handlers:
 
 ## Required node scores and edge reasoning
 
-Initialize the accepted goal with probability 1.0: acceptance of the objective, not confidence that it has been solved. Seed and expand must reject missing node scores or invalid edge reasoning before writing state.
+Initialize the accepted goal without a score: it is the objective, not a claim. Seed and expand must reject scores that violate the type contract or invalid edge reasoning before writing state.
