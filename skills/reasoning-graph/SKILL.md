@@ -55,7 +55,7 @@ Minimal patch shapes:
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible branch", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check branch", "probability": 1.0}
+    {"id": "T1", "type": "test", "text": "Check branch", "confidence": 0.95}
   ],
   "edges": [
     {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2, "reasoning": "The observed signal is more likely when the target claim is true."},
@@ -104,7 +104,7 @@ Top-level state fields:
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
-Every node requires at least one explicit `prior`, `confidence`, `probability`, or `posterior` in `(0, 1]`, including derived nodes. A derived local confidence is conditional on its premises; use `posterior` for an already-calibrated overall belief. See `docs/cost-model.md` for examples and migration.
+Every node requires at least one explicit `prior`, `confidence`, `probability`, or `posterior` in `(0, 1]`, including derived nodes. A derived local confidence is conditional on its premises; use `posterior` for an already-calibrated overall belief. Use a justified estimate for uncertain claims: `prior: 0.5` is neutral, while `1.0` means certainty and must not stand in for an unknown score. See `docs/cost-model.md` for examples.
 
 Node types:
 

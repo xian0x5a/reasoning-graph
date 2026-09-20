@@ -50,6 +50,21 @@ overall belief, store `posterior: 0.72` instead: the override prevents counting
 premises again. Do not enter the overall estimate as a local confidence and
 multiply the same evidence twice.
 
+### Neutral belief versus certainty
+
+`1.0` means certainty, never an unknown or unspecified score. Use a justified
+estimate for uncertain claims; `prior: 0.5` represents a deliberately neutral
+starting belief when neither outcome is favored. Do not default all nodes to
+either value. With no uncertain premises, finite likelihood ratios cannot move
+belief away from `1.0`, even when evidence contradicts the claim.
+
+For a neutral `prior: 0.5`, a supporting likelihood ratio of `2` produces belief
+`2/3`, while a contradicting ratio of `0.1` produces belief `1/11`. A starting
+`probability: 1.0` stays at `1.0` in both cases. Local `confidence: 1.0` is
+appropriate for a deterministic inference conditional on its premises: a
+premise scored `0.8` still limits its effective belief to `0.8`, which incoming
+likelihood evidence can then update.
+
 ### Required edge reasoning
 
 Every edge, including `requires`, `prompts`, `answers`, and legacy aliases,
@@ -71,16 +86,6 @@ boundaries. This is a deterministic prose-length check, not a grammar or
 reasoning-quality judge. External JSON Schema validators must enable the
 package's `REASONING_FORMAT_CHECKER` to enforce the sentence count; required
 fields, types, and nonblank text are ordinary schema constraints.
-
-### Migrating existing graphs
-
-Add a meaningful score to every unscored node and reasoning to every edge in
-both state files and new-node/new-edge patches. Existing `prior`, `confidence`,
-`probability`, and `posterior` fields remain supported; no duplicate field is
-required. Review each estimate instead of defaulting unknown claims to `1.0`.
-The CLI does not silently migrate or invent scores/reasoning. Partial
-`update_nodes` patches may omit an unchanged score, but the merged state must
-still validate.
 
 Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas and runtime cost commands reject legacy `path_cost`. It is not auto-migrated; replace old frontier cost fields with `search_cost`/`cost_components` before running `validate`, `costs`, `sort`, or `next`.
 

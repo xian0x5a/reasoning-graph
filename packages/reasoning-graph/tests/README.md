@@ -14,3 +14,13 @@ uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-
 uv --project packages/reasoning-graph run reasoning-graph validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
+
+## Probability fixtures
+
+Unresolved hypotheses use explicit priors; `0.5` denotes a deliberately neutral
+starting belief. Observations and procedures carry reliability estimates.
+Some synthetic premise-propagation fixtures use local `confidence: 1.0` on
+derived nodes or candidates: these represent deterministic consequences of
+their `leads_to` premises, so the premises supply the uncertainty. This is not
+a default for unscored claims. Goals use `probability: 1.0` for acceptance of
+the stated objective, not successful completion.

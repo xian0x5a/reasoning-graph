@@ -27,7 +27,7 @@
       "type": "candidate_solution",
       "text": "Exact answer",
       "answer_kind": "exact_answer",
-      "probability": 1.0
+      "confidence": 1.0
     }
   ],
   "goal_groups": [

@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {"id": "G1", "type": "goal", "text": "Find the exact cause of the outage", "probability": 1.0},
+    {"id": "E1", "type": "evidence", "text": "Failures began just after deployment", "confidence": 0.95},
+    {"id": "A1", "type": "assumption", "text": "The deployment caused the outage", "prior": 0.5},
+    {"id": "D1", "type": "derived", "text": "If A1 holds, the outage has a deployment-related cause", "confidence": 1.0},
+    {"id": "CS1", "type": "candidate_solution", "text": "The cause is deployment-related", "answer_kind": "exact_answer", "confidence": 1.0}
+  ],
+  "edges": [
+    {"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "This timing is twice as likely under a deployment-related cause, with observation reliability included in the ratio."},
+    {"id": "A1D1", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "A deployment-caused outage necessarily has a deployment-related cause."},
+    {"id": "D1CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the derived conclusion without adding another uncertain inference."},
+    {"id": "CS1G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "The candidate identifies a cause for the outage as requested by the goal."}
+  ],
+  "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}]
+}

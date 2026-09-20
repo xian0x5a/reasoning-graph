@@ -33,7 +33,7 @@
       "type": "candidate_solution",
       "text": "Grouped signal is the cause",
       "answer_kind": "exact_answer",
-      "probability": 1.0
+      "confidence": 1.0
     }
   ],
   "edges": [

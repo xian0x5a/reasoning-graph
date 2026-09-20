@@ -27,7 +27,7 @@
       "type": "candidate_solution",
       "text": "Insufficient evidence to establish cause",
       "answer_kind": "blocker",
-      "probability": 1.0
+      "prior": 0.5
     }
   ],
   "edges": [

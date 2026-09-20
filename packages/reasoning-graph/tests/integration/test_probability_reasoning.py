@@ -89,3 +89,51 @@ def test_derived_local_score_and_posterior_do_not_double_count():
 def test_partial_update_can_retain_existing_score():
     assert not patch_schema_errors({"update_nodes": [{"id": "G1", "set": {"text": "Updated goal"}}]})
     assert validate_state(starter_state("default")).ok
+
+
+@pytest.mark.parametrize("relation,ratio,expected", [
+    ("supports", 2.0, 2 / 3),
+    ("contradicts", 0.1, 1 / 11),
+])
+def test_neutral_fixture_likelihoods_propagate_to_derived_and_candidate(relation, ratio, expected):
+    import json
+    from pathlib import Path
+
+    fixture = Path(__file__).parents[1] / "fixtures/valid/neutral-likelihood-state.json"
+    state = json.loads(fixture.read_text())
+    state["edges"][0].update(type=relation, likelihood_ratio=ratio)
+    assert validate_state(state).ok
+    costs = node_effective_truth_costs(state)
+    for node_id in ("A1", "D1", "CS1"):
+        assert probability_from_cost(costs[node_id]) == pytest.approx(expected)
+
+    # The old unscored calculation used neutral odds in this precise case.
+    # Such a state is now invalid, but the low-level arithmetic is a useful
+    # reference: explicit neutral belief must retain its likelihood response.
+    del state["nodes"][2]["prior"]
+    assert not validate_state(state).ok
+    assert probability_from_cost(node_effective_truth_costs(state)["A1"]) == pytest.approx(expected)
+
+    # Certainty must remain certainty; the fix must not silently reinterpret 1.
+    state["nodes"][2]["probability"] = 1.0
+    assert probability_from_cost(node_effective_truth_costs(state)["A1"]) == 1.0
+
+
+def test_certain_local_inference_still_updates_from_uncertain_premises():
+    state = {
+        "nodes": [
+            {"id": "E1", "type": "evidence", "confidence": 0.8},
+            {"id": "E2", "type": "evidence", "confidence": 0.95},
+            {"id": "D1", "type": "derived", "confidence": 1.0},
+        ],
+        "edges": [
+            {"from": "E1", "to": "D1", "type": "leads_to",
+             "reasoning": "The conclusion follows deterministically if the premise is true."},
+            {"from": "E2", "to": "D1", "type": "contradicts", "likelihood_ratio": 0.1,
+             "reasoning": "This independent observation is ten times less likely if the conclusion is true."},
+        ],
+        "frontier": [],
+    }
+    assert validate_state(state).ok
+    # Premise P=.8 gives odds 4; LR=.1 gives odds .4 and P=2/7.
+    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(2 / 7)

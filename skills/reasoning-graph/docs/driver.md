@@ -124,9 +124,9 @@ State JSON shape:
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem", "probability": 1.0},
     {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
-    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent", "probability": 1.0},
+    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
-    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer", "probability": 1.0}
+    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer", "confidence": 0.9}
   ],
   "edges": [
     {"from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},

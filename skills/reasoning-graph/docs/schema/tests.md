@@ -33,7 +33,7 @@ Include `confidence` on result evidence because observation, scripts, OCR, exter
 {
   "nodes": [
     {"id": "A1", "type": "assumption", "text": "The service is reading stale config", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "probability": 1.0}
+    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "confidence": 0.95}
   ],
   "edges": [
     {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
@@ -46,7 +46,7 @@ Include `confidence` on result evidence because observation, scripts, OCR, exter
 ```json
 {
   "nodes": [
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "probability": 1.0},
+    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "confidence": 0.95},
     {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "confidence": 0.95}
   ],
   "edges": [
@@ -61,7 +61,7 @@ Include `confidence` on result evidence because observation, scripts, OCR, exter
 ```json
 {
   "nodes": [
-    {"id": "T2", "type": "test", "text": "Replay request with debug headers", "probability": 1.0},
+    {"id": "T2", "type": "test", "text": "Replay request with debug headers", "confidence": 0.95},
     {"id": "E2", "type": "evidence", "text": "Replay was inconclusive because fixture token expired", "confidence": 0.9}
   ],
   "edges": [
