@@ -20,72 +20,53 @@ Evidence can be wrong. Official metadata may change, OCR can misread, transcript
 
 ### Probability examples and derived nodes
 
-These are illustrative judgments, not universally calibrated confidence levels:
+Illustrative estimates, not calibrated defaults:
 
-| Node | Score | Interpretation |
+| Node example | Score | Meaning |
 | --- | --- | --- |
-| Goal: diagnose the outage | `probability: 1.0` | This is the accepted objective; it is not a solved claim. |
-| Constraint: retain the original data | `probability: 1.0` | A stipulated requirement. |
-| Evidence: timestamp copied from a verified log | `confidence: 0.99` | Highly reliable observation, allowing a small transcription risk. |
-| Assumption: deployment caused the outage | `prior: 0.5` | Plausible but unresolved before the diagnostic evidence. |
-| Assumption: rare hardware fault | `prior: 0.1` | Possible but currently unlikely. |
-| Test: compare deployment and outage timestamps | `confidence: 0.95` | Reliable procedure if clocks are synchronized. |
-| Derived: deployment preceded the outage | `confidence: 0.9` | Reliability of this inference conditional on its premises. |
-| Candidate: rollback resolves the outage | `posterior: 0.8` | Calibrated overall belief after the available checks. |
+| Goal: diagnose outage | `probability: 1.0` | Accepted objective, not solved. |
+| Constraint: preserve data | `probability: 1.0` | Stipulated requirement. |
+| Evidence: verified timestamp | `confidence: 0.99` | Observation reliability. |
+| Assumption: deployment caused outage | `prior: 0.5` | Neutral starting belief. |
+| Test: compare timestamps | `confidence: 0.95` | Procedure reliability. |
+| Derived: deployment preceded outage | `confidence: 0.9` | Inference reliability given premises. |
+| Candidate: rollback resolves outage | `posterior: 0.8` | Overall updated belief. |
 
-`probability` is a general local score; `prior` preserves the starting belief,
-`confidence` describes local observation/inference reliability, and `posterior`
-is an overall calibrated override. Existing precedence is
-`posterior > confidence > probability > prior`; use one local field unless
-preserving a prior alongside an updated posterior. Zero is excluded because the
-cost model uses finite `-ln(P)`; record impossibility in the claim/status rather
-than inventing a small nonzero probability.
+Precedence: `posterior > confidence > probability > prior`. Use one local
+score; retain `prior` alongside `posterior` for history. Zero is excluded by
+finite `-ln(P)`; describe impossibility rather than inventing a small score.
 
-A derived node must have its own score even when incoming `leads_to` edges
-supply premises. With one premise scored `0.8` and derived local `confidence`
-`0.9`, effective belief is `0.8 * 0.9 = 0.72` before likelihood updates. A
-logically certain inference can use local `confidence: 1.0`; its uncertain
-premises still limit its effective belief. If `0.72` is already the calibrated
-overall belief, store `posterior: 0.72` instead: the override prevents counting
-premises again. Do not enter the overall estimate as a local confidence and
-multiply the same evidence twice.
+A premise at `0.8` and derived local confidence `0.9` give effective belief
+`0.72`. Use `posterior: 0.72` if that estimate already includes the evidence;
+it overrides incoming updates to prevent double counting.
 
 ### Neutral belief versus certainty
 
-`1.0` means certainty, never an unknown or unspecified score. Use a justified
-estimate for uncertain claims; `prior: 0.5` represents a deliberately neutral
-starting belief when neither outcome is favored. Do not default all nodes to
-either value. With no uncertain premises, finite likelihood ratios cannot move
-belief away from `1.0`, even when evidence contradicts the claim.
+`0.5` is neutral; `1.0` is certainty, never an unknown-score default. Without
+uncertain premises, finite likelihood updates cannot move certainty:
 
-For a neutral `prior: 0.5`, a supporting likelihood ratio of `2` produces belief
-`2/3`, while a contradicting ratio of `0.1` produces belief `1/11`. A starting
-`probability: 1.0` stays at `1.0` in both cases. Local `confidence: 1.0` is
-appropriate for a deterministic inference conditional on its premises: a
-premise scored `0.8` still limits its effective belief to `0.8`, which incoming
-likelihood evidence can then update.
+| Starting belief | Support LR = 2 | Contradiction LR = 0.1 |
+| --- | --- | --- |
+| `0.5` | `2/3` | `1/11` |
+| `1.0` | `1.0` | `1.0` |
+
+Local `confidence: 1.0` is valid for a deterministic inference: a premise at
+`0.8` still limits effective belief to `0.8`, which evidence can update.
 
 ### Required edge reasoning
 
-Every edge, including `requires`, `prompts`, `answers`, and legacy aliases,
-requires `reasoning`: one to five sentences explaining why the directed
-relationship holds. Explain the observation, inference, or dependency; simply
-repeating the edge type is not informative. A factor's `reason` does not replace
-reasoning on its member edges.
+Every edge needs `reasoning` of one to five sentences explaining its directed
+relationship. A factor's `reason` does not replace member-edge reasoning.
 
 ```json
-{"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
+{"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The logged deployment predates the first failure."}
 ```
 
-`validate`, `seed`, and `expand` enforce the limit with the custom JSON Schema
-format `reasoning-sentences`. Sentences are separated by `.`, `!`, or `?`
-followed by whitespace (optionally after closing quotes or brackets); final
-punctuation is optional. Decimals such as `0.75` do not split a sentence.
-Write out abbreviations followed by spaces because their periods count as
-boundaries. This is a deterministic prose-length check, not a grammar or
-reasoning-quality judge. External JSON Schema validators must enable the
-package's `REASONING_FORMAT_CHECKER` to enforce the sentence count; required
-fields, types, and nonblank text are ordinary schema constraints.
+The CLI enforces `reasoning-sentences`: `.`, `!`, or `?` followed by whitespace
+ends a sentence, allowing closing quotes/brackets; final punctuation is optional.
+Decimals do not split sentences; write out abbreviations. This checks length,
+not reasoning quality. External schema validators must enable
+`REASONING_FORMAT_CHECKER` for sentence counts.
 
 Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas and runtime cost commands reject legacy `path_cost`. It is not auto-migrated; replace old frontier cost fields with `search_cost`/`cost_components` before running `validate`, `costs`, `sort`, or `next`.
 

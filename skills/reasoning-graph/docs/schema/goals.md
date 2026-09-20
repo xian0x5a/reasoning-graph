@@ -60,20 +60,6 @@ Fields:
 
 ## Examples
 
-### Single exact-answer goal
-
-```json
-{
-  "nodes": [
-    {"id": "G1", "type": "goal", "text": "Find the exact passcode", "probability": 1.0},
-    {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer", "confidence": 0.9}
-  ],
-  "edges": [
-    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
-  ]
-}
-```
-
 ### Solve-or-identify-blocker goals
 
 ```json
@@ -91,20 +77,8 @@ Fields:
 }
 ```
 
-### Method hypothesis that is not final answer
-
-```json
-{
-  "nodes": [
-    {"id": "G1", "type": "goal", "text": "Recover the exact plaintext", "probability": 1.0},
-    {"id": "A1", "type": "assumption", "text": "The cipher likely uses columnar transposition", "prior": 0.5},
-    {"id": "T1", "type": "test", "text": "Try columnar transposition keys", "confidence": 0.95}
-  ],
-  "edges": [
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
-  ]
-}
-```
+A method hypothesis remains an `assumption` (for example, `prior: 0.5`) with a
+`prompts` edge to a test. It cannot answer an exact-answer goal until verified.
 
 ## Validation checklist
 
