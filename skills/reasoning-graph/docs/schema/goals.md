@@ -7,7 +7,7 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
 ### Goal
 
 ```json
-{"id": "G1", "type": "goal", "text": "Recover the exact plaintext"}
+{"id": "G1", "type": "goal", "text": "Recover the exact plaintext", "probability": 1.0}
 ```
 
 ### Candidate solution
@@ -17,14 +17,15 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
   "id": "CS1",
   "type": "candidate_solution",
   "text": "Plaintext is ...",
-  "answer_kind": "exact_answer"
+  "answer_kind": "exact_answer",
+  "posterior": 0.8
 }
 ```
 
 A candidate answers a goal through an `answers` edge:
 
 ```json
-{"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"}
+{"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
 ```
 
 ## `answer_kind` values
@@ -64,11 +65,11 @@ Fields:
 ```json
 {
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Find the exact passcode"},
-    {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer"}
+    {"id": "G1", "type": "goal", "text": "Find the exact passcode", "probability": 1.0},
+    {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer", "probability": 1.0}
   ],
   "edges": [
-    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"}
+    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
   ]
 }
 ```
@@ -80,12 +81,12 @@ Fields:
   "goal_policy": {"accepted_goals": ["G1", "G2"], "preferred_goals": ["G1"]},
   "goal_groups": [{"id": "GG1", "goals": ["G1", "G2"], "exclusive": true}],
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Find a valid solution"},
-    {"id": "G2", "type": "goal", "text": "Identify blocker proving no valid solution exists"},
-    {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker"}
+    {"id": "G1", "type": "goal", "text": "Find a valid solution", "probability": 1.0},
+    {"id": "G2", "type": "goal", "text": "Identify blocker proving no valid solution exists", "probability": 1.0},
+    {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker", "probability": 1.0}
   ],
   "edges": [
-    {"id": "CS2-G2", "from": "CS2", "to": "G2", "type": "answers"}
+    {"id": "CS2-G2", "from": "CS2", "to": "G2", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
   ]
 }
 ```
@@ -95,12 +96,12 @@ Fields:
 ```json
 {
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Recover the exact plaintext"},
-    {"id": "A1", "type": "assumption", "text": "The cipher likely uses columnar transposition"},
-    {"id": "T1", "type": "test", "text": "Try columnar transposition keys"}
+    {"id": "G1", "type": "goal", "text": "Recover the exact plaintext", "probability": 1.0},
+    {"id": "A1", "type": "assumption", "text": "The cipher likely uses columnar transposition", "probability": 1.0},
+    {"id": "T1", "type": "test", "text": "Try columnar transposition keys", "probability": 1.0}
   ],
   "edges": [
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ]
 }
 ```

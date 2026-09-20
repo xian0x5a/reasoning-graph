@@ -210,7 +210,30 @@
             }
           }
         }
-      ]
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "prior"
+          ]
+        },
+        {
+          "required": [
+            "confidence"
+          ]
+        },
+        {
+          "required": [
+            "probability"
+          ]
+        },
+        {
+          "required": [
+            "posterior"
+          ]
+        }
+      ],
+      "description": "Every node, including derived nodes, requires an explicit local probability or calibrated posterior in (0, 1]."
     },
     "likelihood": {
       "type": "object",
@@ -234,7 +257,8 @@
       "required": [
         "from",
         "to",
-        "type"
+        "type",
+        "reasoning"
       ],
       "properties": {
         "id": {
@@ -264,6 +288,13 @@
         "likelihood_ratio": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "reasoning": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "format": "reasoning-sentences",
+          "description": "Explain this directed relationship in one to five sentences. The CLI enforces the reasoning-sentences format."
         }
       },
       "not": {

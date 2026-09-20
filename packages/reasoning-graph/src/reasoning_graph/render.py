@@ -9,6 +9,7 @@ from typing import Any
 
 from .costs import (
     NODE_DISPLAY_PROBABILITY_FIELDS,
+    node_probability_label,
     compute_costs,
     node_truth_cost,
 )
@@ -53,7 +54,7 @@ def compact_node_label(node: dict[str, Any]) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    return f"{node_id}\n{type_label}"
+    return f"{node_id}\n{type_label}\n{node_probability_label(node)}"
 
 
 def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
@@ -439,6 +440,15 @@ def node_detail_cards(state: dict[str, Any]) -> str:
         for key in NODE_DISPLAY_PROBABILITY_FIELDS:
             if key in node:
                 extras.append(f"<span>{html.escape(key)}: {html.escape(str(node[key]))}</span>")
+        edge_reasons = []
+        for edge in state.get("edges", []):
+            if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):
+                relationship = f"{edge.get('from')} → {edge.get('to')} ({edge.get('type')})"
+                edge_reasons.append(
+                    f"<li><strong>{html.escape(relationship)}</strong>: "
+                    f"{html.escape(str(edge.get('reasoning', '')))}</li>"
+                )
+        reasoning_html = "<h4>Edge reasoning</h4><ul>" + "".join(edge_reasons) + "</ul>" if edge_reasons else ""
         type_class = html.escape(raw_type)
         cards.append(
             f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{html_anchor(raw_id)}">'
@@ -446,6 +456,7 @@ def node_detail_cards(state: dict[str, Any]) -> str:
             f'<p>{text}</p>'
             f'{"<p class=\"source\">Source: " + html.escape(source_text) + "</p>" if source_text else ""}'
             f'{"<p class=\"extras\">" + " ".join(extras) + "</p>" if extras else ""}'
+            f'{reasoning_html}'
             '</article>'
         )
     return "".join(cards) or '<p class="empty">No node details recorded.</p>'

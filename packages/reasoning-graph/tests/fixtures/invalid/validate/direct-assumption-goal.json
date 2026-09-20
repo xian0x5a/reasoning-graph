@@ -3,7 +3,8 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Find answer"
+      "text": "Find answer",
+      "probability": 1.0
     },
     {
       "id": "A1",
@@ -17,7 +18,8 @@
       "id": "A1G1",
       "from": "A1",
       "to": "G1",
-      "type": "leads_to"
+      "type": "leads_to",
+      "reasoning": "The target conclusion depends on this premise."
     }
   ],
   "frontier": [

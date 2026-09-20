@@ -4,6 +4,8 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
+Every node, including derived nodes, requires an explicit probability score (`prior`, `confidence`, `probability`, or `posterior`). Every edge requires `reasoning` in one to five sentences. See the [score examples and migration guide](skills/reasoning-graph/docs/cost-model.md#probability-examples-and-derived-nodes).
+
 ## Repository layout
 
 ```text
@@ -51,11 +53,11 @@ cat > seed.json <<'JSON'
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
+    {"id": "T1", "type": "test", "text": "Check the plausible cause", "probability": 1.0}
   ],
   "edges": [
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ],
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }

@@ -7,7 +7,8 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Determine whether the cause remains unknown from insufficient evidence"
+      "text": "Determine whether the cause remains unknown from insufficient evidence",
+      "probability": 1.0
     },
     {
       "id": "A1",
@@ -25,7 +26,8 @@
       "id": "CS1",
       "type": "candidate_solution",
       "text": "Insufficient evidence to establish cause",
-      "answer_kind": "blocker"
+      "answer_kind": "blocker",
+      "probability": 1.0
     }
   ],
   "edges": [
@@ -33,7 +35,8 @@
       "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "reasoning": "This candidate supplies the answer requested by the goal."
     }
   ],
   "frontier": [

@@ -4,7 +4,7 @@ Truth/search cost, likelihood updates, confidence, bounded probes, and correlate
 
 ## Priors, Confidence, and Costs
 
-Use probabilities only where they mean something.
+Every node must include at least one numeric score: `prior`, `confidence`, `probability`, or `posterior`, in `(0, 1]`. This applies to all node types, including `derived`, goals, constraints, and tests.
 
 - `prior`: belief before branch exploration, for hypotheses/assumptions/candidate claims.
 - `confidence`: source/result reliability for evidence, derived claims, and noisy test observations.
@@ -12,11 +12,75 @@ Use probabilities only where they mean something.
 - Mutually exclusive sibling assumptions should form a local distribution that sums to `1.0`.
 - Independent assumptions use independent priors and do not need to sum to `1.0`.
 - Use coarse numeric values; avoid fake precision.
-- Show priors/confidence/costs to the user only when they affect the conclusion, ambiguity, or branch ranking.
+- Graph labels display the selected score with its field name. Effective belief in candidate tables also includes graph updates.
 
 Helper-generated reports derive table `belief` from `effective_truth_cost`. `posterior` is an explicit calibrated override stored on the node; do not derive or overwrite it from path/search costs. If `posterior` is present, graph-derived likelihood updates are treated as already accounted for.
 
-Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Add `confidence` when source reliability matters. Do not force fake priors onto goals, constraints, or deterministic procedures.
+Evidence can be wrong. Official metadata may change, OCR can misread, transcripts can be stale, and local scripts can have bugs. Score observation reliability explicitly. For accepted goals and stipulated constraints, `probability: 1.0` means acceptance of the objective or boundary, not that the goal has been achieved. For a test, score the procedure's validity under its stated conditions, not the chance of a positive result. Record results as separate evidence nodes.
+
+### Probability examples and derived nodes
+
+These are illustrative judgments, not universally calibrated confidence levels:
+
+| Node | Score | Interpretation |
+| --- | --- | --- |
+| Goal: diagnose the outage | `probability: 1.0` | This is the accepted objective; it is not a solved claim. |
+| Constraint: retain the original data | `probability: 1.0` | A stipulated requirement. |
+| Evidence: timestamp copied from a verified log | `confidence: 0.99` | Highly reliable observation, allowing a small transcription risk. |
+| Assumption: deployment caused the outage | `prior: 0.5` | Plausible but unresolved before the diagnostic evidence. |
+| Assumption: rare hardware fault | `prior: 0.1` | Possible but currently unlikely. |
+| Test: compare deployment and outage timestamps | `confidence: 0.95` | Reliable procedure if clocks are synchronized. |
+| Derived: deployment preceded the outage | `confidence: 0.9` | Reliability of this inference conditional on its premises. |
+| Candidate: rollback resolves the outage | `posterior: 0.8` | Calibrated overall belief after the available checks. |
+
+`probability` is a general local score; `prior` preserves the starting belief,
+`confidence` describes local observation/inference reliability, and `posterior`
+is an overall calibrated override. Existing precedence is
+`posterior > confidence > probability > prior`; use one local field unless
+preserving a prior alongside an updated posterior. Zero is excluded because the
+cost model uses finite `-ln(P)`; record impossibility in the claim/status rather
+than inventing a small nonzero probability.
+
+A derived node must have its own score even when incoming `leads_to` edges
+supply premises. With one premise scored `0.8` and derived local `confidence`
+`0.9`, effective belief is `0.8 * 0.9 = 0.72` before likelihood updates. A
+logically certain inference can use local `confidence: 1.0`; its uncertain
+premises still limit its effective belief. If `0.72` is already the calibrated
+overall belief, store `posterior: 0.72` instead: the override prevents counting
+premises again. Do not enter the overall estimate as a local confidence and
+multiply the same evidence twice.
+
+### Required edge reasoning
+
+Every edge, including `requires`, `prompts`, `answers`, and legacy aliases,
+requires `reasoning`: one to five sentences explaining why the directed
+relationship holds. Explain the observation, inference, or dependency; simply
+repeating the edge type is not informative. A factor's `reason` does not replace
+reasoning on its member edges.
+
+```json
+{"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
+```
+
+`validate`, `seed`, and `expand` enforce the limit with the custom JSON Schema
+format `reasoning-sentences`. Sentences are separated by `.`, `!`, or `?`
+followed by whitespace (optionally after closing quotes or brackets); final
+punctuation is optional. Decimals such as `0.75` do not split a sentence.
+Write out abbreviations followed by spaces because their periods count as
+boundaries. This is a deterministic prose-length check, not a grammar or
+reasoning-quality judge. External JSON Schema validators must enable the
+package's `REASONING_FORMAT_CHECKER` to enforce the sentence count; required
+fields, types, and nonblank text are ordinary schema constraints.
+
+### Migrating existing graphs
+
+Add a meaningful score to every unscored node and reasoning to every edge in
+both state files and new-node/new-edge patches. Existing `prior`, `confidence`,
+`probability`, and `posterior` fields remain supported; no duplicate field is
+required. Review each estimate instead of defaulting unknown claims to `1.0`.
+The CLI does not silently migrate or invent scores/reasoning. Partial
+`update_nodes` patches may omit an unchanged score, but the merged state must
+still validate.
 
 Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas and runtime cost commands reject legacy `path_cost`. It is not auto-migrated; replace old frontier cost fields with `search_cost`/`cost_components` before running `validate`, `costs`, `sort`, or `next`.
 
@@ -85,8 +149,8 @@ If the branch means broad brute force, open-ended enumeration, or spending most 
 Use `likelihood` for numeric evidence updates on `supports` and `contradicts` edges. Prefer explicit conditional likelihoods over a bare ratio:
 
 ```jsonl
-{"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}}
-{"from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.1, "if_target_false": 0.7}}
+{"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}, "reasoning": "The observed signal is more likely when the target claim is true."}
+{"from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.1, "if_target_false": 0.7}, "reasoning": "The observed signal is less likely when the target claim is true."}
 ```
 
 The computed update is:

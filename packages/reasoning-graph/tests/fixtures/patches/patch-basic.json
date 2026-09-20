@@ -5,7 +5,8 @@
       "id": "CS2",
       "type": "candidate_solution",
       "text": "Alternative exact answer",
-      "answer_kind": "exact_answer"
+      "answer_kind": "exact_answer",
+      "probability": 1.0
     }
   ],
   "edges": [
@@ -13,13 +14,15 @@
       "id": "A1CS2",
       "from": "A1",
       "to": "CS2",
-      "type": "leads_to"
+      "type": "leads_to",
+      "reasoning": "The target conclusion depends on this premise."
     },
     {
       "id": "CS2G1",
       "from": "CS2",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "reasoning": "This candidate supplies the answer requested by the goal."
     }
   ],
   "frontier": [

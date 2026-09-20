@@ -21,3 +21,7 @@ state_schema_errors(state):
 patch_schema_errors(patch):
   return schema_validation_errors(patch, "patch.schema.json")
 ```
+
+## Required node scores and edge reasoning
+
+Require at least one explicit node probability field (prior/confidence/probability/posterior) on every node type. Require edge reasoning as nonblank text with one to five sentences. Register a reasoning-sentences format checker for both state and patch validation; split on sentence punctuation followed by whitespace, allowing decimal numbers and a final sentence without punctuation. Reject punctuation-only text.

@@ -55,11 +55,11 @@ Minimal patch shapes:
   "nodes": [
     {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "confidence": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible branch", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check branch"}
+    {"id": "T1", "type": "test", "text": "Check branch", "probability": 1.0}
   ],
   "edges": [
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2},
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2, "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ],
   "frontier": [
     {"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}}
@@ -104,15 +104,19 @@ Top-level state fields:
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
+Every node requires at least one explicit `prior`, `confidence`, `probability`, or `posterior` in `(0, 1]`, including derived nodes. A derived local confidence is conditional on its premises; use `posterior` for an already-calibrated overall belief. See `docs/cost-model.md` for examples and migration.
+
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
-- `evidence` — observed, given, verified, or source-backed statement; use `confidence` when observation/transcription/source reliability matters
+- `evidence` — observed, given, verified, or source-backed statement; include `confidence` for observation/transcription/source reliability
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
 - `derived` — conclusion from prior nodes or conditional branch reasoning
 - `assumption` — uncertain branch point with numeric `prior`; keep atomic and testable
 - `test` — action/check/procedure; not evidence until connected to result `evidence` or `derived` nodes
 - `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
+
+Every edge requires a nonblank `reasoning` string of one to five sentences explaining the directed relationship. This also applies to factor member edges and legacy aliases.
 
 Edge types:
 
@@ -206,7 +210,7 @@ Input ledger essentials:
 - Classify given/source-backed facts as `evidence`, answer boundaries as `constraint`s, and plausible interpretations as `assumption`s/frontier items. Do not turn guesses into evidence.
 - Before initial frontier, one bounded context pass may add cheap source-backed evidence. After search starts, model non-trivial checks/searches/experiments as `test`/frontier work and append result evidence during `expand`.
 - Mark inferred constraints as inferred in text/source; ask the user when the inference is high-impact or ambiguous.
-- Keep evidence concise but separate facts that play different logical roles. Add source/confidence when reliability matters.
+- Keep evidence concise but separate facts that play different logical roles. Include source references and an explicit reliability score.
 
 Branch and candidate hygiene:
 

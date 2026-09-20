@@ -37,8 +37,8 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         state = self.base_state(
             prior=0.1,
             edges=[
-                {"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 100},
-                {"id": "E2A1", "from": "E2", "to": "A1", "type": "supports", "likelihood_ratio": 2},
+                {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 100},
+                {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A1", "from": "E2", "to": "A1", "type": "supports", "likelihood_ratio": 2},
             ],
             factors=[
                 {
@@ -60,7 +60,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         supported = frontier_truth_cost(
             self.base_state(
                 prior=0.5,
-                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3}],
+                edges=[{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3}],
             )
         )
 
@@ -72,7 +72,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         contradicted = frontier_truth_cost(
             self.base_state(
                 prior=0.5,
-                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25}],
+                edges=[{"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25}],
             )
         )
 
@@ -81,8 +81,8 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
     def test_grouped_support_factor_replaces_member_likelihood_updates(self) -> None:
         edges = [
-            {"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4},
-            {"id": "E2A1", "from": "E2", "to": "A1", "type": "supports", "likelihood_ratio": 4},
+            {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4},
+            {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A1", "from": "E2", "to": "A1", "type": "supports", "likelihood_ratio": 4},
         ]
         factor = {
             "id": "F1",
@@ -105,7 +105,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         explanatory = frontier_truth_cost(
             self.base_state(
                 prior=0.5,
-                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "supports"}],
+                edges=[{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports"}],
             )
         )
 

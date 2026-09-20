@@ -3,7 +3,8 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Find exact answer"
+      "text": "Find exact answer",
+      "probability": 1.0
     },
     {
       "id": "A1",

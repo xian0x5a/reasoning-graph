@@ -110,7 +110,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "legacy-path-cost.json"
             state_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "G1", "type": "goal", "text": "Solve"}],
+                    "nodes": [{"probability": 1.0, "id": "G1", "type": "goal", "text": "Solve"}],
                     "edges": [],
                     "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}],
                 }),
@@ -169,7 +169,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
     def test_patch_fixtures_apply_to_popped_branch(self) -> None:
         base_state = {
             "nodes": [
-                {"id": "G1", "type": "goal", "text": "Find exact answer"},
+                {"probability": 1.0, "id": "G1", "type": "goal", "text": "Find exact answer"},
                 {"id": "A1", "type": "assumption", "text": "Primary route", "prior": 0.6},
             ],
             "edges": [],

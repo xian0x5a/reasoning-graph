@@ -89,7 +89,7 @@ BENCHMARK_BRANCH_POLICY = {
 def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, Any]:
     state: dict[str, Any] = {
         "summary": {"title": "Reasoning Graph", "answer": ""},
-        "nodes": [{"id": "G1", "type": "goal", "text": goal}],
+        "nodes": [{"id": "G1", "type": "goal", "text": goal, "probability": 1.0}],
         "edges": [],
         "frontier": [],
     }

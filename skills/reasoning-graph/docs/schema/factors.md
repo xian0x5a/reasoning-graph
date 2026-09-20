@@ -63,11 +63,11 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
   "nodes": [
     {"id": "A1", "type": "assumption", "text": "Source says X", "prior": 0.8},
     {"id": "B1", "type": "assumption", "text": "Same source implies Y", "prior": 0.75},
-    {"id": "D1", "type": "derived", "text": "X and Y explain the result"}
+    {"id": "D1", "type": "derived", "text": "X and Y explain the result", "probability": 1.0}
   ],
   "edges": [
-    {"id": "A1-D1", "from": "A1", "to": "D1", "type": "leads_to"},
-    {"id": "B1-D1", "from": "B1", "to": "D1", "type": "leads_to"}
+    {"id": "A1-D1", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "B1-D1", "from": "B1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
   ],
   "factors": [
     {
@@ -87,8 +87,8 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
 ```json
 {
   "edges": [
-    {"id": "E1-H1", "from": "E1", "to": "H1", "type": "supports"},
-    {"id": "E2-H1", "from": "E2", "to": "H1", "type": "supports"}
+    {"id": "E1-H1", "from": "E1", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "E2-H1", "from": "E2", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "factors": [
     {
@@ -108,8 +108,8 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
 ```json
 {
   "edges": [
-    {"id": "E3-H1", "from": "E3", "to": "H1", "type": "contradicts"},
-    {"id": "E4-H1", "from": "E4", "to": "H1", "type": "contradicts"}
+    {"id": "E3-H1", "from": "E3", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."},
+    {"id": "E4-H1", "from": "E4", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."}
   ],
   "factors": [
     {
@@ -131,7 +131,7 @@ Seed and expansion patches use `factors` to add or replace factors by `id`. To a
 ```json
 {
   "edges": [
-    {"id": "C1-D1", "from": "C1", "to": "D1", "type": "leads_to"}
+    {"id": "C1-D1", "from": "C1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
   ],
   "factors": [
     {

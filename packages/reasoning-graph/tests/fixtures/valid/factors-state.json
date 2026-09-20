@@ -7,7 +7,8 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Find exact cause"
+      "text": "Find exact cause",
+      "probability": 1.0
     },
     {
       "id": "E1",
@@ -31,7 +32,8 @@
       "id": "CS1",
       "type": "candidate_solution",
       "text": "Grouped signal is the cause",
-      "answer_kind": "exact_answer"
+      "answer_kind": "exact_answer",
+      "probability": 1.0
     }
   ],
   "edges": [
@@ -39,25 +41,29 @@
       "id": "E1A1",
       "from": "E1",
       "to": "A1",
-      "type": "supports"
+      "type": "supports",
+      "reasoning": "The observed signal is more likely when the target claim is true."
     },
     {
       "id": "E2A1",
       "from": "E2",
       "to": "A1",
-      "type": "supports"
+      "type": "supports",
+      "reasoning": "The observed signal is more likely when the target claim is true."
     },
     {
       "id": "A1CS1",
       "from": "A1",
       "to": "CS1",
-      "type": "leads_to"
+      "type": "leads_to",
+      "reasoning": "The target conclusion depends on this premise."
     },
     {
       "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "reasoning": "This candidate supplies the answer requested by the goal."
     }
   ],
   "factors": [

@@ -8,7 +8,8 @@ Use this page as the shape and example reference for `test` nodes. Usage policy 
 {
   "id": "T1",
   "type": "test",
-  "text": "Run the decisive verification"
+  "text": "Run the decisive verification",
+  "confidence": 0.95
 }
 ```
 
@@ -22,7 +23,7 @@ T1 --leads_to--> E9
 E9 --supports|contradicts--> A1
 ```
 
-Put `confidence` on result evidence when observation, scripts, OCR, external services, or manual transcription could be wrong.
+Include `confidence` on result evidence because observation, scripts, OCR, external services, or manual transcription could be wrong.
 
 ## Examples
 
@@ -32,10 +33,10 @@ Put `confidence` on result evidence when observation, scripts, OCR, external ser
 {
   "nodes": [
     {"id": "A1", "type": "assumption", "text": "The service is reading stale config", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"}
+    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "probability": 1.0}
   ],
   "edges": [
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"}
+    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ]
 }
 ```
@@ -45,12 +46,12 @@ Put `confidence` on result evidence when observation, scripts, OCR, external ser
 ```json
 {
   "nodes": [
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"},
+    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup", "probability": 1.0},
     {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "confidence": 0.95}
   ],
   "edges": [
-    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to"},
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4}
+    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
   ]
 }
 ```
@@ -60,11 +61,11 @@ Put `confidence` on result evidence when observation, scripts, OCR, external ser
 ```json
 {
   "nodes": [
-    {"id": "T2", "type": "test", "text": "Replay request with debug headers"},
+    {"id": "T2", "type": "test", "text": "Replay request with debug headers", "probability": 1.0},
     {"id": "E2", "type": "evidence", "text": "Replay was inconclusive because fixture token expired", "confidence": 0.9}
   ],
   "edges": [
-    {"id": "T2-E2", "from": "T2", "to": "E2", "type": "leads_to"}
+    {"id": "T2-E2", "from": "T2", "to": "E2", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
   ]
 }
 ```
@@ -79,8 +80,8 @@ Expansion patches add result nodes and connect them to the existing test node.
     {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "confidence": 0.95}
   ],
   "edges": [
-    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to"},
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4}
+    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "no_new_work_reason": "Result only updates ranking; no new follow-up branch needed."
 }

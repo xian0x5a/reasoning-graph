@@ -17,3 +17,7 @@ html_document(state, mermaid_source, render_mode):
   if render_mode is offline, render deterministic inline SVG fallback without CDN/network access and keep Mermaid source in collapsible source blocks
   use graph state/report metadata only; do not invent claims
 ```
+
+## Required node scores and edge reasoning
+
+Display the explicit probability field name and value on every compact graph node, including derived nodes. Include escaped incident-edge reasoning in node detail cards.

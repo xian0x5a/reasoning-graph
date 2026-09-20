@@ -24,3 +24,7 @@ validate optional state.search_policy as an object and read state.search_policy.
 set search_cost to base_search_cost plus weighted estimated_remaining_cost; keep base_search_cost and heuristic_cost visible for auditability
 sort frontier by ascending search_cost while keeping all items
 ```
+
+## Required node scores and edge reasoning
+
+Share a compact explicit probability label between Mermaid and offline SVG renderers; use existing posterior/confidence/probability/prior precedence and retain the field name to distinguish local scores from calibrated posterior.

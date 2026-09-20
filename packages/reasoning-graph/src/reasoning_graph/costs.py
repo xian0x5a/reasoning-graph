@@ -181,6 +181,14 @@ def node_has_probability(node: dict[str, Any] | None) -> bool:
     return bool(node) and any(field in node for field in NODE_TRUTH_PROBABILITY_PRECEDENCE)
 
 
+def node_probability_label(node: dict[str, Any]) -> str:
+    """Label the explicit local score; a posterior is a calibrated override."""
+    for field in NODE_TRUTH_PROBABILITY_PRECEDENCE:
+        if field in node:
+            return f"{field} {float(node[field]):.3g}"
+    return "probability missing"
+
+
 def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:
     """Local node truth cost before graph-premise propagation."""
 

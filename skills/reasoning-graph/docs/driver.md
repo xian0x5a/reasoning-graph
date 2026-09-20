@@ -122,15 +122,15 @@ State JSON shape:
     "answer": "Compact answer shown above the graph."
   },
   "nodes": [
-    {"id": "G1", "type": "goal", "text": "Solve the problem"},
+    {"id": "G1", "type": "goal", "text": "Solve the problem", "probability": 1.0},
     {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
-    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
+    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent", "probability": 1.0},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
-    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}
+    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer", "probability": 1.0}
   ],
   "edges": [
-    {"from": "A1", "to": "CS1", "type": "leads_to"},
-    {"from": "CS1", "to": "G1", "type": "answers"}
+    {"from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
   ],
   "frontier": [
     {
@@ -230,8 +230,8 @@ Expansion patch shape:
     {"id": "A4", "set": {"posterior": 0.62}}
   ],
   "edges": [
-    {"id": "E20", "from": "A8", "to": "A4", "type": "supports"},
-    {"id": "E21", "from": "A9", "to": "A4", "type": "supports"}
+    {"id": "E20", "from": "A8", "to": "A4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "E21", "from": "A9", "to": "A4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "frontier": [
     {
