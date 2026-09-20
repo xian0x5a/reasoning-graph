@@ -121,7 +121,6 @@ Edge types:
 - `contradicts` — negative belief update for an existing target; numeric form uses `likelihood` or `0 < likelihood_ratio < 1`; it does not delete/disqualify the target by itself
 - `prompts` — non-evidential provenance from clue/claim/branch to test or follow-up; no belief update
 - `leads_to` — premise/dependency used to derive a target's base belief
-- `assumes` — branch or derived node proceeds under an assumption
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 
 Direction and relation rules:

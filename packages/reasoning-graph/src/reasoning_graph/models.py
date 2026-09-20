@@ -19,7 +19,6 @@ NODE_TYPES = {
 EDGE_TYPES = {
     "requires",
     "supports",
-    "assumes",
     "contradicts",
     "prompts",
     "tested_by",  # legacy alias; prefer prompts for follow-up work provenance

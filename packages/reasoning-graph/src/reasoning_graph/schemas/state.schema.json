@@ -250,7 +250,6 @@
           "enum": [
             "requires",
             "supports",
-            "assumes",
             "contradicts",
             "prompts",
             "tested_by",
