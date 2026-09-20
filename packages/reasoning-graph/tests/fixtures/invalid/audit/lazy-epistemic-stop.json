@@ -7,8 +7,7 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Determine whether the cause remains unknown from insufficient evidence",
-      "probability": 1.0
+      "text": "Determine whether the cause remains unknown from insufficient evidence"
     },
     {
       "id": "A1",

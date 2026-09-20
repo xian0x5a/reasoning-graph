@@ -14,12 +14,11 @@ NEUTRAL_UPDATE_PRIOR = 0.5
 DEFAULT_ESTIMATED_REMAINING_WEIGHT = 1.0
 ESTIMATED_REMAINING_COST_FIELD = "estimated_remaining_cost"
 
-# Truth-cost precedence and detail-card display order differ on purpose:
-# posterior overrides local belief math; display starts with prior for auditability.
-NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "confidence", "probability", "prior")
-NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR = ("confidence", "probability", "prior")
-NODE_DISPLAY_PROBABILITY_FIELDS = ("prior", "confidence", "probability", "posterior")
-NODE_NON_PRIOR_PROBABILITY_FIELDS = ("confidence", "probability", "posterior")
+# Score read order and listing order differ on purpose: posterior overrides local
+# belief math, while listings start with prior so the starting belief stays visible.
+NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "confidence", "prior")
+NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR = ("confidence", "prior")
+NODE_SCORE_FIELDS = ("prior", "confidence", "posterior")
 
 
 def require_probability(value: Any, field: str = "probability") -> float:
@@ -177,16 +176,20 @@ def probability_from_cost(cost: float) -> float:
     return math.exp(-cost)
 
 
-def node_has_probability(node: dict[str, Any] | None) -> bool:
+def node_has_score(node: dict[str, Any] | None) -> bool:
     return bool(node) and any(field in node for field in NODE_TRUTH_PROBABILITY_PRECEDENCE)
 
 
-def node_probability_label(node: dict[str, Any]) -> str:
-    """Label the explicit local score; a posterior is a calibrated override."""
+def node_score_label(node: dict[str, Any]) -> str:
+    """Label the explicit local score; a posterior is a calibrated override.
+
+    Goal and constraint stipulations carry no score, so this returns an empty
+    label for them instead of a missing-score marker.
+    """
     for field in NODE_TRUTH_PROBABILITY_PRECEDENCE:
         if field in node:
             return f"{field} {float(node[field]):.3g}"
-    return "probability missing"
+    return ""
 
 
 def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:
@@ -366,7 +369,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         factor_lrs = factor_likelihood_ratios.get(node_id, [])
         if ungrouped_likelihood_edges or factor_lrs:
             # Missing local/premise probability is not certainty; use neutral odds so LR can move belief.
-            base_probability = NEUTRAL_UPDATE_PRIOR if base_cost == 0.0 and not node_has_probability(node) else probability_from_cost(base_cost)
+            base_probability = NEUTRAL_UPDATE_PRIOR if base_cost == 0.0 and not node_has_score(node) else probability_from_cost(base_cost)
             log_odds = log_odds_from_probability(base_probability)
             for edge in ungrouped_likelihood_edges:
                 log_odds += math.log(likelihood_ratio_from_edge(edge))

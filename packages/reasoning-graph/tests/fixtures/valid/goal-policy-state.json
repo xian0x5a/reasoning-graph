@@ -7,14 +7,12 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Find exact answer",
-      "probability": 1.0
+      "text": "Find exact answer"
     },
     {
       "id": "G2",
       "type": "goal",
-      "text": "Explain likely method",
-      "probability": 1.0
+      "text": "Explain likely method"
     },
     {
       "id": "A1",
@@ -27,7 +25,7 @@
       "type": "candidate_solution",
       "text": "Exact answer",
       "answer_kind": "exact_answer",
-      "confidence": 1.0
+      "prior": 1.0
     }
   ],
   "goal_groups": [

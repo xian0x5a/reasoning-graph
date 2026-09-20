@@ -15,12 +15,14 @@ uv --project packages/reasoning-graph run reasoning-graph validate packages/reas
 uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
 
-## Probability fixtures
+## Score fixtures
 
-Unresolved hypotheses use explicit priors; `0.5` denotes a deliberately neutral
-starting belief. Observations and procedures carry reliability estimates.
-Some synthetic premise-propagation fixtures use local `confidence: 1.0` on
-derived nodes or candidates: these represent deterministic consequences of
-their `leads_to` premises, so the premises supply the uncertainty. This is not
-a default for unscored claims. Goals use `probability: 1.0` for acceptance of
-the stated objective, not successful completion.
+Node scores follow the type contract: hypotheses use `prior` or `posterior`,
+evidence uses `confidence`, derived nodes take their belief from `leads_to`
+premises, and goal, constraint, and test nodes carry no score.
+
+Unresolved hypotheses use an explicit prior; `0.5` denotes a deliberately
+neutral starting belief, and `1.0` means certainty, never an unknown or
+unspecified score. Synthetic premise-propagation fixtures give a restating
+candidate `prior: 1.0` so that its `leads_to` premises supply all the
+uncertainty.

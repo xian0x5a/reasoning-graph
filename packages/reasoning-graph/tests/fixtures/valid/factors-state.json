@@ -7,8 +7,7 @@
     {
       "id": "G1",
       "type": "goal",
-      "text": "Find exact cause",
-      "probability": 1.0
+      "text": "Find exact cause"
     },
     {
       "id": "E1",
@@ -33,7 +32,7 @@
       "type": "candidate_solution",
       "text": "Grouped signal is the cause",
       "answer_kind": "exact_answer",
-      "confidence": 1.0
+      "prior": 1.0
     }
   ],
   "edges": [

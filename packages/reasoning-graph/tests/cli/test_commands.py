@@ -1,5 +1,4 @@
 import json
-import math
 import subprocess
 import sys
 import tempfile
@@ -308,7 +307,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "legacy-path-cost.json"
             state_path.write_text(
                 json.dumps({
-                    "nodes": [{"probability": 1.0, "id": "G1", "type": "goal", "text": "Solve"}],
+                    "nodes": [{"id": "G1", "type": "goal", "text": "Solve"}],
                     "edges": [],
                     "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}],
                 }),
@@ -356,7 +355,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     "nodes": [
                         {"id": "E1", "type": "evidence", "text": "API error rate increased", "confidence": 0.9},
                         {"id": "A1", "type": "assumption", "text": "Database latency is causing errors", "prior": 0.4},
-                        {"confidence": 0.95, "id": "T1", "type": "test", "text": "Check database latency metrics"},
+                        {"id": "T1", "type": "test", "text": "Check database latency metrics"},
                     ],
                     "edges": [
                         {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
@@ -411,7 +410,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             bad_seed_path.write_text(
                 json.dumps({
-                    "nodes": [{"confidence": 0.95, "id": "T1", "type": "test", "text": "Check logs"}],
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
                     "frontier": [{"id": "Q1", "node": "T1", "parent": "Q0"}],
                 }),
                 encoding="utf-8",
@@ -422,7 +421,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             good_seed_path.write_text(
                 json.dumps({
-                    "nodes": [{"confidence": 0.95, "id": "T1", "type": "test", "text": "Check logs"}],
+                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
                     "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -435,7 +434,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             later_with_reason_path = Path(tmp_dir) / "later-with-reason.json"
             later_without_reason_path.write_text(
                 json.dumps({
-                    "nodes": [{"confidence": 0.95, "id": "T2", "type": "test", "text": "Check deploy log"}],
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
                     "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -447,7 +446,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             later_with_reason_path.write_text(
                 json.dumps({
                     "reason": "New root hypothesis from user inspiration",
-                    "nodes": [{"confidence": 0.95, "id": "T2", "type": "test", "text": "Check deploy log"}],
+                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
                     "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
@@ -548,10 +547,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             legacy_path = Path(tmp_dir) / "legacy-state.json"
             evidence_state = {
                 "nodes": [
-                    {"probability": 1.0, "id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
                     {"id": "E1", "type": "evidence", "text": "Observed mismatch", "confidence": 0.9},
-                    {"confidence": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
                     {"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts"},
@@ -562,7 +561,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             legacy_state = {
                 "nodes": [
-                    {"probability": 1.0, "id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
                     {"id": "F1", "type": "fact", "text": "Legacy fact"},
                     {"id": "X1", "type": "contradiction", "text": "Legacy contradiction"},
                 ],
@@ -586,9 +585,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             invalid_path = Path(tmp_dir) / "invalid-candidate-goal-link.json"
             invalid_state = {
                 "nodes": [
-                    {"probability": 1.0, "id": "G1", "type": "goal", "text": "Pick cause"},
+                    {"id": "G1", "type": "goal", "text": "Pick cause"},
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
-                    {"confidence": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
                     {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
@@ -610,7 +609,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state = {
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
-                    {"confidence": 0.95, "id": "T1", "type": "test", "text": "Check likely cause"},
+                    {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
                 "edges": [{"reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
@@ -625,8 +624,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         base_state = {
             "nodes": [
                 {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 1.0},
-                {"confidence": 0.95, "id": "T1", "type": "test", "text": "Check likely cause"},
-                {"confidence": 1.0, "id": "D1", "type": "derived", "text": "A1 explored once"},
+                {"id": "T1", "type": "test", "text": "Check likely cause"},
+                {"id": "D1", "type": "derived", "text": "A1 explored once"},
                 {"id": "E2", "type": "evidence", "text": "Negative result", "confidence": 0.8},
             ],
             "edges": [
@@ -642,7 +641,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
                 {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
                 {"step": 3, "action": "expand", "item": "Q1", "add_nodes": ["D1"], "add_edges": ["EA1D1"], "add_frontier": []},
-                {"step": 4, "action": "pop", "item": "Q2", "cost": -math.log(0.95)},
+                {"step": 4, "action": "pop", "item": "Q2", "cost": 0.0},
                 {
                     "step": 5,
                     "action": "expand",
@@ -1139,8 +1138,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "First premise", "prior": 0.5},
                     {"id": "A2", "type": "assumption", "text": "Second premise", "prior": 0.5},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "First derived branch"},
-                    {"confidence": 1.0, "id": "D2", "type": "derived", "text": "Second derived branch"},
+                    {"id": "D1", "type": "derived", "text": "First derived branch"},
+                    {"id": "D2", "type": "derived", "text": "Second derived branch"},
                     {"confidence": 0.95, "id": "E1", "type": "evidence", "text": "Later contradiction"},
                 ],
                 "edges": [
@@ -1181,8 +1180,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "First premise", "prior": 0.5},
                     {"id": "A2", "type": "assumption", "text": "Second premise", "prior": 0.5},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "First derived branch"},
-                    {"confidence": 1.0, "id": "D2", "type": "derived", "text": "Second derived branch"},
+                    {"id": "D1", "type": "derived", "text": "First derived branch"},
+                    {"id": "D2", "type": "derived", "text": "Second derived branch"},
                     {"confidence": 0.95, "id": "E1", "type": "evidence", "text": "Later contradiction"},
                 ],
                 "edges": [
@@ -1402,7 +1401,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.8},
                     {"id": "E1", "type": "evidence", "text": "Premise E", "confidence": 0.9},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "Derived from A and E"},
+                    {"id": "D1", "type": "derived", "text": "Derived from A and E"},
                 ],
                 "edges": [
                     {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
@@ -1472,7 +1471,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.2},
                     {"id": "B1", "type": "evidence", "text": "Premise B", "confidence": 0.3},
                     {"id": "C1", "type": "assumption", "text": "Independent premise C", "prior": 0.5},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "Derived from A, B, and C"},
+                    {"id": "D1", "type": "derived", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
                     {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
@@ -1508,7 +1507,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.5},
                     {"id": "B1", "type": "assumption", "text": "Premise B", "prior": 0.5},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "Derived claim"},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
                 ],
                 "edges": [
                     {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
@@ -1540,7 +1539,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Premise A", "prior": 0.8},
                     {"id": "B1", "type": "assumption", "text": "Premise B", "prior": 0.8},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "Derived claim"},
+                    {"id": "D1", "type": "derived", "text": "Derived claim"},
                 ],
                 "edges": [
                     {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
@@ -1675,7 +1674,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Required premise", "prior": 0.5},
                     {"id": "B1", "type": "assumption", "text": "Audit parent only", "prior": 0.5},
-                    {"confidence": 1.0, "id": "D1", "type": "derived", "text": "Derived from A"},
+                    {"id": "D1", "type": "derived", "text": "Derived from A"},
                 ],
                 "edges": [{"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"}],
                 "frontier": [

@@ -6,7 +6,7 @@
       "type": "candidate_solution",
       "text": "Alternative exact answer",
       "answer_kind": "exact_answer",
-      "confidence": 1.0
+      "prior": 1.0
     }
   ],
   "edges": [

@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from .costs import node_probability_label
+from .costs import node_score_label
 
 
 def _clip_text(text: str, limit: int = 72) -> str:
@@ -34,7 +34,8 @@ def _compact_node_label(node: dict[str, Any]) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    return f"{node_id}\n{type_label}\n{node_probability_label(node)}"
+    parts = (node_id, type_label, node_score_label(node))
+    return "\n".join(part for part in parts if part)
 
 
 def _spacing_metrics(spacing: str) -> dict[str, int]:

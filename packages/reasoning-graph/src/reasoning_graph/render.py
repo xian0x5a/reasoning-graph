@@ -8,8 +8,8 @@ import math
 from typing import Any
 
 from .costs import (
-    NODE_DISPLAY_PROBABILITY_FIELDS,
-    node_probability_label,
+    NODE_SCORE_FIELDS,
+    node_score_label,
     compute_costs,
     node_truth_cost,
 )
@@ -54,7 +54,8 @@ def compact_node_label(node: dict[str, Any]) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    return f"{node_id}\n{type_label}\n{node_probability_label(node)}"
+    parts = (node_id, type_label, node_score_label(node))
+    return "\n".join(part for part in parts if part)
 
 
 def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
@@ -437,7 +438,7 @@ def node_detail_cards(state: dict[str, Any]) -> str:
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
         extras: list[str] = []
-        for key in NODE_DISPLAY_PROBABILITY_FIELDS:
+        for key in NODE_SCORE_FIELDS:
             if key in node:
                 extras.append(f"<span>{html.escape(key)}: {html.escape(str(node[key]))}</span>")
         edge_reasons = []

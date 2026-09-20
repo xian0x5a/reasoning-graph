@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from .costs import (
-    NODE_NON_PRIOR_PROBABILITY_FIELDS,
+    NODE_SCORE_FIELDS,
     compute_costs,
     item_has_explicit_effort_budget,
     likelihood_ratio_from_edge,
@@ -15,7 +15,6 @@ from .costs import (
     probability_cost,
     probability_from_value,
     text_looks_probe_like,
-    uncertainty_cost_from_prior,
 )
 from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
@@ -77,15 +76,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             node_ids.add(node_id)
         if node_type not in NODE_TYPES:
             errors.append(f"node {node_id or i} invalid type {node_type!r}")
-        if node_type == "assumption":
-            if "prior" not in node:
-                warnings.append(f"assumption {node_id} missing prior")
-            else:
-                try:
-                    uncertainty_cost_from_prior(node["prior"])
-                except ValueError as exc:
-                    errors.append(f"assumption {node_id}: {exc}")
-        for probability_field in NODE_NON_PRIOR_PROBABILITY_FIELDS:
+        for probability_field in NODE_SCORE_FIELDS:
             if probability_field in node:
                 try:
                     probability_cost(node[probability_field], probability_field)
@@ -256,6 +247,15 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             errors.append(
                 f"edge {i} has constraint {src} requires goal {dst}; reverse direction to goal requires constraint"
             )
+
+    # A conclusion without premises has no belief source: its local score slot is
+    # closed and posterior is an override, so the graph would price it as free.
+    leads_to_targets = {dst for _, dst in leads_to_pairs}
+    for node in nodes_raw:
+        if not isinstance(node, dict) or node.get("type") != "derived":
+            continue
+        if node.get("id") not in leads_to_targets:
+            errors.append(f"derived node {node.get('id')} requires at least one leads_to premise")
 
     grouped_leads_to_inputs_by_target: dict[str, set[str]] = {}
     seen_factor_ids: set[str] = set()
