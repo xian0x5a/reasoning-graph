@@ -4,8 +4,6 @@ An agent skill for solving messy reasoning tasks with an explicit graph instead 
 
 Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
-Node scores are type-bound: `prior` or `posterior` on hypotheses, `confidence` on evidence, derived belief from `leads_to` premises, and none on goals, constraints, and tests. Every edge requires `reasoning` of one to five sentences. See the [cost model](skills/reasoning-graph/docs/cost-model.md).
-
 ## Repository layout
 
 ```text
