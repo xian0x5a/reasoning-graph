@@ -39,10 +39,10 @@ class DistinctCandidateCliTests(unittest.TestCase):
             {"id": "CS3", "type": "candidate_solution", "text": "Alternate from A1", "answer_kind": "exact_answer", "prior": 0.3},
         ])
         state["edges"].extend([
-            {"id": "E3", "from": "A2", "to": "CS2", "type": "leads_to"},
-            {"id": "E4", "from": "CS2", "to": "G1", "type": "answers"},
-            {"id": "E5", "from": "A1", "to": "CS3", "type": "leads_to"},
-            {"id": "E6", "from": "CS3", "to": "G1", "type": "answers"},
+            {"id": "E3", "from": "A2", "to": "CS2", "type": "leads_to", "reasoning": "Candidate CS2 depends on A2."},
+            {"id": "E4", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "Candidate CS2 answers the goal."},
+            {"id": "E5", "from": "A1", "to": "CS3", "type": "leads_to", "reasoning": "Candidate CS3 depends on A1."},
+            {"id": "E6", "from": "CS3", "to": "G1", "type": "answers", "reasoning": "Candidate CS3 answers the goal."},
         ])
 
         with tempfile.TemporaryDirectory() as tmp_dir:
