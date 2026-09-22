@@ -248,12 +248,15 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
         # Hover only tints the sheet and border; the solid ring stays focus-only.
         self.assertIn(".graph-canvas:hover:not(:focus) { border-color: #bfdbfe;", document)
+        # Control buttons acknowledge the press with a tint, a ring, and a sink.
+        self.assertIn(".graph-controls button:active {", document)
+        self.assertIn("transform: translateY(1px);", document)
 
         # The mode button keeps one label (pressed styling carries the state) and the
         # control bar is spaced away from the canvas edge.
         self.assertNotIn("Canvas mode on", document)
         self.assertIn(".graph-section .section-head { margin-bottom:", document)
-        self.assertIn(".graph-controls button { white-space: nowrap; }", document)
+        self.assertIn(".graph-controls button { white-space: nowrap;", document)
 
         # Wheel zoom is capped by the fitted content box, while drag pan stays
         # unbounded on purpose: dragging the graph off the canvas is allowed and

@@ -730,7 +730,10 @@ def html_document(
     /* Keep the controls clear of the canvas edge, and keep their labels on one line:
        a growing label would otherwise wrap the button into two rows. */
     .graph-section .section-head {{ margin-bottom: .75rem; }}
-    .graph-controls button {{ white-space: nowrap; }}
+    .graph-controls button {{ white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .08s ease; }}
+    /* A press must read even when the action has no immediate visual result. The ring
+       and sink live on :active, so they never linger after the click. */
+    .graph-controls button:active {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; box-shadow: 0 0 0 3px rgba(147, 197, 253, .38), inset 0 1px 2px rgba(15, 23, 42, .12); transform: translateY(1px); }}
     button {{ border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 999px; padding: .4rem .8rem; cursor: pointer; }}
     .focus-control {{ display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); }}
     .focus-control span {{ white-space: nowrap; }}
@@ -743,7 +746,7 @@ def html_document(
     /* Hover invites the click that captures the wheel: the sheet wakes up and the
        border tints, while the solid focus ring stays reserved for the captured state
        so the two are never confused. */
-    .graph-canvas:hover:not(:focus) {{ border-color: #bfdbfe; background-image: radial-gradient(circle, #93a5bd 1.4px, transparent 1.4px); }}
+    .graph-canvas:hover:not(:focus) {{ border-color: #bfdbfe; background-image: radial-gradient(circle, #8296b1 1.4px, transparent 1.4px); }}
     /* Focus is functional here: the wheel only zooms while the canvas owns focus,
        so the ring tells the user which surface will consume the scroll. The negative
        offset registers the ring with the canvas border instead of ringing around it. */
