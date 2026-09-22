@@ -26,8 +26,6 @@ Development commands should be explicit from the repo root:
 uv --project packages/reasoning-graph run reasoning-graph validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
 
-Agents should update relevant pseudocode before touching matching source code.
-
 ## Algorithm
 
 The skill treats reasoning as heuristic best-first search over a graph:
