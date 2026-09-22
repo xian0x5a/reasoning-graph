@@ -139,63 +139,6 @@
         ]
       }
     },
-    "scoreHypothesis": {
-      "description": "A hypothesis states a starting belief or a calibrated one: prior or posterior.",
-      "anyOf": [
-        {
-          "required": [
-            "prior"
-          ]
-        },
-        {
-          "required": [
-            "posterior"
-          ]
-        }
-      ],
-      "not": {
-        "required": [
-          "confidence"
-        ]
-      }
-    },
-    "scoreObservation": {
-      "description": "An observation states reliability: confidence.",
-      "required": [
-        "confidence"
-      ],
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "prior"
-            ]
-          },
-          {
-            "required": [
-              "posterior"
-            ]
-          }
-        ]
-      }
-    },
-    "scoreDerivation": {
-      "description": "A conclusion takes its belief from its leads_to premises, or from a calibrated posterior; it holds no separate local score.",
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "prior"
-            ]
-          },
-          {
-            "required": [
-              "confidence"
-            ]
-          }
-        ]
-      }
-    },
     "node": {
       "type": "object",
       "additionalProperties": true,
@@ -265,128 +208,10 @@
           "if": {
             "properties": {
               "type": {
-                "const": "candidate_solution"
+                "enum": ["goal", "constraint", "test"]
               }
             },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "properties": {
-              "answer_kind": {
-                "enum": [
-                  "exact_answer",
-                  "exact_method",
-                  "method_hypothesis",
-                  "clue_path",
-                  "blocker"
-                ]
-              }
-            },
-            "$ref": "#/$defs/scoreHypothesis"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "assumption"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreHypothesis"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "candidate_solution"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreHypothesis"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "evidence"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreObservation"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "test"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreStipulation"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "derived"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreDerivation"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "goal"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "$ref": "#/$defs/scoreStipulation"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "constraint"
-              }
-            },
-            "required": [
-              "type"
-            ]
+            "required": ["type"]
           },
           "then": {
             "$ref": "#/$defs/scoreStipulation"
@@ -398,7 +223,7 @@
           "probability"
         ]
       },
-      "description": "Scores are type-bound: hypotheses use prior or posterior, observations use confidence, inferences use confidence or posterior, and goal/constraint stipulations carry no score. The removed generic field probability is rejected rather than ignored."
+      "description": "Belief-bearing nodes may use prior (revisable starting belief), confidence (fixed observation or inference reliability), or posterior (calibrated override). Without a local score they must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks this on the complete graph. A local prior or confidence multiplies premise belief, so omit it when it merely repeats the same uncertainty. Goals, constraints, and tests carry no score. The removed node field probability is rejected."
     },
     "likelihood": {
       "type": "object",
@@ -458,8 +283,7 @@
           "type": "string",
           "minLength": 1,
           "pattern": "\\S",
-          "format": "reasoning-sentences",
-          "description": "Explain this directed relationship in one to five sentences. The CLI enforces the reasoning-sentences format."
+          "description": "Explain why this directed relationship holds. Nonblank reasoning is required; one to five sentences is guidance, not a validation limit."
         }
       },
       "not": {

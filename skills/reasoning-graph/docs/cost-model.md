@@ -4,41 +4,43 @@ Truth/search cost, likelihood updates, confidence, bounded probes, and correlate
 
 ## Priors, Confidence, and Costs
 
-Scores are type-bound:
+Score names describe meaning, not which claim type may carry them:
 
-| node | score |
+| field | meaning |
 | --- | --- |
-| `assumption`, `candidate_solution` | `prior`, or `posterior` once calibrated |
-| `evidence` | `confidence` |
-| `derived` | no local score: `leads_to` premises carry its belief, or `posterior` once calibrated |
-| `goal`, `constraint`, `test` | none — objectives, boundaries, and actions, not claims |
+| `prior` | Revisable starting belief, usually for an assumption or standalone candidate |
+| `confidence` | Fixed observation or inference reliability |
+| `posterior` | Calibrated overall belief, overriding local scores and incoming updates |
 
-All scores are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision.
+These fields are available on `evidence`, `assumption`, `derived`, and `candidate_solution`. Each claim requires a **belief source**: a local score, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate`, `seed`, and `expand` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
 
-- `prior` is belief before branch exploration. Do not overwrite it with `posterior`, which records the calibrated belief after evidence.
-- `confidence` is reliability of the observation, not belief about the claim: official metadata changes, OCR misreads, transcripts go stale, and local scripts have bugs, so state how much you trust the reading.
-- Mutually exclusive sibling assumptions should form a local distribution that sums to `1.0`; independent assumptions need not sum to `1.0`.
-- Graph labels display the score with its field name. Helper reports derive candidate `belief` from `effective_truth_cost`; an explicit `posterior` overrides graph-derived updates and must not be derived from path/search costs.
+All scores are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. The ambiguous node field `probability` remains rejected.
 
-A `derived` node carries no local score: its belief is the product of its `leads_to` premises, so premises `0.8` and `0.9` give belief `0.72`. At least one `leads_to` premise is required — `posterior` overrides premise propagation but does not replace the derivation, so a calibrated conclusion still shows what it was derived from. Doubt about the inference itself — clock skew, a rule that may not apply here — is an unstated premise, so model it as an `assumption` with a `prior` and link it with `leads_to`; the doubt then stays visible and updates with everything downstream.
+A local `prior` or `confidence` multiplies premise belief. **Omit the local score when it merely repeats uncertainty already represented by the premises.** An assumption at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` is appropriate only when it represents additional uncertainty. Use one local starting score; the read order is `posterior`, then `confidence`, then `prior`.
 
-Evidence can be wrong, so it carries `confidence`. A `test` is a procedure, not a claim: it carries no score, and its outcome is recorded as separate `evidence` (or `derived`) with its own score. A `goal` or `constraint` is the objective or boundary itself, so it also carries no score.
+A soft inference may carry `confidence`: evidence `0.8` times inference confidence `0.9` gives `0.72`. Alternatively, model inference validity as a separate assumption with `prior: 0.9` and a `leads_to` edge, making it independently challengeable. Use one representation, not both. Omitting inference confidence adds no extra uncertainty, so do so only when the premises justify that; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local score alone satisfies validation.
+
+`posterior` records the calibrated overall belief, not another multiplicative factor. It bypasses incoming premise, factor, and likelihood updates and must be explicitly refreshed when evidence changes. Preserve the original `prior` for auditing; do not calculate a posterior from search costs. Graph labels retain field names, and reports derive candidate `belief` from `effective_truth_cost`.
+
+Mutually exclusive sibling assumptions should form a local distribution summing to `1.0`; independent assumptions need not. A `test` is a procedure, not a claim: record its outcome as separate `evidence` or `derived` nodes. Goals, constraints, and tests carry no score.
 
 ### Certainty is not an unknown score
 
 `1.0` means certain, never "no score specified". For an unresolved hypothesis, state a justified estimate; `prior: 0.5` is a deliberately neutral start, and a node that carries no belief at all carries no score instead of a placeholder.
 
-With no uncertain premises, finite likelihood ratios cannot move belief away from `1.0`: a neutral `prior: 0.5` with a supporting ratio of `2` gives belief `2/3`, and a contradicting ratio of `0.1` gives `1/11`, while a starting `1.0` stays at `1.0` either way.
+A base belief of `1.0`, whether local or inherited from certain premises or a calibrated joint factor, stays `1.0` under finite likelihood ratios. A neutral `prior: 0.5` with supporting ratio `2` gives belief `2/3`; contradicting ratio `0.1` gives `1/11`.
+
+The cost engine tracks belief sources separately from their numerical cost. An ungrounded claim uses neutral `0.5` before likelihood updates even without validation, rather than silently reporting certainty; the complete state is still rejected. Scoreless objectives/actions retain zero truth penalty, which is not evidence of truth.
 
 ### Required edge reasoning
 
-Every edge requires `reasoning`: one to five sentences explaining the directed relationship, including `requires`, `prompts`, `answers`, and factor member edges. Repeating the edge type is not an explanation, and a factor's `reason` does not replace member-edge reasoning.
+Every edge requires nonblank `reasoning` explaining the directed relationship, including `requires`, `prompts`, `answers`, and factor member edges. Aim for one to five sentences. Repeating the edge type is not an explanation, and a factor's `reason` does not replace member-edge reasoning.
 
 ```json
 {"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
 ```
 
-`validate`, `seed`, and `expand` enforce the limit with the packaged JSON Schema format `reasoning-sentences`: boundaries are `.`, `!`, or `?` followed by whitespace, optionally after closing quotes or brackets; final punctuation is optional, and decimals such as `0.75` do not split. External JSON Schema validators must enable `REASONING_FORMAT_CHECKER` to enforce the count. This is a deterministic length check, not a grammar or quality judge.
+State and patch schemas enforce nonblank text with standard string constraints; no custom format checker is needed. Sentence count is guidance, not a rejection rule: abbreviations and punctuation are not reliable sentence boundaries. Explain the relationship meaningfully; validation cannot judge prose quality.
 
 Use `search_cost` to rank the next frontier action. Lower cost means explore earlier. Valid current states use `search_cost`; schemas and runtime cost commands reject legacy `path_cost`. It is not auto-migrated; replace old frontier cost fields with `search_cost`/`cost_components` before running `validate`, `costs`, `sort`, or `next`.
 

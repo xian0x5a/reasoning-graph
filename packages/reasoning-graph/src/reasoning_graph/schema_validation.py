@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from functools import lru_cache
 from importlib import resources
@@ -14,23 +13,6 @@ import jsonschema
 SCHEMA_PACKAGE = "reasoning_graph.schemas"
 STATE_SCHEMA = "state.schema.json"
 PATCH_SCHEMA = "patch.schema.json"
-
-
-REASONING_FORMAT_CHECKER = jsonschema.FormatChecker()
-
-
-@REASONING_FORMAT_CHECKER.checks("reasoning-sentences")
-def valid_edge_reasoning(value: Any) -> bool:
-    """Count prose sentences, not periods inside decimals or URLs.
-
-    A boundary is sentence punctuation followed by whitespace (with optional
-    closing quotes/brackets). A final sentence need not end in punctuation.
-    Abbreviations followed by spaces count as boundaries; prefer full words.
-    """
-    if not isinstance(value, str):
-        return True  # The schema's type constraint reports this separately.
-    sentences = re.split(r"[.!?]+[\"'”’\)\]]*(?:\s+|$)", value.strip())
-    return 1 <= sum(any(char.isalnum() for char in part) for part in sentences) <= 5
 
 
 @lru_cache(maxsize=None)
@@ -89,10 +71,10 @@ def format_schema_error(error: jsonschema.ValidationError) -> str:
 def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list[str]:
     schema = load_schema(schema_name)
     if schema_name == STATE_SCHEMA:
-        validator = jsonschema.Draft202012Validator(schema, format_checker=REASONING_FORMAT_CHECKER)
+        validator = jsonschema.Draft202012Validator(schema)
     else:
         resolver = jsonschema.RefResolver.from_schema(schema, store=schema_store())
-        validator = jsonschema.Draft202012Validator(schema, resolver=resolver, format_checker=REASONING_FORMAT_CHECKER)
+        validator = jsonschema.Draft202012Validator(schema, resolver=resolver)
     errors = sorted(validator.iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
     return [format_schema_error(error) for error in errors]
 

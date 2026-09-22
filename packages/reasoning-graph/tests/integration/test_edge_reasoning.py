@@ -1,4 +1,4 @@
-"""Edge reasoning contract: every edge explains its relationship in one to five sentences."""
+"""Edge explanations are required; sentence counts are authoring guidance only."""
 
 import sys
 from pathlib import Path
@@ -13,7 +13,6 @@ sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 from reasoning_graph.models import EDGE_TYPES
 from reasoning_graph.render import node_detail_cards
 from reasoning_graph.schema_validation import (
-    REASONING_FORMAT_CHECKER,
     patch_schema_errors,
     standalone_schema,
     state_schema_errors,
@@ -30,21 +29,22 @@ def test_all_edge_types_require_reasoning(edge_type):
 
 @pytest.mark.parametrize("reasoning,valid", [
     ("", False), (" \n\t", False), (None, False), (17, False),
-    ("...?!", False), ("One explanation", True),
+    ("...?!", True), ("One explanation", True),
     ("One. Two! Three? Four. Five.", True),
-    ("One. Two! Three? Four. Five. Six.", False),
-    ('One. Two. Three. Four. "Five." Six.', False),
-    ("One.\nTwo.\nThree.\nFour.\nFive.\nSix", False),
+    ("One. Two! Three? Four. Five. Six.", True),
+    ('One. Two. Three. Four. "Five." Six.', True),
+    ("One.\nTwo.\nThree.\nFour.\nFive.\nSix", True),
+    ("Dr. A. Smith compared U.S. and U.K. results, e.g. Fig. 2, and confirmed the match.", True),
     ("At 0.75 confidence the result supports the claim. See https://example.org/log.", True),
 ])
-def test_sentence_limits_apply_to_state_patch_and_exported_schema(reasoning, valid):
+def test_nonblank_reasoning_applies_to_state_patch_and_exported_schema(reasoning, valid):
     edge = {"from": "A", "to": "B", "type": "supports", "reasoning": reasoning}
     state = {"nodes": [], "edges": [edge], "frontier": []}
     patch = {"edges": [edge]}
     assert (not state_schema_errors(state)) == valid
     assert (not patch_schema_errors(patch)) == valid
     validator = jsonschema.Draft202012Validator(
-        standalone_schema("patch.schema.json"), format_checker=REASONING_FORMAT_CHECKER,
+        standalone_schema("patch.schema.json"),
     )
     assert validator.is_valid(patch) == valid
 

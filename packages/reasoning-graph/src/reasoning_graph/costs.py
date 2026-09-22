@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable
 
-from .models import FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
+from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
 from .state import by_id
 from .utils import finite_float
 
@@ -211,13 +211,47 @@ def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: boo
 def node_truth_cost(node: dict[str, Any] | None) -> float:
     """Local truth cost for a node, preserving the historical public helper.
 
-    `prior` is for assumptions/candidates. `confidence` is for evidence,
-    derived claims, and noisy test observations. Missing confidence on accepted
-    evidence/tests means "no local truth penalty", not certainty proof; users can
-    add confidence when source reliability matters.
+    `prior` expresses revisable starting belief; `confidence` expresses fixed
+    observation or inference reliability. Missing local scores contribute no
+    additional penalty; the effective-cost engine checks for a belief source.
     """
 
     return node_local_truth_cost(node)
+
+
+def nodes_with_belief_sources(state: dict[str, Any]) -> set[str]:
+    """Find claims grounded by a local score or a calibrated premise factor.
+
+    Only leads_to propagates a starting belief. Likelihood ratios describe a
+    relative update, and scoreless objectives/actions do not establish certainty.
+    Reachability is independent of numerical cost, including an exact zero.
+    """
+    nodes = by_id(state.get("nodes", []), "node")
+    grounded = {node_id for node_id, node in nodes.items() if node_has_score(node)}
+    for factor in state.get("factors", []) or []:
+        if not isinstance(factor, dict) or factor.get("relation") != "leads_to":
+            continue
+        target = factor.get("target")
+        aggregation = factor.get("aggregation")
+        if (isinstance(target, str) and target in nodes
+                and isinstance(aggregation, dict) and aggregation.get("kind") == "joint_probability"):
+            grounded.add(target)
+
+    dependents: dict[str, list[str]] = {}
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict) or (edge.get("type") or edge.get("label")) != "leads_to":
+            continue
+        source, target = edge.get("from"), edge.get("to")
+        if isinstance(source, str) and isinstance(target, str) and source in nodes and target in nodes:
+            dependents.setdefault(source, []).append(target)
+
+    pending = list(grounded)
+    while pending:
+        for target in dependents.get(pending.pop(), []):
+            if target not in grounded:
+                grounded.add(target)
+                pending.append(target)
+    return grounded
 
 
 def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:
@@ -275,6 +309,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
                 likelihood_edges.setdefault(dst, []).append(edge)
 
     assert_acyclic_premise_dependencies(premise_sources)
+    grounded_nodes = nodes_with_belief_sources(state)
 
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
     grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
@@ -367,10 +402,14 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             not in grouped_likelihood_sources.get((node_id, str(edge.get("type") or edge.get("label"))), set())
         ]
         factor_lrs = factor_likelihood_ratios.get(node_id, [])
+        if node_id not in grounded_nodes and (
+            node.get("type") in BELIEF_NODE_TYPES or ungrouped_likelihood_edges or factor_lrs
+        ):
+            # Unknown claims must not become free certainty, even when the cost
+            # engine is called without validation. A grounded zero stays certain.
+            base_cost = probability_cost(NEUTRAL_UPDATE_PRIOR)
         if ungrouped_likelihood_edges or factor_lrs:
-            # Missing local/premise probability is not certainty; use neutral odds so LR can move belief.
-            base_probability = NEUTRAL_UPDATE_PRIOR if base_cost == 0.0 and not node_has_score(node) else probability_from_cost(base_cost)
-            log_odds = log_odds_from_probability(base_probability)
+            log_odds = log_odds_from_probability(probability_from_cost(base_cost))
             for edge in ungrouped_likelihood_edges:
                 log_odds += math.log(likelihood_ratio_from_edge(edge))
             for likelihood_ratio in factor_lrs:

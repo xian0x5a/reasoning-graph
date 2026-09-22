@@ -16,6 +16,9 @@ NODE_TYPES = {
 }
 
 
+BELIEF_NODE_TYPES = {"evidence", "derived", "assumption", "candidate_solution"}
+
+
 EDGE_TYPES = {
     "requires",
     "supports",

@@ -12,11 +12,12 @@ from .costs import (
     likelihood_ratio_from_edge,
     likelihood_ratio_from_likelihood,
     likelihood_ratio_from_value,
+    nodes_with_belief_sources,
     probability_cost,
     probability_from_value,
     text_looks_probe_like,
 )
-from .models import ANSWER_KINDS, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
+from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
 from .schema_validation import state_schema_errors
 from .utils import as_string_list
@@ -189,7 +190,6 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
     candidate_goal_edges: set[str] = set()
     candidate_accepted_goal_edges: set[str] = set()
     candidate_goal_targets: dict[str, set[str]] = {}
-    leads_to_pairs: set[tuple[str, str]] = set()
     relation_pairs: set[tuple[str, str, str]] = set()
     for i, edge in enumerate(edges_raw):
         if not isinstance(edge, dict):
@@ -225,8 +225,6 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     errors.append(f"edge {i} contradicts likelihood ratio must be in (0, 1)")
         if isinstance(src, str) and isinstance(dst, str) and isinstance(edge_type, str):
             relation_pairs.add((src, dst, edge_type))
-        if edge_type == "leads_to" and isinstance(src, str) and isinstance(dst, str):
-            leads_to_pairs.add((src, dst))
         src_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == src), None)
         dst_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == dst), None)
         if src in candidate_ids and dst in goal_ids:
@@ -247,15 +245,6 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             errors.append(
                 f"edge {i} has constraint {src} requires goal {dst}; reverse direction to goal requires constraint"
             )
-
-    # A conclusion without premises has no belief source: its local score slot is
-    # closed and posterior is an override, so the graph would price it as free.
-    leads_to_targets = {dst for _, dst in leads_to_pairs}
-    for node in nodes_raw:
-        if not isinstance(node, dict) or node.get("type") != "derived":
-            continue
-        if node.get("id") not in leads_to_targets:
-            errors.append(f"derived node {node.get('id')} requires at least one leads_to premise")
 
     grouped_leads_to_inputs_by_target: dict[str, set[str]] = {}
     seen_factor_ids: set[str] = set()
@@ -485,6 +474,14 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
 
     try:
         compute_costs(json.loads(json.dumps(state)))
+        grounded_nodes = nodes_with_belief_sources(state)
+        for node_id, node in nodes_by_id.items():
+            if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:
+                errors.append(
+                    f"{node.get('type')} node {node_id} requires a belief source: "
+                    "a local prior/confidence/posterior, belief-bearing leads_to premises, "
+                    "or a calibrated joint-probability factor"
+                )
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"cost computation failed: {exc}")
 

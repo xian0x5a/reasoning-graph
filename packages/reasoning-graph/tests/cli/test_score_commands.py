@@ -12,6 +12,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.cli import starter_state
+from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -20,6 +21,7 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         cwd=PACKAGE_ROOT,
+        timeout=20,
     )
 
 
@@ -44,32 +46,25 @@ def patch_for(invalid_part: str) -> dict:
     patch = valid_patch()
     if invalid_part == "missing_score":
         del patch["nodes"][0]["prior"]
-    elif invalid_part == "derived_local_score":
-        patch["nodes"][1]["confidence"] = 0.9
     elif invalid_part == "unanchored_derived":
         patch["edges"] = [edge for edge in patch["edges"] if edge["type"] != "leads_to"]
-    elif invalid_part == "derived_posterior_only":
-        patch["edges"] = [edge for edge in patch["edges"] if edge["type"] != "leads_to"]
-        patch["nodes"][1] = {"id": "D1", "type": "derived", "text": "Conclusion"}
     elif invalid_part == "removed_probability":
         patch["nodes"][0] = {"id": "A2", "type": "assumption", "text": "Second branch", "probability": 0.5}
     elif invalid_part == "missing_reasoning":
         del patch["edges"][0]["reasoning"]
-    elif invalid_part == "long_reasoning":
-        patch["edges"][0]["reasoning"] = "Sentence. " * 6
+    elif invalid_part == "blank_reasoning":
+        patch["edges"][0]["reasoning"] = " \n\t"
     else:  # update_score
         patch["update_nodes"] = [{"id": "G1", "set": {"prior": None}}]
     return patch
 
 
 INVALID_PARTS = {
-    "missing_score": "schema",
-    "derived_local_score": "schema",
-    "unanchored_derived": "leads_to",
-    "derived_posterior_only": "leads_to",
+    "missing_score": "belief source",
+    "unanchored_derived": "belief source",
     "removed_probability": "schema",
     "missing_reasoning": "schema",
-    "long_reasoning": "schema",
+    "blank_reasoning": "schema",
     "update_score": "prior",
 }
 
@@ -98,8 +93,10 @@ def test_invalid_patch_does_not_modify_state(tmp_path, command, invalid_part):
 
 
 @pytest.mark.parametrize("command", ["seed", "expand"])
-def test_valid_patch_still_applies(tmp_path, command):
+@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"confidence": 0.9}, 0.405), ({"posterior": 0.7}, 0.7)])
+def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, command, score, expected):
     state = starter_state("default")
+    state["nodes"].append({"id": "A2", "type": "assumption", "text": "Existing premise", "prior": 0.5})
     state["frontier"] = [{"id": "Q1", "node": "G1"}]
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
@@ -108,8 +105,21 @@ def test_valid_patch_still_applies(tmp_path, command):
     if command == "expand":
         assert run("next", str(state_path), "--pop").returncode == 0
 
-    patch_path.write_text(json.dumps(valid_patch()), encoding="utf-8")
+    patch = valid_patch()
+    patch["nodes"][1].update(score)
+    # Grounding must use the merged graph, not just the nodes in this patch.
+    patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
+    patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
+    patch["edges"].extend([
+        {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
+        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
+    ])
+    patch["edges"][0]["reasoning"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2. " * 2
+    patch_path.write_text(json.dumps(patch), encoding="utf-8")
     args = [command, str(state_path), "--patch", str(patch_path)]
     if command == "expand":
         args += ["--item", "Q1"]
-    assert run(*args).returncode == 0
+    result = run(*args)
+    assert result.returncode == 0, result.stderr
+    updated = json.loads(state_path.read_text(encoding="utf-8"))
+    assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(expected)

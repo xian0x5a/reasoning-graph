@@ -1,4 +1,4 @@
-"""Node score contract: scores are bound to node types and to how the value changes."""
+"""Score names describe meaning; claim grounding is checked on the complete graph."""
 
 import json
 import sys
@@ -23,28 +23,9 @@ from reasoning_graph.validation import validate_state
 FIELDS = ("prior", "confidence", "posterior")
 REMOVED_FIELD = "probability"
 
-# allowed: fields this node type may carry. required: at least one of these must be
-# present. A derived conclusion has no local score: its belief comes from its
-# leads_to premises, or from a calibrated posterior.
-CONTRACT = {
-    "goal": {"allowed": (), "required": ()},
-    "constraint": {"allowed": (), "required": ()},
-    "test": {"allowed": (), "required": ()},
-    "evidence": {"allowed": ("confidence",), "required": ("confidence",)},
-    "assumption": {"allowed": ("prior", "posterior"), "required": ("prior", "posterior")},
-    "candidate_solution": {"allowed": ("prior", "posterior"), "required": ("prior", "posterior")},
-    "derived": {"allowed": ("posterior",), "required": ()},
-}
-ACCEPTED = [(node_type, field) for node_type, spec in CONTRACT.items() for field in spec["allowed"]]
-REQUIRED_TYPES = [node_type for node_type, spec in CONTRACT.items() if spec["required"]]
-SCORE_FREE_TYPES = [node_type for node_type, spec in CONTRACT.items() if not spec["allowed"]]
-FORBIDDEN = [
-    (node_type, field)
-    for node_type, spec in CONTRACT.items()
-    if spec["allowed"]
-    for field in FIELDS
-    if field not in spec["allowed"]
-]
+CLAIM_TYPES = ("evidence", "assumption", "candidate_solution", "derived")
+SCORE_FREE_TYPES = ("goal", "constraint", "test")
+ACCEPTED = [(node_type, field) for node_type in CLAIM_TYPES for field in FIELDS]
 
 
 def build_node(node_type: str, **extra: object) -> dict:
@@ -65,20 +46,16 @@ def test_allowed_score_field(node_type, field):
     assert not patch_schema_errors({"nodes": [build_node(node_type, **{field: 0.8})]})
 
 
-@pytest.mark.parametrize("node_type", REQUIRED_TYPES)
-def test_required_score_is_enforced(node_type):
-    assert state_schema_errors(state_with(node_type))
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_schema_defers_belief_source_checks_to_complete_graph_validation(node_type):
+    assert not state_schema_errors(state_with(node_type))
+    assert not patch_schema_errors({"nodes": [build_node(node_type)]})
 
 
 @pytest.mark.parametrize("node_type", SCORE_FREE_TYPES)
 def test_score_free_types_reject_every_score(node_type):
     for field in FIELDS:
         assert state_schema_errors(state_with(node_type, **{field: 0.8})), field
-
-
-@pytest.mark.parametrize("node_type,field", FORBIDDEN)
-def test_score_field_outside_the_type_contract_is_rejected(node_type, field):
-    assert state_schema_errors(state_with(node_type, **{field: 0.8}))
 
 
 @pytest.mark.parametrize("node_type", sorted(NODE_TYPES))
@@ -117,16 +94,6 @@ def test_derived_belief_is_the_premise_product():
     assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.72)
     assert "posterior 0.72" in to_mermaid(state)
     assert "posterior 0.72" in offline_graph_svg(state)
-
-
-@pytest.mark.parametrize("derived", [{}, {"posterior": 0.7}])
-def test_derived_requires_a_premise(derived):
-    # posterior is an override, not a substitute for a derivation
-    state = {"nodes": [{"id": "D1", "type": "derived", "text": "Conclusion", **derived}],
-             "edges": [], "frontier": []}
-    result = validate_state(state)
-    assert not result.ok
-    assert any("leads_to" in error for error in result.errors), result.errors
 
 
 def test_score_free_labels_carry_no_score_line():
@@ -184,7 +151,7 @@ def test_partial_update_can_retain_existing_score():
 
 
 class ScoreContractCliTests(unittest.TestCase):
-    """starter_state stays valid under the type-bound score contract."""
+    """Starter objectives need no claim score."""
 
     def test_starter_goal_has_no_score(self) -> None:
         state = starter_state("default")

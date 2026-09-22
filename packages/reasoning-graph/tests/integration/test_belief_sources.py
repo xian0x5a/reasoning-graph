@@ -1,0 +1,185 @@
+"""Belief sources, not zero costs or node roles, determine score requirements."""
+
+import sys
+from pathlib import Path
+
+import pytest
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PACKAGE_ROOT / "src"))
+
+from reasoning_graph.audit import audit_stop_policy
+from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost, sorted_frontier_items
+from reasoning_graph.policy import ranked_viable_candidates
+from reasoning_graph.validation import validate_state
+
+
+CLAIM_TYPES = ("evidence", "assumption", "derived", "candidate_solution")
+
+
+def edge(source, target, relation="leads_to", **extra):
+    return {"from": source, "to": target, "type": relation,
+            "reasoning": "The source supplies the stated relationship to the target.", **extra}
+
+
+def claim_state(node_type="candidate_solution", **score):
+    return {
+        "nodes": [
+            {"id": "G1", "type": "goal", "text": "Find the answer"},
+            {"id": "N1", "type": node_type, "text": "The answer is 42",
+             **({"answer_kind": "exact_answer"} if node_type == "candidate_solution" else {}), **score},
+        ],
+        "edges": [edge("N1", "G1", "answers")] if node_type == "candidate_solution" else [],
+        "frontier": [],
+    }
+
+
+def belief(state, node_id="N1"):
+    return probability_from_cost(node_effective_truth_costs(state)[node_id])
+
+
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_unscored_standalone_claim_is_invalid_and_not_certain(node_type):
+    state = claim_state(node_type)
+    result = validate_state(state)
+    assert not result.ok
+    # Direct consumers of the cost engine must not recover the old free certainty.
+    assert belief(state) == pytest.approx(0.5)
+    assert any("belief source" in error for error in result.errors), result.errors
+    assert belief(state, "G1") == 1.0  # Objectives still have no local truth penalty.
+
+
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_claim_inherits_scored_premises_without_an_extra_local_factor(node_type):
+    state = claim_state(node_type)
+    state["nodes"].extend([
+        {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.6},
+        {"id": "D1", "type": "derived", "text": "Intermediate conclusion"},
+    ])
+    state["edges"].extend([edge("A1", "D1"), edge("D1", "N1")])
+    result = validate_state(state)
+    assert result.ok, result.errors
+    assert belief(state) == pytest.approx(0.6)
+
+    state["nodes"][1]["confidence"] = 0.9
+    result = validate_state(state)
+    assert result.ok, result.errors
+    assert belief(state) == pytest.approx(0.54)
+
+
+@pytest.mark.parametrize("source_type", ["goal", "constraint", "test"])
+def test_scoreless_nonclaim_premise_does_not_ground_a_candidate(source_type):
+    state = claim_state()
+    state["nodes"].append({"id": "S1", "type": source_type, "text": "Stipulation or action"})
+    state["edges"].append(edge("S1", "N1"))
+    result = validate_state(state)
+    assert not result.ok
+    assert any("belief source" in error for error in result.errors), result.errors
+    assert belief(state) == pytest.approx(0.5)
+
+
+def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
+    state = claim_state()
+    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.9})
+    state["edges"].append(edge("E1", "N1", "supports", likelihood_ratio=2))
+    result = validate_state(state)
+    assert not result.ok
+    assert any("belief source" in error for error in result.errors), result.errors
+    assert belief(state) == pytest.approx(2 / 3)
+
+
+@pytest.mark.parametrize("relation,ratio", [("supports", 2), ("contradicts", 0.1)])
+@pytest.mark.parametrize("grouped", [False, True])
+def test_certain_premises_remain_certain_under_finite_likelihoods(relation, ratio, grouped):
+    state = claim_state()
+    state["nodes"].extend([
+        {"id": "E1", "type": "evidence", "text": "Certain premise", "confidence": 1.0},
+        {"id": "E2", "type": "evidence", "text": "Second premise", "confidence": 1.0},
+        {"id": "D1", "type": "derived", "text": "Intermediate conclusion"},
+        {"id": "L1", "type": "evidence", "text": "Likelihood observation", "confidence": 0.9},
+        {"id": "L2", "type": "evidence", "text": "Related observation", "confidence": 0.9},
+    ])
+    state["edges"].extend([edge("E1", "D1"), edge("E2", "D1"), edge("D1", "N1")])
+    assert belief(state, "D1") == 1.0
+    assert belief(state) == 1.0
+    state["edges"].append(edge("L1", "D1", relation, likelihood_ratio=ratio))
+    if grouped:
+        state["edges"].append(edge("L2", "D1", relation, likelihood_ratio=ratio))
+        state["factors"] = [
+            {"id": "F1", "relation": "leads_to", "target": "D1", "inputs": ["E1", "E2"],
+             "aggregation": {"kind": "joint_probability", "probability": 1.0}},
+            {"id": "F2", "relation": relation, "target": "D1", "inputs": ["L1", "L2"],
+             "aggregation": {"kind": "likelihood", "if_target_true": min(ratio, 1),
+                             "if_target_false": min(1 / ratio, 1)}},
+        ]
+    assert belief(state, "D1") == 1.0
+    assert belief(state) == 1.0
+    result = validate_state(state)
+    assert result.ok, result.errors
+
+
+def test_calibrated_joint_premise_factor_is_a_belief_source():
+    state = claim_state()
+    state["nodes"].extend([
+        {"id": "S1", "type": "constraint", "text": "First condition"},
+        {"id": "S2", "type": "constraint", "text": "Second condition"},
+    ])
+    state["edges"].extend([edge("S1", "N1"), edge("S2", "N1")])
+    state["factors"] = [
+        {"id": "F1", "relation": "leads_to", "target": "N1", "inputs": ["S1", "S2"],
+         "aggregation": {"kind": "joint_probability", "probability": 0.7}},
+    ]
+    result = validate_state(state)
+    assert result.ok, result.errors
+    assert belief(state) == pytest.approx(0.7)
+
+
+def test_local_inference_confidence_matches_an_explicit_validity_assumption():
+    state = claim_state("derived", confidence=0.9)
+    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.8})
+    state["edges"].append(edge("E1", "N1"))
+    result = validate_state(state)
+    assert result.ok, result.errors
+    assert belief(state) == pytest.approx(0.72)
+
+    del state["nodes"][1]["confidence"]
+    state["nodes"].append({"id": "A1", "type": "assumption", "text": "Inference is valid", "prior": 0.9})
+    state["edges"].append(edge("A1", "N1"))
+    assert validate_state(state).ok
+    assert belief(state) == pytest.approx(0.72)
+
+
+def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
+    state = claim_state()
+    state["nodes"].extend([
+        {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.6},
+        {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
+         "answer_kind": "exact_answer", "prior": 0.55},
+    ])
+    state["edges"].extend([edge("A1", "N1"), edge("CS2", "G1", "answers")])
+    state["frontier"] = [
+        {"id": "Q1", "node": "N1", "cost_components": {"truth": "auto"}},
+        {"id": "Q2", "node": "CS2", "cost_components": {"truth": "auto"}},
+    ]
+    state["stop_policy"] = {"min_viable_candidates": 3, "belief_threshold": 0.6,
+                            "max_live_frontier_items": 0, "severity": "error"}
+    assert validate_state(state).ok
+    ranked = ranked_viable_candidates(state)
+    assert [(item["node"], item["belief"]) for item in ranked] == [("N1", 0.6), ("CS2", 0.55)]
+    assert sorted_frontier_items(state)[0]["node"] == "N1"
+    assert audit_stop_policy(state, state["frontier"], len(ranked)).ok
+
+    # Removing the only absolute belief source must not pass the threshold.
+    del state["nodes"][2]["prior"]
+    assert not validate_state(state).ok
+    assert belief(state) == pytest.approx(0.5)
+    assert not audit_stop_policy(state, state["frontier"], len(ranked)).ok
+
+
+def test_posterior_remains_a_calibrated_override():
+    state = claim_state("derived", posterior=0.7)
+    result = validate_state(state)
+    assert result.ok, result.errors
+    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.8})
+    state["edges"].extend([edge("E1", "N1"), edge("E1", "N1", "supports", likelihood_ratio=2)])
+    assert belief(state) == pytest.approx(0.7)

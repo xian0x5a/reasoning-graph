@@ -4,7 +4,7 @@ status: accepted
 
 # Score names encode whether the value is expected to change
 
-A score name says how the number behaves under new evidence, not what it measures. `confidence` states the reliability of an observation, which later evidence does not revise: the OCR either read the log correctly or it did not. `prior` states a belief that evidence is expected to move, and the moved value is recorded as `posterior` rather than overwriting the prior, so the revision stays auditable. The name therefore tells a writer which slot a judgment belongs in, and tells a reader whether the number is fixed or provisional.
+A score name distinguishes starting belief, reliability, and calibrated belief. `confidence` states fixed observation or inference reliability. `prior` states a starting belief that graph evidence can update; record a calibrated overall belief as `posterior` rather than overwriting the prior. Both prior and confidence contribute a local factor before graph updates. A posterior overrides those updates and must be explicitly refreshed. These meanings do not require binding a field to a claim's node type.
 
 ## Considered Options
 
@@ -13,6 +13,6 @@ A score name says how the number behaves under new evidence, not what it measure
 
 ## Consequences
 
-- Field names can be bound to node types in the schema, so a wrong slot is rejected instead of silently averaging two meanings.
-- A conclusion carries no local score: its belief is revisable, so it comes from its premises or from a calibrated `posterior`, never from the fixed-reliability slot.
+- Claim types share the named score fields; goals, constraints, and test procedures remain scoreless.
+- A conclusion can inherit belief, multiply in additional inference reliability, or use a calibrated posterior. Grounding and double-counting guidance are defined in [ADR 0003](0003-belief-sources.md).
 - A writer who cannot say whether a number is fixed or revisable has not decided what the number is yet.

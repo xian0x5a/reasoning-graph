@@ -104,19 +104,19 @@ Top-level state fields:
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
-Scores are type-bound: `assumption` and `candidate_solution` carry `prior` or `posterior`, `evidence` carries `confidence`, `derived` carries no local score because its `leads_to` premises give its belief (`posterior` once calibrated), and `goal`, `constraint`, and `test` carry none. See `docs/cost-model.md`.
+Claims need a belief source: a local `prior`/`confidence`/`posterior`, belief-bearing `leads_to` premises, or a calibrated joint factor. Premise-backed candidates may omit local scores; add inference `confidence` only for uncertainty not already counted in the premises. Goals, constraints, and tests carry no score. Before assigning scores or likelihoods, read `docs/cost-model.md` for inheritance, certainty, and posterior-override semantics.
 
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
 - `evidence` — observed, given, verified, or source-backed statement; `confidence` records observation/transcription/source reliability
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
-- `derived` — conclusion from prior nodes; belief comes from its `leads_to` premises
-- `assumption` — uncertain branch point with numeric `prior`; keep atomic and testable
+- `derived` — conclusion from prior nodes; inherits premise belief, optionally multiplied by inference `confidence`
+- `assumption` — uncertain branch point; use `prior` for a standalone starting belief, and keep it atomic and testable
 - `test` — action/check/procedure; carries no score and is not evidence until connected to result `evidence` or `derived` nodes
 - `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
 
-Every edge requires a nonblank `reasoning` string of one to five sentences explaining the directed relationship, including factor member edges.
+Every edge requires nonblank `reasoning` explaining the directed relationship, including factor member edges. Aim for one to five sentences; this is guidance, not a validation limit.
 
 Edge types:
 
