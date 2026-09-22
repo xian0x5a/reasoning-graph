@@ -2141,7 +2141,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(html.returncode, 0, html.stderr)
             html_text = html_path.read_text(encoding="utf-8")
             self.assertIn("<!doctype html>", html_text.lower())
-            self.assertIn("Best explanation graph", html_text)
+            self.assertIn("Full audit graph", html_text)
             self.assertIn("https://cdn.jsdelivr.net", html_text)
             self.assertIn("type=\"module\"", html_text)
             self.assertIn("class=\"mermaid\"", html_text)

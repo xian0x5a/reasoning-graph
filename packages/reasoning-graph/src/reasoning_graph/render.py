@@ -651,10 +651,7 @@ def html_document(
     title = html.escape(str(summary.get("title") or report.get("title") or "Reasoning Graph"))
     answer = html.escape(str(summary.get("answer") or report.get("answer") or "See report sections."))
     identities = render_identity_map(state)
-    presentation_ids = presentation_node_ids(state)
-    presentation_source = to_mermaid(state, presentation_ids, group_by_type=False, identities=identities) if presentation_ids else "flowchart TD\n"
     offline_mode = render_mode == "offline"
-    presentation_svg = offline_graph_svg(state, presentation_ids, spacing, "presentation-graph", identities=identities) if offline_mode else None
     audit_svg = offline_graph_svg(state, None, spacing, "audit-graph", identities=identities) if offline_mode else None
     candidates_html = candidate_rows(state)
     focus_options = candidate_focus_options(state, identities)
@@ -686,10 +683,8 @@ def html_document(
 
     details_html = node_detail_cards(state, identities)
     filters_html = detail_filter_buttons()
-    presentation_title = "Best explanation graph"
     edge_maps_json = json.dumps(
         {
-            "presentation-graph": graph_edge_connections(state, presentation_ids, identities),
             "audit-graph": graph_edge_connections(state, identities=identities),
         },
         ensure_ascii=False,
@@ -742,7 +737,6 @@ def html_document(
     .graph-canvas svg, .graph-canvas svg * {{ user-select: none; -webkit-user-select: none; }}
     .graph-canvas.panning {{ cursor: grabbing; }}
     [data-canvas-mode][aria-pressed="true"] {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }}
-    .graph-canvas-presentation {{ height: min(58vh, 560px); min-height: 380px; }}
     .graph-canvas-audit {{ height: min(78vh, 860px); min-height: 560px; }}
     .graph-canvas .offline-graph {{ width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }}
     .graph-canvas svg {{ width: 100% !important; height: 100% !important; max-width: none !important; display: block; }}
@@ -823,14 +817,13 @@ def html_document(
     .modal-bar .modal-tabs {{ display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }}
     .modal-tabs button.active {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }}
     .modal-tabpanel[hidden] {{ display: none; }}
-    @media (max-width: 720px) {{ main {{ padding: 1rem; }} .graph-canvas-presentation {{ min-height: 340px; }} .graph-canvas-audit {{ min-height: 460px; }} .floating-nav {{ right: .75rem; bottom: .75rem; }} }}
+    @media (max-width: 720px) {{ main {{ padding: 1rem; }} .graph-canvas-audit {{ min-height: 460px; }} .floating-nav {{ right: .75rem; bottom: .75rem; }} }}
   </style>
 </head>
 <body>
 <nav class="floating-nav" aria-label="Graph navigation">
   <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="floating-nav-menu" title="Open navigation">☰</button>
   <div id="floating-nav-menu" class="nav-menu">
-    <a href="#section-presentation-graph">Presentation</a>
     <a href="#section-audit-graph">Audit canvas</a>
     <a href="#node-details-section">Details</a>
   </div>
@@ -852,7 +845,6 @@ def html_document(
 
   {next_verification_section}
 
-  {graph_panel(presentation_title, presentation_source, "presentation-graph", "presentation", focus_options, presentation_svg)}
   {graph_panel("Full audit graph", mermaid_source, "audit-graph", "audit", focus_options, audit_svg)}
 
   <section id="node-details-section">
