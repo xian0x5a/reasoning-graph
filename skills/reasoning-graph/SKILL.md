@@ -53,7 +53,7 @@ Minimal patch shapes:
 ```json
 {
   "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "confidence": 0.9},
+    {"id": "E1", "type": "evidence", "text": "Observed fact", "source": "user prompt", "prior": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible branch", "prior": 0.4},
     {"id": "T1", "type": "test", "text": "Check branch"}
   ],
@@ -104,14 +104,14 @@ Top-level state fields:
 - `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
 - `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
 
-Claims need a belief source: a local `prior`/`confidence`/`posterior`, belief-bearing `leads_to` premises, or a calibrated joint factor. Premise-backed candidates may omit local scores; add inference `confidence` only for uncertainty not already counted in the premises. Goals, constraints, and tests carry no score. Before assigning scores or likelihoods, read `docs/cost-model.md` for inheritance, certainty, and posterior-override semantics.
+Separate local input (`prior`), computed output (`belief`), and explicit calibrated override (`posterior`). Claims need a prior, a posterior override, belief-bearing `leads_to` premises, or a calibrated joint factor. Premise-backed candidates may omit priors; add one only for uncertainty not already counted in the premises. Goals, constraints, and tests carry no score. Before assigning scores or likelihoods, read `docs/cost-model.md` for inheritance, certainty, and override semantics.
 
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
-- `evidence` — observed, given, verified, or source-backed statement; `confidence` records observation/transcription/source reliability
+- `evidence` — observed, given, verified, or source-backed statement; `prior` records its local starting probability, accounting for observation/transcription/source reliability
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
-- `derived` — conclusion from prior nodes; inherits premise belief, optionally multiplied by inference `confidence`
+- `derived` — conclusion from prior nodes; inherits premise belief, optionally multiplied by a local inference `prior`
 - `assumption` — uncertain branch point; use `prior` for a standalone starting belief, and keep it atomic and testable
 - `test` — action/check/procedure; carries no score and is not evidence until connected to result `evidence` or `derived` nodes
 - `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
@@ -180,13 +180,13 @@ base_search_cost = effective_truth_cost + local work costs
 search_cost = base_search_cost + estimated_remaining_weight * estimated_remaining_cost
 ```
 
-- `truth: "auto"` computes node truth from prior/confidence/posterior plus graph evidence.
+- `truth: "auto"` computes node belief from its local `prior`, inherited premises, and likelihood updates, unless explicit `posterior` overrides the calculation.
 - `search_cost` is frontier priority; lower pops first.
 - Parent path does **not** accumulate cost; past work is sunk.
 - `estimated_remaining_cost` belongs on frontier item top level, not inside `cost_components`.
 - Broad probes/brute force need explicit `effort_budget` and bounded `budget` metadata.
-- `confidence` displays/source-ranks evidence, but likelihood edge reliability must be baked into the likelihood update.
-- Explicit `posterior` means calibrated override; do not also count incoming evidence for that target.
+- Likelihood updates must already account for source reliability; evidence `prior` does not automatically scale them.
+- The engine never writes computed belief back into node scores. Author `posterior` only as a calibrated override; it bypasses this node's inputs until refreshed or removed.
 
 Minimal frontier example:
 

@@ -10,7 +10,7 @@ Compute truth/search costs, contradiction penalties, and frontier ordering.
 validate numeric probabilities through one required-probability helper, then convert to -ln(probability) costs
 expose the shared node score field list and truth-cost precedence
 read item cost components, including legacy aliases
-compute node truth cost from shared precedence: posterior, confidence, prior, or default
+compute local truth cost from prior, or use an explicit posterior override; reject obsolete scores and authored belief inputs
 reject cycles in the raw leads_to truth dependency graph before applying factor cost replacement
 for each target, treat plain incoming leads_to premises as independent required premises
 when leads_to factors are present, replace grouped member premise costs with the factor's joint_probability cost
@@ -27,4 +27,4 @@ sort frontier by ascending search_cost while keeping all items
 
 ## Required node scores and edge reasoning
 
-Share a compact score label between Mermaid and offline SVG renderers using posterior/confidence/prior precedence; keep the field name so a calibrated posterior stays distinguishable, and render no score line for goal/constraint stipulations.
+Share a compact score label between Mermaid and offline SVG renderers using posterior/prior precedence; keep the field name so an authored override stays distinguishable from the local input. Return computed effective belief without writing it into node scores, and render no score line for scoreless objectives/actions.

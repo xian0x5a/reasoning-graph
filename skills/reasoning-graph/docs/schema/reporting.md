@@ -62,7 +62,7 @@ belief = exp(-effective_truth_cost)
 weight = belief / sum(belief of displayed candidates)
 ```
 
-`weight` is relative among displayed candidates, not calibrated real-world probability. Use `posterior` only when explicit evidence/test updates a prior/confidence.
+`weight` is relative among displayed candidates, not calibrated real-world probability. Reported `belief` is computed from the current graph and is not written into node scores. A stored `posterior` is an explicit calibrated override, not the normal result of every evidence update; use it only to replace the node's calculation deliberately.
 
 ## Example
 

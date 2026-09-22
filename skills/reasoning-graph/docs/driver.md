@@ -15,7 +15,7 @@ Example graph nodes:
   type: evidence
   text: "The failing test is test_login_rejects_bad_token"
   source: "tests/auth_test.py::test_login_rejects_bad_token"
-  confidence: 0.99
+  prior: 0.99
 
 - id: C1
   type: constraint
@@ -123,7 +123,7 @@ State JSON shape:
   },
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "confidence": 0.95},
+    {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "prior": 0.95},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
     {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
     {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}

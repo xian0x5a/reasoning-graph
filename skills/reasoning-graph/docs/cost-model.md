@@ -1,26 +1,26 @@
 # Reasoning Graph Cost Model
 
-Truth/search cost, likelihood updates, confidence, bounded probes, and correlated evidence.
+Local probability inputs, computed belief, calibrated overrides, search costs, and correlated evidence.
 
-## Priors, Confidence, and Costs
+## Local input, computed belief, and explicit override
 
-Score names describe meaning, not which claim type may carry them:
-
-| field | meaning |
+| concept | role |
 | --- | --- |
-| `prior` | Revisable starting belief, usually for an assumption or standalone candidate |
-| `confidence` | Fixed observation or inference reliability |
-| `posterior` | Calibrated overall belief, overriding local scores and incoming updates |
+| `prior` | Optional local starting-probability input, including observation or inference reliability |
+| Computed `belief` | Output after premise propagation and likelihood updates, reported from effective truth cost |
+| Explicit `posterior` | Authored, already-calibrated overall value that overrides this node's calculation |
 
-These fields are available on `evidence`, `assumption`, `derived`, and `candidate_solution`. Each claim requires a **belief source**: a local score, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate`, `seed`, and `expand` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
+Claim nodes (`evidence`, `assumption`, `derived`, and `candidate_solution`) accept `prior` and `posterior`. Each claim requires a **belief source**: a local prior, an explicit posterior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate`, `seed`, and `expand` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
 
-All scores are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. The ambiguous node field `probability` remains rejected.
+Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence` and `probability` are rejected, not converted. `belief` is output-only and rejected as an authored node field.
 
-A local `prior` or `confidence` multiplies premise belief. **Omit the local score when it merely repeats uncertainty already represented by the premises.** An assumption at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` is appropriate only when it represents additional uncertainty. Use one local starting score; the read order is `posterior`, then `confidence`, then `prior`.
+A local `prior` multiplies premise belief. **Omit it when it merely repeats uncertainty already represented by the premises.** An assumption at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` represents additional uncertainty. On a premise-backed node, `prior` is a local factor, not an estimate of the already-aggregated conclusion.
 
-A soft inference may carry `confidence`: evidence `0.8` times inference confidence `0.9` gives `0.72`. Alternatively, model inference validity as a separate assumption with `prior: 0.9` and a `leads_to` edge, making it independently challengeable. Use one representation, not both. Omitting inference confidence adds no extra uncertainty, so do so only when the premises justify that; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local score alone satisfies validation.
+For a soft inference, evidence `prior: 0.8` times inference `prior: 0.9` gives base belief `0.72`. Alternatively, put inference validity in a separate assumption with `prior: 0.9` and a `leads_to` edge when it deserves independent scrutiny. Use one representation, not both. Omitting the local prior adds no extra uncertainty; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local prior alone satisfies validation.
 
-`posterior` records the calibrated overall belief, not another multiplicative factor. It bypasses incoming premise, factor, and likelihood updates and must be explicitly refreshed when evidence changes. Preserve the original `prior` for auditing; do not calculate a posterior from search costs. Graph labels retain field names, and reports derive candidate `belief` from `effective_truth_cost`.
+The engine computes effective belief from this base and likelihood updates; it never writes that result into a node's `prior`, `posterior`, or `belief`. For example, base `0.72` and supporting ratio `2` give computed belief `36/43`, while the authored priors remain `0.8` and `0.9`. Changing the premises or likelihoods changes the next computed result.
+
+A stored `posterior` is different: it overrides this node's prior and incoming premise, factor, and likelihood calculations until explicitly refreshed or removed. It is trusted as calibrated, not verified by the engine. A node with `prior: 0.9` and `posterior: 0.7` has effective belief `0.7`; downstream nodes can inherit that value and apply their own priors and updates. Removing the override resumes computation from the current inputs. Preserve the local prior for auditing; never substitute search costs for belief. Graph labels identify authored priors/overrides, while reports show computed belief.
 
 Mutually exclusive sibling assumptions should form a local distribution summing to `1.0`; independent assumptions need not. A `test` is a procedure, not a claim: record its outcome as separate `evidence` or `derived` nodes. Goals, constraints, and tests carry no score.
 
@@ -124,7 +124,7 @@ likelihood_ratio = P(evidence | target true) / P(evidence | target false)
 - `likelihood_ratio` is allowed as shorthand when already calibrated, but do not set both `likelihood` and `likelihood_ratio` on the same edge.
 - Omit `likelihood`/`likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking; without one, `supports`/`contradicts` has no numeric cost effect.
 - Multiple update edges multiply in odds space.
-- The likelihood update should already include source reliability. Evidence `confidence` is displayed/audited and contributes when that evidence is a `leads_to` premise; it does not automatically dampen a `supports`/`contradicts` update.
+- The likelihood update should already include source reliability. Evidence `prior` supplies its local starting probability and contributes through `leads_to`; neither that prior nor the evidence's computed belief automatically dampens a `supports`/`contradicts` update.
 - Correlated/overlapping evidence should be merged, represented with a `factor`, or represented with already-adjusted effective likelihoods; do not add a separate weight field.
 - If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields; if the whole target belief is calibrated, use explicit target `posterior` instead of stacking approximate updates.
 

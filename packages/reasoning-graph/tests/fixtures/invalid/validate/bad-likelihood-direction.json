@@ -4,7 +4,7 @@
       "id": "E1",
       "type": "evidence",
       "text": "Signal",
-      "confidence": 0.95
+      "prior": 0.95
     },
     {
       "id": "A1",

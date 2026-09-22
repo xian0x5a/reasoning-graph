@@ -14,11 +14,10 @@ NEUTRAL_UPDATE_PRIOR = 0.5
 DEFAULT_ESTIMATED_REMAINING_WEIGHT = 1.0
 ESTIMATED_REMAINING_COST_FIELD = "estimated_remaining_cost"
 
-# Score read order and listing order differ on purpose: posterior overrides local
-# belief math, while listings start with prior so the starting belief stays visible.
-NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "confidence", "prior")
-NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR = ("confidence", "prior")
-NODE_SCORE_FIELDS = ("prior", "confidence", "posterior")
+# Posterior is an authored override, not a cache of computed belief. Listings
+# keep the local prior visible first even when a posterior overrides it.
+NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "prior")
+NODE_SCORE_FIELDS = ("prior", "posterior")
 
 
 def require_probability(value: Any, field: str = "probability") -> float:
@@ -193,15 +192,18 @@ def node_score_label(node: dict[str, Any]) -> str:
 
 
 def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:
-    """Local node truth cost before graph-premise propagation."""
+    """Cost of the local prior, or the explicit posterior override when enabled."""
 
     if not node:
         return 0.0
-    fields = (
-        NODE_TRUTH_PROBABILITY_PRECEDENCE
-        if include_posterior
-        else NODE_TRUTH_PROBABILITY_PRECEDENCE_WITHOUT_POSTERIOR
-    )
+    # Direct cost consumers do not necessarily run schema validation first.
+    # Reject obsolete/output-only inputs rather than silently changing belief.
+    for field in ("confidence", "probability"):
+        if field in node:
+            raise ValueError(f"node {node.get('id')}: {field} is not supported; use prior for local probability")
+    if "belief" in node:
+        raise ValueError(f"node {node.get('id')}: belief is computed output; use posterior for an explicit override")
+    fields = NODE_TRUTH_PROBABILITY_PRECEDENCE if include_posterior else ("prior",)
     for field in fields:
         if field in node:
             return probability_cost(node[field], field)
@@ -211,9 +213,9 @@ def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: boo
 def node_truth_cost(node: dict[str, Any] | None) -> float:
     """Local truth cost for a node, preserving the historical public helper.
 
-    `prior` expresses revisable starting belief; `confidence` expresses fixed
-    observation or inference reliability. Missing local scores contribute no
-    additional penalty; the effective-cost engine checks for a belief source.
+    `prior` is the local starting-probability factor, including observation or
+    inference reliability. Missing local inputs contribute no additional penalty;
+    the effective-cost engine checks for a belief source.
     """
 
     return node_local_truth_cost(node)
@@ -289,7 +291,8 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     `likelihood_ratio` update that base belief in odds space; grouped likelihood
     factors replace correlated member likelihood updates.
     Explicit node `posterior` is treated as already-calibrated and wins over
-    graph-derived updates to avoid double counting.
+    graph-derived updates to avoid double counting. Computed beliefs are returned
+    as costs; neither `prior` nor `posterior` is written back to nodes.
     """
 
     nodes = by_id(state.get("nodes", []), "node")

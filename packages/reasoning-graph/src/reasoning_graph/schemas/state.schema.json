@@ -128,11 +128,6 @@
           },
           {
             "required": [
-              "confidence"
-            ]
-          },
-          {
-            "required": [
               "posterior"
             ]
           }
@@ -171,13 +166,12 @@
           "type": "string"
         },
         "prior": {
-          "$ref": "#/$defs/probability"
-        },
-        "confidence": {
-          "$ref": "#/$defs/probability"
+          "$ref": "#/$defs/probability",
+          "description": "Optional local starting-probability factor, including observation or inference reliability. Multiplies inherited premise belief; omit when it would repeat uncertainty already in the premises. Not rewritten by the engine."
         },
         "posterior": {
-          "$ref": "#/$defs/probability"
+          "$ref": "#/$defs/probability",
+          "description": "Explicit calibrated override for this node's overall belief. Bypasses its prior and incoming premise, factor, and likelihood calculations. Never populated automatically; refresh explicitly when calibration changes."
         },
         "answer_kind": {
           "enum": [
@@ -219,11 +213,13 @@
         }
       ],
       "not": {
-        "required": [
-          "probability"
+        "anyOf": [
+          {"required": ["confidence"]},
+          {"required": ["probability"]},
+          {"required": ["belief"]}
         ]
       },
-      "description": "Belief-bearing nodes may use prior (revisable starting belief), confidence (fixed observation or inference reliability), or posterior (calibrated override). Without a local score they must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks this on the complete graph. A local prior or confidence multiplies premise belief, so omit it when it merely repeats the same uncertainty. Goals, constraints, and tests carry no score. The removed node field probability is rejected."
+      "description": "Claims use prior as their optional local input, computed belief as output, and posterior as an explicit calibrated override. Without prior or posterior, a claim must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks the complete graph. A local prior multiplies premise belief, so omit it when it repeats the same uncertainty. Goals, constraints, and tests carry no score. Removed confidence/probability fields and output-only belief are rejected on nodes, not silently ignored or converted."
     },
     "likelihood": {
       "type": "object",

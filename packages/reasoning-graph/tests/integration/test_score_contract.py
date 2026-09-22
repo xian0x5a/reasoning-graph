@@ -1,10 +1,11 @@
-"""Score names describe meaning; claim grounding is checked on the complete graph."""
+"""Prior is a local input, belief is computed, and posterior is an override."""
 
 import json
 import sys
 import unittest
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 
@@ -12,16 +13,16 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.cli import starter_state
-from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
+from reasoning_graph.costs import node_effective_truth_costs, node_local_truth_cost, probability_from_cost
 from reasoning_graph.models import NODE_TYPES
 from reasoning_graph.offline_render import offline_graph_svg
 from reasoning_graph.render import compact_node_label, to_mermaid
-from reasoning_graph.schema_validation import patch_schema_errors, state_schema_errors
+from reasoning_graph.schema_validation import patch_schema_errors, standalone_schema, state_schema_errors
 from reasoning_graph.validation import validate_state
 
 
-FIELDS = ("prior", "confidence", "posterior")
-REMOVED_FIELD = "probability"
+FIELDS = ("prior", "posterior")
+REJECTED_INPUT_FIELDS = ("confidence", "probability", "belief")
 
 CLAIM_TYPES = ("evidence", "assumption", "candidate_solution", "derived")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
@@ -58,10 +59,29 @@ def test_score_free_types_reject_every_score(node_type):
         assert state_schema_errors(state_with(node_type, **{field: 0.8})), field
 
 
+@pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
 @pytest.mark.parametrize("node_type", sorted(NODE_TYPES))
-def test_removed_probability_field_is_rejected(node_type):
-    assert state_schema_errors(state_with(node_type, **{REMOVED_FIELD: 0.8}))
-    assert patch_schema_errors({"nodes": [build_node(node_type, **{REMOVED_FIELD: 0.8})]})
+def test_obsolete_scores_and_computed_belief_are_rejected_as_node_inputs(node_type, field):
+    score = {"prior": 0.8} if node_type in CLAIM_TYPES else {}
+    node = build_node(node_type, **score, **{field: 0.9})
+    state = {"nodes": [node], "edges": [], "frontier": []}
+    patch = {"nodes": [node]}
+    assert state_schema_errors(state)
+    assert patch_schema_errors(patch)
+    assert not jsonschema.Draft202012Validator(standalone_schema("state.schema.json")).is_valid(state)
+    assert not jsonschema.Draft202012Validator(standalone_schema("patch.schema.json")).is_valid(patch)
+
+
+@pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
+@pytest.mark.parametrize("override", [False, True])
+def test_direct_cost_consumers_reject_invalid_score_inputs(field, override):
+    node = build_node("derived", prior=0.8, **{field: 0.9})
+    if override:
+        node["posterior"] = 0.7
+    with pytest.raises(ValueError, match=field):
+        node_local_truth_cost(node)
+    with pytest.raises(ValueError, match=field):
+        node_effective_truth_costs({"nodes": [node], "edges": [], "frontier": []})
 
 
 @pytest.mark.parametrize("value", [0, -0.1, 1.1, True, "0.8", None])
@@ -73,7 +93,7 @@ def test_invalid_score_values_are_rejected(node_type, field, value):
 def derived_state(**derived: object) -> dict:
     return {
         "nodes": [
-            {"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.8},
+            {"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.8},
             {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.9},
             {"id": "D1", "type": "derived", "text": "Conclusion", **derived},
         ],
@@ -128,8 +148,8 @@ def test_neutral_prior_propagates_and_certainty_stays_certain(relation, ratio, e
 def test_derived_belief_updates_from_likelihoods_on_uncertain_premises():
     state = {
         "nodes": [
-            {"id": "E1", "type": "evidence", "text": "Premise", "confidence": 0.8},
-            {"id": "E2", "type": "evidence", "text": "Counter-observation", "confidence": 0.95},
+            {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
+            {"id": "E2", "type": "evidence", "text": "Counter-observation", "prior": 0.95},
             {"id": "D1", "type": "derived", "text": "Deterministic conclusion"},
         ],
         "edges": [

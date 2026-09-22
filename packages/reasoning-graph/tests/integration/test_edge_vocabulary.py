@@ -25,7 +25,7 @@ class EdgeVocabularyTests(unittest.TestCase):
         state = {
             "nodes": [
                 {"id": "A1", "type": "assumption", "text": "Branch", "prior": 0.5},
-                {"id": "D1", "type": "derived", "text": "Conclusion", "confidence": 1.0},
+                {"id": "D1", "type": "derived", "text": "Conclusion", "prior": 1.0},
             ],
             "edges": [{"from": "D1", "to": "A1", "type": "assumes"}],
             "frontier": [],

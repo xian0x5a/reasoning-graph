@@ -22,7 +22,7 @@ T1 --leads_to--> E9
 E9 --supports|contradicts--> A1
 ```
 
-Include `confidence` on result `evidence` because observation, scripts, OCR, external services, or manual transcription could be wrong.
+Give result `evidence` a local `prior` accounting for observation, script, OCR, service, or transcription reliability. A scoreless test procedure does not supply a belief source; result evidence needs its own prior unless it inherits belief-bearing premises.
 
 ## Examples
 
@@ -46,7 +46,7 @@ Include `confidence` on result `evidence` because observation, scripts, OCR, ext
 {
   "nodes": [
     {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"},
-    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "confidence": 0.95}
+    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
   ],
   "edges": [
     {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
@@ -61,7 +61,7 @@ Include `confidence` on result `evidence` because observation, scripts, OCR, ext
 {
   "nodes": [
     {"id": "T2", "type": "test", "text": "Replay request with debug headers"},
-    {"id": "E2", "type": "evidence", "text": "Replay was inconclusive because fixture token expired", "confidence": 0.9}
+    {"id": "E2", "type": "evidence", "text": "Replay was inconclusive because fixture token expired", "prior": 0.9}
   ],
   "edges": [
     {"id": "T2-E2", "from": "T2", "to": "E2", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
@@ -76,7 +76,7 @@ Expansion patches add result nodes and connect them to the existing test node.
 ```json
 {
   "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "confidence": 0.95}
+    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
   ],
   "edges": [
     {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},

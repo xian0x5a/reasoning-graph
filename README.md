@@ -49,7 +49,7 @@ uv --project packages/reasoning-graph run reasoning-graph init --goal "Diagnose 
 cat > seed.json <<'JSON'
 {
   "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "confidence": 0.9},
+    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "prior": 0.9},
     {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
     {"id": "T1", "type": "test", "text": "Check the plausible cause"}
   ],

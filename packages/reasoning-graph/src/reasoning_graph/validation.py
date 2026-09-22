@@ -479,7 +479,7 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
             if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:
                 errors.append(
                     f"{node.get('type')} node {node_id} requires a belief source: "
-                    "a local prior/confidence/posterior, belief-bearing leads_to premises, "
+                    "a local prior, an explicit posterior override, belief-bearing leads_to premises, "
                     "or a calibrated joint-probability factor"
                 )
     except Exception as exc:  # validation should report instead of throwing

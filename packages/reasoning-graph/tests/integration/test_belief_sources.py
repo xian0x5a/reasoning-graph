@@ -1,6 +1,7 @@
 """Belief sources, not zero costs or node roles, determine score requirements."""
 
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -61,7 +62,7 @@ def test_claim_inherits_scored_premises_without_an_extra_local_factor(node_type)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.6)
 
-    state["nodes"][1]["confidence"] = 0.9
+    state["nodes"][1]["prior"] = 0.9
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.54)
@@ -80,7 +81,7 @@ def test_scoreless_nonclaim_premise_does_not_ground_a_candidate(source_type):
 
 def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
     state = claim_state()
-    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.9})
+    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.9})
     state["edges"].append(edge("E1", "N1", "supports", likelihood_ratio=2))
     result = validate_state(state)
     assert not result.ok
@@ -93,11 +94,11 @@ def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
 def test_certain_premises_remain_certain_under_finite_likelihoods(relation, ratio, grouped):
     state = claim_state()
     state["nodes"].extend([
-        {"id": "E1", "type": "evidence", "text": "Certain premise", "confidence": 1.0},
-        {"id": "E2", "type": "evidence", "text": "Second premise", "confidence": 1.0},
+        {"id": "E1", "type": "evidence", "text": "Certain premise", "prior": 1.0},
+        {"id": "E2", "type": "evidence", "text": "Second premise", "prior": 1.0},
         {"id": "D1", "type": "derived", "text": "Intermediate conclusion"},
-        {"id": "L1", "type": "evidence", "text": "Likelihood observation", "confidence": 0.9},
-        {"id": "L2", "type": "evidence", "text": "Related observation", "confidence": 0.9},
+        {"id": "L1", "type": "evidence", "text": "Likelihood observation", "prior": 0.9},
+        {"id": "L2", "type": "evidence", "text": "Related observation", "prior": 0.9},
     ])
     state["edges"].extend([edge("E1", "D1"), edge("E2", "D1"), edge("D1", "N1")])
     assert belief(state, "D1") == 1.0
@@ -134,15 +135,15 @@ def test_calibrated_joint_premise_factor_is_a_belief_source():
     assert belief(state) == pytest.approx(0.7)
 
 
-def test_local_inference_confidence_matches_an_explicit_validity_assumption():
-    state = claim_state("derived", confidence=0.9)
-    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.8})
+def test_local_inference_prior_matches_an_explicit_validity_assumption():
+    state = claim_state("derived", prior=0.9)
+    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.8})
     state["edges"].append(edge("E1", "N1"))
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.72)
 
-    del state["nodes"][1]["confidence"]
+    del state["nodes"][1]["prior"]
     state["nodes"].append({"id": "A1", "type": "assumption", "text": "Inference is valid", "prior": 0.9})
     state["edges"].append(edge("A1", "N1"))
     assert validate_state(state).ok
@@ -176,10 +177,51 @@ def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
     assert not audit_stop_policy(state, state["frontier"], len(ranked)).ok
 
 
-def test_posterior_remains_a_calibrated_override():
-    state = claim_state("derived", posterior=0.7)
-    result = validate_state(state)
-    assert result.ok, result.errors
-    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "confidence": 0.8})
-    state["edges"].extend([edge("E1", "N1"), edge("E1", "N1", "supports", likelihood_ratio=2)])
-    assert belief(state) == pytest.approx(0.7)
+def test_computed_belief_recalculates_without_writing_node_scores():
+    state = claim_state()
+    state["nodes"].extend([
+        {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
+        {"id": "L1", "type": "evidence", "text": "Independent observation", "prior": 0.9},
+        {"id": "D1", "type": "derived", "text": "Soft inference", "prior": 0.9},
+    ])
+    state["edges"].extend([
+        edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),
+    ])
+    original = deepcopy(state)
+    assert validate_state(state).ok
+    # Local 0.9 times inherited 0.8 gives 0.72; LR 2 gives 36/43.
+    assert belief(state) == pytest.approx(36 / 43)
+    assert ranked_viable_candidates(state)[0]["belief"] == pytest.approx(36 / 43, abs=1e-6)
+    assert state == original
+
+    state["nodes"][2]["prior"] = 0.5
+    updated = deepcopy(state)
+    assert belief(state) == pytest.approx(18 / 29)
+    assert state == updated
+
+
+def test_posterior_overrides_only_its_node_and_can_be_removed():
+    state = claim_state(prior=0.5)
+    state["nodes"].extend([
+        {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
+        {"id": "L1", "type": "evidence", "text": "Independent observation", "prior": 0.9},
+        {"id": "D1", "type": "derived", "text": "Calibrated inference", "prior": 0.9, "posterior": 0.7},
+    ])
+    state["edges"].extend([
+        edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),
+    ])
+    original = deepcopy(state)
+    assert validate_state(state).ok
+    assert belief(state, "D1") == pytest.approx(0.7)
+    assert belief(state) == pytest.approx(0.35)
+    assert state == original
+
+    state["nodes"][2]["prior"] = 0.5
+    state["edges"][2]["likelihood_ratio"] = 3
+    assert belief(state, "D1") == pytest.approx(0.7)
+    assert belief(state) == pytest.approx(0.35)
+
+    del state["nodes"][4]["posterior"]
+    # Removing the override resumes current inputs: 0.5 * 0.9, then LR 3.
+    assert belief(state, "D1") == pytest.approx(27 / 38)
+    assert belief(state) == pytest.approx(27 / 76)

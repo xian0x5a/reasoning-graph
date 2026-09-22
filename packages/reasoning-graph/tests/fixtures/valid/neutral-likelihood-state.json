@@ -9,7 +9,7 @@
       "id": "E1",
       "type": "evidence",
       "text": "Failures began just after deployment",
-      "confidence": 0.95
+      "prior": 0.95
     },
     {
       "id": "A1",

@@ -13,13 +13,13 @@
       "id": "E1",
       "type": "evidence",
       "text": "Primary signal appears",
-      "confidence": 0.9
+      "prior": 0.9
     },
     {
       "id": "E2",
       "type": "evidence",
       "text": "Secondary signal appears",
-      "confidence": 0.8
+      "prior": 0.8
     },
     {
       "id": "A1",

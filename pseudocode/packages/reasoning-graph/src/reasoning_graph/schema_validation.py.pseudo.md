@@ -24,4 +24,4 @@ patch_schema_errors(patch):
 
 ## Required node scores and edge reasoning
 
-Require type-bound node scores: prior or posterior on assumptions and candidate solutions, confidence on evidence, no local score on derived nodes (posterior only, once calibrated), none on goals, constraints, and tests; reject the removed generic probability field. Require edge reasoning as nonblank text with one to five sentences. Register a reasoning-sentences format checker for both state and patch validation; split on sentence punctuation followed by whitespace, allowing decimal numbers and a final sentence without punctuation. Reject punctuation-only text.
+Allow prior as the local probability input and posterior as an explicit calibrated override on claim nodes; leave goals, constraints, and tests scoreless. Reject confidence, probability, and output-only belief as node inputs. Describe each input at its schema property. Full-state validation checks inherited belief sources after patches are merged. Require nonblank edge reasoning using standard string constraints; sentence count remains authoring guidance, not a custom validation format.
