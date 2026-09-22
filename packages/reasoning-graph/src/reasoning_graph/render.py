@@ -727,6 +727,10 @@ def html_document(
     a {{ color: #1d4ed8; }}
     .section-head {{ display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }}
     .graph-controls {{ display: flex; gap: .75rem; align-items: center; color: var(--muted); font-size: .9rem; }}
+    /* Keep the controls clear of the canvas edge, and keep their labels on one line:
+       a growing label would otherwise wrap the button into two rows. */
+    .graph-section .section-head {{ margin-bottom: .75rem; }}
+    .graph-controls button {{ white-space: nowrap; }}
     button {{ border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 999px; padding: .4rem .8rem; cursor: pointer; }}
     .focus-control {{ display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); }}
     .focus-control span {{ white-space: nowrap; }}
@@ -1321,8 +1325,9 @@ def html_document(
     if (modeToggle) modeToggle.addEventListener("click", () => {{
       canvasMode = !canvasMode;
       canvas.classList.toggle("canvas-mode", canvasMode);
+      // The pressed style carries the state; the label must not grow, or the button
+      // reflows into two rows and the control bar jumps.
       modeToggle.setAttribute("aria-pressed", String(canvasMode));
-      modeToggle.textContent = canvasMode ? "Canvas mode on" : "Canvas mode";
       if (!canvasMode) endDrag();
     }});
   }}

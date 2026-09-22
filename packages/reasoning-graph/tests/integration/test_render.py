@@ -247,6 +247,12 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         self.assertIn("radial-gradient(circle", document)
         self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
 
+        # The mode button keeps one label (pressed styling carries the state) and the
+        # control bar is spaced away from the canvas edge.
+        self.assertNotIn("Canvas mode on", document)
+        self.assertIn(".graph-section .section-head { margin-bottom:", document)
+        self.assertIn(".graph-controls button { white-space: nowrap; }", document)
+
         # Wheel zoom is capped by the fitted content box, while drag pan stays
         # unbounded on purpose: dragging the graph off the canvas is allowed and
         # recovered with "Reset view", so no pan clamp may creep back in.
