@@ -427,7 +427,9 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             # engine is called without validation. A grounded zero stays certain.
             base_cost = probability_cost(NEUTRAL_UPDATE_PRIOR)
         if ungrouped_likelihood_edges or factor_lrs:
-            log_odds = log_odds_from_probability(probability_from_cost(base_cost))
+            # Stay in log space: exp(-base_cost) can underflow for valid inherited
+            # beliefs. expm1 also preserves precision near explicit certainty.
+            log_odds = -base_cost - math.log(-math.expm1(-base_cost)) if base_cost > 0 else math.inf
             for edge in ungrouped_likelihood_edges:
                 log_odds += math.log(likelihood_ratio_from_edge(edge))
             for likelihood_ratio in factor_lrs:
@@ -514,10 +516,36 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             continue
         if "path_cost" in item:
             raise ValueError(f"frontier item {item.get('id')} uses rejected legacy field path_cost; use search_cost/cost_components")
-        components = cost_components_for_item(item, nodes, node_truth_costs)
-        truth_cost = components["truth"]
-        work_cost = sum(value for key, value in components.items() if key != "truth")
-        item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
+        if "cost_components" not in item and "cost" not in item and "step_cost" in item:
+            node_id = str(item.get("node"))
+            if "step_truth_cost" in item:
+                truth_cost = require_non_negative_float(
+                    item["step_truth_cost"],
+                    f"frontier item {item.get('id')} step_truth_cost",
+                )
+            else:
+                truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
+            truth_cost = require_non_negative_float(
+                truth_cost,
+                f"frontier item {item.get('id')} step_truth_cost",
+            )
+            legacy_search_cost = require_non_negative_float(
+                item["step_cost"],
+                f"frontier item {item.get('id')} step_cost",
+            )
+            work_cost = max(0.0, legacy_search_cost - truth_cost)
+            item["cost_components"] = {
+                "truth": round(truth_cost, 6),
+                "verification": round(work_cost, 6),
+                "effort_budget": 0.0,
+                "reasoning_complexity": 0.0,
+                "constraint_tension": 0.0,
+            }
+        else:
+            components = cost_components_for_item(item, nodes, node_truth_costs)
+            truth_cost = components["truth"]
+            work_cost = sum(value for key, value in components.items() if key != "truth")
+            item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
 
         truth_cost = require_non_negative_float(truth_cost, f"frontier item {item.get('id')} truth cost")
         work_cost = require_non_negative_float(work_cost, f"frontier item {item.get('id')} work cost")
@@ -543,6 +571,8 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
             item["heuristic_cost"] = round(heuristic_cost, 6)
         else:
             item.pop("heuristic_cost", None)
+        item["step_truth_cost"] = round(truth_cost, 6)
+        item["step_cost"] = round(search_cost, 6)
         item["search_cost"] = round(search_cost, 6)
     return state
 

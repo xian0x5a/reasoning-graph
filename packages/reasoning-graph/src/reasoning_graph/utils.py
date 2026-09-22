@@ -36,6 +36,8 @@ def require_finite_float(value: Any, field: str) -> float:
 
     try:
         number = float(value)
+    except OverflowError:
+        raise ValueError(f"{field} must be representable as a finite number") from None
     except (TypeError, ValueError):
         raise ValueError(f"{field} must be numeric, got {value!r}")
     if not math.isfinite(number):

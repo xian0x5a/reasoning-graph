@@ -118,12 +118,30 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
     def test_cost_components_reject_non_finite_and_negative_values(self) -> None:
         for component in ("truth", "verification", "effort_budget", "reasoning_complexity", "constraint_tension"):
-            for invalid in (math.nan, math.inf, -math.inf, -0.1):
+            for invalid in (math.nan, math.inf, -math.inf, -0.1, 10**400):
                 with self.subTest(component=component, invalid=invalid):
                     state = self.base_state()
                     state["frontier"][0]["cost_components"][component] = invalid
                     with self.assertRaises(ValueError):
                         compute_costs(state)
+
+    def test_inherited_tiny_belief_keeps_finite_cost_after_likelihood_update(self) -> None:
+        for relation, ratio in (("supports", 2.0), ("contradicts", 5e-324)):
+            with self.subTest(relation=relation):
+                state = self.base_state(prior=1e-200, edges=[
+                    {"from": "E1", "to": "A1", "type": "leads_to", "reasoning": "A1 requires the rare premise."},
+                    {"from": "E2", "to": "A1", "type": relation, "likelihood_ratio": ratio,
+                     "reasoning": "The signal updates the inherited belief."},
+                ])
+                state["nodes"][0]["prior"] = 1e-200
+                original_nodes = json.loads(json.dumps(state["nodes"]))
+
+                cost = frontier_truth_cost(state)
+
+                self.assertTrue(math.isfinite(cost))
+                self.assertAlmostEqual(cost, -2 * math.log(1e-200) - math.log(ratio), places=6)
+                self.assertEqual(state["nodes"], original_nodes)
+                self.assertTrue(validate_state(state).ok)
 
     def test_likelihood_ratios_reject_non_finite_values(self) -> None:
         for invalid in (math.nan, math.inf, -math.inf):

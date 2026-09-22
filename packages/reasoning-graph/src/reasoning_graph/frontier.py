@@ -175,6 +175,8 @@ def item_view(state: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "estimated_remaining_cost": item.get("estimated_remaining_cost"),
         "heuristic_cost": item.get("heuristic_cost"),
         "truth_cost": item.get("truth_cost"),
+        "step_cost": item.get("step_cost"),
+        "step_truth_cost": item.get("step_truth_cost"),
         "parent": item.get("parent"),
         "active_assumptions": item.get("active_assumptions", []),
         "related": item.get("related", []),

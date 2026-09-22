@@ -71,9 +71,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertNotIn('"solution_node"', patch_schema["properties"])
         self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
 
-    def test_validate_rejects_undeclared_frontier_fields(self) -> None:
+    def test_numeric_validation_preserves_existing_frontier_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "undeclared-frontier-field.json"
+            state_path = Path(tmp_dir) / "frontier-metadata.json"
             state_path.write_text(
                 json.dumps(
                     {
@@ -87,8 +87,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             result = self.run_cli("validate", str(state_path))
 
-        self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn("Additional properties are not allowed", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_schema_command_emits_packaged_schema_json(self) -> None:
         result = self.run_cli("schema", "state")
@@ -724,10 +723,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state = {
                 "nodes": [
                     {"id": "A1", "type": "assumption", "text": "Certain premise", "prior": 1.0},
-                    {"id": "E1", "type": "evidence", "text": "Finite supporting signal"},
+                    {"id": "E1", "type": "evidence", "text": "Finite supporting signal", "prior": 0.9},
                 ],
                 "edges": [
-                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The signal supports the target with a finite likelihood ratio."},
                 ],
                 "frontier": [
                     {
@@ -1663,6 +1662,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             by_id = {item["id"]: item for item in costed["frontier"]}
             self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.223144, places=6)
             # D1 truth is graph-derived from both premises; parent chain is audit context, not probability accumulation.
+            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.328504, places=6)
             self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
 
     def test_costs_factor_replaces_correlated_likelihood_updates(self) -> None:

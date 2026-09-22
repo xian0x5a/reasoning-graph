@@ -39,11 +39,13 @@ Example frontier item:
   scratch:
     - "Cache branch may split into stale-read vs invalidation-order variants."
     - "If this becomes important, promote it to a derived/test node."
+  step_truth_cost: 0.51
   truth_cost: 0.51
   work_cost: 0.30
   base_search_cost: 0.81
   estimated_remaining_cost: 0.40
   heuristic_cost: 0.40
+  step_cost: 1.21
   search_cost: 1.21
   active_assumptions: [A2]
   evidence_version: E1
@@ -199,12 +201,13 @@ State JSON shape:
 Cost behavior:
 
 - `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus ungrouped incoming `leads_to` premise costs and `leads_to` factor joint-probability costs, then ungrouped `supports`/`contradicts` likelihood updates and grouped factor likelihood updates.
-- `truth_cost` is the current node's effective truth cost.
+- `truth_cost` is the current node's effective truth cost. `step_truth_cost` is kept as a legacy mirror of `truth_cost`.
 - `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
 - `base_search_cost` is `truth_cost + work_cost` before goal-distance heuristics.
 - `estimated_remaining_cost` is optional top-level heuristic remaining work.
 - Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
-- `search_cost` is the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
+- `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
+- Numeric cost inputs and computed search costs must be finite and non-negative. Likelihood ratios must be finite and positive, including ratios derived from likelihood probabilities and updates on nodes with posterior overrides. Invalid numbers and arithmetic overflow are rejected; JSON output never emits `NaN` or `Infinity`.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`; it is optional before `next` because `next` computes costs and sorts active items internally.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
 - `next --pop` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
