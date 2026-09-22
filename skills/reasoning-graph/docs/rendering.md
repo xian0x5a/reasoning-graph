@@ -93,11 +93,17 @@ Recommended graph/HTML flow:
 9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
 10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.
 
+### Belief display
+
+Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the local `prior`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
+
+Node details separate **Effective belief**, **Local prior**, and **Posterior override**, displaying authored fields only when present. For example, premise `0.8` and local prior `0.9` give a graph label `belief 0.72` and details `Local prior: 0.9`. A posterior override replaces the effective value without hiding the stored prior in details. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
+
 Canvas rules:
 
 - A curated explanation graph is optional. Use it when the full graph is too dense for the main story; aim for 8-18 nodes and rarely more than 25. If the full graph is already small/readable, it can serve as the explanation view.
 - Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
-- Prefer ID/type-only graph labels (`E3`, `CS1`, etc.) for dense graphs; keep full text in node-detail cards/modals.
+- Keep graph labels to ID/type plus effective belief on claims; keep full text and authored inputs in node-detail cards/modals.
 - Use `short_text` only for small bespoke presentation graphs where the label is clearly readable and does not risk escaping/entity noise.
 - Prefer click-to-details anchors over huge node labels.
 - Mermaid supports node click links with tooltips, e.g. `click E15 "#details-E15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
@@ -111,7 +117,7 @@ Mermaid styling pattern:
 flowchart TD
   E1["evidence: input is sorted"] --> D1["derived: two-pointer is viable"]
   C1["constraint: O(n) time"] --> D1
-  A1["assumption: duplicates matter<br/>prior 0.4"] --> CS1["candidate_solution: handle duplicates"]
+  A1["A1<br/>assumption<br/>belief 0.4"] --> CS1["CS1<br/>candidate<br/>belief 0.4"]
   CS1 -- answers --> G
   E2["evidence: violates O(n)"] -. contradicts .-> A1
 
@@ -131,7 +137,7 @@ HTML report design guidance:
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
 - Put the answer/candidate ranking before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.
-- Keep graph labels short, preferably ID/type-only for dense graphs; route evidence text to filterable details cards and modal popups.
+- Keep graph labels compact using the belief display above; route evidence text to filterable detail cards and modal popups.
 - Do not add a separate evidence/constraints section if the node details list already covers evidence and constraints with sources.
 - Use `reasoning-graph html --spacing relaxed|wide|compact|default` when dense graphs look compressed; compare against default spacing first.
 - Use `reasoning-graph html --offline` when generated HTML must not require network access. Keep Mermaid source as source/fallback text in offline mode, not as a CDN runtime dependency.

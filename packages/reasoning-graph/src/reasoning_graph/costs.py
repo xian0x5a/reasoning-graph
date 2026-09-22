@@ -179,16 +179,11 @@ def node_has_score(node: dict[str, Any] | None) -> bool:
     return bool(node) and any(field in node for field in NODE_TRUTH_PROBABILITY_PRECEDENCE)
 
 
-def node_score_label(node: dict[str, Any]) -> str:
-    """Label the explicit local score; a posterior is a calibrated override.
-
-    Goal and constraint stipulations carry no score, so this returns an empty
-    label for them instead of a missing-score marker.
-    """
-    for field in NODE_TRUTH_PROBABILITY_PRECEDENCE:
-        if field in node:
-            return f"{field} {float(node[field]):.3g}"
-    return ""
+def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
+    """Label a claim's effective belief; objectives/actions have no truth score."""
+    if node.get("type") not in BELIEF_NODE_TYPES:
+        return ""
+    return f"belief {probability_from_cost(effective_truth_cost):.3g}"
 
 
 def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:

@@ -112,14 +112,14 @@ def test_derived_belief_is_the_premise_product():
 
     state["nodes"][2]["posterior"] = 0.72
     assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.72)
-    assert "posterior 0.72" in to_mermaid(state)
-    assert "posterior 0.72" in offline_graph_svg(state)
+    assert "belief 0.72" in to_mermaid(state)
+    assert "belief 0.72" in offline_graph_svg(state)
 
 
 def test_score_free_labels_carry_no_score_line():
-    assert compact_node_label(build_node("goal")) == "N1\ngoal"
-    assert compact_node_label(build_node("constraint")) == "N1\nconstraint"
-    assert compact_node_label(build_node("test")) == "N1\ntest"
+    assert compact_node_label(build_node("goal"), 0.0) == "N1\ngoal"
+    assert compact_node_label(build_node("constraint"), 0.0) == "N1\nconstraint"
+    assert compact_node_label(build_node("test"), 0.0) == "N1\ntest"
 
 
 @pytest.mark.parametrize("relation,ratio,expected", [

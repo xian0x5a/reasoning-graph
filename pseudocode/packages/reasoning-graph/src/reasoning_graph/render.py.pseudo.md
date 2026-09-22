@@ -20,4 +20,4 @@ html_document(state, mermaid_source, render_mode):
 
 ## Required node scores and edge reasoning
 
-Display the score field name and value on compact graph nodes that carry one; goal and constraint stipulations render without a score line. Include escaped incident-edge reasoning in node detail cards.
+Compute truth costs from the full graph before presentation filtering. Display effective belief on compact claim nodes, including inherited-only claims; goals, constraints, and tests render without a belief line. Detail cards distinguish effective belief, local prior, and posterior override, and include escaped incident-edge reasoning.

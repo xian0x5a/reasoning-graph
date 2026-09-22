@@ -8,12 +8,13 @@ import math
 from typing import Any
 
 from .costs import (
-    NODE_SCORE_FIELDS,
-    node_score_label,
     compute_costs,
+    node_belief_label,
+    node_effective_truth_costs,
     node_truth_cost,
+    probability_from_cost,
 )
-from .models import CLASS_BY_NODE_TYPE
+from .models import BELIEF_NODE_TYPES, CLASS_BY_NODE_TYPE
 from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
@@ -48,13 +49,13 @@ def html_anchor(raw: str, prefix: str = "details") -> str:
     return f"{prefix}-{cleaned}"
 
 
-def compact_node_label(node: dict[str, Any]) -> str:
+def compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     # Keep graph labels stable and tiny. Full text lives in modal/detail cards;
     # long Mermaid labels are hard to navigate and can expose HTML entity noise.
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    parts = (node_id, type_label, node_score_label(node))
+    parts = (node_id, type_label, node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -121,8 +122,8 @@ GRAPH_GROUPS = (
 )
 
 
-def mermaid_node_definition(mid: str, node: dict[str, Any]) -> str:
-    label = escape_mermaid_label(compact_node_label(node))
+def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost: float) -> str:
+    label = escape_mermaid_label(compact_node_label(node, effective_truth_cost))
     return f'{mid}["{label}"]'
 
 
@@ -179,6 +180,8 @@ def to_mermaid(
     group_by_type: bool = False,
     direction: str = "TD",
 ) -> str:
+    # Presentation filtering hides premises, not their contribution to belief.
+    node_truth_costs = node_effective_truth_costs(state)
     safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
     lines = [f"flowchart {safe_direction}"]
     node_id_map: dict[str, str] = {}
@@ -228,12 +231,12 @@ def to_mermaid(
             lines.append(f"  subgraph {group_id}[{title}]")
             for node in group_nodes:
                 raw_id = str(node.get("id"))
-                lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node)}")
+                lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
             lines.append("  end")
     else:
         for node in selected_nodes:
             raw_id = str(node.get("id"))
-            lines.append(f"  {mermaid_node_definition(node_id_map[raw_id], node)}")
+            lines.append(f"  {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
 
     if selected_factors:
         if group_by_type:
@@ -426,6 +429,7 @@ def candidate_rows(state: dict[str, Any]) -> str:
 
 
 def node_detail_cards(state: dict[str, Any]) -> str:
+    node_truth_costs = node_effective_truth_costs(state)
     cards: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
@@ -438,9 +442,12 @@ def node_detail_cards(state: dict[str, Any]) -> str:
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
         extras: list[str] = []
-        for key in NODE_SCORE_FIELDS:
-            if key in node:
-                extras.append(f"<span>{html.escape(key)}: {html.escape(str(node[key]))}</span>")
+        if raw_type in BELIEF_NODE_TYPES:
+            belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
+            extras.append(f"<span>Effective belief: {belief}</span>")
+            for key, label in (("prior", "Local prior"), ("posterior", "Posterior override")):
+                if key in node:
+                    extras.append(f"<span>{label}: {html.escape(str(node[key]))}</span>")
         edge_reasons = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):

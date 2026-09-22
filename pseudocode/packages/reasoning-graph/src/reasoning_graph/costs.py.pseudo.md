@@ -27,4 +27,4 @@ sort frontier by ascending search_cost while keeping all items
 
 ## Required node scores and edge reasoning
 
-Share a compact score label between Mermaid and offline SVG renderers using posterior/prior precedence; keep the field name so an authored override stays distinguishable from the local input. Return computed effective belief without writing it into node scores, and render no score line for scoreless objectives/actions.
+Share a compact effective-belief label between Mermaid and offline SVG renderers. Format the computed truth cost as belief only for claim nodes; objectives/actions remain unscored. Keep authored priors and overrides separate from computed values, and never write rendered beliefs into node inputs.

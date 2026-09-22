@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from .costs import node_score_label
+from .costs import node_belief_label, node_effective_truth_costs
 
 
 def _clip_text(text: str, limit: int = 72) -> str:
@@ -30,11 +30,11 @@ def _html_anchor(raw: str, prefix: str = "details") -> str:
     return f"{prefix}-{cleaned}"
 
 
-def _compact_node_label(node: dict[str, Any]) -> str:
+def _compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     node_id = str(node.get("id") or "node")
     node_type = str(node.get("type", "node"))
     type_label = "candidate" if node_type == "candidate_solution" else node_type
-    parts = (node_id, type_label, node_score_label(node))
+    parts = (node_id, type_label, node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -92,6 +92,8 @@ def offline_graph_svg(
     graph_id: str = "graph",
 ) -> str:
     """Render a deterministic inline SVG fallback without network or browser-side layout."""
+    # Compute from the full graph so hidden premises and factors still count.
+    node_truth_costs = node_effective_truth_costs(state)
     metrics = _spacing_metrics(spacing)
     node_width = metrics["node_width"]
     node_height = metrics["node_height"]
@@ -174,7 +176,11 @@ def offline_graph_svg(
         fill, stroke = _node_colors(node)
         mid = html.escape(_mermaid_id(raw_id), quote=True)
         anchor = html.escape(f"#{_html_anchor(raw_id)}", quote=True)
-        label = _label_tspans(_compact_node_label(node), x + node_width // 2, y + node_height // 2 - 4)
+        label = _label_tspans(
+            _compact_node_label(node, node_truth_costs[raw_id]),
+            x + node_width // 2,
+            y + node_height // 2 - 4,
+        )
         node_parts.append(
             f'<a href="{anchor}"><g id="{mid}" class="node" data-node-id="{html.escape(raw_id, quote=True)}">'
             f'<rect x="{x}" y="{y}" width="{node_width}" height="{node_height}" rx="12" fill="{fill}" stroke="{stroke}" stroke-width="2"/>'
