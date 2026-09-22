@@ -740,6 +740,10 @@ def html_document(
     /* Dotted canvas sheet. The graph svg is transparent, so the dots read as the
        surface the drawing sits on instead of a plain white card. */
     .graph-canvas {{ background-color: #fbfcfe; background-image: radial-gradient(circle, #a9b8cc 1.4px, transparent 1.4px); background-size: 18px 18px; }}
+    /* Hover invites the click that captures the wheel: the sheet wakes up and the
+       border tints, while the solid focus ring stays reserved for the captured state
+       so the two are never confused. */
+    .graph-canvas:hover:not(:focus) {{ border-color: #bfdbfe; background-image: radial-gradient(circle, #93a5bd 1.4px, transparent 1.4px); }}
     /* Focus is functional here: the wheel only zooms while the canvas owns focus,
        so the ring tells the user which surface will consume the scroll. The negative
        offset registers the ring with the canvas border instead of ringing around it. */

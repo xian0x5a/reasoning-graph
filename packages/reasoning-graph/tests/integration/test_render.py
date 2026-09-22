@@ -246,6 +246,8 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         self.assertIn(".graph-canvas:focus {", document)
         self.assertIn("radial-gradient(circle", document)
         self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
+        # Hover only tints the sheet and border; the solid ring stays focus-only.
+        self.assertIn(".graph-canvas:hover:not(:focus) { border-color: #bfdbfe;", document)
 
         # The mode button keeps one label (pressed styling carries the state) and the
         # control bar is spaced away from the canvas edge.
