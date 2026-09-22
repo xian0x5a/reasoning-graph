@@ -481,10 +481,10 @@ def graph_panel(
       <button type="button" data-canvas-mode="{graph_id}" aria-pressed="false">Canvas mode</button>
       <button type="button" data-reset="{graph_id}">Reset view</button>
       {focus_control}
-      <span>Ctrl/⌘+wheel zooms. Ctrl/⌘+drag pans. Canvas mode enables direct drag/zoom.</span>
+      <span>Click the canvas to capture the wheel, then Ctrl/⌘+wheel zooms. Ctrl/⌘+drag pans. Canvas mode enables direct drag/zoom.</span>
     </div>
   </div>
-  <div id="{graph_id}" class="mermaid-wrap graph-canvas {kind_class}">
+  <div id="{graph_id}" class="mermaid-wrap graph-canvas {kind_class}" tabindex="0" role="region" aria-label="{html.escape(title)} canvas">
     {graph_markup}
   </div>
   {source_details}
@@ -733,6 +733,13 @@ def html_document(
     .focus-control select {{ max-width: min(9rem, 32vw); color: var(--ink); cursor: pointer; }}
     .mermaid-wrap {{ border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: .75rem; }}
     .graph-canvas {{ overflow: hidden; cursor: default; touch-action: pan-y; position: relative; user-select: none; -webkit-user-select: none; }}
+    /* Dotted canvas sheet. The graph svg is transparent, so the dots read as the
+       surface the drawing sits on instead of a plain white card. */
+    .graph-canvas {{ background-color: #fbfcfe; background-image: radial-gradient(circle, #a9b8cc 1.4px, transparent 1.4px); background-size: 18px 18px; }}
+    /* Focus is functional here: the wheel only zooms while the canvas owns focus,
+       so the ring tells the user which surface will consume the scroll. The negative
+       offset registers the ring with the canvas border instead of ringing around it. */
+    .graph-canvas:focus {{ outline: 2px solid #60a5fa; outline-offset: -2px; border-color: #60a5fa; }}
     .graph-canvas.canvas-mode {{ cursor: grab; touch-action: none; }}
     .graph-canvas svg, .graph-canvas svg * {{ user-select: none; -webkit-user-select: none; }}
     .graph-canvas.panning {{ cursor: grabbing; }}
@@ -1254,6 +1261,9 @@ def html_document(
     }};
 
     canvas.addEventListener("wheel", (event) => {{
+      // Focus is the opt-in for wheel zoom: anywhere else the wheel keeps scrolling
+      // the page, and a scroll that merely passes over the canvas does not zoom it.
+      if (!canvas.contains(document.activeElement)) return;
       if (!canUseCanvasDirectly() && !modifierPressed(event)) return;
       event.preventDefault();
       const focus = clientPointInSvg(event);
@@ -1277,7 +1287,10 @@ def html_document(
       clearTextSelection();
     }}
     canvas.addEventListener("pointerdown", (event) => {{
-      if (event.target.closest && (event.target.closest("a") || edgeContainerFor(event.target))) return;
+      // Node links keep their own focus; anywhere else on the canvas claims the wheel.
+      if (event.target.closest && event.target.closest("a")) return;
+      canvas.focus({{ preventScroll: true }});
+      if (edgeContainerFor(event.target)) return;
       if (!canPan(event)) return;
       event.preventDefault();
       clearTextSelection();

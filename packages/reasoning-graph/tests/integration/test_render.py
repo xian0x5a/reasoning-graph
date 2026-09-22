@@ -240,6 +240,13 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         self.assertIn("height: 100%", wrapper_rule.group(1))
         self.assertIn('<pre class="mermaid">', document)
 
+        # The canvas is a real focus target: it shows a focus ring, paints a dotted
+        # sheet, and only the focused canvas consumes the wheel.
+        self.assertIn('class="mermaid-wrap graph-canvas graph-canvas-audit" tabindex="0"', document)
+        self.assertIn(".graph-canvas:focus {", document)
+        self.assertIn("radial-gradient(circle", document)
+        self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
+
         # Wheel zoom is capped by the fitted content box, while drag pan stays
         # unbounded on purpose: dragging the graph off the canvas is allowed and
         # recovered with "Reset view", so no pan clamp may creep back in.
