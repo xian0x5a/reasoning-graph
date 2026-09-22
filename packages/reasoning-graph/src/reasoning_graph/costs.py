@@ -233,8 +233,12 @@ def nodes_with_belief_sources(state: dict[str, Any]) -> set[str]:
             continue
         target = factor.get("target")
         aggregation = factor.get("aggregation")
-        if (isinstance(target, str) and target in nodes
-                and isinstance(aggregation, dict) and aggregation.get("kind") == "joint_probability"):
+        if (
+            isinstance(target, str)
+            and target in nodes
+            and isinstance(aggregation, dict)
+            and aggregation.get("kind") == "joint_probability"
+        ):
             grounded.add(target)
 
     dependents: dict[str, list[str]] = {}
