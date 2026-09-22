@@ -414,7 +414,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
                     f"<li><strong>{html.escape(relationship)}</strong>: "
                     f"{html.escape(str(edge.get('reasoning', '')))}</li>"
                 )
-        reasoning_html = "<h4>Edge reasoning</h4><ul>" + "".join(edge_reasons) + "</ul>" if edge_reasons else ""
+        reasoning_html = ('<div class="edge-block"><ul>' + "".join(edge_reasons) + "</ul></div>") if edge_reasons else ""
         type_class = html.escape(raw_type)
         cards.append(
             f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}">'
@@ -799,7 +799,8 @@ def html_document(
     .detail-card header {{ display: flex; justify-content: space-between; align-items: center; gap: .5rem; }}
     code {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }}
     .pill {{ border-radius: 999px; padding: .15rem .5rem; background: #e2e8f0; color: #334155; font-size: .78rem; font-weight: 400; }}
-    .extras span {{ display: inline-block; margin-right: .5rem; color: var(--muted); }}
+    .extras {{ display: flex; flex-direction: column; gap: .15rem; }}
+    .extras span {{ color: var(--muted); }}
     .floating-nav {{ position: fixed; right: 1rem; bottom: 1rem; z-index: 20; font-size: .86rem; }}
     .nav-toggle {{ width: 2.45rem; height: 2.45rem; border-radius: 999px; display: grid; place-items: center; background: rgba(255,255,255,.96); box-shadow: 0 10px 28px rgba(15,23,42,.18); }}
     .floating-nav .nav-menu {{ position: absolute; right: 0; bottom: calc(100% + .45rem); display: none; flex-direction: column; gap: .35rem; min-width: 9rem; padding: .5rem; background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 28px rgba(15,23,42,.16); }}
@@ -808,13 +809,20 @@ def html_document(
     .node-modal {{ width: min(720px, calc(100vw - 2rem)); max-height: min(82vh, 760px); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; overscroll-behavior: contain; }}
     .node-modal::backdrop {{ background: rgba(15,23,42,.48); backdrop-filter: blur(2px); }}
     .modal-shell {{ padding: 1rem; max-height: calc(min(82vh, 760px) - 64px); overflow: auto; overscroll-behavior: contain; }}
-    .modal-bar {{ display: flex; justify-content: space-between; align-items: center; gap: 1rem; border-bottom: 1px solid var(--line); padding: .75rem 1rem; background: var(--soft); }}
+    .modal-bar {{ display: flex; justify-content: flex-start; align-items: center; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding: .75rem 1rem; background: var(--soft); }}
     .modal-title {{ display: flex; align-items: center; gap: .55rem; margin: 0; font-size: 1rem; }}
     .modal-title code {{ font-size: .95rem; }}
-    .modal-close {{ font-size: 1.2rem; line-height: 1; padding: .35rem .65rem; }}
+    .modal-close {{ font-size: 1.2rem; line-height: 1; padding: .35rem .65rem; margin-left: auto; }}
     .node-modal .detail-card {{ border: 1px solid var(--line); background: var(--soft); padding: .85rem; border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }}
     .node-modal .detail-card p:first-child {{ margin-top: 0; }}
     .node-modal .detail-card p:last-child {{ margin-bottom: 0; }}
+    .node-modal .detail-card .edge-block ul {{ margin: 0; padding-left: 0; list-style: none; }}
+    .node-modal .detail-card .edge-block li {{ margin-bottom: .4rem; }}
+    .node-modal .detail-card .edge-block li:last-child {{ margin-bottom: 0; }}
+    .detail-grid .edge-block {{ display: none; }}
+    .modal-bar .modal-tabs {{ display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }}
+    .modal-tabs button.active {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }}
+    .modal-tabpanel[hidden] {{ display: none; }}
     @media (max-width: 720px) {{ main {{ padding: 1rem; }} .graph-canvas-presentation {{ min-height: 340px; }} .graph-canvas-audit {{ min-height: 460px; }} .floating-nav {{ right: .75rem; bottom: .75rem; }} }}
   </style>
 </head>
@@ -912,7 +920,59 @@ def html_document(
     const code = header?.querySelector("code")?.textContent?.trim();
     const type = header?.querySelector(".pill")?.textContent?.trim();
     if (header) header.remove();
-    content.replaceChildren(clone);
+    const bar = modal.querySelector(".modal-bar");
+    const closeButton = modal.querySelector("[data-close-modal]");
+    bar?.querySelector(".modal-tabs")?.remove();
+    const edgeBlock = clone.querySelector(".edge-block");
+    if (edgeBlock) {{
+      const edgeCount = edgeBlock.querySelectorAll("li").length;
+      edgeBlock.remove();
+      const detailsCard = clone;
+      detailsCard.setAttribute("role", "tabpanel");
+      detailsCard.dataset.panel = "details";
+      const edgesCard = document.createElement("article");
+      edgesCard.className = detailsCard.className;
+      const nodeType = detailsCard.getAttribute("data-node-type");
+      if (nodeType) edgesCard.setAttribute("data-node-type", nodeType);
+      edgesCard.setAttribute("role", "tabpanel");
+      edgesCard.dataset.panel = "edges";
+      edgesCard.hidden = true;
+      edgesCard.appendChild(edgeBlock);
+      const tabs = document.createElement("div");
+      tabs.className = "modal-tabs";
+      tabs.setAttribute("role", "tablist");
+      tabs.setAttribute("aria-label", "Node card views");
+      const detailsTab = document.createElement("button");
+      detailsTab.type = "button";
+      detailsTab.textContent = "Details";
+      detailsTab.setAttribute("role", "tab");
+      detailsTab.setAttribute("aria-selected", "true");
+      detailsTab.classList.add("active");
+      const edgesTab = document.createElement("button");
+      edgesTab.type = "button";
+      edgesTab.textContent = edgeCount > 0 ? "Edges (" + edgeCount + ")" : "Edges";
+      edgesTab.setAttribute("role", "tab");
+      edgesTab.setAttribute("aria-selected", "false");
+      const selectTab = (name) => {{
+        const showDetails = name === "details";
+        detailsCard.hidden = !showDetails;
+        edgesCard.hidden = showDetails;
+        detailsTab.classList.toggle("active", showDetails);
+        edgesTab.classList.toggle("active", !showDetails);
+        detailsTab.setAttribute("aria-selected", String(showDetails));
+        edgesTab.setAttribute("aria-selected", String(!showDetails));
+      }};
+      detailsTab.addEventListener("click", () => selectTab("details"));
+      edgesTab.addEventListener("click", () => selectTab("edges"));
+      tabs.replaceChildren(detailsTab, edgesTab);
+      if (bar) {{
+        if (closeButton) bar.insertBefore(tabs, closeButton);
+        else bar.appendChild(tabs);
+      }}
+      content.replaceChildren(detailsCard, edgesCard);
+    }} else {{
+      content.replaceChildren(clone);
+    }}
     title.replaceChildren();
     if (code) {{
       const codeEl = document.createElement("code");
