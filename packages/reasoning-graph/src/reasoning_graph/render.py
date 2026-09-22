@@ -739,6 +739,11 @@ def html_document(
     [data-canvas-mode][aria-pressed="true"] {{ background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }}
     .graph-canvas-audit {{ height: min(78vh, 860px); min-height: 560px; }}
     .graph-canvas .offline-graph {{ width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }}
+    /* Mermaid renders inside its own <pre class="mermaid"> wrapper, so that wrapper
+       has to carry the canvas height. Otherwise the svg's height:100% resolves
+       against an auto height and the graph collapses to its intrinsic aspect strip,
+       leaving the panel half empty and clipping any panned view inside that strip. */
+    .graph-canvas .mermaid {{ height: 100%; margin: 0; display: block; }}
     .graph-canvas svg {{ width: 100% !important; height: 100% !important; max-width: none !important; display: block; }}
     .graph-source {{ margin-top: .6rem; color: var(--muted); }}
     .graph-source pre {{ white-space: pre-wrap; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: .75rem; color: var(--ink); }}
@@ -1197,7 +1202,16 @@ def html_document(
     svg.style.height = "100%";
 
     let box = contentBox(svg);
+    // Zoom stays between the fitted content box and a fixed zoom-in limit. Panning is
+    // deliberately unbounded: the graph can be dragged right off the canvas the same
+    // way the window can be scrolled away from a document, and "Reset view" brings it
+    // back. Do not clamp box.x/box.y here, dragging with no limit is the intended feel.
+    const bounds = {{ ...box }};
     const initial = {{ ...box }};
+    const maxZoom = 50;
+    const minWidth = bounds.width / maxZoom;
+    const minHeight = bounds.height / maxZoom;
+
     const apply = () => svg.setAttribute("viewBox", `${{box.x}} ${{box.y}} ${{box.width}} ${{box.height}}`);
     apply();
 
@@ -1244,8 +1258,8 @@ def html_document(
       event.preventDefault();
       const focus = clientPointInSvg(event);
       const factor = event.deltaY > 0 ? 1.14 : 0.88;
-      const nextWidth = Math.max(80, box.width * factor);
-      const nextHeight = Math.max(80, box.height * factor);
+      const nextWidth = Math.min(Math.max(box.width * factor, minWidth), bounds.width);
+      const nextHeight = Math.min(Math.max(box.height * factor, minHeight), bounds.height);
       box.x = focus.x - (focus.x - box.x) * (nextWidth / box.width);
       box.y = focus.y - (focus.y - box.y) * (nextHeight / box.height);
       box.width = nextWidth;

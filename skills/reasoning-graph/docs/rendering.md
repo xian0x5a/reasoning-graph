@@ -103,6 +103,7 @@ Canvas rules:
 
 - A curated explanation graph is optional. Use it when the full graph is too dense for the main story; aim for 8-18 nodes and rarely more than 25. If the full graph is already small/readable, it can serve as the explanation view.
 - Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
+- The canvas view is fitted to the graph, then wheel zoom stays between the fitted view and a 50x zoom-in. Drag panning is unbounded, so the graph can be dragged off the canvas like a document can be scrolled away; every canvas keeps a "Reset view" control that restores the fit. The canvas clips at its own edges, which is why the graph must fill the canvas box rather than sit in a short strip: Mermaid renders inside its own `pre.mermaid` wrapper, so that wrapper carries the canvas height.
 - Keep graph labels to ID/type plus effective belief on claims; keep full text and authored inputs in node-detail cards/modals.
 - Use `short_text` only for small bespoke presentation graphs where the label is clearly readable and does not risk escaping/entity noise.
 - Prefer click-to-details anchors over huge node labels.

@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import unittest
 import xml.etree.ElementTree as ElementTree
@@ -218,6 +219,33 @@ class RenderIdentityTests(unittest.TestCase):
         # Hidden factor members still contribute to the target's final belief.
         self.assertIn("belief 0.8", presentation_svg)
         self.assertIn("belief 0.8", presentation_mermaid)
+
+
+class GraphCanvasLayoutTests(unittest.TestCase):
+    def test_mermaid_wrapper_fills_canvas_and_view_stays_clamped(self) -> None:
+        """Mermaid renders inside its own <pre class="mermaid"> wrapper, so the wrapper
+        has to carry the canvas height: otherwise the svg's height:100% cannot resolve,
+        the graph collapses into an intrinsic-height strip and pan/zoom clips inside it."""
+        state = {
+            "nodes": [
+                {"id": "E1", "type": "evidence", "text": "Observed premise", "prior": 0.9},
+                {"id": "G1", "type": "goal", "text": "Answer the question"},
+            ],
+            "edges": [{"from": "E1", "to": "G1", "type": "leads_to", "reasoning": "E1 motivates G1."}],
+        }
+        document = html_document(state, to_mermaid(state))
+
+        wrapper_rule = re.search(r"\.graph-canvas \.mermaid \{([^}]*)\}", document)
+        self.assertIsNotNone(wrapper_rule)
+        self.assertIn("height: 100%", wrapper_rule.group(1))
+        self.assertIn('<pre class="mermaid">', document)
+
+        # Wheel zoom is capped by the fitted content box, while drag pan stays
+        # unbounded on purpose: dragging the graph off the canvas is allowed and
+        # recovered with "Reset view", so no pan clamp may creep back in.
+        self.assertIn("const maxZoom = 50;", document)
+        self.assertIn("bounds.width", document)
+        self.assertNotIn("clampView", document)
 
 
 if __name__ == "__main__":
