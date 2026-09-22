@@ -1018,6 +1018,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             ),
         }
         for name, (state, outcome, expected_error) in cases.items():
+            # Explicit certainty keeps these synthetic zero-cost traces valid.
+            for node in state["nodes"]:
+                node["prior"] = 1.0
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = Path(tmp_dir) / "state.json"
                 original = json.dumps(state)
@@ -1106,6 +1109,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             ),
         }
         for name, (state, expected_error) in cases.items():
+            # Test terminal invariants, not missing belief-source diagnostics.
+            for node in state["nodes"]:
+                node["prior"] = 1.0
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = Path(tmp_dir) / "state.json"
                 state_path.write_text(json.dumps(state), encoding="utf-8")
