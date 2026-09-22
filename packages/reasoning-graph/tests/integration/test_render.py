@@ -13,8 +13,8 @@ from reasoning_graph.render import html_document, to_mermaid
 class RenderIdentityTests(unittest.TestCase):
     def state(self, reverse: bool = False) -> dict:
         nodes = [
-            {"id": "A-B", "type": "assumption", "text": "hyphen"},
-            {"id": "A_B", "type": "assumption", "text": "underscore"},
+            {"id": "A-B", "type": "assumption", "text": "hyphen", "prior": 0.6},
+            {"id": "A_B", "type": "assumption", "text": "underscore", "prior": 0.4},
             {"id": "A B", "type": "goal", "text": "space"},
         ]
         if reverse:
@@ -22,8 +22,8 @@ class RenderIdentityTests(unittest.TestCase):
         return {
             "nodes": nodes,
             "edges": [
-                {"from": "A-B", "to": "A_B", "type": "supports"},
-                {"from": "A B", "to": "A-B", "type": "leads_to"},
+                {"from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated claim supports the underscored claim."},
+                {"from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated claim."},
             ],
         }
 
@@ -58,17 +58,21 @@ class RenderIdentityTests(unittest.TestCase):
             self.assertIn(f'id="details-{render_id}"', document)
         self.assertIn('"from": "A_B_2", "to": "A_B_3"', document)
         self.assertIn('"from": "A_B", "to": "A_B_2"', document)
+        self.assertIn("belief 0.571", source)
+        self.assertIn("belief 0.571", svg)
+        self.assertIn("Effective belief: 0.571429", document)
+        self.assertIn("Local prior: 0.4", document)
 
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen"},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore"},
+                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "prior": 0.6, "answer_kind": "exact_answer"},
+                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "prior": 0.4, "answer_kind": "exact_answer"},
                 {"id": "A B", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"from": "A-B", "to": "A B", "type": "answers"},
-                {"from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
+                {"from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
             "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},

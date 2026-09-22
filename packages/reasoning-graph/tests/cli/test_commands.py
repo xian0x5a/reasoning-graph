@@ -2158,13 +2158,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_offline_html_uses_collision_safe_render_identities(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer"},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer"},
+                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "prior": 0.6},
+                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer", "prior": 0.4},
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
-                {"from": "A-B", "to": "A B", "type": "answers"},
-                {"from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
+                {"from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
             "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
