@@ -233,6 +233,16 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     last_popped_item: str | None = None
     event_added_nodes: set[str] = set()
     event_ranked_nodes: set[str] = set()
+    # Each graph object may be claimed as added by exactly one event; repeated claims
+    # would let a trace decorate later expansions with work done earlier.
+    claimed_by_event: dict[tuple[str, str], int] = {}
+
+    def claim_added(kind: str, object_id: str, index: int, label: str) -> None:
+        previous = claimed_by_event.get((kind, object_id))
+        if previous is not None:
+            errors.append(f"{label}: {kind} {object_id} was already added by events[{previous}]")
+            return
+        claimed_by_event[(kind, object_id)] = index
 
     search_policy = state.get("search_policy") if isinstance(state.get("search_policy"), dict) else {}
     default_max_probe_concurrency = 3
@@ -309,10 +319,13 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(f"{label}: add_nodes references missing node {node_id}")
                 else:
                     event_added_nodes.add(node_id)
+                    claim_added("node", node_id, index, label)
             added_edge_ids = as_string_list(event.get("add_edges"), f"{label}.add_edges", errors)
             for edge_id in added_edge_ids:
                 if edge_id not in edge_ids:
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
+                else:
+                    claim_added("edge", edge_id, index, label)
             for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
                 if factor_id not in factors_by_id:
                     errors.append(f"{label}: update_factors references missing factor id {factor_id}")
@@ -330,6 +343,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 parent_id = item.get("parent")
                 if parent_id not in (None, ""):
                     errors.append(f"{label}: seeded frontier item {item_id} must be root without parent")
+                claim_added("frontier item", item_id, index, label)
                 virtual_frontier.add(item_id)
             continue
 
@@ -428,6 +442,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(f"{label}: add_nodes references missing node {node_id}")
                 else:
                     event_added_nodes.add(node_id)
+                    claim_added("node", node_id, index, label)
                     node_type = nodes[node_id].get("type")
                     if isinstance(node_type, str):
                         added_node_types.add(node_type)
@@ -435,6 +450,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             for edge_id in added_edge_ids:
                 if edge_id not in edge_ids:
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
+                else:
+                    claim_added("edge", edge_id, index, label)
             updated_factor_ids = as_string_list(
                 event.get("update_factors"), f"{label}.update_factors", errors
             )
@@ -476,6 +493,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     warnings.append(f"{label}: added frontier item {child_id} has no parent")
                 elif parent_id != item_id:
                     warnings.append(f"{label}: added frontier item {child_id} parent is {parent_id}, expected {item_id}")
+                claim_added("frontier item", child_id, index, label)
                 virtual_frontier.add(child_id)
 
             contradiction_targets = {
@@ -650,6 +668,10 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     last_popped_item = None
                 in_flight_items.discard(item_id)
             best_id = event.get("best")
+            # Rank payloads are checked against the graph as it stood when the rank was
+            # recorded, so later expansions cannot make an honest earlier rank look forged.
+            ranked = ranked_viable_candidates(_historical_state_before_event(state, events, index))
+            derived_by_node = {str(row["node"]): row for row in ranked}
             if not isinstance(best_id, str) or not best_id:
                 errors.append(f"{label}: best must be a non-empty candidate_solution id")
             elif best_id not in nodes:
@@ -659,13 +681,34 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if node_type != "candidate_solution":
                     errors.append(f"{label}: best {best_id} must be candidate_solution, got {node_type!r}")
                 event_ranked_nodes.add(best_id)
-                ranked = ranked_viable_candidates(state)
                 derived_best = str(ranked[0]["node"]) if ranked else ""
                 if derived_best and best_id != derived_best:
                     errors.append(f"{label}: best {best_id} != derived highest-belief candidate {derived_best}")
+                elif ranked and "belief" in event:
+                    event_belief = probability_from_value(event.get("belief"))
+                    if event_belief is None or abs(event_belief - float(ranked[0]["belief"])) > tolerance:
+                        errors.append(f"{label}: belief {event.get('belief')!r} != derived best belief {ranked[0]['belief']}")
             candidates = event.get("candidates")
             if candidates is not None and not isinstance(candidates, list):
                 errors.append(f"{label}: candidates must be a list when present")
+            elif isinstance(candidates, list):
+                if len(candidates) > len(ranked):
+                    errors.append(f"{label}: candidates lists {len(candidates)} rows but only {len(ranked)} viable candidates are derived")
+                for row_index, (row, expected) in enumerate(zip(candidates, ranked)):
+                    if not isinstance(row, dict):
+                        errors.append(f"{label}: candidates[{row_index}] must be an object")
+                        continue
+                    row_node = str(row.get("node") or "")
+                    if row_node != str(expected["node"]):
+                        errors.append(f"{label}: candidates[{row_index}] node {row_node} != derived {expected['node']}")
+                        continue
+                    for field in ("belief", "effective_truth_cost"):
+                        try:
+                            row_value = float(row.get(field))
+                        except (TypeError, ValueError):
+                            row_value = math.nan
+                        if not abs(row_value - float(expected[field])) <= tolerance:
+                            errors.append(f"{label}: candidates[{row_index}] {field} {row.get(field)!r} != derived {expected[field]}")
             stats["rankings"] += 1
             continue
 

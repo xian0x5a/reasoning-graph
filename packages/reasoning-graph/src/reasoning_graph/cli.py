@@ -721,6 +721,10 @@ def _max_probe_concurrency(state: dict[str, Any], cli_value: int | None) -> int:
 def cmd_assign(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     cursor = search_cursor(state)
+    # --force skips ordering/concurrency policy only; events before init are never valid.
+    if not cursor["initialized"]:
+        print("error: cannot assign before driver init event; run `next --pop` first", file=sys.stderr)
+        return 1
     if cursor["stopped"] and not args.force:
         print("error: search already has a stop event; use --force to append anyway", file=sys.stderr)
         return 1
@@ -785,6 +789,17 @@ def cmd_assign(args: argparse.Namespace) -> int:
 def cmd_expand(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     cursor = search_cursor(state)
+    # --force skips the pending-pop ordering guard only; identity and event-shape
+    # invariants (init first, item exists, item was popped) always hold.
+    if not cursor["initialized"]:
+        print("error: cannot expand before driver init event; run `next --pop` first", file=sys.stderr)
+        return 1
+    if args.item not in by_id(state.get("frontier", []), "frontier item"):
+        print(f"error: frontier item not found: {args.item}", file=sys.stderr)
+        return 1
+    if args.item not in cursor["popped_ids"]:
+        print(f"error: frontier item {args.item} has not been popped; run `next --pop` first", file=sys.stderr)
+        return 1
     if cursor["stopped"] and not args.force:
         print("error: search already has a stop event; use --force to append anyway", file=sys.stderr)
         return 1
@@ -937,6 +952,9 @@ CANDIDATE_STOP_OUTCOMES = {"solved", "candidate_threshold_met", "candidate_count
 
 
 def append_rank_event(state: dict[str, Any], item_id: str | None = None, top: int = 10) -> int:
+    if not search_cursor(state)["initialized"]:
+        print("error: cannot rank before driver init event; run `next --pop` first", file=sys.stderr)
+        return 1
     ranked = ranked_viable_candidates(state)
     if not ranked:
         print("error: no viable candidate_solution answers an accepted goal", file=sys.stderr)
@@ -1166,7 +1184,7 @@ def build_parser() -> argparse.ArgumentParser:
     assign.add_argument("--reason", help="why this item is being delegated")
     assign.add_argument("-o", "--output", help="write mutated state to path")
     assign.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
-    assign.add_argument("--force", action="store_true", help="skip pending-pop and concurrency guards")
+    assign.add_argument("--force", action="store_true", help="skip pending-pop and concurrency guards; driver init is still required")
     assign.set_defaults(func=cmd_assign)
 
     expand = sub.add_parser("expand", help="append nodes/edges/frontier, update existing nodes, and record an expand event")
@@ -1175,7 +1193,7 @@ def build_parser() -> argparse.ArgumentParser:
     expand.add_argument("--patch", required=True, help="JSON patch path, or - for stdin")
     expand.add_argument("-o", "--output", help="write mutated state to path")
     expand.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
-    expand.add_argument("--force", action="store_true", help="skip pending-pop guard")
+    expand.add_argument("--force", action="store_true", help="skip the pending-pop ordering guard; the item must still exist and have been popped")
     expand.set_defaults(func=cmd_expand)
 
     rank = sub.add_parser("rank", help="record current best viable candidate_solution by derived belief")

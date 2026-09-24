@@ -1833,9 +1833,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
+            popped = self.run_cli("next", str(state_path), "--pop")
+            self.assertEqual(popped.returncode, 0, popped.stderr)
 
             result = self.run_cli(
-                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "--force", "-o", str(output_path)
+                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-o", str(output_path)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             expanded = json.loads(output_path.read_text(encoding="utf-8"))

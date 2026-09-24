@@ -68,6 +68,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
             "active_ids": {item_id for item_id in items},
             "pending_item": None,
             "in_flight_ids": set(),
+            "popped_ids": set(),
             "initialized": False,
             "stopped": False,
         }
@@ -144,6 +145,7 @@ def search_cursor(state: dict[str, Any]) -> dict[str, Any]:
         "active_ids": active_ids,
         "pending_item": pending_item,
         "in_flight_ids": in_flight_ids,
+        "popped_ids": popped_ids,
         "initialized": initialized,
         "stopped": stopped,
     }
