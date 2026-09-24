@@ -11,23 +11,19 @@ description: >
 
 Use this skill when a messy task is worth explicit graph/search state instead of one hidden linear chain: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty, or any case where assumptions, evidence, and candidate answers can diverge. If the task does not justify driver-loop overhead, do not use this skill.
 
-Default final output is compact prose. Create graph/HTML artifacts only when requested or when they materially improve understanding; ask first if artifact generation was not requested.
+The helper CLI is installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`.
 
-## Required driver loop
+## Driver loop
 
-Every reasoning-graph skill use keeps explicit state and follows the driver loop. If the task does not justify this overhead, do not use this skill.
-
-Mutating CLI commands rewrite the input state file by default. Use `-o <path>` for a separate output file or `-o -` for stdout.
+Every use keeps explicit state and follows this loop. Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
 1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
 2. **Seed graph.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Seed initial nodes, edges, tests, and root frontier items.
-3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; `next` computes current costs and selects the lowest-cost active item.
-4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, `rank`, or `stop`. Use subagents for observation-heavy probe/verify work.
-5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort` only when you want to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
-6. **Stop by policy.** Stop only when frontier is exhausted, enough viable candidates exist, a candidate crosses threshold, budget is hit, or a real blocker is proved.
-7. **Review final.** Validate, audit, run semantic stop-review, then ensure final prose matches graph and invents no evidence.
-
-Executable skeleton:
+3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; it recomputes costs and selects the lowest-cost active item.
+4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, or `rank`. Delegate observation-heavy probe/verify work (see below).
+5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort` only to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
+6. **Stop by policy** (gates below).
+7. **Review final.** `validate`, `audit`, `stop-review`, then write final prose that matches the graph and invents no evidence.
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
@@ -40,7 +36,7 @@ reasoning-graph expand state.json --item <popped-item-id> --patch expansion.json
 # or: reasoning-graph assign state.json --item <popped-item-id> --agent <agent>
 # or: reasoning-graph rank state.json --item <popped-item-id>
 
-# repeat pop -> resolve until stop policy is satisfied
+# repeat pop -> resolve until a stop gate is satisfied
 
 reasoning-graph stop state.json --reason "<policy-grounded reason>" --outcome <outcome> -o state.stopped.json
 reasoning-graph validate state.stopped.json
@@ -48,7 +44,7 @@ reasoning-graph audit state.stopped.json
 reasoning-graph stop-review state.stopped.json --draft answer.md
 ```
 
-Minimal patch shapes:
+Patch shape for `seed` and `expand`:
 
 ```json
 {
@@ -62,51 +58,33 @@ Minimal patch shapes:
     {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ],
   "frontier": [
-    {"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}}
+    {"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}, "estimated_remaining_cost": 0.5}
   ]
 }
 ```
 
-Use the same patch shape for `seed` and `expand`; `expand` may also use `update_nodes`, `factors`, `no_new_work_reason`, `under_branching_reason`, and `existing_sibling_frontier`. Details: `docs/driver.md` and `docs/schema/`.
+`expand` may also use `update_nodes`, `factors`, `no_new_work_reason`, `under_branching_reason`, and `existing_sibling_frontier`.
 
-Rules that prevent fake traces:
+## Event rules the driver enforces
 
-- Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`; every `stop` requires no pending item, and candidate-bearing `stop` auto-ranks only after terminal preflight passes.
-- Use `seed` for initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
+- Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`. `stop` requires no pending item; a candidate-bearing `stop` auto-ranks only after terminal preflight passes.
+- Use `seed` for the initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
 - Assigned items are in-flight, not active frontier; merge returned work with `expand --item <assigned-item>`.
-- Under strict policy, expanding a `test` item must record its result: an `evidence` or `derived` node linked by `leads_to` from the test. A failed or inconclusive probe is still a result; record it (usually as `contradicts` evidence on the interpretation it tested) before the next pop. Rule and shapes: `docs/schema/tests.md`.
-- Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason` or `under_branching_reason`; otherwise `expand` rejects it.
-- For parallel work, decompose one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy.
-- The helper CLI is installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`. Detailed mechanics: `docs/driver.md`.
+- Under strict policy, expanding a `test` item must record its result: an `evidence` or `derived` node linked by `leads_to` from the test, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result; record it before the next pop so siblings re-rank on real cost. Shapes: `docs/schema/tests.md`.
+- Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason` or `under_branching_reason`.
+- For parallel work, decompose one focus item into explicit independent sub-probes before fanout.
 
-## Controller-only probe delegation
+## Probe delegation
 
-For non-trivial reasoning-graph work, the main thread is a controller, not an explorer. Parent owns goal framing, canonical graph/state, frontier definition, priority, stop policy, merge decisions, and final answer.
+The main thread is the controller: it owns goal framing, canonical state, frontier priority, stop policy, merge decisions, and the final answer. Delegate observation-heavy work (source research, code/file inspection, docs lookup, hypothesis probes, validation checks, candidate audits, adversarial review) when a subagent backend is available; otherwise run bounded probes inline and keep raw observations out of final prose. A delegation unit is one bounded probe: one frontier item, hypothesis, test, source family, or candidate audit, with a stop rule, an output contract, and no decision authority.
 
-Delegate observation-heavy work when a subagent backend is available: source research, code/file inspection, external docs lookup, hypothesis probes, evidence collection, validation checks, candidate audits, and adversarial review. Parent may do targeted inspection needed to frame probes, adjudicate conflicts, or verify high-impact child claims. If no backend is available, run bounded probes inline and keep raw observations out of final prose unless needed.
+Child output contract: target, evidence for/against with source refs, proposed nodes/edges, confidence or likelihood impact, residual uncertainty, suggested next probes, and blocked/stop reason when applicable. The controller reviews and applies accepted changes via `expand --item <assigned-item> --patch <patch>`.
 
-Delegation unit = bounded probe: one frontier item, hypothesis, test, source family, or candidate audit; bounded scope and stop rule; explicit output contract; no final decision authority.
+## Schema quick reference
 
-Parent chooses treatment for each popped item: expand, assign async probe/verify work, rank/close, or compose these. Children return observations plus optional proposed patch/artifact. Parent reviews and applies accepted changes with `reasoning-graph expand --item <assigned-item> --patch <patch>`.
+Enough to build and review state during normal work; validate real files with `reasoning-graph validate`. Machine-readable contracts: `reasoning-graph schema state` and `reasoning-graph schema patch`.
 
-Subagent probe output should include target, evidence for/against with source refs, proposed graph nodes/edges, confidence or likelihood impact, residual uncertainty, suggested next probes, and blocked/stop reason when applicable.
-
-## Agent schema reference
-
-This section is the agent-facing schema reference: enough structure to build and review graph state during normal work. Keep rare, debugging-heavy, or example-heavy details in `docs/schema/`. Validate real state files with the installed JSON schemas and `reasoning-graph validate`.
-
-Top-level state fields:
-
-- `summary` — optional human summary of the current graph state
-- `nodes` — truth-bearing graph objects: goals, evidence, constraints, assumptions, derivations, tests, candidates
-- `edges` — directed relationships between nodes
-- `frontier` — pending work items; lower `search_cost` pops first after sorting
-- `factors` — non-independent input groups for anti-double-counting numeric belief updates
-- `events` — driver audit log for init/seed/pop/assign/expand/rank/stop actions
-- `goal_policy`, `goal_groups`, `stop_policy`, `branch_policy`, `search_policy` — optional control policies
-- `report`, `presentation`, `view` — optional human/report/rendering metadata; source of truth remains nodes, edges, frontier, and events
-
-Separate local input (`prior`), computed output (`belief`), and explicit calibrated override (`posterior`). Claims need a prior, a posterior override, belief-bearing `leads_to` premises, or a calibrated joint factor. Premise-backed candidates may omit priors; add one only for uncertainty not already counted in the premises. Goals, constraints, and tests carry no score. Before assigning scores or likelihoods, read `docs/cost-model.md` for inheritance, certainty, and override semantics.
+Scores: `prior` is local input, `belief` is computed output, `posterior` is an explicit calibrated override that bypasses the node's inputs until refreshed or removed. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Premise-backed candidates may omit priors; add one only for uncertainty not already counted in the premises. Goals, constraints, and tests carry no score. Read `docs/cost-model.md` before assigning scores or likelihoods.
 
 Node types:
 
@@ -114,69 +92,40 @@ Node types:
 - `evidence` — observed, given, verified, or source-backed statement; `prior` records its local starting probability, accounting for observation/transcription/source reliability
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
 - `derived` — conclusion from prior nodes; inherits premise belief, optionally multiplied by a local inference `prior`
-- `assumption` — uncertain branch point; use `prior` for a standalone starting belief, and keep it atomic and testable
-- `test` — action/check/procedure; carries no score and is not evidence until connected to result `evidence` or `derived` nodes
-- `candidate_solution` — possible answer; must include `answer_kind` and answer an accepted goal through `candidate_solution -> goal` `answers`
+- `assumption` — atomic, testable branch point; `prior` is its standalone starting belief
+- `test` — action/check/procedure; carries no score and is not evidence until connected to result nodes
+- `candidate_solution` — possible answer; requires `answer_kind` and a `candidate_solution -> goal` `answers` edge to an accepted goal
 
-Every edge requires nonblank `reasoning` explaining the directed relationship, including factor member edges. Aim for one to five sentences; this is guidance, not a validation limit.
-
-Edge types:
+Edge types (every edge needs nonblank `reasoning`, one to five sentences, including factor member edges):
 
 - `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
-- `supports` — positive belief update for an existing target; numeric form uses `likelihood` or `likelihood_ratio > 1`
-- `contradicts` — negative belief update for an existing target; numeric form uses `likelihood` or `0 < likelihood_ratio < 1`; it does not delete/disqualify the target by itself
-- `prompts` — non-evidential provenance from clue/claim/branch to test or follow-up; no belief update
+- `supports` — positive belief update; numeric form uses `likelihood` or `likelihood_ratio > 1`
+- `contradicts` — negative belief update; numeric form uses `likelihood` or `0 < likelihood_ratio < 1`; it lowers belief but does not disqualify the target by itself
+- `prompts` — non-evidential provenance from clue/claim/branch to a test or follow-up; no belief update
 - `leads_to` — premise/dependency used to derive a target's base belief
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 
-Direction and relation rules:
+Factors (`docs/schema/factors.md`):
 
-- `candidate_solution -> constraint` means the candidate must satisfy the constraint.
-- `evidence -> assumption` with `supports`/`contradicts` updates belief in the assumption.
-- `clue/evidence -> test` with `prompts` proposes follow-up but is not evidence for the test result.
-- Use `supports`/`contradicts` for evidence updates to an existing target.
-- Use `leads_to` for premises that derive a target's base belief.
-- Use `requires` for hard constraints or external dependencies.
-- Plain incoming numeric edges are treated as independent unless grouped by `factors`.
+- A factor is a top-level anti-double-counting record: incoming numeric edges to one target that share a source, observation, latent cause, or logical overlap are aggregated together instead of multiplied as independent evidence. Ungrouped edges stay independent.
+- `leads_to` factors use `aggregation: {"kind": "joint_probability", "probability": ...}`; `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`, never a direct `likelihood_ratio`.
+- In patches, `factors` adds or replaces by `id`; audit events are recorded automatically.
 
-`factors`: non-independent input groups:
+Goals and candidates (`docs/schema/goals.md`):
 
-- A factor is a top-level anti-double-counting record. It says: these incoming numeric edges to the same target are related, so count them together instead of multiplying them as independent evidence.
-- A factor is not a node, edge, claim, candidate, proof step, or frontier item.
-- Use `factors` for shared source, duplicate observation, logical overlap, common latent cause, or repeated logs from one event.
-- Do not use `factors` for independent evidence, visual grouping, non-numeric relationships, or candidate grouping.
-- `leads_to` factors use `aggregation: {"kind": "joint_probability", "probability": ...}`.
-- `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`. Do not set direct factor `likelihood_ratio`.
-- Ungrouped incoming edges still contribute normally.
-- In `seed`/`expand` patches, use `factors` to add or replace factors by `id`; audit events are recorded automatically.
+- `answer_kind` values: `exact_answer`, `exact_method`, `method_hypothesis`, `clue_path`, `blocker`. For concrete solve goals only `exact_answer` and `exact_method` may answer the accepted goal; the others need explicit method/clue/epistemic goals or stay as assumptions/derived nodes.
+- "Not solved", "cannot establish", or "missing dependency" is a stop outcome or derived blocker, not a candidate, unless the user accepted an epistemic/negative goal.
+- Use multiple `goal` nodes only when the user accepts multiple outcomes (solve, prove impossible, evidence insufficient). Chained sub-goals are plain `goal` nodes linked `parent --requires--> child`; a goal is answered only when a candidate answers it and every required sub-goal is answered.
+- Without `goal_policy.accepted_goals`, all goals are acceptable destinations. `preferred_goals` affects presentation/priority only; `optional_goals` may stay unanswered at a candidate-bearing stop.
 
-Test result pattern:
+Report and presentation (`docs/schema/reporting.md`):
 
-- A `test` node is a procedure, not evidence.
-- Canonical pattern: `claim --prompts--> test`, `test --leads_to--> result evidence`, `result evidence --supports|contradicts--> claim`.
-- Inconclusive checks should add result evidence explaining why the check did not settle the claim.
+- `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact text; an answer matching no candidate fails stop-review.
+- Rank and viability derive from the graph; keep words like `Best`, `Second`, `viable`, or `rejected` out of node text and candidate names.
 
-Candidate and goal rules:
+## Cost and priority
 
-- `candidate_solution` requires `answer_kind`.
-- `answer_kind` values: `exact_answer`, `exact_method`, `method_hypothesis`, `clue_path`, `blocker`.
-- For concrete solve/exact-answer goals, only `exact_answer` and `exact_method` may connect to the accepted goal.
-- `method_hypothesis`, `clue_path`, and `blocker` need explicit method/clue/epistemic goals or should remain assumptions/derived nodes.
-- Do not make “not solved”, “cannot establish”, or “missing dependency” a candidate for a normal solve goal. That is a stop outcome or derived blocker unless the user accepted an epistemic/negative goal.
-- Use multiple `goal` nodes only when the user accepts multiple outcomes, e.g. solve, prove impossible, or conclude evidence is insufficient.
-- Chained sub-goals (stage 2 depends on stage 1) are plain `goal` nodes linked `parent --requires--> child`; there is no sub-goal type. A goal is answered only when a candidate answers it and every required sub-goal is answered.
-- If `goal_policy.accepted_goals` is absent, all goal nodes are acceptable destinations. `preferred_goals` affects presentation/priority, not validity. `optional_goals` may stay unanswered at a candidate-bearing stop.
-
-Report and presentation metadata:
-
-- `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`. `report.candidates[].id` must be candidate node ids; `winning_path` entries must be node ids or exact node texts.
-- `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact candidate text. An answer string that matches no candidate fails stop-review.
-- `presentation` may include curated `include_nodes`, `highlight_nodes`, `dim_nodes`, `title`, and `layout_hint`.
-- Do not encode rank or viability words such as `Best`, `Second`, `viable`, or `rejected` into candidate names or node text. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
-
-## Cost and priority quick reference
-
-Use coarse numbers. Avoid fake precision.
+Use coarse numbers.
 
 ```txt
 truth_cost = -ln(P(claim true))
@@ -184,132 +133,72 @@ base_search_cost = effective_truth_cost + local work costs
 search_cost = base_search_cost + estimated_remaining_weight * estimated_remaining_cost
 ```
 
-- `truth: "auto"` computes node belief from its local `prior`, inherited premises, and likelihood updates, unless explicit `posterior` overrides the calculation.
-- `search_cost` is frontier priority; lower pops first.
-- Parent path does **not** accumulate cost; past work is sunk.
-- `estimated_remaining_cost` belongs on frontier item top level, not inside `cost_components`.
+- `truth: "auto"` computes belief from local `prior`, inherited premises, and likelihood updates unless `posterior` overrides it; the engine never writes computed belief back into node scores.
+- `search_cost` is frontier priority; lower pops first. Parent path cost is sunk and does not accumulate.
+- `estimated_remaining_cost` sits on the frontier item top level, not inside `cost_components`. Its weight is state-level `search_policy.estimated_remaining_weight`, which `init --strict` sets to 1.0.
 - Broad probes/brute force need explicit `effort_budget` and bounded `budget` metadata.
-- Likelihood updates must already account for source reliability; evidence `prior` does not automatically scale them.
-- The engine never writes computed belief back into node scores. Author `posterior` only as a calibrated override; it bypasses this node's inputs until refreshed or removed.
+- Likelihood updates already account for source reliability; evidence `prior` does not scale them.
 
-Minimal frontier example:
+## Exploration rules
 
-```json
-{
-  "frontier": [{
-    "id": "Q1",
-    "node": "T1",
-    "cost_components": {"truth": "auto", "verification": 0.2},
-    "estimated_remaining_cost": 0.5
-  }],
-  "search_policy": {"estimated_remaining_weight": 0.5}
-}
-```
+Input ledger:
 
-## Exploration rules that matter most
+- Extract the accepted `goal` first. If goals conflict, ask or state the chosen primary goal.
+- Classify given/source-backed facts as `evidence`, answer boundaries as `constraint`s, and plausible interpretations as `assumption`s/frontier items. Keep facts with different logical roles as separate evidence nodes with source refs and an explicit reliability score.
+- Mark inferred constraints as inferred; ask the user when the inference is high-impact or ambiguous.
+- Before the initial frontier, one bounded context pass may add cheap source-backed evidence. After search starts, non-trivial checks are `test`/frontier work with results appended during `expand`.
 
-Input ledger essentials:
+Branching:
 
-- Extract the accepted `goal` first. If multiple goals conflict, ask or state the chosen primary goal.
-- Classify given/source-backed facts as `evidence`, answer boundaries as `constraint`s, and plausible interpretations as `assumption`s/frontier items. Do not turn guesses into evidence.
-- Before initial frontier, one bounded context pass may add cheap source-backed evidence. After search starts, model non-trivial checks/searches/experiments as `test`/frontier work and append result evidence during `expand`.
-- Mark inferred constraints as inferred in text/source; ask the user when the inference is high-impact or ambiguous.
-- Keep evidence concise but separate facts that play different logical roles. Include source references and an explicit reliability score.
+- Try direct derivation only when obvious; otherwise branch from generic, atomic, testable assumptions before specializing into derived nodes or candidates. Expand coarse possibility families before micro-variants.
+- Pop focus is per interpretation, not per task stage. When a probe reveals competing interpretations (encoding, alphabet mapping, bit order, reading order, unit, source), each becomes a sibling `assumption` with its own frontier item before the next probe; the frontier can only rank what is on the graph. A run whose `peak_live_frontier` (reported by `audit`) stays at 1 on a task with an interpretation step did not exercise the graph.
+- Authoritative clues (official hints, docs, maintainer comments, theorem conditions, logs, test failures) get interpretation branches before brute force, and cheap clue interpretations outrank broad probes. For high-stakes search tasks, mark such families with `clue_family: true` and `salience` when dropping or under-expanding them would change the answer.
+- A failed bounded test penalizes only the exact tested interpretation, not the whole family; add sibling/refined interpretations or explicit exhaustion proof.
+- Partial family expansion is not exhaustion: leave live child frontier, set `exhausted: true` with `exhaustion_reason`, or revive by adding a child branch under the original family. When continuing from reports without prior graph state, reconstruct high-salience clue families as graph nodes rather than generic "prior probes failed" evidence.
+- Consider direct/literal, structural/transform, and low-prior wildcard branches for high-salience families, but record `under_branching_reason` or `existing_sibling_frontier` when fewer are meaningful rather than inventing branches. One-child expansion triggers a check for missed siblings before claiming exhaustion.
+- After each expansion/probe, record implications, sibling hypotheses, cheap discriminator tests, contradiction penalties, and any answer-shaped candidate. Reopen only when new evidence creates new work; score-only updates stay closed.
 
-Branch and candidate hygiene:
+Candidates:
 
-- Try direct derivation only when obvious; otherwise branch from generic, atomic, testable assumptions before specializing into derived nodes or candidate solutions.
-- After each expansion/probe, record implications, sibling hypotheses, cheap discriminator tests, contradiction penalties, and any answer-shaped candidate. Reopen/continue only when new evidence creates new work; score-only updates stay closed.
-- Assumptions should not bundle whole answers or multiple uncertain premises. If it already answers the goal, make it a derived/candidate chain instead.
-- Candidate solutions are usually conclusions of explored branches, not initial buckets. Early placeholders are valid only when user-supplied, obvious from strong direct evidence, or explicitly weak/low-priority.
-- If a candidate enters frontier before support is expanded, mark it provisional and give high truth/constraint-tension cost so it cannot outrank evidence-backed branches.
-- A valid `candidate_solution` reaches an accepted goal or actionable answer, satisfies known constraints, has no unresolved contradiction, and states remaining assumptions/uncertainty.
-- Constraint violations should add explicit cost/blocking evidence to affected branches.
-- For concrete solve goals, candidate answers must follow the accepted-goal and `answer_kind` rules above.
-- Ranked report candidates must correspond to explored, tested, or evidence-penalized branches; mention unexplored alternatives as possibilities, not ranked candidates.
+- Candidates are usually conclusions of explored branches. Early placeholders are valid only when user-supplied, obvious from strong direct evidence, or explicitly weak; a candidate entering the frontier before its support is expanded gets high truth/constraint-tension cost so it cannot outrank evidence-backed branches.
+- A viable candidate answers an accepted goal, satisfies known constraints, has no unresolved contradiction, and states remaining assumptions/uncertainty. Constraint violations add explicit cost/blocking evidence to affected branches.
+- Ranked report candidates correspond to explored, tested, or evidence-penalized branches; unexplored alternatives are mentioned as possibilities, not ranked.
 
-Interpretation branching (granularity rule):
+## Stop gates
 
-- Pop focus is per interpretation, not per task stage. When a probe reveals two or more competing interpretations (encoding, alphabet mapping, bit order, reading order, unit, source), each becomes a sibling `assumption` with its own frontier item before the next probe runs. Do not enumerate them inside one scratch script; the frontier can only rank what is on the graph.
-- A failed bounded probe adds contradicting result evidence to the sibling it tested before the next pop, so the remaining siblings re-rank on real cost instead of on recall.
-- A run whose peak live frontier stays at 1 on a task with an interpretation step did not exercise the graph; `audit` reports `peak_live_frontier`, and benchmarks flag it (`docs/test-scenarios.md`).
-
-High-salience clue/family branching:
-
-- Official hints, docs, maintainer comments, theorem conditions, logs, test failures, or other authoritative clues deserve interpretation branches before brute force.
-- For high-stakes search/benchmark tasks, mark high-salience clue families with `clue_family: true` and `salience` when dropping or under-expanding them would materially change the answer. Lightweight tasks may just record sibling branches or an exhaustion reason. Cheap clue interpretations should outrank broad/brute-force probes.
-- Expand coarse possibility families before micro-variants; concrete variants belong inside the popped family expansion/test.
-- Failed bounded tests penalize only the exact tested interpretation, not the whole clue family. Add sibling/refined interpretations or explicit exhaustion proof.
-- Partial clue/family expansion is not exhaustion: leave live child frontier, explicit `exhausted: true` with `exhaustion_reason`, or revive by adding a child branch under the original family. When continuing from reports without prior graph state, reconstruct high-salience clue families as graph nodes, not generic “prior probes failed” evidence.
-- For high-salience clue/family nodes, consider distinct meaningful branches such as direct/literal, structural/transform, and low-prior wildcard. Do not invent branches to satisfy a count; if fewer are meaningful, record `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof.
-- One-child expansion is allowed but should trigger a check for missed siblings before claiming exhaustion/completion.
-
-## Stop and audit rules
-
-Stop is metric-gated, not discretionary. A normal stop is allowed only when at least one holds:
+Stop is metric-gated. A normal stop is allowed only when at least one holds:
 
 - event-reachable frontier is exhausted
 - enough viable candidates have been explored, usually `min_viable_candidates: 3` for comparison/search tasks
 - strongest viable candidate crosses an explicit threshold, usually `belief_threshold: 0.8`
 - explicit external budget is reached and remaining live frontier is recorded as unfinished, not exhausted
 
-Do not stop on an epistemic/blocker candidate while meaningful answer-goal frontier remains live unless `stop_policy` explicitly allows it. For benchmark/search tasks, set or expect strict `stop_policy`: `min_viable_candidates: 3`, `belief_threshold: 0.8`, `max_live_frontier_items: 0`, `require_frontier_exhausted_for_epistemic_stop: true`, `severity: "error"`.
+Rules:
 
-Other stop rules:
+- `solved`, `candidate_threshold_met`, and `candidate_count_met` stops are rejected while any accepted goal is unanswered. Stop with `inconclusive`/`budget_exhausted` instead, or list the goal in `goal_policy.optional_goals`.
+- An epistemic/blocker stop is allowed while meaningful answer-goal frontier is live only if `stop_policy` explicitly allows it. For benchmark/search tasks use strict `stop_policy`: `min_viable_candidates: 3`, `belief_threshold: 0.8`, `max_live_frontier_items: 0`, `require_frontier_exhausted_for_epistemic_stop: true`, `severity: "error"`.
+- Close alternatives only when likelihood/cost updates make them clearly dominated. Contradicted candidates may stay visible with lower belief but satisfy high-confidence stop targets only if effective truth cost still passes.
+- Ask the user before deepening search when remaining exploration would cost meaningful time.
+- The stop reason names the gate that fired.
+- Treat `audit`/`stop-review` warnings on benchmark or published artifacts as actionable: fix state/events or explain why the warning is acceptable. Mechanics: `docs/driver.md`.
 
-- A `solved`, `candidate_threshold_met`, or `candidate_count_met` stop is rejected while any accepted goal is unanswered (no `answers` edge from a candidate, or a required sub-goal still open). Stop with `inconclusive`/`budget_exhausted` instead, or list the goal in `goal_policy.optional_goals`.
-- Early threshold stop is allowed, but do not pad ranked candidates with unexplored alternatives.
-- Trivial or directly contradicted alternatives may be closed only when likelihood/cost updates make them clearly dominated.
-- Contradicted candidates may remain visible with lower belief, but should not satisfy high-confidence stop targets unless effective truth cost still passes.
-- Ask user before deepening search when remaining exploration would cost meaningful time.
-- Stop reasons must name the real gate: threshold met, candidate count met, frontier exhausted, budget exhausted, or blocker reached.
+## Output
 
-Before final, run driver validation/audit/stop-review mechanics in `docs/driver.md`. Treat warnings as actionable for benchmark/published artifacts: fix state/events or explain why the warning is acceptable.
+Default final response: answer/recommendation, concise proof path, key assumptions, top competing candidates when ambiguity matters, contradictions only if important, next test/action if uncertainty remains. Present a user-facing proof path, not raw scratch state or hidden chain-of-thought.
 
-## Output formats
-
-Default final response:
-
-1. answer/recommendation
-2. concise proof path
-3. key assumptions
-4. top competing candidates when ambiguity matters
-5. contradictions only if important
-6. next test/action if uncertainty remains
-
-Graph/HTML artifact when requested:
-
-Graph mode means a visual HTML report generated from validated reasoning state. Use it only when requested or approved:
+Graph/HTML artifact only when requested or approved; ask first otherwise. Generate it from validated state (layout, offline mode, canvas rules: `docs/rendering.md`):
 
 ```bash
 reasoning-graph html state.json -o <path>.html
 ```
 
-For layout, offline mode, canvas, and presentation rules, see `docs/rendering.md`.
-
-Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing proof path / reasoning summary.
-
-## Final checklist
-
-- Accepted goal is explicit; evidence, constraints, assumptions, and uncertainty are separated.
-- Every viable candidate answers an accepted goal, satisfies constraints, and is not a placeholder/blocker for a normal solve goal.
-- Every accepted goal is answered before a solved stop, every test expansion recorded its result, and the reported answer names the best candidate of each goal.
-- Meaningful alternatives and high-salience clue families are expanded, live, contradicted, or explicitly exhausted with reason.
-- Failed bounded tests penalize only affected branches; constraints add explicit cost/blocking evidence for invalid branches.
-- Ranked candidates come from explored, tested, or evidence-penalized branches; unexplored alternatives are labeled as unexpanded possibilities.
-- Stop follows metric-gated policy; do not hide live answer frontier behind blocker/epistemic stops.
-- State is built/updated through driver events before major search moves; stopped state passes validation, audit, and semantic stop review.
-- Final prose matches graph state, invents no evidence, and keeps priors/costs visible only when useful.
-- Graph/HTML artifact, if requested, is generated from validated state with `reasoning-graph html`.
-
 ## Reference docs
 
-- `docs/schema/factors.md` — detailed `factors` examples and validation rules
+- `docs/schema/factors.md` — `factors` examples and validation rules
 - `docs/schema/goals.md` — candidate, answer-kind, hypothetical branch, and multiple-goal rules
-- `docs/schema/tests.md` — detailed test lifecycle and result evidence pattern
+- `docs/schema/tests.md` — test lifecycle and result evidence pattern
 - `docs/schema/reporting.md` — report and presentation metadata examples
 - `docs/cost-model.md` — probability/cost math, likelihoods, bounded probes
 - `docs/driver.md` — state JSON, helper commands, event/audit/stop-review mechanics
 - `docs/rendering.md` — final prose, graph/HTML artifacts, canvas rules
 - `docs/install.md` — one-time helper CLI install
-- Installed package schemas (`reasoning_graph.schemas`) — machine-readable state/patch contracts. Use `reasoning-graph schema state` or `reasoning-graph schema patch` to print them from an installed CLI.
