@@ -11,7 +11,7 @@ description: >
 
 Use this skill when a messy task is worth explicit graph/search state instead of one hidden linear chain: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty, or any case where assumptions, evidence, and candidate answers can diverge. If the task does not justify driver-loop overhead, do not use this skill.
 
-The helper CLI is installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`.
+Requirements: a subagent backend (the orchestrator delegates every probe) and the helper CLI, installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`. Without a subagent backend, do not use this skill.
 
 ## Driver loop
 
@@ -76,7 +76,7 @@ Patch shape for `seed` and `expand`:
 
 ## Orchestrator and subagents
 
-The main agent is an orchestrator. It maintains the queue and makes decisions: goal framing, canonical state, frontier priority, treatment choice, merge decisions, stop policy, and the final answer. Subagents do the work that produces observations: source research, code/file inspection, docs lookup, hypothesis probes, running tests, verification of high-impact claims, candidate audits, and adversarial review. Delegating keeps raw observations out of the orchestrator's context and lets independent probes run in parallel. The orchestrator reads only what it needs to frame a probe or adjudicate conflicting child reports. When no subagent backend exists, run each probe inline as its own bounded step and keep raw observations out of final prose.
+The main agent is an orchestrator. It maintains the queue and makes decisions: goal framing, canonical state, frontier priority, treatment choice, merge decisions, stop policy, and the final answer. Subagents do the work that produces observations: source research, code/file inspection, docs lookup, hypothesis probes, running tests, verification of high-impact claims, candidate audits, and adversarial review. Delegating keeps raw observations out of the orchestrator's context and lets independent probes run in parallel. The orchestrator reads only what it needs to frame a probe or adjudicate conflicting child reports.
 
 A delegation unit is one bounded probe: one frontier item, hypothesis, test, source family, or candidate audit, with a stop rule, an output contract, and no decision authority. Prefer several small probes over one wide one.
 
