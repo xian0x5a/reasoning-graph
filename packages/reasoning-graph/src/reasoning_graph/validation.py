@@ -193,10 +193,16 @@ def validate_state(state: Any) -> ValidationResult:
     candidate_accepted_goal_edges: set[str] = set()
     candidate_goal_targets: dict[str, set[str]] = {}
     relation_pairs: set[tuple[str, str, str]] = set()
+    seen_edge_ids: set[str] = set()
     for i, edge in enumerate(edges_raw):
         if not isinstance(edge, dict):
             errors.append(f"edges[{i}] must be object")
             continue
+        edge_id = edge.get("id")
+        if isinstance(edge_id, str) and edge_id:
+            if edge_id in seen_edge_ids:
+                errors.append(f"duplicate edge id {edge_id}")
+            seen_edge_ids.add(edge_id)
         src = edge.get("from")
         dst = edge.get("to")
         edge_type = edge.get("type") or edge.get("label")
@@ -377,20 +383,14 @@ def validate_state(state: Any) -> ValidationResult:
 
     unresolved_markers = ("not solved", "not established", "cannot establish", "insufficient evidence", "missing dependency", "undetermined", "not recoverable")
     epistemic_goal_markers = EPISTEMIC_GOAL_MARKERS
-    strict_answer_kind_required = isinstance(stop_policy, dict) and stop_policy.get("severity") == "error"
     for candidate in candidate_nodes:
         candidate_id = candidate.get("id")
         if not isinstance(candidate_id, str):
             continue
         candidate_text = str(candidate.get("text") or "").lower()
         answer_kind = candidate.get("answer_kind")
-        if answer_kind is None:
-            message = f"candidate_solution {candidate_id} missing answer_kind; use one of {sorted(ANSWER_KINDS)}"
-            if strict_answer_kind_required:
-                errors.append(message)
-            else:
-                warnings.append(message)
-        elif answer_kind not in ANSWER_KINDS:
+        if answer_kind not in ANSWER_KINDS:
+            # The schema already requires the field; this keeps the semantic message when it is present but wrong.
             errors.append(f"candidate_solution {candidate_id} answer_kind must be one of {sorted(ANSWER_KINDS)}, got {answer_kind!r}")
         goal_texts = [str(goals_by_id.get(goal_id, {}).get("text") or "").lower() for goal_id in candidate_goal_targets.get(candidate_id, set())]
         has_explicit_epistemic_goal = any(
@@ -466,6 +466,20 @@ def validate_state(state: Any) -> ValidationResult:
         parent = item.get("parent")
         if parent is not None and parent != "" and parent not in all_frontier_ids:
             errors.append(f"frontier item {item.get('id')} references missing parent {parent!r}")
+
+    for section, keys in (("presentation", ("include_nodes", "highlight_nodes", "dim_nodes")), ("view", ("winning_path", "dimmed_branches", "frontier"))):
+        metadata = state.get(section)
+        if metadata is None:
+            continue
+        if not isinstance(metadata, dict):
+            errors.append(f"{section} must be object when present")
+            continue
+        for key in keys:
+            if key not in metadata:
+                continue
+            for index, node_ref in enumerate(as_string_list(metadata.get(key), f"{section}.{key}", errors)):
+                if node_ref not in node_ids:
+                    errors.append(f"{section}.{key}[{index}] references missing node {node_ref!r}")
 
     solution_node_ids = {s.get("node") if isinstance(s, dict) else s for s in solutions_raw}
     for node_id in solution_node_ids:

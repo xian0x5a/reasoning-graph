@@ -311,10 +311,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     event_added_nodes.add(node_id)
             added_edge_ids = as_string_list(event.get("add_edges"), f"{label}.add_edges", errors)
             for edge_id in added_edge_ids:
-                if edge_ids and edge_id not in edge_ids:
+                if edge_id not in edge_ids:
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
-                elif not edge_ids:
-                    warnings.append(f"{label}: add_edges cannot be cross-checked because edges have no ids")
             for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
                 if factor_id not in factors_by_id:
                     errors.append(f"{label}: update_factors references missing factor id {factor_id}")
@@ -435,10 +433,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                         added_node_types.add(node_type)
             added_edge_ids = as_string_list(event.get("add_edges"), f"{label}.add_edges", errors)
             for edge_id in added_edge_ids:
-                if edge_ids and edge_id not in edge_ids:
+                if edge_id not in edge_ids:
                     errors.append(f"{label}: add_edges references missing edge id {edge_id}")
-                elif not edge_ids:
-                    warnings.append(f"{label}: add_edges cannot be cross-checked because edges have no ids")
             updated_factor_ids = as_string_list(
                 event.get("update_factors"), f"{label}.update_factors", errors
             )

@@ -25,8 +25,8 @@ class RenderIdentityTests(unittest.TestCase):
         return {
             "nodes": nodes,
             "edges": [
-                {"from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated claim supports the underscored claim."},
-                {"from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated claim."},
+                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated claim supports the underscored claim."},
+                {"id": "A B>A-B", "from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated claim."},
             ],
         }
 
@@ -74,8 +74,8 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A B", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
-                {"from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
+                {"id": "A-B>A B", "from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
+                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
             "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
@@ -120,7 +120,7 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "TA", "type": "assumption", "prior": 0.5},
             ],
             "edges": [
-                {"from": source, "to": target, "type": "supports", "reasoning": "The observation supports this claim."}
+                {"id": f"{source}-{target}", "from": source, "to": target, "type": "supports", "reasoning": "The observation supports this claim."}
                 for target in ("TZ", "TA") for source in ("I_1", "I-1")
             ],
             "factors": [
@@ -165,7 +165,7 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A1", "type": "assumption", "prior": 0.5},
             ],
             "edges": [
-                {"from": source, "to": "A1", "type": "supports", "reasoning": "The observation supports A1."}
+                {"id": f"{source}-A1", "from": source, "to": "A1", "type": "supports", "reasoning": "The observation supports A1."}
                 for source in (raw_node_id, "E2")
             ],
             "factors": [{"id": "F1", "relation": "supports", "inputs": [raw_node_id, "E2"], "target": "A1",
@@ -199,8 +199,8 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A1", "type": "assumption", "prior": 0.5},
             ],
             "edges": [
-                {"from": "E1", "to": "A1", "type": "supports", "reasoning": "E1 supports A1."},
-                {"from": "E2", "to": "A1", "type": "supports", "reasoning": "E2 supports A1."},
+                {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "reasoning": "E1 supports A1."},
+                {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports", "reasoning": "E2 supports A1."},
             ],
             "factors": [{"id": "F1", "relation": "supports", "inputs": ["E1", "E2"], "target": "A1",
                          "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.2}}],
@@ -231,7 +231,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
                 {"id": "E1", "type": "evidence", "text": "Observed premise", "prior": 0.9},
                 {"id": "G1", "type": "goal", "text": "Answer the question"},
             ],
-            "edges": [{"from": "E1", "to": "G1", "type": "leads_to", "reasoning": "E1 motivates G1."}],
+            "edges": [{"id": "E1-G1-leads_to", "from": "E1", "to": "G1", "type": "leads_to", "reasoning": "E1 motivates G1."}],
         }
         document = html_document(state, to_mermaid(state))
 

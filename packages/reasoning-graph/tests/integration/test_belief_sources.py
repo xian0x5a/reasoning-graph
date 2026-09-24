@@ -19,7 +19,7 @@ CLAIM_TYPES = ("evidence", "assumption", "derived", "candidate_solution")
 
 
 def edge(source, target, relation="leads_to", **extra):
-    return {"from": source, "to": target, "type": relation,
+    return {"id": f"{source}-{target}-{relation}", "from": source, "to": target, "type": relation,
             "reasoning": "The source supplies the stated relationship to the target.", **extra}
 
 

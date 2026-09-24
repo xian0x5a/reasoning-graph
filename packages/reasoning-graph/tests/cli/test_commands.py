@@ -573,9 +573,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"reasoning": "This candidate supplies the answer requested by the goal.", "from": "CS1", "to": "G1", "type": "answers"},
+                    {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts"},
+                    {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"id": "CS1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "CS1", "to": "G1", "type": "answers"},
                 ],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
@@ -610,9 +610,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "CS1", "to": "G1", "type": "leads_to"},
-                    {"reasoning": "This candidate supplies the answer requested by the goal.", "from": "A1", "to": "G1", "type": "answers"},
+                    {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"id": "CS1-G1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"id": "A1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "A1", "to": "G1", "type": "answers"},
                 ],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
@@ -631,7 +631,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.6},
                     {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
-                "edges": [{"reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
+                "edges": [{"id": "A1-T1-prompts", "reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -703,8 +703,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E2", "type": "evidence", "text": "Negative signal"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.75, "if_target_false": 0.25}},
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.2, "if_target_false": 0.4}},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.75, "if_target_false": 0.25}},
+                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.2, "if_target_false": 0.4}},
                 ],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
@@ -726,7 +726,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E1", "type": "evidence", "text": "Finite supporting signal", "prior": 0.9},
                 ],
                 "edges": [
-                    {"from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The signal supports the target with a finite likelihood ratio."},
+                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The signal supports the target with a finite likelihood ratio."},
                 ],
                 "frontier": [
                     {
@@ -763,8 +763,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E2", "type": "evidence", "text": "Negative signal"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
+                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
                 ],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
@@ -1646,8 +1646,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "derived", "text": "Derived from A and E"},
                 ],
                 "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "E1", "to": "D1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "E1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "E1", "to": "D1", "type": "leads_to"},
                 ],
                 "frontier": [
                     {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
@@ -1677,9 +1677,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E3", "type": "evidence", "text": "Independent signal"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.6, "if_target_false": 0.3}},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
+                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
+                    {"id": "E3-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.6, "if_target_false": 0.3}},
                 ],
                 "factors": [
                     {
@@ -1716,9 +1716,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "derived", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "C1", "to": "D1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
+                    {"id": "C1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "C1", "to": "D1", "type": "leads_to"},
                 ],
                 "factors": [
                     {
@@ -1752,9 +1752,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "derived", "text": "Derived claim"},
                 ],
                 "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "D1", "to": "A1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
+                    {"id": "D1-A1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "D1", "to": "A1", "type": "leads_to"},
                 ],
                 "factors": [
                     {
@@ -1784,8 +1784,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "derived", "text": "Derived claim"},
                 ],
                 "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
                 ],
                 "factors": [
                     {
@@ -1898,7 +1898,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.2, "posterior": 0.7},
                     {"prior": 0.95, "id": "E1", "type": "evidence", "text": "Negative signal"},
                 ],
-                "edges": [{"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
+                "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -1918,7 +1918,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "B1", "type": "assumption", "text": "Audit parent only", "prior": 0.5},
                     {"id": "D1", "type": "derived", "text": "Derived from A"},
                 ],
-                "edges": [{"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"}],
+                "edges": [{"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"}],
                 "frontier": [
                     {"id": "Q1", "node": "B1", "cost_components": {"truth": "auto"}},
                     {"id": "Q2", "node": "D1", "parent": "Q1", "cost_components": {"truth": "auto"}},
@@ -1944,7 +1944,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "assumption", "text": "Likely cause", "prior": 0.5},
                     {"id": "E1", "type": "evidence", "text": "Negative signal", "prior": 0.1},
                 ],
-                "edges": [{"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
+                "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
                 "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -1968,8 +1968,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E1", "type": "evidence", "text": "Signal"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 0.5},
-                    {"reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "E1", "type": "leads_to", "likelihood_ratio": 2.0},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 0.5},
+                    {"id": "A1-E1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "E1", "type": "leads_to", "likelihood_ratio": 2.0},
                     {"reasoning": "The observed signal is more likely when the target claim is true.",
                         "from": "E1",
                         "to": "A1",
@@ -1977,7 +1977,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "likelihood_ratio": 2.0,
                         "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2},
                     },
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
+                    {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
                 ],
                 "frontier": [],
             }
@@ -2001,8 +2001,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E3", "type": "evidence", "text": "Signal C"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
                 ],
                 "factors": [
                     {
@@ -2163,8 +2163,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
-                {"from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
-                {"from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
+                {"id": "A-B-A B-answers", "from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
+                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
             "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
@@ -2200,8 +2200,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E2", "type": "evidence", "text": "Positive signal B"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
                 ],
                 "factors": [
                     {

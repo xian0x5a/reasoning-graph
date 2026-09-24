@@ -27,7 +27,7 @@ class EdgeVocabularyTests(unittest.TestCase):
                 {"id": "A1", "type": "assumption", "text": "Branch", "prior": 0.5},
                 {"id": "D1", "type": "derived", "text": "Conclusion", "prior": 1.0},
             ],
-            "edges": [{"from": "D1", "to": "A1", "type": "assumes"}],
+            "edges": [{"id": "D1-A1-assumes", "from": "D1", "to": "A1", "type": "assumes"}],
             "frontier": [],
         }
         errors = state_schema_errors(state)

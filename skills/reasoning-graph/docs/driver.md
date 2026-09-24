@@ -129,8 +129,8 @@ State JSON shape:
     {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}
   ],
   "edges": [
-    {"from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
+    {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
   ],
   "frontier": [
     {

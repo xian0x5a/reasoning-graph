@@ -21,7 +21,7 @@ from reasoning_graph.schema_validation import (
 
 @pytest.mark.parametrize("edge_type", sorted(EDGE_TYPES))
 def test_all_edge_types_require_reasoning(edge_type):
-    edge = {"from": "A", "to": "B", "type": edge_type}
+    edge = {"id": "A-B", "from": "A", "to": "B", "type": edge_type}
     assert patch_schema_errors({"edges": [edge]})
     edge["reasoning"] = "The source supplies what the target needs."
     assert not patch_schema_errors({"edges": [edge]})
@@ -38,7 +38,7 @@ def test_all_edge_types_require_reasoning(edge_type):
     ("At 0.75 confidence the result supports the claim. See https://example.org/log.", True),
 ])
 def test_nonblank_reasoning_applies_to_state_patch_and_exported_schema(reasoning, valid):
-    edge = {"from": "A", "to": "B", "type": "supports", "reasoning": reasoning}
+    edge = {"id": "A-B", "from": "A", "to": "B", "type": "supports", "reasoning": reasoning}
     state = {"nodes": [], "edges": [edge], "frontier": []}
     patch = {"edges": [edge]}
     assert (not state_schema_errors(state)) == valid
@@ -53,7 +53,7 @@ def test_detail_cards_escape_edge_reasoning():
     state = {
         "nodes": [{"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.9}],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to",
+            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",
              "reasoning": "The <script> tag is text, not executable markup."},
         ],
         "frontier": [],

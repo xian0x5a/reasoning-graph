@@ -98,8 +98,8 @@ def derived_state(**derived: object) -> dict:
             {"id": "D1", "type": "derived", "text": "Conclusion", **derived},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this observation."},
-            {"from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this premise."},
+            {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this observation."},
+            {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this premise."},
         ],
         "frontier": [],
     }
@@ -153,9 +153,9 @@ def test_derived_belief_updates_from_likelihoods_on_uncertain_premises():
             {"id": "D1", "type": "derived", "text": "Deterministic conclusion"},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to",
+            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",
              "reasoning": "The conclusion follows deterministically if this premise is true."},
-            {"from": "E2", "to": "D1", "type": "contradicts", "likelihood_ratio": 0.1,
+            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "contradicts", "likelihood_ratio": 0.1,
              "reasoning": "This independent observation is ten times less likely if the conclusion is true."},
         ],
         "frontier": [],

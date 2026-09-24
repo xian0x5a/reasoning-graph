@@ -886,8 +886,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
             event[key] = patch[key]
     if updated_node_specs:
         event["updated_nodes"] = updated_node_specs
-    elif "updated_nodes" in patch:
-        event["updated_nodes"] = patch["updated_nodes"]
     if node_update_snapshots:
         event["updated_node_snapshots"] = node_update_snapshots
     if factor_update_snapshots:

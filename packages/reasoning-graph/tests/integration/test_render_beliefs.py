@@ -32,9 +32,9 @@ def report_state(*, support=False, posterior=None):
             {"id": "T1", "type": "test", "text": "Check the premise"},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "This observation is required for the conclusion."},
-            {"from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
-            {"from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
+            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "This observation is required for the conclusion."},
+            {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
+            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
         ],
         "frontier": [],
         "report": {"candidates": [{"id": "CS1", "name": "Answer", "belief": 0.123}]},
@@ -42,7 +42,7 @@ def report_state(*, support=False, posterior=None):
     }
     if support:
         state["edges"].append({
-            "from": "E2", "to": "D1", "type": "supports", "likelihood_ratio": 2,
+            "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "likelihood_ratio": 2,
             "reasoning": "The signal is twice as likely when the conclusion is true.",
         })
     if posterior is not None:
@@ -101,7 +101,7 @@ def test_graph_labels_use_full_graph_belief(renderer, filtered, support, posteri
 def test_filtered_graph_uses_calibrated_factor_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
-        "from": "E2", "to": "D1", "type": "leads_to",
+        "id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
         "reasoning": "Both observations are needed and their uncertainty overlaps.",
     })
     state["factors"] = [{

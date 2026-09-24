@@ -37,7 +37,7 @@ The cost engine tracks belief sources separately from their numerical cost. An u
 Every edge requires nonblank `reasoning` explaining the directed relationship, including `requires`, `prompts`, `answers`, and factor member edges. Aim for one to five sentences. Repeating the edge type is not an explanation, and a factor's `reason` does not replace member-edge reasoning.
 
 ```json
-{"from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
+{"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
 ```
 
 State and patch schemas enforce nonblank text with standard string constraints; no custom format checker is needed. Sentence count is guidance, not a rejection rule: abbreviations and punctuation are not reliable sentence boundaries. Explain the relationship meaningfully; validation cannot judge prose quality.
@@ -109,8 +109,8 @@ If the branch means broad brute force, open-ended enumeration, or spending most 
 Use `likelihood` for numeric evidence updates on `supports` and `contradicts` edges. Prefer explicit conditional likelihoods over a bare ratio:
 
 ```jsonl
-{"from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}, "reasoning": "The observed signal is more likely when the target claim is true."}
-{"from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.1, "if_target_false": 0.7}, "reasoning": "The observed signal is less likely when the target claim is true."}
+{"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}, "reasoning": "The observed signal is more likely when the target claim is true."}
+{"id": "E2-A1", "from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.1, "if_target_false": 0.7}, "reasoning": "The observed signal is less likely when the target claim is true."}
 ```
 
 The computed update is:

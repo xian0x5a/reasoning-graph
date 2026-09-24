@@ -129,8 +129,8 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         for relation, ratio in (("supports", 2.0), ("contradicts", 5e-324)):
             with self.subTest(relation=relation):
                 state = self.base_state(prior=1e-200, edges=[
-                    {"from": "E1", "to": "A1", "type": "leads_to", "reasoning": "A1 requires the rare premise."},
-                    {"from": "E2", "to": "A1", "type": relation, "likelihood_ratio": ratio,
+                    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "leads_to", "reasoning": "A1 requires the rare premise."},
+                    {"id": "E2-A1", "from": "E2", "to": "A1", "type": relation, "likelihood_ratio": ratio,
                      "reasoning": "The signal updates the inherited belief."},
                 ])
                 state["nodes"][0]["prior"] = 1e-200

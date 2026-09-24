@@ -203,21 +203,56 @@
           "if": {
             "properties": {
               "type": {
-                "enum": ["goal", "constraint", "test"]
+                "enum": [
+                  "goal",
+                  "constraint",
+                  "test"
+                ]
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
             "$ref": "#/$defs/scoreStipulation"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "candidate_solution"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "answer_kind"
+            ]
           }
         }
       ],
       "not": {
         "anyOf": [
-          {"required": ["confidence"]},
-          {"required": ["probability"]},
-          {"required": ["belief"]}
+          {
+            "required": [
+              "confidence"
+            ]
+          },
+          {
+            "required": [
+              "probability"
+            ]
+          },
+          {
+            "required": [
+              "belief"
+            ]
+          }
         ]
       },
       "description": "Claims use prior as their optional local input, computed belief as output, and posterior as an explicit calibrated override. Without prior or posterior, a claim must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks the complete graph. A local prior multiplies premise belief, so omit it when it repeats the same uncertainty. Goals, constraints, and tests carry no score. Removed confidence/probability fields and output-only belief are rejected on nodes, not silently ignored or converted."
@@ -242,6 +277,7 @@
       "type": "object",
       "additionalProperties": true,
       "required": [
+        "id",
         "from",
         "to",
         "type",
