@@ -20,7 +20,7 @@ Every use keeps explicit state and follows this loop. Mutating commands rewrite 
 1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
 2. **Seed graph.** Separate given/source-backed `evidence`, hard `constraint`s, and uncertain `assumption`s. Seed initial nodes, edges, tests, and root frontier items.
 3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; it recomputes costs and selects the lowest-cost active item.
-4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, or `rank`. Delegate observation-heavy probe/verify work (see below).
+4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, or `rank`. Default to `assign`: hand research, test, and verify work to a subagent and keep the main thread on the queue (see Orchestrator and subagents).
 5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort` only to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
 6. **Stop by policy** (gates below).
 7. **Review final.** `validate`, `audit`, `stop-review`, then write final prose that matches the graph and invents no evidence.
@@ -74,9 +74,11 @@ Patch shape for `seed` and `expand`:
 - Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason` or `under_branching_reason`.
 - For parallel work, decompose one focus item into explicit independent sub-probes before fanout.
 
-## Probe delegation
+## Orchestrator and subagents
 
-The main thread is the controller: it owns goal framing, canonical state, frontier priority, stop policy, merge decisions, and the final answer. Delegate observation-heavy work (source research, code/file inspection, docs lookup, hypothesis probes, validation checks, candidate audits, adversarial review) when a subagent backend is available; otherwise run bounded probes inline and keep raw observations out of final prose. A delegation unit is one bounded probe: one frontier item, hypothesis, test, source family, or candidate audit, with a stop rule, an output contract, and no decision authority.
+The main agent is an orchestrator. It maintains the queue and makes decisions: goal framing, canonical state, frontier priority, treatment choice, merge decisions, stop policy, and the final answer. Subagents do the work that produces observations: source research, code/file inspection, docs lookup, hypothesis probes, running tests, verification of high-impact claims, candidate audits, and adversarial review. Delegating keeps raw observations out of the orchestrator's context and lets independent probes run in parallel. The orchestrator reads only what it needs to frame a probe or adjudicate conflicting child reports. When no subagent backend exists, run each probe inline as its own bounded step and keep raw observations out of final prose.
+
+A delegation unit is one bounded probe: one frontier item, hypothesis, test, source family, or candidate audit, with a stop rule, an output contract, and no decision authority. Prefer several small probes over one wide one.
 
 Child output contract: target, evidence for/against with source refs, proposed nodes/edges, confidence or likelihood impact, residual uncertainty, suggested next probes, and blocked/stop reason when applicable. The controller reviews and applies accepted changes via `expand --item <assigned-item> --patch <patch>`.
 
