@@ -542,10 +542,11 @@ def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
                 "constraint_tension": 0.0,
             }
         else:
+            # Keep the authored spec (including truth: "auto") untouched: persisting the
+            # resolved number here would freeze the item's priority against later evidence.
             components = cost_components_for_item(item, nodes, node_truth_costs)
             truth_cost = components["truth"]
             work_cost = sum(value for key, value in components.items() if key != "truth")
-            item["cost_components"] = {key: round(value, 6) for key, value in components.items()}
 
         truth_cost = require_non_negative_float(truth_cost, f"frontier item {item.get('id')} truth cost")
         work_cost = require_non_negative_float(work_cost, f"frontier item {item.get('id')} work cost")

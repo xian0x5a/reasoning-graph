@@ -60,6 +60,22 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
         self.assertAlmostEqual(frontier_truth_cost(state), -math.log(0.3), places=6)
 
+    def test_recomputed_costs_track_later_evidence(self) -> None:
+        # A persisted state must not freeze truth: "auto" into a number, or later
+        # contradictions would never change frontier priority.
+        state = self.base_state(prior=0.5)
+        first = frontier_truth_cost(state)
+        state["edges"].append(
+            {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25, "reasoning": "The signal is less likely when A1 holds."}
+        )
+        state = json.loads(json.dumps(state))
+
+        second = frontier_truth_cost(state)
+
+        self.assertEqual(state["frontier"][0]["cost_components"]["truth"], "auto")
+        self.assertAlmostEqual(first, -math.log(0.5), places=6)
+        self.assertAlmostEqual(second, -math.log(0.2), places=6)
+
     def test_supporting_likelihood_update_lowers_truth_cost(self) -> None:
         baseline = frontier_truth_cost(self.base_state(prior=0.5))
         supported = frontier_truth_cost(
