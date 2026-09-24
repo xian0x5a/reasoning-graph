@@ -329,6 +329,9 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         required_fixes.extend(validation_warnings)
     else:
         notes.extend(validation_warnings)
+    if not isinstance(state, dict):
+        # Nothing below can be evaluated on a non-object document; report the schema failure alone.
+        return _print_stop_review("fail", required_fixes, checks, notes)
 
     events = state.get("events")
     if not isinstance(events, list) or not events:
@@ -351,7 +354,12 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         if not stop_outcome:
             required_fixes.append("latest stop event missing outcome")
 
-    best_ids = best_candidate_ids(state)
+    try:
+        best_ids = best_candidate_ids(state)
+    except ValueError as exc:
+        # Malformed scores were already reported by validation; keep the review report structured.
+        required_fixes.append(f"cannot derive best candidate: {exc}")
+        best_ids = set()
     needs_best_candidate = stop_outcome in {"solved", "candidate_threshold_met", "candidate_count_met"}
     if needs_best_candidate and not best_ids:
         required_fixes.append(f"stop outcome {stop_outcome!r} requires a viable candidate_solution")
@@ -373,6 +381,10 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
                 notes.append(message)
 
     verdict = "fail" if required_fixes else "pass"
+    return _print_stop_review(verdict, required_fixes, checks, notes)
+
+
+def _print_stop_review(verdict: str, required_fixes: list[str], checks: list[str], notes: list[str]) -> int:
     print(f"verdict: {verdict}")
     _print_yaml_list("required_fixes", required_fixes)
     _print_yaml_list("semantic_tricks_checked", checks)

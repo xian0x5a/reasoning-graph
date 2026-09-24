@@ -31,8 +31,10 @@ def edge_id_set(state: dict[str, Any]) -> set[str]:
     return ids
 
 
-def validate_state(state: dict[str, Any]) -> ValidationResult:
-    errors: list[str] = state_schema_errors(state) if isinstance(state, dict) else ["schema $: state must be an object"]
+def validate_state(state: Any) -> ValidationResult:
+    if not isinstance(state, dict):
+        return ValidationResult(errors=["schema $: state must be an object"], warnings=[])
+    errors: list[str] = state_schema_errors(state)
     warnings: list[str] = []
     nodes_raw = state.get("nodes", [])
     edges_raw = state.get("edges", [])
@@ -225,8 +227,8 @@ def validate_state(state: dict[str, Any]) -> ValidationResult:
                     errors.append(f"edge {i} contradicts likelihood ratio must be in (0, 1)")
         if isinstance(src, str) and isinstance(dst, str) and isinstance(edge_type, str):
             relation_pairs.add((src, dst, edge_type))
-        src_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == src), None)
-        dst_type = next((node.get("type") for node in nodes_raw if isinstance(node, dict) and node.get("id") == dst), None)
+        src_type = nodes_by_id.get(src, {}).get("type") if isinstance(src, str) else None
+        dst_type = nodes_by_id.get(dst, {}).get("type") if isinstance(dst, str) else None
         if src in candidate_ids and dst in goal_ids:
             if edge_type == "answers":
                 candidate_goal_edges.add(src)

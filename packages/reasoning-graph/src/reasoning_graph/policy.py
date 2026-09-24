@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import compute_costs, node_effective_truth_costs, node_truth_cost, probability_from_value
+from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value
 from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -82,7 +82,6 @@ def epistemic_goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def ranked_viable_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
-    compute_costs(state)
     nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     ranked: list[dict[str, Any]] = []
@@ -150,7 +149,6 @@ def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
 
 
 def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
-    compute_costs(state)
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
     candidates = report.get("candidates")
     if not isinstance(candidates, list):

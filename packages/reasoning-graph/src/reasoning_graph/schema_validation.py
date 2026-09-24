@@ -47,16 +47,11 @@ def standalone_schema(name: str) -> dict[str, Any]:
     return schema
 
 
-@lru_cache(maxsize=1)
-def schema_store() -> dict[str, dict[str, Any]]:
-    state_schema = load_schema(STATE_SCHEMA)
-    patch_schema = load_schema(PATCH_SCHEMA)
-    return {
-        STATE_SCHEMA: state_schema,
-        PATCH_SCHEMA: patch_schema,
-        state_schema["$id"]: state_schema,
-        patch_schema["$id"]: patch_schema,
-    }
+@lru_cache(maxsize=None)
+def _validator(schema_name: str) -> jsonschema.Draft202012Validator:
+    # The patch schema references state definitions by file name; the standalone
+    # form inlines them, so no cross-document resolver is needed.
+    return jsonschema.Draft202012Validator(standalone_schema(schema_name))
 
 
 def schema_path(error: jsonschema.ValidationError) -> str:
@@ -88,12 +83,7 @@ def _non_finite_number_errors(value: Any, path: str = "$") -> list[str]:
 
 
 def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list[str]:
-    schema = load_schema(schema_name)
-    if schema_name == STATE_SCHEMA:
-        validator = jsonschema.Draft202012Validator(schema)
-    else:
-        resolver = jsonschema.RefResolver.from_schema(schema, store=schema_store())
-        validator = jsonschema.Draft202012Validator(schema, resolver=resolver)
+    validator = _validator(schema_name)
     errors = sorted(validator.iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
     return [format_schema_error(error) for error in errors] + _non_finite_number_errors(document)
 

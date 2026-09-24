@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -29,9 +31,29 @@ def dump_state(state: dict[str, Any], path: str | None, in_place_source: str | N
 
 def write_output_text(text: str, path: str | None) -> None:
     if path and path != "-":
-        Path(path).write_text(text, encoding="utf-8")
+        _replace_file_atomically(Path(path), text)
         return
     sys.stdout.write(text)
+
+
+def _replace_file_atomically(target: Path, text: str) -> None:
+    """Write through a same-directory temporary file so an interrupted write never
+    leaves a truncated state file behind; the previous file stays intact until rename."""
+
+    directory = target.parent if str(target.parent) else Path(".")
+    handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory, prefix=f".{target.name}.", suffix=".tmp", delete=False)
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if target.exists():
+            os.chmod(temporary, os.stat(target).st_mode & 0o7777)
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def by_id(items: Iterable[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:
