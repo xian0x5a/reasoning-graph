@@ -27,6 +27,7 @@ AUDIT_INVALID_FIXTURES = {
     "duplicate-report-candidate.json": "viable_candidates=1 < min_viable_candidates=3",
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
+    "unanswered-accepted-goal.json": "accepted goal G2",
 }
 STATE_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
 PATCH_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "patch.schema.json"

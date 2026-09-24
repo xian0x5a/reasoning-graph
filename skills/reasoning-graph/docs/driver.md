@@ -290,14 +290,15 @@ Allowed actions:
 - `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
 - `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
-- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`assumption` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result node (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason` or `under_branching_reason`. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`assumption` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
 - `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
 
 Ending commands:
 
-- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event.
+- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event. It is rejected while any accepted, non-optional goal is unanswered (`docs/schema/goals.md`).
+- `--force` on `expand`/`assign` skips ordering and concurrency policy guards only; driver init, an existing frontier item, and a prior pop are always required, so a forced command cannot persist a structurally invalid trace.
 - For non-candidate outcomes, `stop` only writes the terminal event.
 
 ### Semantic Stop Review
@@ -330,6 +331,7 @@ Required checks:
 - no meaningful answer-goal frontier remains hidden behind an epistemic/blocker stop
 - high-salience clue/family nodes are expanded, live, or explicitly exhausted
 - best candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
+- every accepted goal is answered, and `summary.answer`, `report.answer`, and the draft name the best candidate of each accepted goal by id or exact text
 - blockers are not disguised as answer candidates for normal solve goals
 - failed broad tests do not erase untested sibling interpretations or parent clue families
 - contradictions/failures penalize only affected branches
@@ -366,8 +368,12 @@ Audit checks:
 - one-child non-terminal expansions get a soft under-branching warning only when the final stop claims exhaustion/completion, unless `under_branching_reason` or `existing_sibling_frontier` is recorded
 - high-salience clue/family expansions below `branch_policy.high_salience_min_children` warn/fail on exhaustion/completion stops unless they include `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof; set `branch_policy.enforce_on: "always"` for noisy development audits
 - candidate solutions contradicted by evidence remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
-- `rank.best` matches the derived highest-belief viable `candidate_solution`
+- `rank.best`, `rank.belief`, and `rank.candidates` rows match the values derived from the graph as it stood at rank time
+- each node, edge, and frontier item is claimed as added by at most one event
+- under strict policy, `test` expansions record a `leads_to` result and zero-work expansions record a reason
+- candidate-bearing `stop` outcomes leave no accepted, non-optional goal unanswered
 - `stop` has a reason
+- `audit` and `doctor` print `peak_live_frontier`, the largest active frontier reached during replay; peak 1 on a task with competing interpretations means the graph was not exercised
 - pop costs and remaining-frontier order are evaluated against graph evidence available before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
 
 Limit: the driver loop still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.

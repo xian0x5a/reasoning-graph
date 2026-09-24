@@ -7,6 +7,7 @@ from typing import Any
 
 from .costs import (
     NODE_SCORE_FIELDS,
+    assert_acyclic_premise_dependencies,
     compute_costs,
     item_has_explicit_effort_budget,
     likelihood_ratio_from_edge,
@@ -18,7 +19,7 @@ from .costs import (
     text_looks_probe_like,
 )
 from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
-from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids
+from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
 from .schema_validation import state_schema_errors
 from .utils import as_string_list
 
@@ -131,7 +132,7 @@ def validate_state(state: Any) -> ValidationResult:
         if not isinstance(goal_policy, dict):
             errors.append("goal_policy must be object when present")
             goal_policy = {}
-        for key in ("accepted_goals", "preferred_goals"):
+        for key in ("accepted_goals", "preferred_goals", "optional_goals"):
             if key in goal_policy:
                 values = goal_policy.get(key)
                 if not isinstance(values, list) or not values:
@@ -245,6 +246,8 @@ def validate_state(state: Any) -> ValidationResult:
                 errors.append(f"edge {i} candidate_solution -> goal must use answers")
         if edge_type == "answers" and (src_type != "candidate_solution" or dst_type != "goal"):
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
+        if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
+            errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
         if src_type == "assumption" and dst_type == "goal":
             errors.append(
                 f"edge {i} connects assumption {src} directly to goal {dst}; route assumptions through tests/derived/candidate nodes instead"
@@ -466,6 +469,35 @@ def validate_state(state: Any) -> ValidationResult:
         parent = item.get("parent")
         if parent is not None and parent != "" and parent not in all_frontier_ids:
             errors.append(f"frontier item {item.get('id')} references missing parent {parent!r}")
+
+    try:
+        assert_acyclic_premise_dependencies({goal_id: sorted(subs) for goal_id, subs in goal_requirements(state).items()})
+    except ValueError as exc:
+        errors.append(f"goal requires {exc}")
+
+    report = state.get("report")
+    if report is not None and not isinstance(report, dict):
+        errors.append("report must be object when present")
+    elif isinstance(report, dict):
+        node_texts = {str(node.get("text") or "").strip() for node in nodes_by_id.values()}
+        report_candidates = report.get("candidates")
+        if report_candidates is not None and not isinstance(report_candidates, list):
+            errors.append("report.candidates must be a list when present")
+        for index, row in enumerate(report_candidates if isinstance(report_candidates, list) else []):
+            if not isinstance(row, dict):
+                errors.append(f"report.candidates[{index}] must be object")
+                continue
+            row_id = row.get("id")
+            if row_id is not None and row_id not in candidate_ids:
+                errors.append(f"report.candidates[{index}].id references missing candidate_solution {row_id!r}")
+            if "path_nodes" in row:
+                for path_index, path_node in enumerate(as_string_list(row.get("path_nodes"), f"report.candidates[{index}].path_nodes", errors)):
+                    if path_node not in node_ids:
+                        errors.append(f"report.candidates[{index}].path_nodes[{path_index}] references missing node {path_node!r}")
+        if "winning_path" in report:
+            for index, step in enumerate(as_string_list(report.get("winning_path"), "report.winning_path", errors)):
+                if step not in node_ids and step.strip() not in node_texts:
+                    errors.append(f"report.winning_path[{index}] {step!r} matches no node id or exact node text")
 
     for section, keys in (("presentation", ("include_nodes", "highlight_nodes", "dim_nodes")), ("view", ("winning_path", "dimmed_branches", "frontier"))):
         metadata = state.get(section)

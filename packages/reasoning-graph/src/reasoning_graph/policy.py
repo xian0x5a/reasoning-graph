@@ -42,6 +42,109 @@ def accepted_goal_ids(state: dict[str, Any]) -> set[str]:
     return goals
 
 
+def optional_goal_ids(state: dict[str, Any]) -> set[str]:
+    """Goals that a candidate-bearing stop may leave unanswered."""
+
+    goals = goal_ids(state)
+    policy = state.get("goal_policy") if isinstance(state.get("goal_policy"), dict) else {}
+    configured = policy.get("optional_goals")
+    if isinstance(configured, list):
+        return {str(goal_id) for goal_id in configured if str(goal_id) in goals}
+    return set()
+
+
+def goal_requirements(state: dict[str, Any]) -> dict[str, set[str]]:
+    """Sub-goal structure: `parent goal --requires--> child goal`."""
+
+    goals = goal_ids(state)
+    requirements: dict[str, set[str]] = {}
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict) or edge.get("type") != "requires":
+            continue
+        src, dst = edge.get("from"), edge.get("to")
+        if src in goals and dst in goals:
+            requirements.setdefault(str(src), set()).add(str(dst))
+    return requirements
+
+
+def directly_answered_goal_ids(state: dict[str, Any]) -> set[str]:
+    return {goal_id for goal_targets in candidate_goal_targets(state).values() for goal_id in goal_targets}
+
+
+def answered_goal_ids(state: dict[str, Any]) -> set[str]:
+    """A goal is answered when a candidate answers it and every required sub-goal is answered."""
+
+    directly = directly_answered_goal_ids(state)
+    requirements = goal_requirements(state)
+    optional = optional_goal_ids(state)
+    answered: set[str] = set()
+
+    def resolve(goal_id: str, visiting: set[str]) -> bool:
+        if goal_id in answered:
+            return True
+        if goal_id in visiting or goal_id not in directly:
+            return False
+        visiting.add(goal_id)
+        # An optional sub-goal may stay open without blocking its parent.
+        complete = all(
+            sub_goal in optional or resolve(sub_goal, visiting)
+            for sub_goal in sorted(requirements.get(goal_id, set()))
+        )
+        visiting.discard(goal_id)
+        if complete:
+            answered.add(goal_id)
+        return complete
+
+    for goal_id in sorted(goal_ids(state)):
+        resolve(goal_id, set())
+    return answered
+
+
+def _goal_brief(state: dict[str, Any], goal_id: str) -> str:
+    nodes = by_id(state.get("nodes", []), "node")
+    text = str(nodes.get(goal_id, {}).get("text") or "").strip()
+    return f"{goal_id} ({text[:80]!r})" if text else goal_id
+
+
+def unanswered_goal_messages(state: dict[str, Any]) -> list[str]:
+    """Explain each accepted, non-optional goal that a candidate-bearing stop would leave open."""
+
+    answered = answered_goal_ids(state)
+    directly = directly_answered_goal_ids(state)
+    requirements = goal_requirements(state)
+    messages: list[str] = []
+    for goal_id in sorted(accepted_goal_ids(state) - optional_goal_ids(state)):
+        if goal_id in answered:
+            continue
+        if goal_id not in directly:
+            messages.append(f"accepted goal {_goal_brief(state, goal_id)} is unanswered: no answers edge from a candidate_solution")
+            continue
+        open_sub_goal = next(
+            (sub_goal for sub_goal in sorted(requirements.get(goal_id, set())) if sub_goal not in answered and sub_goal not in optional_goal_ids(state)),
+            None,
+        )
+        if open_sub_goal is not None:
+            messages.append(f"accepted goal {_goal_brief(state, goal_id)} requires unanswered goal {_goal_brief(state, open_sub_goal)}")
+    return messages
+
+
+def goal_best_candidates(state: dict[str, Any]) -> dict[str, str]:
+    """Best-belief candidate per accepted goal that has at least one answering candidate."""
+
+    nodes = by_id(state.get("nodes", []), "node")
+    node_truth_costs = node_effective_truth_costs(state)
+    accepted = accepted_goal_ids(state)
+    best: dict[str, tuple[float, str]] = {}
+    for candidate_id, goal_targets in candidate_goal_targets(state).items():
+        truth_cost = node_truth_costs.get(candidate_id)
+        if truth_cost is None:
+            truth_cost = node_truth_cost(nodes.get(candidate_id, {}))
+        for goal_id in goal_targets & accepted:
+            if goal_id not in best or (truth_cost, candidate_id) < best[goal_id]:
+                best[goal_id] = (truth_cost, candidate_id)
+    return {goal_id: candidate_id for goal_id, (_, candidate_id) in best.items()}
+
+
 def preferred_goal_ids(state: dict[str, Any]) -> set[str]:
     goals = goal_ids(state)
     policy = state.get("goal_policy") if isinstance(state.get("goal_policy"), dict) else {}

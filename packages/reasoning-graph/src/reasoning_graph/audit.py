@@ -8,8 +8,8 @@ from typing import Any
 
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
-from .models import AUDIT_EVENT_ACTIONS, STOP_OUTCOMES, ValidationResult
-from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, viable_candidate_ids
+from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
+from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, unanswered_goal_messages, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -110,6 +110,70 @@ def _historical_state_before_event(state: dict[str, Any], events: list[Any], eve
     return historical
 
 
+def stop_policy_severity(state: dict[str, Any]) -> str:
+    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
+    severity = str(policy.get("severity") or "warning")
+    return severity if severity in {"warning", "error"} else "warning"
+
+
+def _event_escape_reason(event: dict[str, Any]) -> str:
+    # Older traces used no_reopen_reason/exhaustion_reason for this event-level escape.
+    # Prefer no_new_work_reason; keep legacy acceptance so saved reports still audit cleanly.
+    return str(
+        event.get("no_new_work_reason")
+        or event.get("no_reopen_reason")
+        or event.get("exhaustion_reason")
+        or ""
+    ).strip()
+
+
+def expansion_gaps(
+    nodes: dict[str, dict[str, Any]],
+    item_node_id: str,
+    added_node_ids: set[str],
+    added_edges: list[dict[str, Any]],
+    added_frontier_ids: list[str],
+    event: dict[str, Any],
+) -> list[str]:
+    """Strict-policy gaps in one expansion, shared by `expand` (reject) and `audit` (replay).
+
+    Both rules come from the Spooky Manor run: a test that records no result hides failed
+    probes, and an expansion that adds no frontier work leaves competing interpretations
+    off-graph where the frontier cannot rank them.
+    """
+
+    gaps: list[str] = []
+    item_node = nodes.get(item_node_id, {})
+    if item_node.get("type") == "test":
+        has_result = any(
+            edge.get("from") == item_node_id
+            and edge.get("type") == "leads_to"
+            and edge.get("to") in added_node_ids
+            and nodes.get(str(edge.get("to")), {}).get("type") in RESULT_NODE_TYPES
+            for edge in added_edges
+        )
+        if not has_result:
+            gaps.append(
+                f"expanded test {item_node_id} recorded no result; add an evidence or derived node linked by "
+                "leads_to from the test (an inconclusive or failed check is still a result)"
+            )
+    added_types = {str(nodes[node_id].get("type")) for node_id in added_node_ids if node_id in nodes}
+    added_contradiction = any(edge.get("type") == "contradicts" for edge in added_edges)
+    item_exhausted = item_node.get("exhausted") is True and bool(str(item_node.get("exhaustion_reason") or "").strip())
+    has_escape = bool(
+        _event_escape_reason(event)
+        or str(event.get("under_branching_reason") or "").strip()
+        or event.get("existing_sibling_frontier")
+        or item_exhausted
+    )
+    if not added_frontier_ids and "candidate_solution" not in added_types and not added_contradiction and not has_escape:
+        gaps.append(
+            f"expansion of {item_node_id} added no frontier work and no candidate; add sibling interpretations as "
+            "frontier items or record no_new_work_reason/under_branching_reason"
+        )
+    return gaps
+
+
 def add_policy_violation(result: ValidationResult, message: str, severity: str) -> None:
     if severity == "error":
         result.errors.append(message)
@@ -130,9 +194,7 @@ def audit_stop_policy(
     warnings: list[str] = []
     result = ValidationResult(errors=errors, warnings=warnings)
     policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
-    severity = str(policy.get("severity") or "warning")
-    if severity not in {"warning", "error"}:
-        severity = "warning"
+    severity = stop_policy_severity(state)
 
     live_count = len(live_frontier_items)
     best_epistemic = best_epistemic_candidate_ids(state)
@@ -194,7 +256,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     base = validate_state(state)
     errors = list(base.errors)
     warnings = list(base.warnings)
-    stats = {"events": 0, "pops": 0, "expansions": 0, "rankings": 0}
+    stats = {"events": 0, "pops": 0, "expansions": 0, "rankings": 0, "peak_live_frontier": 0}
     if errors:
         return ValidationResult(errors=errors, warnings=warnings), stats
 
@@ -261,12 +323,15 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     deferred_branch_warnings: list[str] = []
     stop_reasons: list[str] = []
     stop_outcomes: list[str] = []
+    policy_result = ValidationResult(errors=errors, warnings=warnings)
+    severity = stop_policy_severity(state)
 
     def event_label(index: int, event: dict[str, Any]) -> str:
         return f"events[{index}] step={event.get('step')} action={event.get('action')}"
 
     for index, raw_event in enumerate(events):
         stats["events"] += 1
+        stats["peak_live_frontier"] = max(stats["peak_live_frontier"], len(virtual_frontier))
         if not isinstance(raw_event, dict):
             errors.append(f"events[{index}] must be object")
             continue
@@ -470,7 +535,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 for factor_id in factor_event_ids
                 if factor_id in factors_by_id
             ]
-            if item_node_id and added_node_set:
+            if item_node_id and added_node_set and nodes.get(item_node_id, {}).get("type") != "test":
                 has_outgoing_expansion_edge = any(
                     edge.get("from") == item_node_id and edge.get("to") in added_node_set
                     for edge in added_edges
@@ -521,14 +586,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 for child_id in added_frontier_ids
                 if child_id in items and isinstance(items[child_id].get("node"), str)
             }
-            # Older traces used no_reopen_reason/exhaustion_reason for this event-level escape.
-            # Prefer no_new_work_reason; keep legacy acceptance so saved reports still audit cleanly.
-            no_new_work_reason = str(
-                event.get("no_new_work_reason")
-                or event.get("no_reopen_reason")
-                or event.get("exhaustion_reason")
-                or ""
-            ).strip()
+            no_new_work_reason = _event_escape_reason(event)
+            for gap in expansion_gaps(nodes, item_node_id, added_node_set, added_edges, added_frontier_ids, event):
+                add_policy_violation(policy_result, f"{label}: {gap}", severity)
             updated_node_specs = event.get("updated_nodes", [])
             if updated_node_specs is None:
                 updated_node_specs = []
@@ -733,6 +793,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(
                         f"{label}: frontier_exhausted stop requires no active frontier work; remaining items: {sorted(virtual_frontier)}"
                     )
+                if outcome in CANDIDATE_STOP_OUTCOMES:
+                    for message in unanswered_goal_messages(state):
+                        add_policy_violation(policy_result, f"{label}: {outcome} stop leaves an accepted goal open; {message}", severity)
             seen_stop = True
 
     if not seen_init:

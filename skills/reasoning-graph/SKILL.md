@@ -74,6 +74,8 @@ Rules that prevent fake traces:
 - Do not call `next --pop` again until the pending popped item is recorded through `expand`, `assign`, or `rank`; every `stop` requires no pending item, and candidate-bearing `stop` auto-ranks only after terminal preflight passes.
 - Use `seed` for initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
 - Assigned items are in-flight, not active frontier; merge returned work with `expand --item <assigned-item>`.
+- Under strict policy, expanding a `test` item must record its result: an `evidence` or `derived` node linked by `leads_to` from the test. A failed or inconclusive probe is still a result; record it (usually as `contradicts` evidence on the interpretation it tested) before the next pop. Rule and shapes: `docs/schema/tests.md`.
+- Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason` or `under_branching_reason`; otherwise `expand` rejects it.
 - For parallel work, decompose one focus item into explicit independent sub-probes before fanout; do not assign unrelated jobs just to keep workers busy.
 - The helper CLI is installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`. Detailed mechanics: `docs/driver.md`.
 
@@ -162,11 +164,13 @@ Candidate and goal rules:
 - `method_hypothesis`, `clue_path`, and `blocker` need explicit method/clue/epistemic goals or should remain assumptions/derived nodes.
 - Do not make “not solved”, “cannot establish”, or “missing dependency” a candidate for a normal solve goal. That is a stop outcome or derived blocker unless the user accepted an epistemic/negative goal.
 - Use multiple `goal` nodes only when the user accepts multiple outcomes, e.g. solve, prove impossible, or conclude evidence is insufficient.
-- If `goal_policy.accepted_goals` is absent, all goal nodes are acceptable destinations. `preferred_goals` affects presentation/priority, not validity.
+- Chained sub-goals (stage 2 depends on stage 1) are plain `goal` nodes linked `parent --requires--> child`; there is no sub-goal type. A goal is answered only when a candidate answers it and every required sub-goal is answered.
+- If `goal_policy.accepted_goals` is absent, all goal nodes are acceptable destinations. `preferred_goals` affects presentation/priority, not validity. `optional_goals` may stay unanswered at a candidate-bearing stop.
 
 Report and presentation metadata:
 
-- `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`.
+- `report` may include readable candidate summaries, `winning_path`, `next_verification`, and candidate `path_nodes`. `report.candidates[].id` must be candidate node ids; `winning_path` entries must be node ids or exact node texts.
+- `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact candidate text. An answer string that matches no candidate fails stop-review.
 - `presentation` may include curated `include_nodes`, `highlight_nodes`, `dim_nodes`, `title`, and `layout_hint`.
 - Do not encode rank or viability words such as `Best`, `Second`, `viable`, or `rejected` into candidate names or node text. Rank and viability derive from graph relationships, belief/truth cost, search cost, and accepted goals.
 
@@ -224,6 +228,12 @@ Branch and candidate hygiene:
 - For concrete solve goals, candidate answers must follow the accepted-goal and `answer_kind` rules above.
 - Ranked report candidates must correspond to explored, tested, or evidence-penalized branches; mention unexplored alternatives as possibilities, not ranked candidates.
 
+Interpretation branching (granularity rule):
+
+- Pop focus is per interpretation, not per task stage. When a probe reveals two or more competing interpretations (encoding, alphabet mapping, bit order, reading order, unit, source), each becomes a sibling `assumption` with its own frontier item before the next probe runs. Do not enumerate them inside one scratch script; the frontier can only rank what is on the graph.
+- A failed bounded probe adds contradicting result evidence to the sibling it tested before the next pop, so the remaining siblings re-rank on real cost instead of on recall.
+- A run whose peak live frontier stays at 1 on a task with an interpretation step did not exercise the graph; `audit` reports `peak_live_frontier`, and benchmarks flag it (`docs/test-scenarios.md`).
+
 High-salience clue/family branching:
 
 - Official hints, docs, maintainer comments, theorem conditions, logs, test failures, or other authoritative clues deserve interpretation branches before brute force.
@@ -247,6 +257,7 @@ Do not stop on an epistemic/blocker candidate while meaningful answer-goal front
 
 Other stop rules:
 
+- A `solved`, `candidate_threshold_met`, or `candidate_count_met` stop is rejected while any accepted goal is unanswered (no `answers` edge from a candidate, or a required sub-goal still open). Stop with `inconclusive`/`budget_exhausted` instead, or list the goal in `goal_policy.optional_goals`.
 - Early threshold stop is allowed, but do not pad ranked candidates with unexplored alternatives.
 - Trivial or directly contradicted alternatives may be closed only when likelihood/cost updates make them clearly dominated.
 - Contradicted candidates may remain visible with lower belief, but should not satisfy high-confidence stop targets unless effective truth cost still passes.
@@ -282,6 +293,7 @@ Do not expose hidden chain-of-thought or raw scratch state. Provide user-facing 
 
 - Accepted goal is explicit; evidence, constraints, assumptions, and uncertainty are separated.
 - Every viable candidate answers an accepted goal, satisfies constraints, and is not a placeholder/blocker for a normal solve goal.
+- Every accepted goal is answered before a solved stop, every test expansion recorded its result, and the reported answer names the best candidate of each goal.
 - Meaningful alternatives and high-salience clue families are expanded, live, contradicted, or explicitly exhausted with reason.
 - Failed bounded tests penalize only affected branches; constraints add explicit cost/blocking evidence for invalid branches.
 - Ranked candidates come from explored, tested, or evidence-penalized branches; unexplored alternatives are labeled as unexpanded possibilities.

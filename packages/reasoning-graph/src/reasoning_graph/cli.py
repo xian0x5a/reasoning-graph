@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .audit import audit_state
+from .audit import audit_state, expansion_gaps, stop_policy_severity
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
-from .models import STOP_OUTCOMES
-from .policy import best_candidate_ids, ranked_viable_candidates
+from .models import CANDIDATE_STOP_OUTCOMES, STOP_OUTCOMES
+from .policy import best_candidate_ids, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
@@ -56,7 +56,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     if result.ok:
         print("ok")
         print(
-            "events={events} pops={pops} expansions={expansions} rankings={rankings}".format(**stats)
+            "events={events} pops={pops} expansions={expansions} rankings={rankings} peak_live_frontier={peak_live_frontier}".format(**stats)
         )
         return 0
     return 1
@@ -284,7 +284,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     for error in audit_result.errors:
         print(f"error: {error}", file=sys.stderr)
     print(
-        "doctor: audit events={events} pops={pops} expansions={expansions} rankings={rankings}".format(**stats)
+        "doctor: audit events={events} pops={pops} expansions={expansions} rankings={rankings} peak_live_frontier={peak_live_frontier}".format(**stats)
     )
     if not audit_result.ok:
         print("doctor: audit failed")
@@ -319,7 +319,9 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         "stop event exists and includes structured outcome",
         "best viable candidate is derived for solved/candidate-threshold stops",
         "best candidate answers an accepted goal",
-        "draft mentions best candidate id or text when draft is supplied",
+        "every accepted goal is answered for solved/candidate-threshold stops",
+        "summary/report answer names the best candidate for each accepted goal",
+        "draft names the best candidate for each accepted goal when draft is supplied",
     ]
 
     validation_result = validate_state(state)
@@ -360,25 +362,32 @@ def cmd_stop_review(args: argparse.Namespace) -> int:
         # Malformed scores were already reported by validation; keep the review report structured.
         required_fixes.append(f"cannot derive best candidate: {exc}")
         best_ids = set()
-    needs_best_candidate = stop_outcome in {"solved", "candidate_threshold_met", "candidate_count_met"}
+    needs_best_candidate = stop_outcome in CANDIDATE_STOP_OUTCOMES
     if needs_best_candidate and not best_ids:
         required_fixes.append(f"stop outcome {stop_outcome!r} requires a viable candidate_solution")
 
-    if args.draft:
-        draft_text = Path(args.draft).read_text(encoding="utf-8")
+    if needs_best_candidate:
+        required_fixes.extend(f"stop outcome {stop_outcome!r} leaves an accepted goal open; {message}" for message in unanswered_goal_messages(state))
+        # The reported answer must be the graph's answer: every answer-bearing text names
+        # the best candidate of each accepted goal, by id or exact candidate text.
         nodes = by_id(state.get("nodes", []), "node")
-        best_mentions = []
-        for candidate_id in sorted(best_ids):
+        answer_texts = {
+            f"{section}.answer": str(state[section].get("answer") or "").strip()
+            for section in ("summary", "report")
+            if isinstance(state.get(section), dict)
+        }
+        if args.draft:
+            answer_texts["draft"] = Path(args.draft).read_text(encoding="utf-8")
+        for goal_id, candidate_id in sorted(goal_best_candidates(state).items()):
             candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
-            mentioned = candidate_id in draft_text or (candidate_text and candidate_text in draft_text)
-            if mentioned:
-                best_mentions.append(candidate_id)
-        if best_ids and not best_mentions:
-            message = "draft does not mention best candidate id or exact candidate text"
-            if args.strict_warnings:
-                required_fixes.append(message)
-            else:
-                notes.append(message)
+            for field, text in answer_texts.items():
+                if not text:
+                    continue
+                if candidate_id in text or (candidate_text and candidate_text in text):
+                    continue
+                verb = "mention" if field == "draft" else "name"
+                quoted = "" if field == "draft" else f"; answer: {text!r}"
+                required_fixes.append(f"{field} does not {verb} best candidate {candidate_id} ({candidate_text!r}) for goal {goal_id}{quoted}")
 
     verdict = "fail" if required_fixes else "pass"
     return _print_stop_review(verdict, required_fixes, checks, notes)
@@ -909,6 +918,21 @@ def cmd_expand(args: argparse.Namespace) -> int:
     for supersede_event in supersede_events:
         events.append({"step": next_event_step(state), **supersede_event})
 
+    gaps = expansion_gaps(
+        by_id(state.get("nodes", []), "node"),
+        str(by_id(state.get("frontier", []), "frontier item")[args.item].get("node") or ""),
+        {node["id"] for node in nodes_to_add},
+        edges_to_add,
+        [item["id"] for item in frontier_to_add],
+        event,
+    )
+    if gaps and stop_policy_severity(state) == "error":
+        for gap in gaps:
+            print(f"error: {gap}", file=sys.stderr)
+        return 1
+    for gap in gaps:
+        print(f"warning: {gap}", file=sys.stderr)
+
     # Expansion resolves its target. Check resulting terminal state before rank or
     # stop persistence; command failures remain non-writing because dump happens last.
     if stop_reason is not None and _stop_preflight(state, stop_reason, str(stop_outcome)) != 0:
@@ -946,9 +970,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
 
     dump_state(state, args.output, default_in_place_source(args))
     return 0
-
-
-CANDIDATE_STOP_OUTCOMES = {"solved", "candidate_threshold_met", "candidate_count_met"}
 
 
 def append_rank_event(state: dict[str, Any], item_id: str | None = None, top: int = 10) -> int:
@@ -1026,6 +1047,17 @@ def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
             file=sys.stderr,
         )
         return 1
+    if outcome in CANDIDATE_STOP_OUTCOMES:
+        unanswered = unanswered_goal_messages(state)
+        for message in unanswered:
+            print(f"error: stop outcome {outcome!r} requires every accepted goal answered; {message}", file=sys.stderr)
+        if unanswered:
+            print(
+                "error: add a candidate_solution with an answers edge, list the goal in goal_policy.optional_goals, "
+                "or stop with a non-candidate outcome such as inconclusive or budget_exhausted",
+                file=sys.stderr,
+            )
+            return 1
     return 0
 
 

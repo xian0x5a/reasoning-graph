@@ -68,6 +68,16 @@ STOP_OUTCOMES = {
 }
 
 
+CANDIDATE_STOP_OUTCOMES = {
+    "solved",
+    "candidate_threshold_met",
+    "candidate_count_met",
+}
+
+
+RESULT_NODE_TYPES = {"evidence", "derived"}
+
+
 ANSWER_KINDS = {
     "exact_answer",
     "exact_method",

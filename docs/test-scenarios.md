@@ -57,6 +57,22 @@ Recommended validator sections:
 
 Keep validators in Markdown for human review. Add machine-readable validator files only when a runner needs them; if so, put them beside `validator.md` with explicit names like `validator.json`.
 
+## Run metrics
+
+Score every run on the same sheet, whichever arm produced it:
+
+- core answer correct (per `validator.md`)
+- clue-cluster coverage and fabricated-evidence count (claims in the final answer with no source in the transcript)
+- tokens, peak context, wall time, tool calls
+
+For reasoning-graph runs, also record from the stopped state:
+
+- `reasoning-graph audit` stats: `pops`, `expansions`, `rankings`, and `peak_live_frontier`
+- number of `contradicts` edges, and which stop gate the `stop` event names
+- `validate` / `audit` / `stop-review` verdicts
+
+Flag a run as **graph not exercised** when `peak_live_frontier` is 1 on a scenario that has an interpretation step (competing encodings, mappings, readings). Such a run says nothing about the skill's frontier queue and must not be counted as evidence for or against it.
+
 ## Assets
 
 Put local images or auxiliary data under `assets/` inside the scenario directory. Reference them with relative paths from the problem file, e.g. `![caption](assets/image.png)`.

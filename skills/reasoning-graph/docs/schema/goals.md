@@ -56,7 +56,26 @@ Fields:
 
 - `accepted_goals` — goal ids that candidates may validly answer. If absent, all goal nodes are accepted.
 - `preferred_goals` — goal ids preferred in presentation or priority discussion; does not change validity.
+- `optional_goals` — goal ids that may remain unanswered at a `solved`/candidate-count/threshold stop; also exempt as required sub-goals.
 - `goal_groups[].exclusive` — marks mutually incompatible outcomes in that group.
+
+## Sub-goals
+
+Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. Link them with `parent goal --requires--> child goal`:
+
+```json
+{
+  "nodes": [
+    {"id": "G1", "type": "goal", "text": "Find the URL path into the manor"},
+    {"id": "G2", "type": "goal", "text": "Find the next URL path under /TwoSigns/"}
+  ],
+  "edges": [
+    {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires", "reasoning": "The trail continues into room 2."}
+  ]
+}
+```
+
+A goal is **answered** when it has an `answers` edge from a `candidate_solution` and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. A candidate-bearing stop (`solved`, `candidate_threshold_met`, `candidate_count_met`) is rejected by `stop`, `audit`, and `stop-review` while any accepted, non-optional goal is unanswered.
 
 ## Examples
 
@@ -116,4 +135,6 @@ Fields:
 - Concrete exact-answer goals accept only `exact_answer` or `exact_method` candidates.
 - `method_hypothesis`, `clue_path`, and `blocker` candidates target matching method, clue, or epistemic goals.
 - `assumption -> goal` direct edges are invalid; route through tests, derived conclusions, or candidates.
+- `goal -> goal` edges use `requires`; goal requirement cycles are invalid.
+- `goal_policy.optional_goals` reference existing goals.
 - `constraint -> goal` with `requires` is invalid; use `goal -> constraint` or `candidate_solution -> constraint`.

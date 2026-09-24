@@ -68,7 +68,11 @@ uv --project packages/reasoning-graph run reasoning-graph validate state.json
 uv --project packages/reasoning-graph run reasoning-graph frontier state.json
 uv --project packages/reasoning-graph run reasoning-graph next state.json --pop
 cat > expansion.json <<'JSON'
-{"no_new_work_reason": "Initial test queued; stop this smoke run before adding real follow-up branches."}
+{
+  "nodes": [{"id": "E2", "type": "evidence", "text": "Check ran; the plausible cause was not confirmed in this smoke run", "prior": 0.9}],
+  "edges": [{"id": "T1-E2", "from": "T1", "to": "E2", "type": "leads_to", "reasoning": "The check produced this observation."}],
+  "no_new_work_reason": "Smoke run; stop before adding real follow-up branches."
+}
 JSON
 uv --project packages/reasoning-graph run reasoning-graph expand state.json --item Q1 --patch expansion.json
 uv --project packages/reasoning-graph run reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
@@ -82,6 +86,8 @@ uv --project packages/reasoning-graph run reasoning-graph stop-review state.stop
 uv --project packages/reasoning-graph run reasoning-graph mermaid state.stopped.json > graph.mmd
 uv --project packages/reasoning-graph run reasoning-graph html state.stopped.json -o graph.html
 ```
+
+Under the strict profile, expanding a `test` item must record its result as `evidence`/`derived` linked by `leads_to`, and an expansion that adds no frontier work must say why (`no_new_work_reason`); `expand` rejects the patch otherwise.
 
 `reasoning-graph seed` appends evidence/constraints/assumptions/tests plus root frontier items. Before the first driver event it leaves events empty so `next --pop` records the real `init`/`pop` events; after driver init it records a `seed` event and requires patch `reason` for provenance.
 

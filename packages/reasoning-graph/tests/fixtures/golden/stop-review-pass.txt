@@ -7,6 +7,8 @@ semantic_tricks_checked:
   - "stop event exists and includes structured outcome"
   - "best viable candidate is derived for solved/candidate-threshold stops"
   - "best candidate answers an accepted goal"
-  - "draft mentions best candidate id or text when draft is supplied"
+  - "every accepted goal is answered for solved/candidate-threshold stops"
+  - "summary/report answer names the best candidate for each accepted goal"
+  - "draft names the best candidate for each accepted goal when draft is supplied"
 notes:
   []

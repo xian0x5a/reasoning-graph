@@ -1,0 +1,269 @@
+{
+  "summary": {
+    "title": "Spooky Manor shaped trail (trimmed)",
+    "answer": "TwoSigns -> Photophone"
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Find the URL path into the manor"
+    },
+    {
+      "id": "E1",
+      "type": "evidence",
+      "text": "Room 1 shows eight windows with tinted panes",
+      "source": "room page",
+      "prior": 1.0
+    },
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "The panes are Braille cells",
+      "prior": 0.6
+    },
+    {
+      "id": "T1",
+      "type": "test",
+      "text": "Decode the panes as Braille and probe the URL"
+    },
+    {
+      "id": "E2",
+      "type": "evidence",
+      "text": "Braille decode reads TWOSIGNS and the URL returns 200",
+      "source": "probe",
+      "prior": 0.95
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "TwoSigns",
+      "answer_kind": "exact_answer"
+    },
+    {
+      "id": "G2",
+      "type": "goal",
+      "text": "Find the next URL path under /TwoSigns/"
+    },
+    {
+      "id": "E3",
+      "type": "evidence",
+      "text": "Room 2 shows a waveform image",
+      "source": "room page",
+      "prior": 1.0
+    },
+    {
+      "id": "A2",
+      "type": "assumption",
+      "text": "The waveform encodes 5-bit characters",
+      "prior": 0.5
+    },
+    {
+      "id": "T2",
+      "type": "test",
+      "text": "Decode the waveform and probe the URL"
+    },
+    {
+      "id": "E4",
+      "type": "evidence",
+      "text": "Spectral profile shows 20 tracks",
+      "source": "fft",
+      "prior": 1.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "E1-A1",
+      "from": "E1",
+      "to": "A1",
+      "type": "supports",
+      "likelihood_ratio": 2,
+      "reasoning": "Two-by-three panes match Braille cells."
+    },
+    {
+      "id": "A1-T1",
+      "from": "A1",
+      "to": "T1",
+      "type": "prompts",
+      "reasoning": "The Braille reading motivates a decode probe."
+    },
+    {
+      "id": "T1-E2",
+      "from": "T1",
+      "to": "E2",
+      "type": "leads_to",
+      "reasoning": "The probe produced this observation."
+    },
+    {
+      "id": "E2-CS1",
+      "from": "E2",
+      "to": "CS1",
+      "type": "leads_to",
+      "reasoning": "The confirmed URL is the answer."
+    },
+    {
+      "id": "CS1-G1",
+      "from": "CS1",
+      "to": "G1",
+      "type": "answers",
+      "reasoning": "TwoSigns is the room 1 path."
+    },
+    {
+      "id": "G1-G2",
+      "from": "G1",
+      "to": "G2",
+      "type": "requires",
+      "reasoning": "The trail continues into room 2."
+    },
+    {
+      "id": "E3-A2",
+      "from": "E3",
+      "to": "A2",
+      "type": "supports",
+      "likelihood_ratio": 1.5,
+      "reasoning": "Square waves suggest bit tracks."
+    },
+    {
+      "id": "A2-T2",
+      "from": "A2",
+      "to": "T2",
+      "type": "prompts",
+      "reasoning": "The 5-bit reading motivates a decode probe."
+    },
+    {
+      "id": "T2-E4",
+      "from": "T2",
+      "to": "E4",
+      "type": "leads_to",
+      "reasoning": "The probe produced this profile."
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "T1",
+      "cost_components": {
+        "truth": "auto",
+        "verification": 0.2
+      },
+      "truth_cost": 0.0,
+      "work_cost": 0.2,
+      "base_search_cost": 0.2,
+      "step_truth_cost": 0.0,
+      "step_cost": 0.2,
+      "search_cost": 0.2
+    },
+    {
+      "id": "Q2",
+      "node": "T2",
+      "cost_components": {
+        "truth": "auto",
+        "verification": 0.3
+      },
+      "parent": "Q1",
+      "truth_cost": 0.0,
+      "work_cost": 0.3,
+      "base_search_cost": 0.3,
+      "step_truth_cost": 0.0,
+      "step_cost": 0.3,
+      "search_cost": 0.3
+    }
+  ],
+  "search_policy": {
+    "estimated_remaining_weight": 1.0
+  },
+  "stop_policy": {
+    "min_viable_candidates": 3,
+    "belief_threshold": 0.8,
+    "max_live_frontier_items": 0,
+    "require_frontier_exhausted_for_epistemic_stop": true,
+    "severity": "error"
+  },
+  "branch_policy": {
+    "high_salience_min_children": 3,
+    "low_prior_wildcard_required": true,
+    "enforce_on": "exhaustion_stop",
+    "severity": "warning"
+  },
+  "factors": [],
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": [
+        "Q1"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "pop",
+      "item": "Q1",
+      "cost": 0.2
+    },
+    {
+      "step": 3,
+      "action": "expand",
+      "item": "Q1",
+      "add_nodes": [
+        "E2",
+        "CS1",
+        "G2",
+        "E3",
+        "A2",
+        "T2"
+      ],
+      "add_edges": [
+        "T1-E2",
+        "E2-CS1",
+        "CS1-G1",
+        "G1-G2",
+        "E3-A2",
+        "A2-T2"
+      ],
+      "add_frontier": [
+        "Q2"
+      ],
+      "update_factors": []
+    },
+    {
+      "step": 4,
+      "action": "pop",
+      "item": "Q2",
+      "cost": 0.3
+    },
+    {
+      "step": 5,
+      "action": "expand",
+      "item": "Q2",
+      "add_nodes": [
+        "E4"
+      ],
+      "add_edges": [
+        "T2-E4"
+      ],
+      "add_frontier": [],
+      "update_factors": [],
+      "no_new_work_reason": "Profile recorded; decode reasoning continues off-graph."
+    },
+    {
+      "step": 6,
+      "action": "rank",
+      "item": "Q2",
+      "best": "CS1",
+      "belief": 0.95,
+      "candidates": [
+        {
+          "node": "CS1",
+          "belief": 0.95,
+          "effective_truth_cost": 0.051293
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "action": "stop",
+      "reason": "systematically solved stage by stage",
+      "outcome": "solved"
+    }
+  ]
+}
