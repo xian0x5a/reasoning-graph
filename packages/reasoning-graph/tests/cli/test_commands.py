@@ -929,6 +929,33 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(over_limit.returncode, 0)
             self.assertIn("max probe concurrency reached", over_limit.stderr)
 
+    def test_default_concurrency_allows_five_in_flight_probes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            probe_count = 6
+            state = {
+                "nodes": [
+                    {"id": f"A{index}", "type": "hypothesis", "text": f"Probe {index}", "prior": 1.0}
+                    for index in range(1, probe_count + 1)
+                ],
+                "edges": [],
+                "frontier": [
+                    {"id": f"Q{index}", "node": f"A{index}", "cost_components": {"truth": "auto", "verification": index / 10}}
+                    for index in range(1, probe_count + 1)
+                ],
+            }
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            for index in range(1, 6):
+                self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+                assigned = self.run_cli("assign", str(state_path), "--item", f"Q{index}", "-i")
+                self.assertEqual(assigned.returncode, 0, assigned.stderr)
+            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
+            over_limit = self.run_cli("assign", str(state_path), "--item", "Q6", "-i")
+
+            self.assertNotEqual(over_limit.returncode, 0)
+            self.assertIn("max probe concurrency reached (5/5)", over_limit.stderr)
+
     def test_expand_can_merge_assigned_probe_out_of_pop_order(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"

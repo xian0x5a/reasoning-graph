@@ -11,7 +11,7 @@ from typing import Any
 from .audit import audit_state, expansion_gaps, stop_policy_severity
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
-from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
+from .models import CANDIDATE_STOP_OUTCOMES, DEFAULT_MAX_PROBE_CONCURRENCY, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
 from .policy import best_candidate_ids, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages, ungrounded_goal_answer_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
@@ -698,9 +698,6 @@ def _dedupe_frontier_additions(
     return frontier_to_keep, supersede_events
 
 
-DEFAULT_MAX_PROBE_CONCURRENCY = 3
-
-
 def _max_probe_concurrency(state: dict[str, Any], cli_value: int | None) -> int:
     if cli_value is not None:
         return cli_value
@@ -1205,7 +1202,7 @@ def build_parser() -> argparse.ArgumentParser:
     assign.add_argument("--run-id", help="external async run id")
     assign.add_argument("--probe", help="test/probe node id, when a graph node represents the assigned work")
     assign.add_argument("--concurrency-group", help="optional group for human-readable async coordination")
-    assign.add_argument("--max-concurrency", type=int, help="maximum allowed in-flight probes; defaults to search_policy.max_probe_concurrency or 3")
+    assign.add_argument("--max-concurrency", type=int, help=f"maximum allowed in-flight probes; defaults to search_policy.max_probe_concurrency or {DEFAULT_MAX_PROBE_CONCURRENCY}")
     assign.add_argument("--reason", help="why this item is being delegated")
     assign.add_argument("-o", "--output", help="write mutated state to path")
     assign.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")

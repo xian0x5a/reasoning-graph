@@ -8,7 +8,7 @@ from typing import Any
 
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
-from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
+from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, DEFAULT_MAX_PROBE_CONCURRENCY, EVIDENCE_GROUNDED_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
 from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, strongest_grounded_candidate_belief, unanswered_goal_messages, ungrounded_goal_answer_messages, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
@@ -302,10 +302,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         claimed_by_event[(kind, object_id)] = index
 
     search_policy = state.get("search_policy") if isinstance(state.get("search_policy"), dict) else {}
-    default_max_probe_concurrency = 3
-    policy_max_probe_concurrency = search_policy.get("max_probe_concurrency", default_max_probe_concurrency)
+    policy_max_probe_concurrency = search_policy.get("max_probe_concurrency", DEFAULT_MAX_PROBE_CONCURRENCY)
     if not isinstance(policy_max_probe_concurrency, int) or policy_max_probe_concurrency < 1:
-        policy_max_probe_concurrency = default_max_probe_concurrency
+        policy_max_probe_concurrency = DEFAULT_MAX_PROBE_CONCURRENCY
 
     policy_result = ValidationResult(errors=errors, warnings=warnings)
     severity = stop_policy_severity(state)

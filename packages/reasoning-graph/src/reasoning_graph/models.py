@@ -123,6 +123,10 @@ EPISTEMIC_GOAL_MARKERS = (
 )
 
 
+# In-flight subagent probes allowed when search_policy.max_probe_concurrency is unset.
+DEFAULT_MAX_PROBE_CONCURRENCY = 5
+
+
 SEARCH_COST_COMPONENTS = (
     "truth",
     "verification",

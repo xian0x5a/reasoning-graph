@@ -22,7 +22,7 @@ The queue leads the work. Put a direction on the graph before acting on it, and 
 1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
 2. **Seed graph.** Separate given/source-backed `observation`s, hard `constraint`s, and open `hypothesis` nodes. Seed initial nodes, edges, tests, and root frontier items.
 3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; it recomputes costs and selects the lowest-cost active item.
-4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, or `rank`. `assign` hands research, test, or verify work to a subagent so the main thread stays on the queue (see Orchestrator and subagents).
+4. **Choose treatment.** Resolve the popped item with `expand`, `assign`, or `rank`. `assign` hands research, test, or verify work to a subagent so the main thread stays on the queue (see Orchestrator and subagents). It also frees the pending slot: the next `next --pop` can be assigned while earlier probes run, up to `search_policy.max_probe_concurrency` (default 5) in flight. Waiting on one subagent at a time serializes independent frontier items.
 5. **Merge reviewed results.** Add only supported findings/expansions. Calibrate `supports`/`contradicts` likelihoods or explicit `posterior`. Use `sort` only to persist recomputed frontier order before inspection/rendering; `next` already ranks before popping.
 6. **Stop by policy** (gates below).
 7. **Review final.** `validate`, `audit`, `stop-review`, then write final prose that matches the graph and invents no observations.
