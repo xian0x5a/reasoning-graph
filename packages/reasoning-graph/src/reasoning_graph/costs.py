@@ -291,6 +291,14 @@ def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -
 
 
 @dataclass(frozen=True)
+class EvidenceUpdate:
+    """One odds-space update on a claim: an ungrouped edge or a likelihood factor."""
+
+    log_likelihood_ratio: float
+    source_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class TruthInputs:
     """Validated graph inputs to belief propagation, shared by cost and grounding checks."""
 
@@ -298,8 +306,8 @@ class TruthInputs:
     premise_sources: dict[str, list[str]]
     premise_group_costs: dict[str, list[float]]
     grouped_premise_sources: dict[str, set[str]]
-    # Per-node log likelihood ratios after factor grouping, in edge-then-factor order.
-    evidence_log_likelihood_ratios: dict[str, list[float]]
+    # Per-node updates after factor grouping, in edge-then-factor order.
+    evidence_updates: dict[str, list[EvidenceUpdate]]
     belief_source_nodes: set[str]
 
 
@@ -335,7 +343,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
     grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
     grouped_likelihood_sources: dict[tuple[str, str], set[str]] = {}
-    factor_likelihood_ratios: dict[str, list[float]] = {node_id: [] for node_id in nodes}
+    factor_updates: dict[str, list[EvidenceUpdate]] = {node_id: [] for node_id in nodes}
     premise_source_sets = {node_id: set(sources) for node_id, sources in premise_sources.items()}
     for source, index, factor in iter_numeric_factor_specs(state):
         label = factor_label(source, index)
@@ -385,10 +393,10 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             raise ValueError(f"{label} supports likelihood ratio must be > 1")
         if relation == "contradicts" and likelihood_ratio >= 1:
             raise ValueError(f"{label} contradicts likelihood ratio must be in (0, 1)")
-        factor_likelihood_ratios[target].append(likelihood_ratio)
+        factor_updates[target].append(EvidenceUpdate(math.log(likelihood_ratio), tuple(input_ids)))
         grouped_for_relation.update(input_ids)
 
-    evidence_log_likelihood_ratios: dict[str, list[float]] = {}
+    evidence_updates: dict[str, list[EvidenceUpdate]] = {}
     for node_id in nodes:
         ungrouped_likelihood_edges = [
             edge
@@ -398,17 +406,17 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         ]
         # Factors are explicit non-independent bundles; their calibrated
         # likelihood replaces grouped member updates.
-        log_ratios = [math.log(likelihood_ratio_from_edge(edge)) for edge in ungrouped_likelihood_edges]
-        log_ratios += [math.log(likelihood_ratio) for likelihood_ratio in factor_likelihood_ratios.get(node_id, [])]
-        if log_ratios:
-            evidence_log_likelihood_ratios[node_id] = log_ratios
+        updates = [EvidenceUpdate(math.log(likelihood_ratio_from_edge(edge)), (str(edge["from"]),)) for edge in ungrouped_likelihood_edges]
+        updates += factor_updates.get(node_id, [])
+        if updates:
+            evidence_updates[node_id] = updates
 
     return TruthInputs(
         nodes=nodes,
         premise_sources=premise_sources,
         premise_group_costs=premise_group_costs,
         grouped_premise_sources=grouped_premise_sources,
-        evidence_log_likelihood_ratios=evidence_log_likelihood_ratios,
+        evidence_updates=evidence_updates,
         belief_source_nodes=grounded_nodes,
     )
 
@@ -456,17 +464,17 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         # aggregation replaces grouped member costs.
         premise_cost = sum(inputs.premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
-        log_likelihood_ratios = inputs.evidence_log_likelihood_ratios.get(node_id, [])
-        if node_id not in inputs.belief_source_nodes and (node.get("type") in BELIEF_NODE_TYPES or log_likelihood_ratios):
+        updates = inputs.evidence_updates.get(node_id, [])
+        if node_id not in inputs.belief_source_nodes and (node.get("type") in BELIEF_NODE_TYPES or updates):
             # Unknown claims must not become free certainty, even when the cost
             # engine is called without validation. A grounded zero stays certain.
             base_cost = probability_cost(NEUTRAL_UPDATE_PRIOR)
-        if log_likelihood_ratios:
+        if updates:
             # Stay in log space: exp(-base_cost) can underflow for valid inherited
             # beliefs. expm1 also preserves precision near explicit certainty.
             log_odds = -base_cost - math.log(-math.expm1(-base_cost)) if base_cost > 0 else math.inf
-            for log_likelihood_ratio in log_likelihood_ratios:
-                log_odds += log_likelihood_ratio
+            for update in updates:
+                log_odds += update.log_likelihood_ratio
             cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost

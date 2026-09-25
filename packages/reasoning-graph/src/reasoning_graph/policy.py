@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value, truth_inputs
+from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value, TruthInputs, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -294,42 +294,54 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(filtered, key=candidate_sort_key)
 
 
-def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str]) -> dict[str, list[str]]:
-    """Map each candidate to the claims whose hand-set scores, not observations, carry its belief.
+def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
+    """Claims whose belief is earned from observations rather than hand-set scores.
 
-    A claim is evidence-grounded when its combined evidence updates favor it
-    (net likelihood ratio > 1) or every one of its `leads_to` premises is
-    grounded; observations are the base. Priors and posteriors never ground a
-    claim: a contradiction-only claim that still scores high is carried by its
-    prior. Reported claims are the deepest ungrounded ones on the premise chain,
-    which is where evidence is missing. Grounded candidates are omitted.
+    Observations are the base. A claim is grounded when every one of its
+    `leads_to` premises is grounded, or when its evidence favors it (net
+    likelihood ratio > 1) counting supporting updates only from grounded sources
+    and contradicting updates from any source: unbacked support cannot lift a
+    claim, but unbacked doubt still weighs. Priors and posteriors never ground a
+    claim. Computed as a least fixpoint so a support cycle cannot ground itself.
+    """
+
+    grounded = {node_id for node_id, node in inputs.nodes.items() if node.get("type") == "observation"}
+
+    def is_grounded_by(node_id: str) -> bool:
+        premises = inputs.premise_sources.get(node_id, [])
+        if premises and all(premise in grounded for premise in premises):
+            return True
+        net_log_likelihood_ratio = sum(
+            update.log_likelihood_ratio
+            for update in inputs.evidence_updates.get(node_id, [])
+            if update.log_likelihood_ratio < 0 or all(source in grounded for source in update.source_ids)
+        )
+        return net_log_likelihood_ratio > 0
+
+    changed = True
+    while changed:
+        newly_grounded = {node_id for node_id in inputs.nodes if node_id not in grounded and is_grounded_by(node_id)}
+        grounded |= newly_grounded
+        changed = bool(newly_grounded)
+    return grounded
+
+
+def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str]) -> dict[str, list[str]]:
+    """Map each ungrounded candidate to the deepest ungrounded claims on its premise chain.
+
+    Those claims are where evidence is missing; grounded candidates are omitted.
     """
 
     inputs = truth_inputs(state)
-    grounded_memo: dict[str, bool] = {}
-
-    def is_grounded(node_id: str) -> bool:
-        if node_id not in grounded_memo:
-            if inputs.nodes.get(node_id, {}).get("type") == "observation":
-                grounded_memo[node_id] = True
-            else:
-                premises = inputs.premise_sources.get(node_id, [])
-                grounded_memo[node_id] = sum(inputs.evidence_log_likelihood_ratios.get(node_id, [])) > 0 or (
-                    bool(premises) and all(is_grounded(premise) for premise in premises)
-                )
-        return grounded_memo[node_id]
+    grounded = evidence_grounded_node_ids(inputs)
 
     def ungrounded_roots(node_id: str) -> set[str]:
-        ungrounded_premises = [premise for premise in inputs.premise_sources.get(node_id, []) if not is_grounded(premise)]
+        ungrounded_premises = [premise for premise in inputs.premise_sources.get(node_id, []) if premise not in grounded]
         if not ungrounded_premises:
             return {node_id}
         return set().union(*(ungrounded_roots(premise) for premise in ungrounded_premises))
 
-    return {
-        candidate_id: sorted(ungrounded_roots(candidate_id))
-        for candidate_id in sorted(candidate_ids)
-        if not is_grounded(candidate_id)
-    }
+    return {candidate_id: sorted(ungrounded_roots(candidate_id)) for candidate_id in sorted(candidate_ids) if candidate_id not in grounded}
 
 
 def ungrounded_goal_answer_messages(state: dict[str, Any]) -> list[str]:

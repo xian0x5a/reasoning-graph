@@ -453,6 +453,53 @@ class GroundedPathTests(unittest.TestCase):
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
             self.assertIn("H0", stopped.stderr)
 
+    def test_support_from_an_ungrounded_hypothesis_does_not_ground_its_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.expanded_state(
+                tmp_dir,
+                [self.hypothesis("H1", 0.5), self.hypothesis("H2", 0.9)],
+                [self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
+            )
+            stopped = self.stop(state_path)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout)
+            self.assertIn("H1", stopped.stderr)
+
+    def test_support_from_a_grounded_hypothesis_grounds_its_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.expanded_state(
+                tmp_dir,
+                [self.hypothesis("H1", 0.5), self.hypothesis("H2")],
+                [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
+            )
+            self.ok(self.stop(state_path))
+
+    def test_contradiction_from_an_ungrounded_source_still_weighs_against_grounding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.expanded_state(
+                tmp_dir,
+                [self.hypothesis("H1", 0.95), self.hypothesis("H2", 0.5)],
+                [
+                    self.edge("O1", "H1", "supports", likelihood_ratio=2),
+                    self.edge("H2", "H1", "contradicts", likelihood_ratio=0.25),
+                    self.edge("H1", "CS1", "leads_to"),
+                ],
+            )
+            stopped = self.stop(state_path)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout)
+            self.assertIn("H1", stopped.stderr)
+
+    def test_support_cycle_cannot_ground_itself_but_carries_grounding_from_outside(self) -> None:
+        cycle = [self.edge("H1", "H2", "supports", likelihood_ratio=4), self.edge("H2", "H1", "supports", likelihood_ratio=4), self.edge("H2", "CS1", "leads_to")]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            closed = self.expanded_state(tmp_dir, [self.hypothesis("H1", 0.9), self.hypothesis("H2", 0.9)], cycle)
+            stopped = self.stop(closed)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout)
+            self.assertIn("H2", stopped.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            anchored = self.expanded_state(tmp_dir, [self.hypothesis("H1"), self.hypothesis("H2", 0.9)], [self.edge("O1", "H1", "leads_to"), *cycle])
+            self.ok(self.stop(anchored))
+
     def test_audit_does_not_count_an_ungrounded_candidate_toward_the_belief_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.expanded_state(
