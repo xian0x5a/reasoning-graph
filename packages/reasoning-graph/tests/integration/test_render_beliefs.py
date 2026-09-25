@@ -23,9 +23,9 @@ RENDERERS = ("mermaid", "grouped-mermaid", "offline")
 def report_state(*, support=False, posterior=None):
     state = {
         "nodes": [
-            {"id": "E1", "type": "evidence", "text": "Observed premise", "prior": 0.8},
-            {"id": "E2", "type": "evidence", "text": "Independent signal", "prior": 0.9},
-            {"id": "D1", "type": "derived", "text": "Conclusion", "prior": 0.9},
+            {"id": "E1", "type": "observation", "text": "Observed premise", "prior": 0.8},
+            {"id": "E2", "type": "observation", "text": "Independent signal", "prior": 0.9},
+            {"id": "D1", "type": "hypothesis", "text": "Conclusion", "prior": 0.9},
             {"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"},
             {"id": "G1", "type": "goal", "text": "Find the answer"},
             {"id": "C1", "type": "constraint", "text": "Use the observed data"},
@@ -86,14 +86,14 @@ def test_graph_labels_use_full_graph_belief(renderer, filtered, support, posteri
     original = deepcopy(state)
     selected = {"D1", "CS1", "G1", "C1", "T1"} if filtered else None
     labels = graph_labels(state, renderer, selected)
-    assert labels["D1"] == f"D1\nderived\nbelief {expected}"
+    assert labels["D1"] == f"D1\nhypothesis\nbelief {expected}"
     assert labels["CS1"] == f"CS1\ncandidate\nbelief {expected}"
     for node_id, node_type in (("G1", "goal"), ("C1", "constraint"), ("T1", "test")):
         assert labels[node_id] == f"{node_id}\n{node_type}"
     if filtered:
         assert set(labels) == selected
     else:
-        assert labels["E1"] == "E1\nevidence\nbelief 0.8"
+        assert labels["E1"] == "E1\nobservation\nbelief 0.8"
     assert state == original
 
 

@@ -11,14 +11,14 @@
     },
     {
       "id": "E1",
-      "type": "evidence",
+      "type": "observation",
       "text": "Room 1 shows eight windows with tinted panes",
       "source": "room page",
       "prior": 1.0
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "The panes are Braille cells",
       "prior": 0.6
     },
@@ -29,7 +29,7 @@
     },
     {
       "id": "E2",
-      "type": "evidence",
+      "type": "observation",
       "text": "Braille decode reads TWOSIGNS and the URL returns 200",
       "source": "probe",
       "prior": 0.95
@@ -47,14 +47,14 @@
     },
     {
       "id": "E3",
-      "type": "evidence",
+      "type": "observation",
       "text": "Room 2 shows a waveform image",
       "source": "room page",
       "prior": 1.0
     },
     {
       "id": "A2",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "The waveform encodes 5-bit characters",
       "prior": 0.5
     },
@@ -65,7 +65,7 @@
     },
     {
       "id": "E4",
-      "type": "evidence",
+      "type": "observation",
       "text": "Spectral profile shows 20 tracks",
       "source": "fft",
       "prior": 1.0

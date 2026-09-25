@@ -74,7 +74,7 @@ def node_label(node: dict[str, Any]) -> str:
     text = str(node.get("text", node.get("id", ""))).strip()
     if text:
         parts.append(text)
-    if node.get("type") == "assumption" and "prior" in node:
+    if node.get("type") == "hypothesis" and "prior" in node:
         parts.append(f"prior {float(node['prior']):.2f}")
     if "posterior" in node:
         parts.append(f"posterior {float(node['posterior']):.2f}")

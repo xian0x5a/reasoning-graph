@@ -7,16 +7,15 @@ from dataclasses import dataclass
 
 NODE_TYPES = {
     "goal",
-    "evidence",
+    "observation",
     "constraint",
-    "derived",
-    "assumption",
+    "hypothesis",
     "test",
     "candidate_solution",
 }
 
 
-BELIEF_NODE_TYPES = {"evidence", "derived", "assumption", "candidate_solution"}
+BELIEF_NODE_TYPES = {"observation", "hypothesis", "candidate_solution"}
 
 
 EDGE_TYPES = {
@@ -75,7 +74,9 @@ CANDIDATE_STOP_OUTCOMES = {
 }
 
 
-RESULT_NODE_TYPES = {"evidence", "derived"}
+# A test result is what was observed; a conclusion drawn from it is a separate hypothesis
+# linked by leads_to from the observation.
+RESULT_NODE_TYPES = {"observation"}
 
 
 ANSWER_KINDS = {
@@ -160,10 +161,9 @@ PROBE_LIKE_MARKERS = (
 
 CLASS_BY_NODE_TYPE = {
     "goal": "goal",
-    "evidence": "evidence",
+    "observation": "observation",
     "constraint": "constraint",
-    "derived": "derived",
-    "assumption": "assumption",
+    "hypothesis": "hypothesis",
     "test": "test",
     "candidate_solution": "candidate",
 }

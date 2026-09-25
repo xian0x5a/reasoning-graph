@@ -59,7 +59,7 @@ def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
         if not isinstance(node, dict):
             continue
         raw_type = str(node.get("type"))
-        cls = CLASS_BY_NODE_TYPE.get(raw_type, "derived")
+        cls = CLASS_BY_NODE_TYPE.get(raw_type, "hypothesis")
         node_id = str(node.get("id"))
         classes.setdefault(cls, set()).add(node_id)
     view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
@@ -102,16 +102,15 @@ def presentation_node_ids(state: dict[str, Any]) -> set[str]:
     evidence_ids = [
         str(node.get("id"))
         for node in state.get("nodes", [])
-        if isinstance(node, dict) and node.get("type") in {"evidence", "constraint", "derived"}
+        if isinstance(node, dict) and node.get("type") in {"observation", "constraint", "hypothesis"}
     ][:10]
     return {node_id for node_id in set(evidence_ids) | candidate_ids if node_id in nodes}
 
 
 GRAPH_GROUPS = (
     ("cluster_goal", "Goal", {"goal"}),
-    ("cluster_evidence", "Evidence", {"evidence", "constraint"}),
-    ("cluster_assumptions", "Assumptions", {"assumption"}),
-    ("cluster_inference", "Inference", {"derived", "test"}),
+    ("cluster_observations", "Observations", {"observation", "constraint"}),
+    ("cluster_hypotheses", "Hypotheses", {"hypothesis", "test"}),
     ("cluster_candidates", "Candidates", {"candidate_solution"}),
 )
 
@@ -247,10 +246,9 @@ def to_mermaid(
         [
             "",
             "  classDef goal fill:#fef3c7,stroke:#d97706,stroke-width:2px;",
-            "  classDef evidence fill:#ecfeff,stroke:#0891b2;",
+            "  classDef observation fill:#ecfeff,stroke:#0891b2;",
             "  classDef constraint fill:#fff7ed,stroke:#ea580c;",
-            "  classDef derived fill:#f8fafc,stroke:#64748b;",
-            "  classDef assumption fill:#f5f3ff,stroke:#7c3aed;",
+            "  classDef hypothesis fill:#f5f3ff,stroke:#7c3aed;",
             "  classDef test fill:#e0f2fe,stroke:#0284c7;",
             "  classDef candidate fill:#dbeafe,stroke:#2563eb,stroke-width:2px;",
             "  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:3px;",
@@ -266,9 +264,8 @@ def to_mermaid(
         lines.extend(
             [
                 "  style cluster_goal fill:#fffbeb,stroke:#fde68a,stroke-width:1px;",
-                "  style cluster_evidence fill:#f8fafc,stroke:#bae6fd,stroke-width:1px;",
-                "  style cluster_assumptions fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
-                "  style cluster_inference fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px;",
+                "  style cluster_observations fill:#f8fafc,stroke:#bae6fd,stroke-width:1px;",
+                "  style cluster_hypotheses fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
                 "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
                 "  style cluster_factors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3;",
                 "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
@@ -495,10 +492,9 @@ def graph_panel(
 def detail_filter_buttons() -> str:
     filters = [
         ("all", "All"),
-        ("evidence", "Evidence"),
+        ("observation", "Observations"),
         ("constraint", "Constraints"),
-        ("assumption", "Assumptions"),
-        ("derived", "Derived"),
+        ("hypothesis", "Hypotheses"),
         ("candidate_solution", "Candidates"),
         ("test", "Tests"),
     ]
@@ -555,7 +551,7 @@ def candidate_focus_nodes(
 
     nodes_by_id = by_id(state.get("nodes", []), "node")
     supportive_edges = {"supports", "requires", "leads_to"}
-    non_expanding_seed_types = {"evidence", "constraint", "test"}
+    non_expanding_seed_types = {"observation", "constraint", "test"}
     parents_by_child: dict[str, list[str]] = {}
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -571,7 +567,7 @@ def candidate_focus_nodes(
         if raw_id and raw_id in winning_path:
             node_ids.extend(winning_path)
 
-    # Focus should include entry evidence that feeds highlighted derived/path nodes.
+    # Focus should include entry observations that feed highlighted hypothesis/path nodes.
     # Use deterministic upstream depth, not arbitrary node-count caps, so dense graphs behave predictably.
     max_upstream_hops = 2
     frontier = [(node_id, 0) for node_id in node_ids]
@@ -872,7 +868,7 @@ def html_document(
 
   <section id="node-details-section">
     <h2>Node details</h2>
-    <p class="hint">Includes evidence, constraints, assumptions, and candidate answers. Use filters or click graph nodes for popup cards.</p>
+    <p class="hint">Includes observations, constraints, hypotheses, and candidate answers. Use filters or click graph nodes for popup cards.</p>
     {filters_html}
     <div class="detail-grid">{details_html}</div>
   </section>

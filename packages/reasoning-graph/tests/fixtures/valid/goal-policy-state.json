@@ -16,7 +16,7 @@
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "Answer route",
       "prior": 0.7
     },

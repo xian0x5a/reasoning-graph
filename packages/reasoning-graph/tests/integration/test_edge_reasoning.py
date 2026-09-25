@@ -51,7 +51,7 @@ def test_nonblank_reasoning_applies_to_state_patch_and_exported_schema(reasoning
 
 def test_detail_cards_escape_edge_reasoning():
     state = {
-        "nodes": [{"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.9}],
+        "nodes": [{"id": "E1", "type": "observation", "text": "Observation", "prior": 0.9}],
         "edges": [
             {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",
              "reasoning": "The <script> tag is text, not executable markup."},

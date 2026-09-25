@@ -7,7 +7,7 @@
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "Route",
       "prior": 0.5
     }

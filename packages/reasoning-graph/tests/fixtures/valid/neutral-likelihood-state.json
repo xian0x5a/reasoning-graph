@@ -7,19 +7,19 @@
     },
     {
       "id": "E1",
-      "type": "evidence",
+      "type": "observation",
       "text": "Failures began just after deployment",
       "prior": 0.95
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "The deployment caused the outage",
       "prior": 0.5
     },
     {
       "id": "D1",
-      "type": "derived",
+      "type": "hypothesis",
       "text": "If A1 holds, the outage has a deployment-related cause"
     },
     {

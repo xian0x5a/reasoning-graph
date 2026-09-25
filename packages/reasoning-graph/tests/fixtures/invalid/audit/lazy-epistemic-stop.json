@@ -11,13 +11,13 @@
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "First unresolved route",
       "prior": 0.5
     },
     {
       "id": "A2",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "Second live route",
       "prior": 0.5
     },

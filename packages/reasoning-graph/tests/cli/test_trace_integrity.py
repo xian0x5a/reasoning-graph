@@ -26,8 +26,8 @@ def fresh_state() -> dict:
     return {
         "nodes": [
             {"id": "G1", "type": "goal", "text": "Find the exact answer"},
-            {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
-            {"id": "A2", "type": "assumption", "text": "Other route", "prior": 0.4},
+            {"id": "A1", "type": "hypothesis", "text": "Likely route", "prior": 0.6},
+            {"id": "A2", "type": "hypothesis", "text": "Other route", "prior": 0.4},
             {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "prior": 0.5},
         ],
         "edges": [

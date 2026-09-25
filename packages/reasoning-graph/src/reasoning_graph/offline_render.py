@@ -44,11 +44,10 @@ def _spacing_metrics(spacing: str) -> dict[str, int]:
 def _node_rank(node: dict[str, Any]) -> int:
     node_type = str(node.get("type") or "")
     return {
-        "evidence": 0,
+        "observation": 0,
         "constraint": 0,
-        "assumption": 1,
+        "hypothesis": 1,
         "test": 2,
-        "derived": 2,
         "candidate_solution": 3,
         "goal": 4,
     }.get(node_type, 2)
@@ -58,11 +57,10 @@ def _node_colors(node: dict[str, Any]) -> tuple[str, str]:
     node_type = str(node.get("type") or "")
     return {
         "goal": ("#fef3c7", "#d97706"),
-        "evidence": ("#dcfce7", "#16a34a"),
+        "observation": ("#dcfce7", "#16a34a"),
         "constraint": ("#fef2f2", "#dc2626"),
-        "assumption": ("#ede9fe", "#7c3aed"),
+        "hypothesis": ("#ede9fe", "#7c3aed"),
         "test": ("#e0f2fe", "#0284c7"),
-        "derived": ("#f1f5f9", "#64748b"),
         "candidate_solution": ("#dbeafe", "#2563eb"),
     }.get(node_type, ("#f8fafc", "#94a3b8"))
 

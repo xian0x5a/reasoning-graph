@@ -29,8 +29,8 @@ def write_json(path: Path, payload: dict) -> Path:
 
 ROOM_SEED = {
     "nodes": [
-        {"id": "E1", "type": "evidence", "text": "Room 1 shows eight windows with tinted panes", "source": "room page", "prior": 1.0},
-        {"id": "A1", "type": "assumption", "text": "The panes are Braille cells", "prior": 0.6},
+        {"id": "E1", "type": "observation", "text": "Room 1 shows eight windows with tinted panes", "source": "room page", "prior": 1.0},
+        {"id": "A1", "type": "hypothesis", "text": "The panes are Braille cells", "prior": 0.6},
         {"id": "T1", "type": "test", "text": "Decode the panes as Braille and probe the URL"},
     ],
     "edges": [
@@ -42,11 +42,11 @@ ROOM_SEED = {
 
 ROOM_ONE_SOLVED = {
     "nodes": [
-        {"id": "E2", "type": "evidence", "text": "Braille decode reads TWOSIGNS and the URL returns 200", "source": "probe", "prior": 0.95},
+        {"id": "E2", "type": "observation", "text": "Braille decode reads TWOSIGNS and the URL returns 200", "source": "probe", "prior": 0.95},
         {"id": "CS1", "type": "candidate_solution", "text": "TwoSigns", "answer_kind": "exact_answer"},
         {"id": "G2", "type": "goal", "text": "Find the next URL path under /TwoSigns/"},
-        {"id": "E3", "type": "evidence", "text": "Room 2 shows a waveform image", "source": "room page", "prior": 1.0},
-        {"id": "A2", "type": "assumption", "text": "The waveform encodes 5-bit characters", "prior": 0.5},
+        {"id": "E3", "type": "observation", "text": "Room 2 shows a waveform image", "source": "room page", "prior": 1.0},
+        {"id": "A2", "type": "hypothesis", "text": "The waveform encodes 5-bit characters", "prior": 0.5},
         {"id": "T2", "type": "test", "text": "Decode the waveform and probe the URL"},
     ],
     "edges": [
@@ -82,7 +82,7 @@ class SpookyManorFlow(unittest.TestCase):
 
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
-        "nodes": [{"id": "E4", "type": "evidence", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
+        "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
         "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
         "no_new_work_reason": "Profile recorded; decode reasoning continues off-graph.",
     }
@@ -225,7 +225,7 @@ class StrictTestResultTests(SpookyManorFlow):
             before = state_path.read_text(encoding="utf-8")
 
             no_result = self.expand(tmp_dir, state_path, "Q2", {
-                "nodes": [{"id": "A3", "type": "assumption", "text": "Maybe ITA2", "prior": 0.4}],
+                "nodes": [{"id": "A3", "type": "hypothesis", "text": "Maybe ITA2", "prior": 0.4}],
                 "edges": [{"id": "T2-A3", "from": "T2", "to": "A3", "type": "prompts", "reasoning": "The decode attempt suggests ITA2."}],
                 "frontier": [{"id": "Q3", "node": "A3", "cost_components": {"truth": "auto"}}],
             })
@@ -234,23 +234,36 @@ class StrictTestResultTests(SpookyManorFlow):
             self.assertIn("expanded test T2 recorded no result", no_result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-    def test_strict_test_expansion_accepts_evidence_or_derived_results(self) -> None:
-        results = {
-            "evidence": {"id": "E4", "type": "evidence", "text": "ITA2 decode gives garbage; URL probe 404", "source": "probe", "prior": 0.95},
-            "derived": {"id": "D1", "type": "derived", "text": "The tracks are not ITA2", "prior": 0.9},
-        }
-        for label, node in results.items():
-            with self.subTest(result=label), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = self.start_trail(tmp_dir)
-                result = self.expand(tmp_dir, state_path, "Q2", {
-                    "nodes": [node],
-                    "edges": [
-                        {"id": f"T2-{node['id']}", "from": "T2", "to": node["id"], "type": "leads_to", "reasoning": "The probe produced this result."},
-                        {"id": f"{node['id']}-A2", "from": node["id"], "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "A failed decode is less likely if the reading is right."},
-                    ],
-                    "no_new_work_reason": "Failed probe recorded; sibling interpretations already exhausted for this smoke test.",
-                })
-                self.ok(result)
+    def test_strict_test_expansion_accepts_observation_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start_trail(tmp_dir)
+            result = self.expand(tmp_dir, state_path, "Q2", {
+                "nodes": [{"id": "O4", "type": "observation", "text": "ITA2 decode gives garbage; URL probe 404", "source": "probe", "prior": 0.95}],
+                "edges": [
+                    {"id": "T2-O4", "from": "T2", "to": "O4", "type": "leads_to", "reasoning": "The probe produced this result."},
+                    {"id": "O4-A2", "from": "O4", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "A failed decode is less likely if the reading is right."},
+                ],
+                "no_new_work_reason": "Failed probe recorded; sibling interpretations already exhausted for this smoke test.",
+            })
+            self.ok(result)
+
+    def test_strict_test_expansion_rejects_hypothesis_as_result(self) -> None:
+        # A conclusion drawn from a probe is not what was seen; the observation must be recorded first.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start_trail(tmp_dir)
+            before = state_path.read_text(encoding="utf-8")
+            result = self.expand(tmp_dir, state_path, "Q2", {
+                "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "prior": 0.9}],
+                "edges": [
+                    {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to", "reasoning": "The probe suggests this conclusion."},
+                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
+                ],
+                "no_new_work_reason": "Conclusion recorded without its observation.",
+            })
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("expanded test T2 recorded no result", result.stderr)
+            self.assertIn("add an observation node", result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
     def test_missing_test_result_is_only_a_warning_without_strict_policy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -267,7 +280,7 @@ class StrictTestResultTests(SpookyManorFlow):
 
 class OnGraphBranchingTests(SpookyManorFlow):
     OFF_GRAPH_EXPANSION = {
-        "nodes": [{"id": "E4", "type": "evidence", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
+        "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
         "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
     }
 
@@ -285,8 +298,8 @@ class OnGraphBranchingTests(SpookyManorFlow):
             with_siblings = self.expand(tmp_dir, state_path, "Q2", {
                 **self.OFF_GRAPH_EXPANSION,
                 "nodes": self.OFF_GRAPH_EXPANSION["nodes"] + [
-                    {"id": "A3", "type": "assumption", "text": "Tracks are ITA2 5-bit", "prior": 0.4},
-                    {"id": "A4", "type": "assumption", "text": "Tracks are A=1..26 with a bit-order permutation", "prior": 0.4},
+                    {"id": "A3", "type": "hypothesis", "text": "Tracks are ITA2 5-bit", "prior": 0.4},
+                    {"id": "A4", "type": "hypothesis", "text": "Tracks are A=1..26 with a bit-order permutation", "prior": 0.4},
                 ],
                 "edges": self.OFF_GRAPH_EXPANSION["edges"] + [
                     {"id": "E4-A3", "from": "E4", "to": "A3", "type": "prompts", "reasoning": "Twenty 5-bit tracks fit ITA2."},

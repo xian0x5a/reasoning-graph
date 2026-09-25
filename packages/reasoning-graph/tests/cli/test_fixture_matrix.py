@@ -19,12 +19,13 @@ VALIDATE_INVALID_FIXTURES = {
     "bad-likelihood-direction.json": "supports likelihood ratio must be > 1",
     "bad-node-type.json": "invalid type 'fact'",
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
-    "direct-assumption-goal.json": "connects assumption A1 directly to goal G1",
+    "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
     "invalid-stop-policy.json": "stop_policy.max_live_frontier_items must be a non-negative integer",
     "overlapping-factors.json": "supports factors for target 'A1' overlap",
 }
 AUDIT_INVALID_FIXTURES = {
     "duplicate-report-candidate.json": "viable_candidates=1 < min_viable_candidates=3",
+    "hypothesis-test-result.json": "expanded test T1 recorded no result",
     "lazy-epistemic-stop.json": "stop_policy requires frontier exhaustion for epistemic stop",
     "pending-pop-not-expanded.json": "stop cannot follow unresolved popped item Q1",
     "unanswered-accepted-goal.json": "accepted goal G2",
@@ -172,7 +173,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         base_state = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find exact answer"},
-                {"id": "A1", "type": "assumption", "text": "Primary route", "prior": 0.6},
+                {"id": "A1", "type": "hypothesis", "text": "Primary route", "prior": 0.6},
             ],
             "edges": [],
             "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],

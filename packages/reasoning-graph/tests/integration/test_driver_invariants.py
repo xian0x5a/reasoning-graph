@@ -29,9 +29,9 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
     def base_state(self, *, prior: float = 0.5, edges: list[dict] | None = None, factors: list[dict] | None = None) -> dict:
         return {
             "nodes": [
-                {"id": "E1", "type": "evidence", "text": "Signal one", "prior": 1.0},
-                {"id": "E2", "type": "evidence", "text": "Signal two", "prior": 1.0},
-                {"id": "A1", "type": "assumption", "text": "Target assumption", "prior": prior},
+                {"id": "E1", "type": "observation", "text": "Signal one", "prior": 1.0},
+                {"id": "E2", "type": "observation", "text": "Signal two", "prior": 1.0},
+                {"id": "A1", "type": "hypothesis", "text": "Target hypothesis", "prior": prior},
             ],
             "edges": edges or [],
             "factors": factors or [],

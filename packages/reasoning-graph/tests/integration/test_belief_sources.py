@@ -15,7 +15,7 @@ from reasoning_graph.policy import ranked_viable_candidates
 from reasoning_graph.validation import validate_state
 
 
-CLAIM_TYPES = ("evidence", "assumption", "derived", "candidate_solution")
+CLAIM_TYPES = ("observation", "hypothesis", "hypothesis", "candidate_solution")
 
 
 def edge(source, target, relation="leads_to", **extra):
@@ -54,8 +54,8 @@ def test_unscored_standalone_claim_is_invalid_and_not_certain(node_type):
 def test_claim_inherits_scored_premises_without_an_extra_local_factor(node_type):
     state = claim_state(node_type)
     state["nodes"].extend([
-        {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.6},
-        {"id": "D1", "type": "derived", "text": "Intermediate conclusion"},
+        {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.6},
+        {"id": "D1", "type": "hypothesis", "text": "Intermediate conclusion"},
     ])
     state["edges"].extend([edge("A1", "D1"), edge("D1", "N1")])
     result = validate_state(state)
@@ -81,7 +81,7 @@ def test_scoreless_nonclaim_premise_does_not_ground_a_candidate(source_type):
 
 def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
     state = claim_state()
-    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.9})
+    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "prior": 0.9})
     state["edges"].append(edge("E1", "N1", "supports", likelihood_ratio=2))
     result = validate_state(state)
     assert not result.ok
@@ -94,11 +94,11 @@ def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
 def test_certain_premises_remain_certain_under_finite_likelihoods(relation, ratio, grouped):
     state = claim_state()
     state["nodes"].extend([
-        {"id": "E1", "type": "evidence", "text": "Certain premise", "prior": 1.0},
-        {"id": "E2", "type": "evidence", "text": "Second premise", "prior": 1.0},
-        {"id": "D1", "type": "derived", "text": "Intermediate conclusion"},
-        {"id": "L1", "type": "evidence", "text": "Likelihood observation", "prior": 0.9},
-        {"id": "L2", "type": "evidence", "text": "Related observation", "prior": 0.9},
+        {"id": "E1", "type": "observation", "text": "Certain premise", "prior": 1.0},
+        {"id": "E2", "type": "observation", "text": "Second premise", "prior": 1.0},
+        {"id": "D1", "type": "hypothesis", "text": "Intermediate conclusion"},
+        {"id": "L1", "type": "observation", "text": "Likelihood observation", "prior": 0.9},
+        {"id": "L2", "type": "observation", "text": "Related observation", "prior": 0.9},
     ])
     state["edges"].extend([edge("E1", "D1"), edge("E2", "D1"), edge("D1", "N1")])
     assert belief(state, "D1") == 1.0
@@ -136,15 +136,15 @@ def test_calibrated_joint_premise_factor_is_a_belief_source():
 
 
 def test_local_inference_prior_matches_an_explicit_validity_assumption():
-    state = claim_state("derived", prior=0.9)
-    state["nodes"].append({"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.8})
+    state = claim_state("hypothesis", prior=0.9)
+    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "prior": 0.8})
     state["edges"].append(edge("E1", "N1"))
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.72)
 
     del state["nodes"][1]["prior"]
-    state["nodes"].append({"id": "A1", "type": "assumption", "text": "Inference is valid", "prior": 0.9})
+    state["nodes"].append({"id": "A1", "type": "hypothesis", "text": "Inference is valid", "prior": 0.9})
     state["edges"].append(edge("A1", "N1"))
     assert validate_state(state).ok
     assert belief(state) == pytest.approx(0.72)
@@ -153,7 +153,7 @@ def test_local_inference_prior_matches_an_explicit_validity_assumption():
 def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.6},
+        {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.6},
         {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
          "answer_kind": "exact_answer", "prior": 0.55},
     ])
@@ -180,9 +180,9 @@ def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
 def test_computed_belief_recalculates_without_writing_node_scores():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
-        {"id": "L1", "type": "evidence", "text": "Independent observation", "prior": 0.9},
-        {"id": "D1", "type": "derived", "text": "Soft inference", "prior": 0.9},
+        {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
+        {"id": "L1", "type": "observation", "text": "Independent observation", "prior": 0.9},
+        {"id": "D1", "type": "hypothesis", "text": "Soft inference", "prior": 0.9},
     ])
     state["edges"].extend([
         edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),
@@ -203,9 +203,9 @@ def test_computed_belief_recalculates_without_writing_node_scores():
 def test_posterior_overrides_only_its_node_and_can_be_removed():
     state = claim_state(prior=0.5)
     state["nodes"].extend([
-        {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
-        {"id": "L1", "type": "evidence", "text": "Independent observation", "prior": 0.9},
-        {"id": "D1", "type": "derived", "text": "Calibrated inference", "prior": 0.9, "posterior": 0.7},
+        {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
+        {"id": "L1", "type": "observation", "text": "Independent observation", "prior": 0.9},
+        {"id": "D1", "type": "hypothesis", "text": "Calibrated inference", "prior": 0.9, "posterior": 0.7},
     ])
     state["edges"].extend([
         edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),

@@ -149,10 +149,9 @@
         "type": {
           "enum": [
             "goal",
-            "evidence",
+            "observation",
             "constraint",
-            "derived",
-            "assumption",
+            "hypothesis",
             "test",
             "candidate_solution"
           ]

@@ -154,8 +154,8 @@ def expansion_gaps(
         )
         if not has_result:
             gaps.append(
-                f"expanded test {item_node_id} recorded no result; add an evidence or derived node linked by "
-                "leads_to from the test (an inconclusive or failed check is still a result)"
+                f"expanded test {item_node_id} recorded no result; add an observation node linked by "
+                "leads_to from the test (an inconclusive or failed check is still a result; a conclusion drawn from it is a separate hypothesis)"
             )
     added_types = {str(nodes[node_id].get("type")) for node_id in added_node_ids if node_id in nodes}
     added_contradiction = any(edge.get("type") == "contradicts" for edge in added_edges)
@@ -542,7 +542,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 )
                 if not has_outgoing_expansion_edge:
                     warnings.append(
-                        f"{label}: expanded node {item_node_id} has no outgoing edge to added nodes; graph may hide that this assumption was explored"
+                        f"{label}: expanded node {item_node_id} has no outgoing edge to added nodes; graph may hide that this branch was explored"
                     )
             added_frontier_ids = as_string_list(event.get("add_frontier"), f"{label}.add_frontier", errors)
             for child_id in added_frontier_ids:

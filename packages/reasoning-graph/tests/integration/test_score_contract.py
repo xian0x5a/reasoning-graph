@@ -24,7 +24,7 @@ from reasoning_graph.validation import validate_state
 FIELDS = ("prior", "posterior")
 REJECTED_INPUT_FIELDS = ("confidence", "probability", "belief")
 
-CLAIM_TYPES = ("evidence", "assumption", "candidate_solution", "derived")
+CLAIM_TYPES = ("observation", "hypothesis", "candidate_solution", "hypothesis")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
 ACCEPTED = [(node_type, field) for node_type in CLAIM_TYPES for field in FIELDS]
 
@@ -75,7 +75,7 @@ def test_obsolete_scores_and_computed_belief_are_rejected_as_node_inputs(node_ty
 @pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
 @pytest.mark.parametrize("override", [False, True])
 def test_direct_cost_consumers_reject_invalid_score_inputs(field, override):
-    node = build_node("derived", prior=0.8, **{field: 0.9})
+    node = build_node("hypothesis", prior=0.8, **{field: 0.9})
     if override:
         node["posterior"] = 0.7
     with pytest.raises(ValueError, match=field):
@@ -93,9 +93,9 @@ def test_invalid_score_values_are_rejected(node_type, field, value):
 def derived_state(**derived: object) -> dict:
     return {
         "nodes": [
-            {"id": "E1", "type": "evidence", "text": "Observation", "prior": 0.8},
-            {"id": "A1", "type": "assumption", "text": "Premise", "prior": 0.9},
-            {"id": "D1", "type": "derived", "text": "Conclusion", **derived},
+            {"id": "E1", "type": "observation", "text": "Observation", "prior": 0.8},
+            {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.9},
+            {"id": "D1", "type": "hypothesis", "text": "Conclusion", **derived},
         ],
         "edges": [
             {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this observation."},
@@ -148,9 +148,9 @@ def test_neutral_prior_propagates_and_certainty_stays_certain(relation, ratio, e
 def test_derived_belief_updates_from_likelihoods_on_uncertain_premises():
     state = {
         "nodes": [
-            {"id": "E1", "type": "evidence", "text": "Premise", "prior": 0.8},
-            {"id": "E2", "type": "evidence", "text": "Counter-observation", "prior": 0.95},
-            {"id": "D1", "type": "derived", "text": "Deterministic conclusion"},
+            {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
+            {"id": "E2", "type": "observation", "text": "Counter-observation", "prior": 0.95},
+            {"id": "D1", "type": "hypothesis", "text": "Deterministic conclusion"},
         ],
         "edges": [
             {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",

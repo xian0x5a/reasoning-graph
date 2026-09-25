@@ -248,9 +248,9 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
-        if src_type == "assumption" and dst_type == "goal":
+        if src_type == "hypothesis" and dst_type == "goal":
             errors.append(
-                f"edge {i} connects assumption {src} directly to goal {dst}; route assumptions through tests/derived/candidate nodes instead"
+                f"edge {i} connects hypothesis {src} directly to goal {dst}; route hypotheses through tests/candidate nodes instead"
             )
         if src_type == "constraint" and dst_type == "goal" and edge_type == "requires":
             errors.append(
@@ -402,7 +402,7 @@ def validate_state(state: Any) -> ValidationResult:
         )
         if any(marker in candidate_text for marker in unresolved_markers) and not has_explicit_epistemic_goal:
             warnings.append(
-                f"candidate_solution {candidate_id} looks like an unresolved/stop outcome, not an answer candidate; use a derived blocker plus stop event unless the goal is explicitly epistemic"
+                f"candidate_solution {candidate_id} looks like an unresolved/stop outcome, not an answer candidate; use a hypothesis blocker plus stop event unless the goal is explicitly epistemic"
             )
         if answer_kind in ANSWER_KINDS:
             for goal_id in candidate_goal_targets.get(candidate_id, set()):

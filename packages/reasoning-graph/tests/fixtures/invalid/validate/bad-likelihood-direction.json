@@ -2,13 +2,13 @@
   "nodes": [
     {
       "id": "E1",
-      "type": "evidence",
+      "type": "observation",
       "text": "Signal",
       "prior": 0.95
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "Target",
       "prior": 0.5
     }

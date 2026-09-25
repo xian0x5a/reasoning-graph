@@ -11,19 +11,19 @@
     },
     {
       "id": "E1",
-      "type": "evidence",
+      "type": "observation",
       "text": "Primary signal appears",
       "prior": 0.9
     },
     {
       "id": "E2",
-      "type": "evidence",
+      "type": "observation",
       "text": "Secondary signal appears",
       "prior": 0.8
     },
     {
       "id": "A1",
-      "type": "assumption",
+      "type": "hypothesis",
       "text": "Cause is grouped signal",
       "prior": 0.4
     },

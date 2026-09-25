@@ -16,8 +16,8 @@ from reasoning_graph.render import html_document, to_mermaid
 class RenderIdentityTests(unittest.TestCase):
     def state(self, reverse: bool = False) -> dict:
         nodes = [
-            {"id": "A-B", "type": "assumption", "text": "hyphen", "prior": 0.6},
-            {"id": "A_B", "type": "assumption", "text": "underscore", "prior": 0.4},
+            {"id": "A-B", "type": "hypothesis", "text": "hyphen", "prior": 0.6},
+            {"id": "A_B", "type": "hypothesis", "text": "underscore", "prior": 0.4},
             {"id": "A B", "type": "goal", "text": "space"},
         ]
         if reverse:
@@ -114,10 +114,10 @@ class RenderIdentityTests(unittest.TestCase):
     def test_mermaid_preserves_declared_factor_and_input_order(self) -> None:
         state = {
             "nodes": [
-                {"id": "I_1", "type": "evidence", "prior": 0.9},
-                {"id": "I-1", "type": "evidence", "prior": 0.9},
-                {"id": "TZ", "type": "assumption", "prior": 0.5},
-                {"id": "TA", "type": "assumption", "prior": 0.5},
+                {"id": "I_1", "type": "observation", "prior": 0.9},
+                {"id": "I-1", "type": "observation", "prior": 0.9},
+                {"id": "TZ", "type": "hypothesis", "prior": 0.5},
+                {"id": "TA", "type": "hypothesis", "prior": 0.5},
             ],
             "edges": [
                 {"id": f"{source}-{target}", "from": source, "to": target, "type": "supports", "reasoning": "The observation supports this claim."}
@@ -160,9 +160,9 @@ class RenderIdentityTests(unittest.TestCase):
         raw_node_id = "@factor:factor_F1"
         state = {
             "nodes": [
-                {"id": raw_node_id, "type": "evidence", "prior": 0.9},
-                {"id": "E2", "type": "evidence", "prior": 0.9},
-                {"id": "A1", "type": "assumption", "prior": 0.5},
+                {"id": raw_node_id, "type": "observation", "prior": 0.9},
+                {"id": "E2", "type": "observation", "prior": 0.9},
+                {"id": "A1", "type": "hypothesis", "prior": 0.5},
             ],
             "edges": [
                 {"id": f"{source}-A1", "from": source, "to": "A1", "type": "supports", "reasoning": "The observation supports A1."}
@@ -194,9 +194,9 @@ class RenderIdentityTests(unittest.TestCase):
     def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
         state = {
             "nodes": [
-                {"id": "E1", "type": "evidence", "prior": 0.9},
-                {"id": "E2", "type": "evidence", "prior": 0.9},
-                {"id": "A1", "type": "assumption", "prior": 0.5},
+                {"id": "E1", "type": "observation", "prior": 0.9},
+                {"id": "E2", "type": "observation", "prior": 0.9},
+                {"id": "A1", "type": "hypothesis", "prior": 0.5},
             ],
             "edges": [
                 {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "reasoning": "E1 supports A1."},
@@ -228,7 +228,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         the graph collapses into an intrinsic-height strip and pan/zoom clips inside it."""
         state = {
             "nodes": [
-                {"id": "E1", "type": "evidence", "text": "Observed premise", "prior": 0.9},
+                {"id": "E1", "type": "observation", "text": "Observed premise", "prior": 0.9},
                 {"id": "G1", "type": "goal", "text": "Answer the question"},
             ],
             "edges": [{"id": "E1-G1-leads_to", "from": "E1", "to": "G1", "type": "leads_to", "reasoning": "E1 motivates G1."}],

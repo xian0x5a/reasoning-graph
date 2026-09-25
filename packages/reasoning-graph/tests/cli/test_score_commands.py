@@ -28,9 +28,9 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 def valid_patch() -> dict:
     return {
         "nodes": [
-            {"id": "A2", "type": "assumption", "text": "Second branch", "prior": 0.5},
-            {"id": "D1", "type": "derived", "text": "Conclusion"},
-            {"id": "E2", "type": "evidence", "text": "Reading", "prior": 0.9},
+            {"id": "A2", "type": "hypothesis", "text": "Second branch", "prior": 0.5},
+            {"id": "D1", "type": "hypothesis", "text": "Conclusion"},
+            {"id": "E2", "type": "observation", "text": "Reading", "prior": 0.9},
         ],
         "edges": [
             {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to",
@@ -49,7 +49,7 @@ def patch_for(invalid_part: str) -> dict:
     elif invalid_part == "unanchored_derived":
         patch["edges"] = [edge for edge in patch["edges"] if edge["type"] != "leads_to"]
     elif invalid_part == "removed_probability":
-        patch["nodes"][0] = {"id": "A2", "type": "assumption", "text": "Second branch", "probability": 0.5}
+        patch["nodes"][0] = {"id": "A2", "type": "hypothesis", "text": "Second branch", "probability": 0.5}
     elif invalid_part in {"removed_confidence", "computed_belief"}:
         field = "confidence" if invalid_part == "removed_confidence" else "belief"
         patch["nodes"][0][field] = 0.9
@@ -83,7 +83,7 @@ INVALID_PARTS = {
 @pytest.mark.parametrize("invalid_part", sorted(INVALID_PARTS))
 def test_invalid_patch_does_not_modify_state(tmp_path, command, invalid_part):
     state = starter_state("default")
-    state["nodes"].append({"id": "E0", "type": "evidence", "text": "Existing observation", "prior": 0.8})
+    state["nodes"].append({"id": "E0", "type": "observation", "text": "Existing observation", "prior": 0.8})
     state["frontier"] = [{"id": "Q1", "node": "G1"}]
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
@@ -107,7 +107,7 @@ def test_invalid_patch_does_not_modify_state(tmp_path, command, invalid_part):
 @pytest.mark.parametrize("score,expected", [({}, 0.45), ({"prior": 0.9}, 0.405), ({"prior": 0.9, "posterior": 0.7}, 0.7)])
 def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, command, score, expected):
     state = starter_state("default")
-    state["nodes"].append({"id": "A2", "type": "assumption", "text": "Existing premise", "prior": 0.5})
+    state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "prior": 0.5})
     state["frontier"] = [{"id": "Q1", "node": "G1"}]
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"

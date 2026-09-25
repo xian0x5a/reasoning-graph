@@ -1,0 +1,117 @@
+{
+  "summary": {
+    "title": "Reasoning Graph",
+    "answer": ""
+  },
+  "nodes": [
+    {
+      "id": "G1",
+      "type": "goal",
+      "text": "Find the door code"
+    },
+    {
+      "id": "H1",
+      "type": "hypothesis",
+      "text": "The code is the room number",
+      "prior": 0.5
+    },
+    {
+      "id": "T1",
+      "type": "test",
+      "text": "Try the room number on the keypad"
+    },
+    {
+      "id": "H2",
+      "type": "hypothesis",
+      "text": "The keypad rejects the room number",
+      "prior": 0.9
+    }
+  ],
+  "edges": [
+    {
+      "id": "H1-T1",
+      "from": "H1",
+      "to": "T1",
+      "type": "prompts",
+      "reasoning": "The reading motivates a keypad probe."
+    },
+    {
+      "id": "T1-H2",
+      "from": "T1",
+      "to": "H2",
+      "type": "leads_to",
+      "reasoning": "The probe suggests this conclusion."
+    },
+    {
+      "id": "H2-H1",
+      "from": "H2",
+      "to": "H1",
+      "type": "contradicts",
+      "likelihood_ratio": 0.2,
+      "reasoning": "A rejection undercuts the room-number reading."
+    }
+  ],
+  "frontier": [
+    {
+      "id": "Q1",
+      "node": "T1",
+      "cost_components": {
+        "truth": "auto",
+        "verification": 0.2
+      },
+      "truth_cost": 0.0,
+      "work_cost": 0.2,
+      "base_search_cost": 0.2,
+      "step_truth_cost": 0.0,
+      "step_cost": 0.2,
+      "search_cost": 0.2
+    }
+  ],
+  "search_policy": {
+    "estimated_remaining_weight": 1.0
+  },
+  "stop_policy": {
+    "min_viable_candidates": 3,
+    "belief_threshold": 0.8,
+    "max_live_frontier_items": 0,
+    "require_frontier_exhausted_for_epistemic_stop": true,
+    "severity": "error"
+  },
+  "branch_policy": {
+    "high_salience_min_children": 3,
+    "low_prior_wildcard_required": true,
+    "enforce_on": "exhaustion_stop",
+    "severity": "warning"
+  },
+  "factors": [],
+  "events": [
+    {
+      "step": 1,
+      "action": "init",
+      "frontier": [
+        "Q1"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "pop",
+      "item": "Q1",
+      "cost": 0.2
+    },
+    {
+      "step": 3,
+      "action": "expand",
+      "item": "Q1",
+      "add_nodes": [
+        "H2"
+      ],
+      "add_edges": [
+        "T1-H2",
+        "H2-H1"
+      ],
+      "add_frontier": [],
+      "update_factors": [],
+      "no_new_work_reason": "Fixture records a conclusion where an observation belongs."
+    }
+  ]
+}

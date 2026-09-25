@@ -3,13 +3,13 @@
   "nodes": [
     {
       "id": "E3",
-      "type": "evidence",
+      "type": "observation",
       "text": "Third correlated signal",
       "prior": 0.75
     },
     {
       "id": "E4",
-      "type": "evidence",
+      "type": "observation",
       "text": "Fourth correlated signal",
       "prior": 0.7
     }

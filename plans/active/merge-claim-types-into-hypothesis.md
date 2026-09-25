@@ -26,6 +26,7 @@ Resulting node types: `goal`, `observation`, `constraint`, `hypothesis`, `test`,
 - **No `hypothesis -> goal` edge.** Extends the former `assumption -> goal` rule. Claims reach goals only through `candidate_solution --answers--> goal`.
 - **Role guidance lives in docs, not types.** Competing interpretations are sibling hypotheses: atomic, each with its own frontier item, re-ranked against each other. An intermediate step on a route is a hypothesis with its own sub-search and may be compound. A blocker is a hypothesis backed by observations. The lemma lifecycle is one node: prior while open, `leads_to` premises once proved.
 - **Name choice.** `hypothesis` over `claim` because ADR 0003 and the cost model already use "claim" as the umbrella for every belief-bearing node. `observation` over adding it beside `evidence` because two names for one mechanical role is an ambiguity bug.
+- **`active_assumptions` stays.** The frontier-item field lists hypothesis ids assumed true along a path. That is a path role, not a node type, and the word is still accurate.
 - **Proof-shaped tasks** get a vocabulary table in `docs/schema/goals.md`: theorem is `goal`; axiom or given is `observation` with prior 1.0, or `constraint`; lemma, proposition, corollary, and conjecture are `hypothesis`; proof is `candidate_solution` with `exact_method`; remark is report text.
 
 ## Work Plan
@@ -53,7 +54,12 @@ Steps 1 and 2 touch disjoint files and run in parallel.
 ## Progress
 
 - Plan written.
+- Step 1 package rename done: 340 tests green, version 0.2.0, CLI reinstalled from the local package.
+- Step 3 ADR 0005 written.
 
 ## Surprises & Discoveries
+
+- Nothing in the package depended on the assumption/derived split beyond `RESULT_NODE_TYPES` and the render clusters; the merge was clean.
+- `uv tool install` from a `file://` path leaves an untracked `packages/reasoning-graph/build/` directory. Follow-up: gitignore it.
 
 ## Outcomes & Retrospective

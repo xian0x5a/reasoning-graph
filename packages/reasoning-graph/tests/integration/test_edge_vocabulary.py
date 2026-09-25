@@ -24,8 +24,8 @@ class EdgeVocabularyTests(unittest.TestCase):
     def test_removed_assumes_edge_type_is_rejected(self) -> None:
         state = {
             "nodes": [
-                {"id": "A1", "type": "assumption", "text": "Branch", "prior": 0.5},
-                {"id": "D1", "type": "derived", "text": "Conclusion", "prior": 1.0},
+                {"id": "A1", "type": "hypothesis", "text": "Branch", "prior": 0.5},
+                {"id": "D1", "type": "hypothesis", "text": "Conclusion", "prior": 1.0},
             ],
             "edges": [{"id": "D1-A1-assumes", "from": "D1", "to": "A1", "type": "assumes"}],
             "frontier": [],
