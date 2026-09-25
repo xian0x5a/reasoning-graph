@@ -11,8 +11,8 @@ Separate graph nodes from search frontier items.
 Example graph nodes:
 
 ```yaml
-- id: E1
-  type: evidence
+- id: O1
+  type: observation
   text: "The failing test is test_login_rejects_bad_token"
   source: "tests/auth_test.py::test_login_rejects_bad_token"
   prior: 0.99
@@ -22,8 +22,8 @@ Example graph nodes:
   text: "Do not change public token format"
   source: "inferred from compatibility requirement"
 
-- id: A2
-  type: assumption
+- id: H2
+  type: hypothesis
   text: "The root cause is stale cache"
   prior: 0.6
   prior_reason: "Common failure mode for this symptom"
@@ -33,12 +33,12 @@ Example frontier item:
 
 ```yaml
 - id: Q7
-  node: A2
+  node: H2
   parent: Q3
-  related: [E1, C1]
+  related: [O1, C1]
   scratch:
     - "Cache branch may split into stale-read vs invalidation-order variants."
-    - "If this becomes important, promote it to a derived/test node."
+    - "If this becomes important, promote it to a hypothesis/test node."
   step_truth_cost: 0.51
   truth_cost: 0.51
   work_cost: 0.30
@@ -47,11 +47,11 @@ Example frontier item:
   heuristic_cost: 0.40
   step_cost: 1.21
   search_cost: 1.21
-  active_assumptions: [A2]
-  evidence_version: E1
+  active_assumptions: [H2]
+  evidence_version: O1
 ```
 
-Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not evidence, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `evidence`/`derived`/`test`/`assumption` node. After popping an item, digest the node, parent path, active assumptions, related nodes, and scratch, then record the resulting child branches, tests, or contradictions.
+Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not an observation, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `observation`/`hypothesis`/`test` node. After popping an item, digest the node, parent path, `active_assumptions`, related nodes, and scratch, then record the resulting child branches, tests, or contradictions.
 
 Use parent pointers instead of copying full paths. Reconstruct a path by walking parent links.
 
@@ -59,7 +59,7 @@ Use an expanded ledger to avoid loops, not to erase alternatives:
 
 ```yaml
 expanded:
-  - signature: "node=D4|assumptions=A2,A5|evidence=E1"
+  - signature: "node=H4|assumptions=H2,H5|scope=default"
     item: Q9
     search_cost: 2.1
 ```
@@ -74,12 +74,12 @@ Guidelines:
 
 - Skip exact cycles.
 - Prefer expanding lower-cost frontier items first, best-first style.
-- Use latest graph evidence when computing every active item's cost; do not include `evidence_version` in active dedupe.
+- Use the latest graph state when computing every active item's cost; do not include `evidence_version` in active dedupe.
 - Active frontier must contain at most one item per expansion signature. If two active items have the same signature, keep the lowest current `search_cost`; ties keep the existing/earlier item.
 - Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong when they represent different expansion signatures.
-- Keep multiple candidate paths in the frontier when they represent meaningfully different assumption chains, answer routes, params, scopes, or budgets.
+- Keep multiple candidate paths in the frontier when they represent meaningfully different hypothesis chains, answer routes, params, scopes, or budgets.
 - If path-specific context should affect expansion, encode it as `active_assumptions`, a more specific child node, or explicit params/scope/budget; parent path alone is provenance, not separate live work.
-- If new evidence changes likelihood updates, an explicit posterior, or frontier ordering, recompute active costs and supersede stale duplicate active items instead of carrying duplicate work.
+- If a new observation changes likelihood updates, an explicit posterior, or frontier ordering, recompute active costs and supersede stale duplicate active items instead of carrying duplicate work.
 
 ## Helper CLI Reference
 
@@ -95,7 +95,7 @@ reasoning-graph costs state.json                   # compute truth_cost/search_c
 reasoning-graph sort state.json                    # compute costs and sort frontier in place
 reasoning-graph costs state.json -o -              # print updated state without mutating state.json
 reasoning-graph costs - < state.json               # stdin input prints updated state to stdout
-reasoning-graph frontier state.json       # show active frontier derived from events
+reasoning-graph frontier state.json       # show active frontier computed from events
 reasoning-graph next state.json           # show lowest-cost active item + path context
 reasoning-graph next state.json --pop  # persist init/pop event for lowest-cost item
 reasoning-graph expand state.json --item Q7 --patch expansion.json  # Q7 is an example popped/assigned item id
@@ -123,19 +123,19 @@ State JSON shape:
   },
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "E1", "type": "evidence", "text": "Observed failure", "source": "user prompt", "prior": 0.95},
+    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "user prompt", "prior": 0.95},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
-    {"id": "A1", "type": "assumption", "text": "Likely route", "prior": 0.6},
+    {"id": "H1", "type": "hypothesis", "text": "Likely route", "prior": 0.6},
     {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}
   ],
   "edges": [
-    {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "H1-CS1", "from": "H1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
     {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
   ],
   "frontier": [
     {
       "id": "Q1",
-      "node": "A1",
+      "node": "H1",
       "parent": null,
       "cost_components": {
         "truth": "auto",
@@ -169,19 +169,19 @@ State JSON shape:
         "name": "Likely route",
         "belief": 0.6,
         "search_cost": 1.310826,
-        "path_nodes": ["E1", "C1", "A1", "CS1"],
+        "path_nodes": ["O1", "C1", "H1", "CS1"],
         "why": "Lowest explored search cost and satisfies constraints",
-        "next_test": "Verify supporting evidence"
+        "next_test": "Verify the supporting observation"
       }
     ],
     "winning_path": ["Observed failure", "Likely route", "Candidate answer"],
-    "next_verification": "Verify supporting evidence"
+    "next_verification": "Verify the supporting observation"
   },
   "presentation": {
-    "include_nodes": ["E1", "C1", "A1", "G1"],
-    "highlight_nodes": ["A1", "G1"],
+    "include_nodes": ["O1", "C1", "H1", "G1"],
+    "highlight_nodes": ["H1", "G1"],
     "dim_nodes": [],
-    "layout_hint": "evidence-left-candidates-right"
+    "layout_hint": "observations-left-candidates-right"
   },
   "events": [
     {"step": 1, "action": "init", "frontier": ["Q1"]},
@@ -190,7 +190,7 @@ State JSON shape:
     {"step": 4, "action": "stop", "reason": "CS1 answers G1 and no live frontier remains", "outcome": "solved"}
   ],
   "view": {
-    "winning_path": ["A1", "CS1", "G1"],
+    "winning_path": ["H1", "CS1", "G1"],
     "dimmed_branches": []
   }
 }
@@ -207,16 +207,16 @@ Cost behavior:
 - `estimated_remaining_cost` is optional top-level heuristic remaining work.
 - Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
 - `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
-- Numeric cost inputs and computed search costs must be finite and non-negative. Likelihood ratios must be finite and positive, including ratios derived from likelihood probabilities and updates on nodes with posterior overrides. Invalid numbers and arithmetic overflow are rejected; JSON output never emits `NaN` or `Infinity`.
+- Numeric cost inputs and computed search costs must be finite and non-negative. Likelihood ratios must be finite and positive, including ratios computed from likelihood probabilities and updates on nodes with posterior overrides. Invalid numbers and arithmetic overflow are rejected; JSON output never emits `NaN` or `Infinity`.
 - `sort` keeps all frontier ledger items but orders them by ascending `search_cost`; it is optional before `next` because `next` computes costs and sorts active items internally.
 - `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
 - `next --pop` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
 - `assign --item Q7` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 3 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
 - `seed --patch seed.json` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
 - `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
-- Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "A1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
+- Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "H1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
 - `path` reconstructs a proof/search path from parent pointers.
-- `audit` replays graph changes before each pop, then checks compact strict-search events for coherent best-first expansion. Later evidence can reorder remaining work, but cannot retroactively justify an earlier skipped cheaper item.
+- `audit` replays graph changes before each pop, then checks compact strict-search events for coherent best-first expansion. Later observations can reorder remaining work, but cannot retroactively justify an earlier skipped cheaper item.
 
 Expansion patch shape:
 
@@ -224,28 +224,28 @@ Expansion patch shape:
 {
   "summary": "Split the 74-byte clue into coarse container-format families.",
   "nodes": [
-    {"id": "A8", "type": "assumption", "text": "WebCrypto AES-GCM layout family", "prior": 0.45},
-    {"id": "A9", "type": "assumption", "text": "libsodium/secretbox layout family", "prior": 0.2}
+    {"id": "H8", "type": "hypothesis", "text": "WebCrypto AES-GCM layout family", "prior": 0.45},
+    {"id": "H9", "type": "hypothesis", "text": "libsodium/secretbox layout family", "prior": 0.2}
   ],
   "update_nodes": [
-    {"id": "A4", "set": {"posterior": 0.62}}
+    {"id": "H4", "set": {"posterior": 0.62}}
   ],
   "edges": [
-    {"id": "E20", "from": "A8", "to": "A4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "E21", "from": "A9", "to": "A4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "E20", "from": "H8", "to": "H4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "E21", "from": "H9", "to": "H4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "frontier": [
     {
       "id": "Q8",
-      "node": "A8",
-      "related": ["E1"],
+      "node": "H8",
+      "related": ["O1"],
       "scratch": ["Phrase length may matter, but branch container formats before committing."],
       "cost_components": {"truth": "auto", "verification": 0.4}
     },
     {
       "id": "Q9",
-      "node": "A9",
-      "related": ["E1"],
+      "node": "H9",
+      "related": ["O1"],
       "cost_components": {"truth": "auto", "verification": 0.5}
     }
   ]
@@ -272,12 +272,12 @@ Do not include full frontier before/after snapshots; state already stores fronti
     "action": "expand",
     "item": "Q1",
     "summary": "Generated coarse sibling explanations and cheap discriminator tests.",
-    "add_nodes": ["A4", "A5", "T2"],
+    "add_nodes": ["H4", "H5", "T2"],
     "add_edges": ["E1", "E2"],
     "add_frontier": ["Q4", "Q5"],
-    "updated_nodes": [{"id": "A1", "fields": ["posterior"]}],
-    "updated_node_snapshots": [{"id": "A1", "before": {"id": "A1", "type": "assumption", "prior": 0.6}}],
-    "no_new_work_reason": "A1 score changed, but no new A1-local work was implied."
+    "updated_nodes": [{"id": "H1", "fields": ["posterior"]}],
+    "updated_node_snapshots": [{"id": "H1", "before": {"id": "H1", "type": "hypothesis", "prior": 0.6}}],
+    "no_new_work_reason": "H1 score changed, but no new H1-local work was implied."
   },
   {"step": 7, "action": "expand", "item": "Q2", "add_nodes": [], "add_edges": [], "add_frontier": [], "no_new_work_reason": "scout found no new local constraints"},
   {"step": 8, "action": "rank", "best": "CS1", "belief": 0.91, "candidates": [{"node": "CS1", "belief": 0.91, "effective_truth_cost": 0.094311}]},
@@ -290,9 +290,9 @@ Allowed actions:
 - `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
 - `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
-- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result node (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason` or `under_branching_reason`. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`assumption` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result `observation` (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason` or `under_branching_reason`. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`hypothesis` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
-- `rank` — current best viable `candidate_solution` derived from graph belief; optional `item` closes a pending popped item
+- `rank` — current best viable `candidate_solution` computed from graph belief; optional `item` closes a pending popped item
 - `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
 
 Ending commands:
@@ -327,7 +327,7 @@ notes: []
 
 Required checks:
 
-- stop outcome/reason matches accepted goal, derived best candidate, and stop policy
+- stop outcome/reason matches accepted goal, ranked best candidate, and stop policy
 - no meaningful answer-goal frontier remains hidden behind an epistemic/blocker stop
 - high-salience clue/family nodes are expanded, live, or explicitly exhausted
 - best candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
@@ -335,7 +335,7 @@ Required checks:
 - blockers are not disguised as answer candidates for normal solve goals
 - failed broad tests do not erase untested sibling interpretations or parent clue families
 - contradictions/failures penalize only affected branches
-- final answer draft matches graph state and invents no new evidence
+- final answer draft matches graph state and invents no new observations
 
 Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Every `stop` requires no pending item; candidate-bearing `stop` auto-ranks only after terminal preflight passes. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
 
@@ -350,7 +350,7 @@ reasoning-graph stop-review state.stopped.json --draft answer.md
 Treat audit/stop-review warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:
 
 - add proper `expand`/`rank`/contradiction-penalty events for those candidates,
-- demote them to assumptions/derived notes if they were only speculative ideas,
+- demote them to `hypothesis` nodes if they were only speculative ideas,
 - or keep them out of `nodes` and mention them as unexpanded possibilities in prose/report metadata.
 
 Do not call a strict trace clean while leaving unexplored candidate nodes that only decorate the final graph.
@@ -367,13 +367,13 @@ Audit checks:
 - expansions whose popped graph node has no outgoing edge to added nodes get a soft trace-topology warning
 - one-child non-terminal expansions get a soft under-branching warning only when the final stop claims exhaustion/completion, unless `under_branching_reason` or `existing_sibling_frontier` is recorded
 - high-salience clue/family expansions below `branch_policy.high_salience_min_children` warn/fail on exhaustion/completion stops unless they include `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof; set `branch_policy.enforce_on: "always"` for noisy development audits
-- candidate solutions contradicted by evidence remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
-- `rank.best`, `rank.belief`, and `rank.candidates` rows match the values derived from the graph as it stood at rank time
+- candidate solutions contradicted by observations remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
+- `rank.best`, `rank.belief`, and `rank.candidates` rows match the values computed from the graph as it stood at rank time
 - each node, edge, and frontier item is claimed as added by at most one event
-- under strict policy, `test` expansions record a `leads_to` result and zero-work expansions record a reason
+- under strict policy, `test` expansions record a `leads_to` result `observation` and zero-work expansions record a reason
 - candidate-bearing `stop` outcomes leave no accepted, non-optional goal unanswered
 - `stop` has a reason
 - `audit` and `doctor` print `peak_live_frontier`, the largest active frontier reached during replay; peak 1 on a task with competing interpretations means the graph was not exercised
-- pop costs and remaining-frontier order are evaluated against graph evidence available before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
+- pop costs and remaining-frontier order are evaluated against the graph as it stood before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
 
 Limit: the driver loop still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.

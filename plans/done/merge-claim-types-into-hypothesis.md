@@ -56,10 +56,18 @@ Steps 1 and 2 touch disjoint files and run in parallel.
 - Plan written.
 - Step 1 package rename done: 340 tests green, version 0.2.0, CLI reinstalled from the local package.
 - Step 3 ADR 0005 written.
+- Step 2 docs rename done: skill, reference docs, README, scenario templates; lemma lifecycle example and proof vocabulary table added to goals.md.
+- Validation: package suite green, old-name grep clean except statistical "evidence" in likelihood text, SKILL.md patch and goals.md lemma example run through the CLI, README smoke flow passes.
 
 ## Surprises & Discoveries
 
 - Nothing in the package depended on the assumption/derived split beyond `RESULT_NODE_TYPES` and the render clusters; the merge was clean.
+- Scenario templates said "use only evidence from the problem file"; changed to "facts" in both arms identically so the prompts stay matched without naming a retired type.
+- driver.md's expansion-signature example listed `evidence=E1`, contradicting its own rule that evidence version is excluded from dedupe; replaced with `scope=default`.
 - `uv tool install` from a `file://` path leaves an untracked `packages/reasoning-graph/build/` directory. Follow-up: gitignore it.
 
 ## Outcomes & Retrospective
+
+- Six node types: goal, observation, constraint, hypothesis, test, candidate_solution. Package 0.2.0.
+- The lemma request resolved into a naming fix rather than a new type: once the belief contract was type-blind, the extra type would only have added classification ambiguity.
+- Follow-ups: gitignore `packages/reasoning-graph/build/`; rerun a benchmark scenario to confirm the new vocabulary changes agent behavior as intended.

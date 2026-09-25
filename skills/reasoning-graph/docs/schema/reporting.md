@@ -17,12 +17,12 @@ Use this page as the shape and example reference for optional human-facing metad
       "effective_truth_cost": 0.798508,
       "search_cost": 2.24,
       "weight": 0.72,
-      "path_nodes": ["E1", "D2", "CS1"],
-      "why": "Explains the most evidence with lowest constraint tension",
+      "path_nodes": ["O1", "H2", "CS1"],
+      "why": "Explains the most observations with lowest constraint tension",
       "next_test": "Run the decisive verification"
     }
   ],
-  "winning_path": ["Evidence A", "Assumption B", "Derived C", "Candidate D"],
+  "winning_path": ["Observation A", "Hypothesis B", "Hypothesis C", "Candidate D"],
   "next_verification": "Run the decisive verification"
 }
 ```
@@ -33,11 +33,11 @@ Use this page as the shape and example reference for optional human-facing metad
 
 ```json
 "presentation": {
-  "include_nodes": ["E1", "E2", "A1", "CS1"],
-  "highlight_nodes": ["E1", "A1", "CS1"],
+  "include_nodes": ["O1", "O2", "H1", "CS1"],
+  "highlight_nodes": ["O1", "H1", "CS1"],
   "dim_nodes": ["CS2", "CS3"],
   "title": "Why candidate 1 wins",
-  "layout_hint": "evidence-left-candidates-right"
+  "layout_hint": "observations-left-candidates-right"
 }
 ```
 
@@ -47,7 +47,7 @@ Presentation views are curated and may omit low-value nodes for readability. The
 
 ```json
 "view": {
-  "winning_path": ["E1", "D2", "CS1"],
+  "winning_path": ["O1", "H2", "CS1"],
   "dimmed_branches": ["CS2", "CS3"],
   "frontier": ["F1", "F2"]
 }
@@ -62,7 +62,7 @@ belief = exp(-effective_truth_cost)
 weight = belief / sum(belief of displayed candidates)
 ```
 
-`weight` is relative among displayed candidates, not calibrated real-world probability. Reported `belief` is computed from the current graph and is not written into node scores. A stored `posterior` is an explicit calibrated override, not the normal result of every evidence update; use it only to replace the node's calculation deliberately.
+`weight` is relative among displayed candidates, not calibrated real-world probability. Reported `belief` is computed from the current graph and is not written into node scores. A stored `posterior` is an explicit calibrated override, not the normal result of every likelihood update; use it only to replace the node's calculation deliberately.
 
 ## Example
 
@@ -70,7 +70,7 @@ weight = belief / sum(belief of displayed candidates)
 {
   "report": {
     "title": "Cache staleness is most likely",
-    "answer": "Most evidence points to stale config loaded at startup.",
+    "answer": "Most observations point to stale config loaded at startup.",
     "candidates": [
       {
         "id": "CS1",
@@ -79,20 +79,20 @@ weight = belief / sum(belief of displayed candidates)
         "effective_truth_cost": 0.400478,
         "search_cost": 1.4,
         "weight": 0.78,
-        "path_nodes": ["E1", "A1", "CS1"],
+        "path_nodes": ["O1", "H1", "CS1"],
         "why": "Deploy-time mtime and restart behavior support this branch.",
         "next_test": "Restart with config hash logging."
       }
     ],
-    "winning_path": ["Config mtime evidence", "Stale config assumption", "Stale config candidate"],
+    "winning_path": ["Config mtime observation", "Stale config hypothesis", "Stale config candidate"],
     "next_verification": "Restart with config hash logging."
   },
   "presentation": {
-    "include_nodes": ["E1", "A1", "CS1", "CS2"],
-    "highlight_nodes": ["E1", "A1", "CS1"],
+    "include_nodes": ["O1", "H1", "CS1", "CS2"],
+    "highlight_nodes": ["O1", "H1", "CS1"],
     "dim_nodes": ["CS2"],
     "title": "Why stale config wins",
-    "layout_hint": "evidence-left-candidates-right"
+    "layout_hint": "observations-left-candidates-right"
   }
 }
 ```

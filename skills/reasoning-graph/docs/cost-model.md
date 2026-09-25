@@ -10,19 +10,19 @@ Local probability inputs, computed belief, calibrated overrides, search costs, a
 | Computed `belief` | Output after premise propagation and likelihood updates, reported from effective truth cost |
 | Explicit `posterior` | Authored, already-calibrated overall value that overrides this node's calculation |
 
-Claim nodes (`evidence`, `assumption`, `derived`, and `candidate_solution`) accept `prior` and `posterior`. Each claim requires a **belief source**: a local prior, an explicit posterior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate`, `seed`, and `expand` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
+Claim nodes (`observation`, `hypothesis`, and `candidate_solution`) accept `prior` and `posterior`. Each claim requires a **belief source**: a local prior, an explicit posterior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate`, `seed`, and `expand` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
 
 Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence` and `probability` are rejected, not converted. `belief` is output-only and rejected as an authored node field.
 
-A local `prior` multiplies premise belief. **Omit it when it merely repeats uncertainty already represented by the premises.** An assumption at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` represents additional uncertainty. On a premise-backed node, `prior` is a local factor, not an estimate of the already-aggregated conclusion.
+A local `prior` multiplies premise belief. **Omit it when it merely repeats uncertainty already represented by the premises.** A hypothesis at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` represents additional uncertainty. On a premise-backed node, `prior` is a local factor, not an estimate of the already-aggregated conclusion.
 
-For a soft inference, evidence `prior: 0.8` times inference `prior: 0.9` gives base belief `0.72`. Alternatively, put inference validity in a separate assumption with `prior: 0.9` and a `leads_to` edge when it deserves independent scrutiny. Use one representation, not both. Omitting the local prior adds no extra uncertainty; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local prior alone satisfies validation.
+For a soft inference, observation `prior: 0.8` times inference `prior: 0.9` gives base belief `0.72`. Alternatively, put inference validity in a separate hypothesis with `prior: 0.9` and a `leads_to` edge when it deserves independent scrutiny. Use one representation, not both. Omitting the local prior adds no extra uncertainty; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local prior alone satisfies validation.
 
 The engine computes effective belief from this base and likelihood updates; it never writes that result into a node's `prior`, `posterior`, or `belief`. For example, base `0.72` and supporting ratio `2` give computed belief `36/43`, while the authored priors remain `0.8` and `0.9`. Changing the premises or likelihoods changes the next computed result.
 
 A stored `posterior` is different: it overrides this node's prior and incoming premise, factor, and likelihood calculations until explicitly refreshed or removed. It is trusted as calibrated, not verified by the engine. A node with `prior: 0.9` and `posterior: 0.7` has effective belief `0.7`; downstream nodes can inherit that value and apply their own priors and updates. Removing the override resumes computation from the current inputs. Preserve the local prior for auditing; never substitute search costs for belief. Graph labels and candidate tables show effective belief; node details distinguish that result from the local prior and any posterior override. See [belief display](rendering.md#belief-display).
 
-Mutually exclusive sibling assumptions should form a local distribution summing to `1.0`; independent assumptions need not. A `test` is a procedure, not a claim: record its outcome as separate `evidence` or `derived` nodes. Goals, constraints, and tests carry no score.
+Mutually exclusive sibling hypotheses should form a local distribution summing to `1.0`; independent hypotheses need not. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node. Goals, constraints, and tests carry no score.
 
 ### Certainty is not an unknown score
 
@@ -30,7 +30,7 @@ Mutually exclusive sibling assumptions should form a local distribution summing 
 
 A base belief of `1.0`, whether local or inherited from certain premises or a calibrated joint factor, stays `1.0` under finite likelihood ratios. A neutral `prior: 0.5` with supporting ratio `2` gives belief `2/3`; contradicting ratio `0.1` gives `1/11`.
 
-The cost engine tracks belief sources separately from their numerical cost. An ungrounded claim uses neutral `0.5` before likelihood updates even without validation, rather than silently reporting certainty; the complete state is still rejected. Scoreless objectives/actions retain zero truth penalty, which is not evidence of truth.
+The cost engine tracks belief sources separately from their numerical cost. An ungrounded claim uses neutral `0.5` before likelihood updates even without validation, rather than silently reporting certainty; the complete state is still rejected. Scoreless objectives/actions retain zero truth penalty, which does not mean they are true.
 
 ### Required edge reasoning
 
@@ -65,11 +65,11 @@ search_cost =
 + search_policy.estimated_remaining_weight * estimated_remaining_cost
 ```
 
-`truth_cost` measures current plausibility from the graph's probability model. `base_search_cost` measures local remaining effort/risk. Optional top-level `estimated_remaining_cost` is a heuristic estimate of remaining work: unmet criteria, missing evidence, unresolved constraints, confidence gap, dependency depth, or similar effort. It is not truth cost and should stay outside `cost_components`. `search_policy.estimated_remaining_weight` defaults to `1.0`; set it lower when rough heuristics should guide order without dominating local cost.
+`truth_cost` measures current plausibility from the graph's probability model. `base_search_cost` measures local remaining effort/risk. Optional top-level `estimated_remaining_cost` is a heuristic estimate of remaining work: unmet criteria, missing observations, unresolved constraints, confidence gap, dependency depth, or similar effort. It is not truth cost and should stay outside `cost_components`. `search_policy.estimated_remaining_weight` defaults to `1.0`; set it lower when rough heuristics should guide order without dominating local cost.
 
 `search_cost` is frontier priority. Past work is sunk and does not accumulate into frontier priority. Priority queue order is by lowest `search_cost`, not highest belief alone. Ties break by frontier item id.
 
-Two accumulation axes are easy to conflate. Belief accumulates through the claim graph: `leads_to` premises multiply into a derived node's belief, so premises `0.8` and `0.9` give `0.72` and cost `0.2231 + 0.1054`. Search depth does not accumulate: an item's priority reflects its own belief and remaining work, never the route taken to reach it, so items on the same node price identically at any depth.
+Two accumulation axes are easy to conflate. Belief accumulates through the claim graph: `leads_to` premises multiply into the target node's belief, so premises `0.8` and `0.9` give `0.72` and cost `0.2231 + 0.1054`. Search depth does not accumulate: an item's priority reflects its own belief and remaining work, never the route taken to reach it, so items on the same node price identically at any depth.
 
 Exact math is optional. Rough costs are acceptable when they preserve ordering and make the search better.
 
@@ -80,7 +80,7 @@ Brute-force, broad probing, sweeps, enumeration, or high-volume checking are not
 A probe/brute-force branch may have low `search_cost` only when it is:
 
 - tightly bounded (`max_attempts`, `max_seconds`, `max_items`, or equivalent),
-- a cheap discriminator for a specific clue-derived hypothesis,
+- a cheap discriminator for a specific clue-based hypothesis,
 - stopped as soon as its budget or discriminator condition is reached,
 - and recorded with `cost_components.effort_budget` plus `budget` metadata.
 
@@ -89,7 +89,7 @@ Example:
 ```json
 {
   "id": "Q7",
-  "node": "A7",
+  "node": "H7",
   "cost_components": {
     "truth": "auto",
     "verification": 0.2,
@@ -124,10 +124,10 @@ likelihood_ratio = P(evidence | target true) / P(evidence | target false)
 - `likelihood_ratio` is allowed as shorthand when already calibrated, but do not set both `likelihood` and `likelihood_ratio` on the same edge.
 - Omit `likelihood`/`likelihood_ratio` when an edge is explanatory but not calibrated enough to affect ranking; without one, `supports`/`contradicts` has no numeric cost effect.
 - Multiple update edges multiply in odds space.
-- The likelihood update should already include source reliability. Evidence `prior` supplies its local starting probability and contributes through `leads_to`; neither that prior nor the evidence's computed belief automatically dampens a `supports`/`contradicts` update.
+- The likelihood update should already include source reliability. Observation `prior` supplies its local starting probability and contributes through `leads_to`; neither that prior nor the observation's computed belief automatically dampens a `supports`/`contradicts` update.
 - Correlated/overlapping evidence should be merged, represented with a `factor`, or represented with already-adjusted effective likelihoods; do not add a separate weight field.
 - If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields; if the whole target belief is calibrated, use explicit target `posterior` instead of stacking approximate updates.
 
 `leads_to` is not a likelihood update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `leads_to` factor joint-probability costs. `supports`/`contradicts` then update that base belief, with factor likelihoods replacing grouped member likelihood updates. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming premise, factor, or likelihood edges for that target.
 
-If evidence changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes priorities and `sort`/`next` reorders active frontier by best-first priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the evidence creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when evidence updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.
+If an observation changes `truth_cost`/`search_cost` for any stored frontier item, `costs` recomputes priorities and `sort`/`next` reorders active frontier by best-first priority. If the target node is already visited/exhausted, do not reopen it just because the score changed. Add a new frontier item only when the observation creates new work. If no follow-up work exists, record event-level `no_new_work_reason`; if the node/family itself is complete, mark it `exhausted: true` with `exhaustion_reason`. Audit warns when an observation updates a visited node without either a new frontier item, `no_new_work_reason`, or node-level exhaustion proof.

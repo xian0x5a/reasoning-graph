@@ -8,10 +8,10 @@
 {
   "id": "F1",
   "relation": "leads_to",
-  "target": "D1",
-  "inputs": ["A1", "B1"],
+  "target": "H3",
+  "inputs": ["H1", "H2"],
   "aggregation": {"kind": "joint_probability", "probability": 0.72},
-  "reason": "A1 and B1 share the same source."
+  "reason": "H1 and H2 share the same source."
 }
 ```
 
@@ -61,64 +61,64 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
 ```json
 {
   "nodes": [
-    {"id": "A1", "type": "assumption", "text": "Source says X", "prior": 0.8},
-    {"id": "B1", "type": "assumption", "text": "Same source implies Y", "prior": 0.75},
-    {"id": "D1", "type": "derived", "text": "X and Y explain the result"}
+    {"id": "H1", "type": "hypothesis", "text": "Source says X", "prior": 0.8},
+    {"id": "H2", "type": "hypothesis", "text": "Same source implies Y", "prior": 0.75},
+    {"id": "H3", "type": "hypothesis", "text": "X and Y explain the result"}
   ],
   "edges": [
-    {"id": "A1-D1", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"id": "B1-D1", "from": "B1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
+    {"id": "H1-H3", "from": "H1", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
+    {"id": "H2-H3", "from": "H2", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
   ],
   "factors": [
     {
       "id": "F1",
       "relation": "leads_to",
-      "target": "D1",
-      "inputs": ["A1", "B1"],
+      "target": "H3",
+      "inputs": ["H1", "H2"],
       "aggregation": {"kind": "joint_probability", "probability": 0.72},
-      "reason": "A1 and B1 both depend on the same source."
+      "reason": "H1 and H2 both depend on the same source."
     }
   ]
 }
 ```
 
-### Grouped supporting evidence
+### Grouped `supports` edges
 
 ```json
 {
   "edges": [
-    {"id": "E1-H1", "from": "E1", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "E2-H1", "from": "E2", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "O2-H1", "from": "O2", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "factors": [
     {
       "id": "F2",
       "relation": "supports",
       "target": "H1",
-      "inputs": ["E1", "E2"],
+      "inputs": ["O1", "O2"],
       "aggregation": {"kind": "likelihood", "if_target_true": 0.54, "if_target_false": 0.18},
-      "reason": "E1 and E2 are two log lines from the same failed request."
+      "reason": "O1 and O2 are two log lines from the same failed request."
     }
   ]
 }
 ```
 
-### Grouped contradicting evidence
+### Grouped `contradicts` edges
 
 ```json
 {
   "edges": [
-    {"id": "E3-H1", "from": "E3", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."},
-    {"id": "E4-H1", "from": "E4", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."}
+    {"id": "O3-H1", "from": "O3", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."},
+    {"id": "O4-H1", "from": "O4", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."}
   ],
   "factors": [
     {
       "id": "F3",
       "relation": "contradicts",
       "target": "H1",
-      "inputs": ["E3", "E4"],
+      "inputs": ["O3", "O4"],
       "aggregation": {"kind": "likelihood", "if_target_true": 0.1, "if_target_false": 0.5},
-      "reason": "E3 and E4 are two views of the same negative check."
+      "reason": "O3 and O4 are two views of the same negative check."
     }
   ]
 }
@@ -131,16 +131,16 @@ Seed and expansion patches use `factors` to add or replace factors by `id`. To a
 ```json
 {
   "edges": [
-    {"id": "C1-D1", "from": "C1", "to": "D1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
+    {"id": "H4-H3", "from": "H4", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
   ],
   "factors": [
     {
       "id": "F1",
       "relation": "leads_to",
-      "target": "D1",
-      "inputs": ["A1", "B1", "C1"],
+      "target": "H3",
+      "inputs": ["H1", "H2", "H4"],
       "aggregation": {"kind": "joint_probability", "probability": 0.76},
-      "reason": "A1, B1, and C1 now form one source-dependent input group."
+      "reason": "H1, H2, and H4 now form one source-dependent input group."
     }
   ]
 }
@@ -157,4 +157,4 @@ Seed and expansion patches use `factors` to add or replace factors by `id`. To a
 - `supports` and `contradicts` use `likelihood` with `if_target_true` and `if_target_false`.
 - `supports` likelihood ratio is `> 1`; `contradicts` likelihood ratio is in `(0, 1)`.
 - Factor does not set `effective_truth_cost` or direct `likelihood_ratio`.
-- If `target` has explicit `posterior`, that posterior overrides graph-derived factor costs.
+- If `target` has explicit `posterior`, that posterior overrides factor costs computed from the graph.

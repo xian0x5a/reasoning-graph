@@ -34,7 +34,7 @@ Expected competing candidates:
 ## Pass Criteria
 
 - Separates facts and constraints.
-- Uses multiple assumptions with priors.
+- Uses multiple hypotheses with priors.
 - Orders candidates by belief and search cost (best-first), not by accumulated path cost.
 - Does not jump to first suspect solely based on motive.
 - Identifies Chen branch as best, or gives a very strong alternative with explicit uncertainty.

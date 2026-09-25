@@ -10,7 +10,7 @@ Default. Return:
 
 1. answer or recommendation
 2. winning proof path as concise user-facing rationale
-3. key assumptions, if any
+3. open hypotheses relied on, if any
 4. top competing candidate paths when ambiguity matters
 5. contradictions or heavily penalized branches only if important
 6. next test/action if uncertainty remains
@@ -49,12 +49,12 @@ Graph/HTML artifacts may have two useful views:
 - `audit graph` — complete/debuggable reasoning graph; good for checking reasoning completeness.
 - explanation view — concise human report, optionally a curated/lossy graph, good for communicating why the answer wins.
 
-The full reasoning state is always the source of truth. An explanation view can omit nodes, but must not invent evidence, constraints, candidate claims, or edges absent from the state/report metadata.
+The full reasoning state is always the source of truth. An explanation view can omit nodes, but must not invent observations, constraints, candidate claims, or edges absent from the state/report metadata.
 
 Create an HTML artifact as a report, not a fixed template. Choose the layout that best explains the case/problem. It must include:
 
 - compact answer summary at top
-- readable evidence and constraint node details with labels/sources, either in a filterable detail list or modal cards
+- readable observation and constraint node details with labels/sources, either in a filterable detail list or modal cards
 - candidate ordering table when candidates exist
 - a concise explanation view; this may be a curated graph or the full graph when it is already small/readable
 - a full audit graph in a pan/zoom canvas when the graph is large or debugging transparency matters
@@ -77,7 +77,7 @@ For non-trivial HTML report generation, delegate presentation work to a low-thin
 Delegation contract:
 
 ```txt
-Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent evidence. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
+Read state.json. Generate polished self-contained HTML report. Do not solve again. Do not change reasoning. Do not invent observations. State JSON is the only source of truth. If data is missing, render conservatively or report missing fields.
 ```
 
 Recommended graph/HTML flow:
@@ -117,11 +117,11 @@ Mermaid styling pattern:
 
 ```mermaid
 flowchart TD
-  E1["evidence: input is sorted"] --> D1["derived: two-pointer is viable"]
-  C1["constraint: O(n) time"] --> D1
-  A1["A1<br/>assumption<br/>belief 0.4"] --> CS1["CS1<br/>candidate<br/>belief 0.4"]
+  O1["observation: input is sorted"] --> H2["hypothesis: two-pointer is viable"]
+  C1["constraint: O(n) time"] --> H2
+  H1["H1<br/>hypothesis<br/>belief 0.4"] --> CS1["CS1<br/>candidate<br/>belief 0.4"]
   CS1 -- answers --> G
-  E2["evidence: violates O(n)"] -. contradicts .-> A1
+  O2["observation: violates O(n)"] -. contradicts .-> H1
 
   classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
   classDef candidate fill:#dbeafe,stroke:#2563eb;
@@ -139,8 +139,8 @@ HTML report design guidance:
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
 - Put the answer/candidate ranking before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.
-- Keep graph labels compact using the belief display above; route evidence text to filterable detail cards and modal popups.
-- Do not add a separate evidence/constraints section if the node details list already covers evidence and constraints with sources.
+- Keep graph labels compact using the belief display above; route observation text to filterable detail cards and modal popups.
+- Do not add a separate observations/constraints section if the node details list already covers observations and constraints with sources.
 - Use `reasoning-graph html --spacing relaxed|wide|compact|default` when dense graphs look compressed; compare against default spacing first.
 - Use `reasoning-graph html --offline` when generated HTML must not require network access. Keep Mermaid source as source/fallback text in offline mode, not as a CDN runtime dependency.
 - If using a full SVG graph fallback, add pan/zoom controls or viewBox-based pointer navigation.

@@ -5,6 +5,6 @@ Read `{{PROBLEM_FILE}}`, then use the `reasoning-graph` skill in strict mode wit
 Rules:
 
 - Do not read or use any `validator.md` file.
-- Use only evidence from the problem file and local assets it references.
+- Use only facts from the problem file and local assets it references.
 - Return the answer requested by the problem file.
 - Include the graph artifact path when graph output is generated.

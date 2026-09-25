@@ -1,4 +1,4 @@
-# Tests and Result Evidence
+# Tests and Result Observations
 
 Use this page as the shape and example reference for `test` nodes. Usage policy lives in `../../SKILL.md`.
 
@@ -12,17 +12,19 @@ Use this page as the shape and example reference for `test` nodes. Usage policy 
 }
 ```
 
-A `test` node is a procedure, so it carries no score and is not evidence by itself. Its outcome is a result node with its own score.
+A `test` node is a procedure, so it carries no score and no belief by itself. Its outcome is an `observation` node with its own score.
 
 ## Result pattern
 
 ```txt
-A1 --prompts--> T1
-T1 --leads_to--> E9
-E9 --supports|contradicts--> A1
+H1 --prompts--> T1
+T1 --leads_to--> O9
+O9 --supports|contradicts--> H1
 ```
 
-Give result `evidence` a local `prior` accounting for observation, script, OCR, service, or transcription reliability. A scoreless test procedure does not supply a belief source; result evidence needs its own prior unless it inherits belief-bearing premises.
+Result nodes are `observation` only: record what the test showed, not what it means. A conclusion drawn from the observation is a separate `hypothesis` linked `O9 --leads_to--> H2`.
+
+Give the result `observation` a local `prior` accounting for observation, script, OCR, service, or transcription reliability. A scoreless test procedure does not supply a belief source; the result observation needs its own prior.
 
 ## Examples
 
@@ -31,11 +33,11 @@ Give result `evidence` a local `prior` accounting for observation, script, OCR, 
 ```json
 {
   "nodes": [
-    {"id": "A1", "type": "assumption", "text": "The service is reading stale config", "prior": 0.4},
+    {"id": "H1", "type": "hypothesis", "text": "The service is reading stale config", "prior": 0.4},
     {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"}
   ],
   "edges": [
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
+    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ]
 }
 ```
@@ -46,11 +48,11 @@ Give result `evidence` a local `prior` accounting for observation, script, OCR, 
 {
   "nodes": [
     {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"},
-    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
+    {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
   ],
   "edges": [
-    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The test produced this observation."},
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
   ]
 }
 ```
@@ -61,10 +63,10 @@ Give result `evidence` a local `prior` accounting for observation, script, OCR, 
 {
   "nodes": [
     {"id": "T2", "type": "test", "text": "Replay request with debug headers"},
-    {"id": "E2", "type": "evidence", "text": "Replay was inconclusive because fixture token expired", "prior": 0.9}
+    {"id": "O2", "type": "observation", "text": "Replay was inconclusive because fixture token expired", "prior": 0.9}
   ],
   "edges": [
-    {"id": "T2-E2", "from": "T2", "to": "E2", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
+    {"id": "T2-O2", "from": "T2", "to": "O2", "type": "leads_to", "reasoning": "The test produced this observation."}
   ]
 }
 ```
@@ -76,11 +78,11 @@ Expansion patches add result nodes and connect them to the existing test node.
 ```json
 {
   "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
+    {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
   ],
   "edges": [
-    {"id": "T1-E1", "from": "T1", "to": "E1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The test produced this observation."},
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
   ],
   "no_new_work_reason": "Result only updates ranking; no new follow-up branch needed."
 }
@@ -88,16 +90,17 @@ Expansion patches add result nodes and connect them to the existing test node.
 
 ## Strict result rule
 
-Under `stop_policy.severity: "error"` (the `--strict` and `benchmark` profiles), expanding a popped `test` item must add at least one `evidence` or `derived` node linked by `test --leads_to--> result`. `expand` rejects the patch otherwise, and `audit` reports the gap as an error on replayed traces; without strict policy it is a warning.
+Under `stop_policy.severity: "error"` (the `--strict` and `benchmark` profiles), expanding a popped `test` item must add at least one `observation` node linked by `test --leads_to--> observation`. `expand` rejects the patch otherwise, and `audit` reports the gap as an error on replayed traces; without strict policy it is a warning.
 
-There is no escape field: an inconclusive, blocked, or failed check is recorded as result evidence describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation` so the frontier re-ranks siblings.
+There is no escape field: an inconclusive, blocked, or failed check is recorded as a result observation describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation` so the frontier re-ranks siblings.
 
 ## Validation checklist
 
-- Tests are not evidence by themselves.
-- Test nodes carry no score; score the result evidence or derived conclusion instead.
-- Result nodes, not test nodes, support or contradict claims.
-- Use `test --leads_to--> result` for recorded outcomes.
-- Inconclusive checks add result evidence explaining why the check did not settle the claim.
+- Tests carry no belief by themselves.
+- Test nodes carry no score; score the result observation instead.
+- Result nodes are `observation` only; a conclusion is a separate `hypothesis` reached by `leads_to` from the observation.
+- Result observations, not test nodes, support or contradict claims.
+- Use `test --leads_to--> observation` for recorded outcomes.
+- Inconclusive checks add a result observation explaining why the check did not settle the claim.
 - Use `no_new_work_reason` when a result only changes score/ranking and creates no new frontier work.
 - Use `exhaustion_reason` only when marking a node or family `exhausted: true`.

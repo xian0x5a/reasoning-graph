@@ -2,7 +2,7 @@
 
 An agent skill for solving messy reasoning tasks with an explicit graph instead of a hidden linear chain.
 
-Use it when an agent needs to compare hypotheses, track assumptions, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
+Use it when an agent needs to compare hypotheses, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
 ## Repository layout
 
@@ -31,10 +31,10 @@ uv --project packages/reasoning-graph run reasoning-graph validate packages/reas
 The skill treats reasoning as heuristic best-first search over a graph:
 
 1. Extract goal, facts, constraints.
-2. Add assumptions/tests as frontier items.
-3. Score each item by truth cost, verification cost, effort budget, reasoning complexity, constraint tension, evidence penalties, and optional estimated remaining work.
-4. Pop lowest `search_cost`; expand into evidence, tests, child branches, or candidate answers.
-5. Update costs as evidence arrives; keep branches visible instead of deleting them.
+2. Add hypotheses/tests as frontier items.
+3. Score each item by truth cost, verification cost, effort budget, reasoning complexity, constraint tension, contradiction penalties, and optional estimated remaining work.
+4. Pop lowest `search_cost`; expand into observations, tests, child branches, or candidate answers.
+5. Update costs as observations arrive; keep branches visible instead of deleting them.
 6. Stop only when frontier is exhausted, confidence/quantity threshold is met, budget is spent, or a real blocker is proved.
 
 ## Helper commands
@@ -47,13 +47,13 @@ uv --project packages/reasoning-graph run reasoning-graph init --goal "Diagnose 
 cat > seed.json <<'JSON'
 {
   "nodes": [
-    {"id": "E1", "type": "evidence", "text": "Initial observed fact", "prior": 0.9},
-    {"id": "A1", "type": "assumption", "text": "Plausible cause to test", "prior": 0.4},
+    {"id": "O1", "type": "observation", "text": "Initial observed fact", "prior": 0.9},
+    {"id": "H1", "type": "hypothesis", "text": "Plausible cause to test", "prior": 0.4},
     {"id": "T1", "type": "test", "text": "Check the plausible cause"}
   ],
   "edges": [
-    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."},
+    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
   ],
   "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
 }
@@ -69,8 +69,8 @@ uv --project packages/reasoning-graph run reasoning-graph frontier state.json
 uv --project packages/reasoning-graph run reasoning-graph next state.json --pop
 cat > expansion.json <<'JSON'
 {
-  "nodes": [{"id": "E2", "type": "evidence", "text": "Check ran; the plausible cause was not confirmed in this smoke run", "prior": 0.9}],
-  "edges": [{"id": "T1-E2", "from": "T1", "to": "E2", "type": "leads_to", "reasoning": "The check produced this observation."}],
+  "nodes": [{"id": "O2", "type": "observation", "text": "Check ran; the plausible cause was not confirmed in this smoke run", "prior": 0.9}],
+  "edges": [{"id": "T1-O2", "from": "T1", "to": "O2", "type": "leads_to", "reasoning": "The check produced this observation."}],
   "no_new_work_reason": "Smoke run; stop before adding real follow-up branches."
 }
 JSON
@@ -87,9 +87,9 @@ uv --project packages/reasoning-graph run reasoning-graph mermaid state.stopped.
 uv --project packages/reasoning-graph run reasoning-graph html state.stopped.json -o graph.html
 ```
 
-Under the strict profile, expanding a `test` item must record its result as `evidence`/`derived` linked by `leads_to`, and an expansion that adds no frontier work must say why (`no_new_work_reason`); `expand` rejects the patch otherwise.
+Under the strict profile, expanding a `test` item must record its result as an `observation` linked by `leads_to`, and an expansion that adds no frontier work must say why (`no_new_work_reason`); `expand` rejects the patch otherwise.
 
-`reasoning-graph seed` appends evidence/constraints/assumptions/tests plus root frontier items. Before the first driver event it leaves events empty so `next --pop` records the real `init`/`pop` events; after driver init it records a `seed` event and requires patch `reason` for provenance.
+`reasoning-graph seed` appends observations/constraints/hypotheses/tests plus root frontier items. Before the first driver event it leaves events empty so `next --pop` records the real `init`/`pop` events; after driver init it records a `seed` event and requires patch `reason` for provenance.
 
 ## Schemas
 
