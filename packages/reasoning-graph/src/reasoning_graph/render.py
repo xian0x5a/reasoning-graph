@@ -550,16 +550,19 @@ def candidate_focus_nodes(
             node_ids.extend(str(value) for value in values)
 
     nodes_by_id = by_id(state.get("nodes", []), "node")
-    supportive_edges = {"supports", "requires", "leads_to"}
-    non_expanding_seed_types = {"observation", "constraint", "test"}
-    parents_by_child: dict[str, list[str]] = {}
+    # Derivation edges point premise -> conclusion; `requires` points the other way
+    # (dependent -> dependency). `contradicts` and `answers` are not derivation.
+    forward_derivation_edges = {"supports", "leads_to", "prompts", "tested_by", "tests"}
+    premises_by_node: dict[str, list[str]] = {}
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
         edge_type = str(edge.get("type") or edge.get("label") or "")
-        if edge_type and edge_type not in supportive_edges:
-            continue
-        parents_by_child.setdefault(str(edge.get("to")), []).append(str(edge.get("from")))
+        source, target = str(edge.get("from")), str(edge.get("to"))
+        if edge_type in forward_derivation_edges:
+            premises_by_node.setdefault(target, []).append(source)
+        elif edge_type == "requires":
+            premises_by_node.setdefault(source, []).append(target)
 
     if not explicit:
         view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
@@ -567,24 +570,17 @@ def candidate_focus_nodes(
         if raw_id and raw_id in winning_path:
             node_ids.extend(winning_path)
 
-    # Focus should include entry observations that feed highlighted hypothesis/path nodes.
-    # Use deterministic upstream depth, not arbitrary node-count caps, so dense graphs behave predictably.
-    max_upstream_hops = 2
-    frontier = [(node_id, 0) for node_id in node_ids]
+    # Focus is the candidate's full derivation: every transitive premise, including the
+    # tests and hypotheses that produced its evidence. Rival branches stay dim because
+    # they are only reachable downstream of shared premises, never upstream.
+    pending = list(node_ids)
     seen_raw = set(node_ids)
-    while frontier:
-        child, depth = frontier.pop(0)
-        if depth >= max_upstream_hops:
-            continue
-        node_type = str(nodes_by_id.get(child, {}).get("type") or "")
-        if node_type in non_expanding_seed_types:
-            continue
-        for parent in parents_by_child.get(child, []):
-            if parent in seen_raw:
-                continue
-            seen_raw.add(parent)
-            node_ids.append(parent)
-            frontier.append((parent, depth + 1))
+    while pending:
+        for premise in premises_by_node.get(pending.pop(), []):
+            if premise not in seen_raw:
+                seen_raw.add(premise)
+                node_ids.append(premise)
+                pending.append(premise)
     seen: set[str] = set()
     result: list[str] = []
     for node_id in node_ids:

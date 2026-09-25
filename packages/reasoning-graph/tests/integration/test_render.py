@@ -88,6 +88,52 @@ class RenderIdentityTests(unittest.TestCase):
             self.assertIn(f'option value="{render_id}">{raw_id}</option>', document)
             self.assertIn(f'"{render_id}": ["{render_id}"]', document)
 
+    def test_html_focus_map_covers_full_candidate_derivation(self) -> None:
+        """Focusing a candidate must light its whole derivation chain (tests, the
+        observations they produced, and the hypotheses that prompted them), not stop
+        at the first observation, while leaving rival and contradicting branches dim."""
+
+        def edge(source: str, edge_type: str, target: str) -> dict:
+            return {"id": f"{source}>{target}", "from": source, "to": target, "type": edge_type, "reasoning": f"{source} {edge_type} {target}."}
+
+        state = {
+            "nodes": [
+                {"id": "G1", "type": "goal", "text": "goal"},
+                {"id": "O1", "type": "observation", "text": "clue", "prior": 1},
+                {"id": "H1", "type": "hypothesis", "text": "clue encodes data", "prior": 0.8},
+                {"id": "T1", "type": "test", "text": "extract data"},
+                {"id": "O4", "type": "observation", "text": "extracted data", "prior": 1},
+                {"id": "H3", "type": "hypothesis", "text": "decoding A", "prior": 0.7},
+                {"id": "T3", "type": "test", "text": "decode with A"},
+                {"id": "O5", "type": "observation", "text": "decoding A works", "prior": 1},
+                {"id": "CS1", "type": "candidate_solution", "text": "answer A", "prior": 1, "answer_kind": "exact_answer"},
+                {"id": "H4", "type": "hypothesis", "text": "decoding B", "prior": 0.3},
+                {"id": "O6", "type": "observation", "text": "decoding B fails", "prior": 1},
+                {"id": "CS2", "type": "candidate_solution", "text": "answer B", "prior": 0.01, "answer_kind": "exact_answer"},
+            ],
+            "edges": [
+                edge("O1", "supports", "H1"),
+                edge("H1", "prompts", "T1"),
+                edge("T1", "leads_to", "O4"),
+                edge("O4", "leads_to", "H3"),
+                edge("H3", "prompts", "T3"),
+                edge("T3", "leads_to", "O5"),
+                edge("O5", "supports", "H3"),
+                edge("H3", "leads_to", "CS1"),
+                edge("CS1", "answers", "G1"),
+                edge("O4", "leads_to", "H4"),
+                edge("O6", "contradicts", "H4"),
+                edge("H4", "leads_to", "CS2"),
+                edge("CS2", "answers", "G1"),
+            ],
+            "frontier": [],
+        }
+        document = html_document(state, to_mermaid(state), render_mode="offline")
+        focus_map = json.loads(re.search(r"candidateFocusMap = (\{.*?\});", document).group(1))
+
+        self.assertEqual(set(focus_map["CS1"]), {"CS1", "H3", "O4", "O5", "T3", "T1", "H1", "O1"})
+        self.assertEqual(set(focus_map["CS2"]), {"CS2", "H4", "O4", "T1", "H1", "O1"})
+
     def test_html_candidates_come_from_graph_without_report_metadata(self) -> None:
         """`report` is optional: the focus dropdown and candidate table must list live
         graph candidates even when no report metadata was written."""
