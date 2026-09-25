@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value, TruthInputs, truth_inputs
+from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, probability_from_value, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -292,38 +292,6 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
             belief = finite_float(candidate.get("belief")) or 0.0
             candidate["weight"] = round(belief / total_belief, 6)
     return sorted(filtered, key=candidate_sort_key)
-
-
-def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
-    """Claims whose belief is earned from observations rather than hand-set scores.
-
-    Observations are the base. A claim is grounded when every one of its
-    `leads_to` premises is grounded, or when its evidence favors it (net
-    likelihood ratio > 1) counting supporting updates only from grounded sources
-    and contradicting updates from any source: unbacked support cannot lift a
-    claim, but unbacked doubt still weighs. Priors and posteriors never ground a
-    claim. Computed as a least fixpoint so a support cycle cannot ground itself.
-    """
-
-    grounded = {node_id for node_id, node in inputs.nodes.items() if node.get("type") == "observation"}
-
-    def is_grounded_by(node_id: str) -> bool:
-        premises = inputs.premise_sources.get(node_id, [])
-        if premises and all(premise in grounded for premise in premises):
-            return True
-        net_log_likelihood_ratio = sum(
-            update.log_likelihood_ratio
-            for update in inputs.evidence_updates.get(node_id, [])
-            if update.log_likelihood_ratio < 0 or all(source in grounded for source in update.source_ids)
-        )
-        return net_log_likelihood_ratio > 0
-
-    changed = True
-    while changed:
-        newly_grounded = {node_id for node_id in inputs.nodes if node_id not in grounded and is_grounded_by(node_id)}
-        grounded |= newly_grounded
-        changed = bool(newly_grounded)
-    return grounded
 
 
 def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str]) -> dict[str, list[str]]:

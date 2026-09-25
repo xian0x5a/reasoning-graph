@@ -270,7 +270,7 @@ def nodes_with_belief_sources(state: dict[str, Any]) -> set[str]:
 
 
 def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:
-    """Reject raw `leads_to` cycles before any factor cost replacement."""
+    """Reject dependency cycles before any factor cost replacement."""
 
     visiting: set[str] = set()
     visited: set[str] = set()
@@ -337,7 +337,12 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             if "likelihood_ratio" in edge or "likelihood" in edge:
                 likelihood_edges.setdefault(dst, []).append(edge)
 
-    assert_acyclic_premise_dependencies(premise_sources)
+    # Evidence from a non-observation source is scaled by that source's belief,
+    # so it is a truth dependency just like a premise.
+    truth_dependencies = {node_id: list(sources) for node_id, sources in premise_sources.items()}
+    for target, edges in likelihood_edges.items():
+        truth_dependencies[target] += [str(edge["from"]) for edge in edges if nodes[str(edge["from"])].get("type") != "observation"]
+    assert_acyclic_premise_dependencies(truth_dependencies)
     grounded_nodes = nodes_with_belief_sources(state)
 
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
@@ -421,6 +426,38 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     )
 
 
+def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
+    """Claims whose belief is earned from observations rather than hand-set scores.
+
+    Observations are the base. A claim is grounded when every one of its
+    `leads_to` premises is grounded, or when its evidence favors it (net
+    likelihood ratio > 1) counting supporting updates only from grounded sources
+    and contradicting updates from any source: unbacked support cannot lift a
+    claim, but unbacked doubt still weighs. Priors and posteriors never ground a
+    claim. Evidence cycles between claims are rejected by `truth_inputs`.
+    """
+
+    grounded = {node_id for node_id, node in inputs.nodes.items() if node.get("type") == "observation"}
+
+    def is_grounded_by(node_id: str) -> bool:
+        premises = inputs.premise_sources.get(node_id, [])
+        if premises and all(premise in grounded for premise in premises):
+            return True
+        net_log_likelihood_ratio = sum(
+            update.log_likelihood_ratio
+            for update in inputs.evidence_updates.get(node_id, [])
+            if update.log_likelihood_ratio < 0 or all(source in grounded for source in update.source_ids)
+        )
+        return net_log_likelihood_ratio > 0
+
+    changed = True
+    while changed:
+        newly_grounded = {node_id for node_id in inputs.nodes if node_id not in grounded and is_grounded_by(node_id)}
+        grounded |= newly_grounded
+        changed = bool(newly_grounded)
+    return grounded
+
+
 def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
@@ -436,8 +473,22 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """
 
     inputs = truth_inputs(state)
+    evidence_grounded = evidence_grounded_node_ids(inputs)
     memo: dict[str, float] = {}
     visiting: set[str] = set()
+
+    def effective_log_likelihood_ratio(update: EvidenceUpdate) -> float:
+        # Observation ratios already include source reliability. A claim is only as
+        # strong as its belief b: ratio r acts as 1 + b * (r - 1), treating a false
+        # source as uninformative. Unbacked support is ignored; doubt always weighs.
+        claim_sources = [source for source in update.source_ids if inputs.nodes[source].get("type") != "observation"]
+        if not claim_sources:
+            return update.log_likelihood_ratio
+        if update.log_likelihood_ratio > 0 and not all(source in evidence_grounded for source in update.source_ids):
+            return 0.0
+        # Factor inputs are treated as jointly true with independent beliefs.
+        source_belief = math.exp(-sum(effective_cost(source) for source in claim_sources))
+        return math.log1p(source_belief * math.expm1(update.log_likelihood_ratio))
 
     def effective_cost(node_id: str) -> float:
         if node_id in memo:
@@ -474,7 +525,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             # beliefs. expm1 also preserves precision near explicit certainty.
             log_odds = -base_cost - math.log(-math.expm1(-base_cost)) if base_cost > 0 else math.inf
             for update in updates:
-                log_odds += update.log_likelihood_ratio
+                log_odds += effective_log_likelihood_ratio(update)
             cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost

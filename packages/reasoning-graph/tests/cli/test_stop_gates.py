@@ -488,18 +488,6 @@ class GroundedPathTests(unittest.TestCase):
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
             self.assertIn("H1", stopped.stderr)
 
-    def test_support_cycle_cannot_ground_itself_but_carries_grounding_from_outside(self) -> None:
-        cycle = [self.edge("H1", "H2", "supports", likelihood_ratio=4), self.edge("H2", "H1", "supports", likelihood_ratio=4), self.edge("H2", "CS1", "leads_to")]
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            closed = self.expanded_state(tmp_dir, [self.hypothesis("H1", 0.9), self.hypothesis("H2", 0.9)], cycle)
-            stopped = self.stop(closed)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H2", stopped.stderr)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            anchored = self.expanded_state(tmp_dir, [self.hypothesis("H1"), self.hypothesis("H2", 0.9)], [self.edge("O1", "H1", "leads_to"), *cycle])
-            self.ok(self.stop(anchored))
-
     def test_audit_does_not_count_an_ungrounded_candidate_toward_the_belief_threshold(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.expanded_state(

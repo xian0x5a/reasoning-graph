@@ -16,7 +16,7 @@ from reasoning_graph.render import html_document, to_mermaid
 class RenderIdentityTests(unittest.TestCase):
     def state(self, reverse: bool = False) -> dict:
         nodes = [
-            {"id": "A-B", "type": "hypothesis", "text": "hyphen", "prior": 0.6},
+            {"id": "A-B", "type": "observation", "text": "hyphen", "prior": 0.6},
             {"id": "A_B", "type": "hypothesis", "text": "underscore", "prior": 0.4},
             {"id": "A B", "type": "goal", "text": "space"},
         ]
@@ -25,8 +25,8 @@ class RenderIdentityTests(unittest.TestCase):
         return {
             "nodes": nodes,
             "edges": [
-                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated claim supports the underscored claim."},
-                {"id": "A B>A-B", "from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated claim."},
+                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated observation supports the underscored claim."},
+                {"id": "A B>A-B", "from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated observation."},
             ],
         }
 

@@ -228,3 +228,69 @@ def test_posterior_overrides_only_its_node_and_can_be_removed():
     # Removing the override resumes current inputs: 0.5 * 0.9, then LR 3.
     assert belief(state, "D1") == pytest.approx(27 / 38)
     assert belief(state) == pytest.approx(27 / 76)
+
+
+def hypothesis_evidence_state(source_nodes, source_edges, relation, ratio):
+    """N1 starts at 0.5; H2 bears evidence on it with the given relation and ratio."""
+    state = claim_state(prior=0.5)
+    state["nodes"].extend(source_nodes)
+    state["edges"].extend([*source_edges, edge("H2", "N1", relation, likelihood_ratio=ratio)])
+    return state
+
+
+def test_support_from_an_ungrounded_hypothesis_has_no_effect_on_belief():
+    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9}], [], "supports", 9)
+    assert belief(state) == pytest.approx(0.5)
+
+
+def test_support_from_a_grounded_hypothesis_is_scaled_by_its_belief():
+    # H2 has belief 0.5 from O1, so ratio 9 becomes 1 + 0.5 * 8 = 5: odds 1 -> 5.
+    state = hypothesis_evidence_state(
+        [{"id": "O1", "type": "observation", "text": "Clue", "prior": 0.5}, {"id": "H2", "type": "hypothesis", "text": "Lemma"}],
+        [edge("O1", "H2")],
+        "supports",
+        9,
+    )
+    assert belief(state) == pytest.approx(5 / 6)
+
+
+def test_contradiction_from_an_ungrounded_hypothesis_is_scaled_by_its_belief():
+    # Ratio 0.2 at source belief 0.5 becomes 1 - 0.5 * 0.8 = 0.6: odds 1 -> 0.6.
+    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Rival", "prior": 0.5}], [], "contradicts", 0.2)
+    assert belief(state) == pytest.approx(0.375)
+
+
+def test_observation_evidence_is_not_scaled_by_its_prior():
+    state = claim_state(prior=0.5)
+    state["nodes"].append({"id": "O1", "type": "observation", "text": "Clue", "prior": 0.5})
+    state["edges"].append(edge("O1", "N1", "supports", likelihood_ratio=9))
+    assert belief(state) == pytest.approx(0.9)
+
+
+def test_ungrounded_support_cannot_lift_a_grounded_candidate_past_the_threshold():
+    state = claim_state()
+    state["nodes"].extend([
+        {"id": "O1", "type": "observation", "text": "Clue", "prior": 0.6},
+        {"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9},
+    ])
+    state["edges"].extend([edge("O1", "N1"), edge("H2", "N1", "supports", likelihood_ratio=9)])
+    state["frontier"] = [{"id": "Q1", "node": "N1", "cost_components": {"truth": "auto"}}]
+    state["stop_policy"] = {"belief_threshold": 0.8, "max_live_frontier_items": 0, "severity": "error"}
+    assert belief(state) == pytest.approx(0.6)
+    assert not audit_stop_policy(state, state["frontier"], 1).ok
+
+
+def test_evidence_cycle_between_hypotheses_is_invalid():
+    state = claim_state(prior=0.5)
+    state["nodes"].extend([
+        {"id": "H1", "type": "hypothesis", "text": "First", "prior": 0.6},
+        {"id": "H2", "type": "hypothesis", "text": "Second", "prior": 0.6},
+    ])
+    state["edges"].extend([
+        edge("H1", "H2", "supports", likelihood_ratio=3),
+        edge("H2", "H1", "supports", likelihood_ratio=3),
+        edge("H1", "N1"),
+    ])
+    result = validate_state(state)
+    assert not result.ok
+    assert any("cycle" in error for error in result.errors), result.errors
