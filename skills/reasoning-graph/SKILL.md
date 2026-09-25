@@ -17,6 +17,8 @@ Requirements: a subagent backend (the orchestrator delegates probes) and the hel
 
 Every use keeps explicit state and follows this loop. Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
+The queue leads the work. Put a direction on the graph before acting on it, and merge each result before choosing the next step, so every choice is made from the frontier. Solving first and filling in the graph afterward leaves the frontier nothing to rank: alternatives that were never on it when the choice was made did not compete.
+
 1. **Frame goal.** Identify accepted goal(s). Add epistemic/blocker goals only when accepted by user or task wording.
 2. **Seed graph.** Separate given/source-backed `observation`s, hard `constraint`s, and open `hypothesis` nodes. Seed initial nodes, edges, tests, and root frontier items.
 3. **Pop focus before major work.** Run `next --pop` before major search, test, file inspection, verification, or branch selection; it recomputes costs and selects the lowest-cost active item.
@@ -63,7 +65,7 @@ Patch shape for `seed` and `expand`:
 }
 ```
 
-`expand` may also use `update_nodes`, `factors`, `no_new_work_reason`, `under_branching_reason`, and `existing_sibling_frontier`.
+`expand` may also use `update_nodes`, `factors`, and `no_new_work_reason`.
 
 ## Event rules the driver enforces
 
@@ -71,7 +73,7 @@ Patch shape for `seed` and `expand`:
 - Use `seed` for the initial root frontier or later unrelated user clues; use `expand` for work caused by the current popped/assigned item.
 - Assigned items are in-flight, not active frontier; merge returned work with `expand --item <assigned-item>`.
 - Under strict policy, expanding a `test` item must record its result: an `observation` node linked by `leads_to` from the test, which then `supports`/`contradicts` the claim it tested; a conclusion drawn from the observation is a separate `hypothesis` linked by `leads_to` from the observation. A failed or inconclusive probe is still a result; record it before the next pop so siblings re-rank on real cost. Shapes: `docs/schema/tests.md`.
-- Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason` or `under_branching_reason`.
+- Under strict policy, an expansion that adds no frontier item and no candidate must record `no_new_work_reason`.
 - For parallel work, decompose one focus item into explicit independent sub-probes before fanout.
 
 ## Orchestrator and subagents
@@ -153,13 +155,10 @@ Input ledger:
 
 Branching:
 
-- Try direct derivation only when obvious; otherwise branch from generic, atomic, testable hypotheses before specializing into compound steps or candidates. Expand coarse possibility families before micro-variants.
-- Pop focus is per interpretation, not per task stage. When a probe reveals competing interpretations (encoding, alphabet mapping, bit order, reading order, unit, source), each becomes a sibling `hypothesis` with its own frontier item before the next probe; the frontier can only rank what is on the graph. A run whose `peak_live_frontier` (reported by `audit`) stays at 1 on a task with an interpretation step did not exercise the graph.
-- Authoritative clues (official hints, docs, maintainer comments, theorem conditions, logs, test failures) get interpretation branches before brute force, and cheap clue interpretations outrank broad probes. For high-stakes search tasks, mark such families with `clue_family: true` and `salience` when dropping or under-expanding them would change the answer.
-- A failed bounded test penalizes only the exact tested interpretation, not the whole family; add sibling/refined interpretations or explicit exhaustion proof.
-- Partial family expansion is not exhaustion: leave live child frontier, set `exhausted: true` with `exhaustion_reason`, or revive by adding a child branch under the original family. When continuing from reports without prior graph state, reconstruct high-salience clue families as graph nodes rather than a generic "prior probes failed" observation.
-- Consider direct/literal, structural/transform, and low-prior wildcard branches for high-salience families, but record `under_branching_reason` or `existing_sibling_frontier` when fewer are meaningful rather than inventing branches. One-child expansion triggers a check for missed siblings before claiming exhaustion.
-- After each expansion/probe, record implications, sibling hypotheses, cheap discriminator tests, contradiction penalties, and any answer-shaped candidate. Reopen only when a new observation creates new work; score-only updates stay closed.
+- How wide to branch is the agent's call. When a choice between interpretations matters, put the contenders on the graph as sibling `hypothesis` nodes with frontier items so the frontier can rank them; `audit` reports `peak_live_frontier` as a measure of how much the frontier was used.
+- Price cheap interpretations of authoritative clues (official hints, docs, logs, test failures) below broad brute-force probes.
+- A failed bounded test penalizes only the exact tested interpretation, not the whole family. To close a family deliberately, set `exhausted: true` with `exhaustion_reason`.
+- Reopen a visited node only when a new observation creates new work; score-only updates stay closed.
 
 Candidates:
 
