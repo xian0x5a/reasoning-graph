@@ -280,6 +280,11 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         # The mode button keeps one label (pressed styling carries the state) and the
         # control bar is spaced away from the canvas edge.
         self.assertNotIn("Canvas mode on", document)
+        # Canvas mode starts on for mouse/trackpad only: on touch screens it would
+        # set touch-action:none and trap page swipes over the tall canvas.
+        self.assertIn('setCanvasMode(window.matchMedia("(pointer: fine)").matches);', document)
+        # Esc releases the captured wheel so the page scrolls again.
+        self.assertIn("if (event.key === \"Escape\" && canvas.contains(document.activeElement)) document.activeElement.blur();", document)
         self.assertIn(".graph-section .section-head { margin-bottom:", document)
         self.assertIn(".graph-controls button { white-space: nowrap;", document)
 

@@ -478,7 +478,7 @@ def graph_panel(
       <button type="button" data-canvas-mode="{graph_id}" aria-pressed="false">Canvas mode</button>
       <button type="button" data-reset="{graph_id}">Reset view</button>
       {focus_control}
-      <span>Click the canvas to capture the wheel, then Ctrl/⌘+wheel zooms. Ctrl/⌘+drag pans. Canvas mode enables direct drag/zoom.</span>
+      <span>Click the canvas to capture the wheel; Esc releases it. Canvas mode: wheel zooms, drag pans. Otherwise hold Ctrl/⌘.</span>
     </div>
   </div>
   <div id="{graph_id}" class="mermaid-wrap graph-canvas {kind_class}" tabindex="0" role="region" aria-label="{html.escape(title)} canvas">
@@ -1326,13 +1326,22 @@ def html_document(
     if (reset) reset.addEventListener("click", () => {{ box = {{ ...initial }}; apply(); }});
 
     const modeToggle = document.querySelector(`[data-canvas-mode="${{canvas.id}}"]`);
-    if (modeToggle) modeToggle.addEventListener("click", () => {{
-      canvasMode = !canvasMode;
+    function setCanvasMode(enabled) {{
+      canvasMode = enabled;
       canvas.classList.toggle("canvas-mode", canvasMode);
       // The pressed style carries the state; the label must not grow, or the button
       // reflows into two rows and the control bar jumps.
-      modeToggle.setAttribute("aria-pressed", String(canvasMode));
+      if (modeToggle) modeToggle.setAttribute("aria-pressed", String(canvasMode));
       if (!canvasMode) endDrag();
+    }}
+    if (modeToggle) modeToggle.addEventListener("click", () => setCanvasMode(!canvasMode));
+    // Default on for mouse/trackpad only: wheel zoom still waits for a click on the
+    // canvas, so the page is never hijacked. On touch screens canvas mode sets
+    // touch-action:none and would trap page swipes over the tall canvas.
+    setCanvasMode(window.matchMedia("(pointer: fine)").matches);
+    // Esc releases the captured wheel so the page scrolls again under the pointer.
+    document.addEventListener("keydown", (event) => {{
+      if (event.key === "Escape" && canvas.contains(document.activeElement)) document.activeElement.blur();
     }});
   }}
 
