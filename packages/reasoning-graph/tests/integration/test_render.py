@@ -88,6 +88,29 @@ class RenderIdentityTests(unittest.TestCase):
             self.assertIn(f'option value="{render_id}">{raw_id}</option>', document)
             self.assertIn(f'"{render_id}": ["{render_id}"]', document)
 
+    def test_html_candidates_come_from_graph_without_report_metadata(self) -> None:
+        """`report` is optional: the focus dropdown and candidate table must list live
+        graph candidates even when no report metadata was written."""
+        state = {
+            "nodes": [
+                {"id": "CS1", "type": "candidate_solution", "text": "First answer", "prior": 0.6, "answer_kind": "exact_answer"},
+                {"id": "CS2", "type": "candidate_solution", "text": "Second answer", "prior": 0.4, "answer_kind": "exact_answer"},
+                {"id": "G1", "type": "goal", "text": "goal"},
+            ],
+            "edges": [
+                {"id": "CS1>G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "CS1 answers G1."},
+                {"id": "CS2>G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "CS2 answers G1."},
+            ],
+            "frontier": [],
+        }
+        identities = render_identity_map(state)
+        document = html_document(state, to_mermaid(state, identities=identities), render_mode="offline")
+
+        for raw_id in ("CS1", "CS2"):
+            self.assertIn(f'option value="{identities.node_ids[raw_id]}">{raw_id}</option>', document)
+        self.assertNotIn("No viable answer candidates recorded.", document)
+        self.assertIn("First answer", document)
+
     def test_filtered_mermaid_view_keeps_full_graph_identities(self) -> None:
         state = self.state()
         identities = render_identity_map(state)

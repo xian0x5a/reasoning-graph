@@ -253,22 +253,20 @@ def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
 
 def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
-    candidates = report.get("candidates")
-    if not isinstance(candidates, list):
-        return []
+    report_candidates = report.get("candidates") if isinstance(report.get("candidates"), list) else []
+    metadata_by_id = {
+        str(candidate.get("id")): candidate
+        for candidate in report_candidates
+        if isinstance(candidate, dict) and candidate.get("id") is not None
+    }
     nodes = by_id(state.get("nodes", []), "node")
-    graph_candidate_ids = viable_candidate_ids(state)
-    # Report metadata can lag behind schema cleanup; render only live graph candidates.
     node_truth_costs = node_effective_truth_costs(state)
     filtered: list[dict[str, Any]] = []
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        candidate_id = str(candidate.get("id") or "")
-        if candidate_id not in graph_candidate_ids:
-            continue
+    # The graph is the source of candidates; `report` is optional metadata that can
+    # lag behind the graph, so it only annotates live candidates and never adds any.
+    for candidate_id in viable_candidate_ids(state):
         node = nodes.get(candidate_id, {})
-        enriched = dict(candidate)
+        enriched = {"id": candidate_id, "name": node.get("text"), **metadata_by_id.get(candidate_id, {})}
         search_cost = finite_float(enriched.get("search_cost"))
         if search_cost is not None:
             enriched["search_cost"] = round(search_cost, 6)
