@@ -89,7 +89,7 @@ A goal is **answered** when it has an `answers` edge from a `candidate_solution`
 
 ### Lemma-shaped steps
 
-A lemma is one `hypothesis` node for its whole life. While open it carries a `prior` and its own frontier item:
+A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it can `supports`/`contradicts` other claims, weighted by its belief (`docs/cost-model.md`); while it rests on its prior alone, its support has no effect. While open it carries a `prior` and its own frontier item:
 
 ```json
 {

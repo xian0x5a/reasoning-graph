@@ -138,7 +138,7 @@ search_cost = base_search_cost + estimated_remaining_weight * estimated_remainin
 - `search_cost` is frontier priority; lower pops first. Parent path cost is sunk and does not accumulate.
 - `estimated_remaining_cost` sits on the frontier item top level, not inside `cost_components`. Its weight is state-level `search_policy.estimated_remaining_weight`, which `init --strict` sets to 1.0.
 - Broad probes/brute force need explicit `effort_budget` and bounded `budget` metadata.
-- Likelihood updates already account for source reliability; observation `prior` does not scale them.
+- Likelihood updates from observations already account for source reliability; observation `prior` does not scale them. Evidence from a hypothesis or candidate is scaled by its belief `b` (ratio `r` acts as `1 + b·(r − 1)`), support from an ungrounded claim has no effect, and evidence cycles between claims are invalid.
 
 ## Exploration rules
 
@@ -176,7 +176,7 @@ Stop is metric-gated. A normal stop is allowed only when at least one holds:
 
 Rules:
 
-- `solved` and `candidate_threshold_met` stops need an evidence-grounded best candidate, and the belief threshold counts only grounded candidates. A claim is grounded when all of its `leads_to` premises are grounded, or when its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base. Priors and posteriors never ground a claim, a claim with only contradicting evidence is still being carried by its prior, and a support cycle cannot ground itself. `stop` names the ungrounded claims: test them, or stop with `budget_exhausted`/`inconclusive` and report them as open hypotheses.
+- `solved` and `candidate_threshold_met` stops need an evidence-grounded best candidate, and the belief threshold counts only grounded candidates. A claim is grounded when all of its `leads_to` premises are grounded, or when its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base. Priors and posteriors never ground a claim, and a claim with only contradicting evidence is still being carried by its prior. `stop` names the ungrounded claims: test them, or stop with `budget_exhausted`/`inconclusive` and report them as open hypotheses.
 - A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it. Contradicting its siblings does not raise the survivor's belief.
 - `solved`, `candidate_threshold_met`, and `candidate_count_met` stops are rejected while any accepted goal is unanswered. Stop with `inconclusive`/`budget_exhausted` instead, or list the goal in `goal_policy.optional_goals`.
 - An epistemic/blocker stop is allowed while meaningful answer-goal frontier is live only if `stop_policy` explicitly allows it. For benchmark/search tasks use strict `stop_policy`: `min_viable_candidates: 3`, `belief_threshold: 0.8`, `max_live_frontier_items: 0`, `require_frontier_exhausted_for_epistemic_stop: true`, `severity: "error"`.
