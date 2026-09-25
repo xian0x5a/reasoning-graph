@@ -266,11 +266,13 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         # The canvas is a real focus target: it shows a focus ring, paints a dotted
         # sheet, and only the focused canvas consumes the wheel.
         self.assertIn('class="mermaid-wrap graph-canvas graph-canvas-audit" tabindex="0"', document)
-        self.assertIn(".graph-canvas:focus {", document)
+        # :focus-within, because clicking a node link focuses the <a> inside the canvas
+        # and the wheel still zooms then, so the ring must stay.
+        self.assertIn(".graph-canvas:focus-within {", document)
         self.assertIn("radial-gradient(circle", document)
         self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
         # Hover only tints the sheet and border; the solid ring stays focus-only.
-        self.assertIn(".graph-canvas:hover:not(:focus) { border-color: #bfdbfe;", document)
+        self.assertIn(".graph-canvas:hover:not(:focus-within) { border-color: #bfdbfe;", document)
         # Control buttons acknowledge the press with a tint, a ring, and a sink.
         self.assertIn(".graph-controls button:active {", document)
         self.assertIn("transform: translateY(1px);", document)

@@ -742,11 +742,12 @@ def html_document(
     /* Hover invites the click that captures the wheel: the sheet wakes up and the
        border tints, while the solid focus ring stays reserved for the captured state
        so the two are never confused. */
-    .graph-canvas:hover:not(:focus) {{ border-color: #bfdbfe; background-image: radial-gradient(circle, #8296b1 1.4px, transparent 1.4px); }}
-    /* Focus is functional here: the wheel only zooms while the canvas owns focus,
-       so the ring tells the user which surface will consume the scroll. The negative
+    .graph-canvas:hover:not(:focus-within) {{ border-color: #bfdbfe; background-image: radial-gradient(circle, #8296b1 1.4px, transparent 1.4px); }}
+    /* Focus is functional here: the wheel only zooms while focus is inside the canvas
+       (the canvas itself, or a node link clicked in it; hence :focus-within), so the
+       ring tells the user which surface will consume the scroll. The negative
        offset registers the ring with the canvas border instead of ringing around it. */
-    .graph-canvas:focus {{ outline: 2px solid #60a5fa; outline-offset: -2px; border-color: #60a5fa; }}
+    .graph-canvas:focus-within {{ outline: 2px solid #60a5fa; outline-offset: -2px; border-color: #60a5fa; }}
     .graph-canvas.canvas-mode {{ cursor: grab; touch-action: none; }}
     .graph-canvas svg, .graph-canvas svg * {{ user-select: none; -webkit-user-select: none; }}
     .graph-canvas.panning {{ cursor: grabbing; }}
