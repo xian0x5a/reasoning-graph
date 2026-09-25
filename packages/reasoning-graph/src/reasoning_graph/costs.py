@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
@@ -289,19 +290,21 @@ def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -
         visit(node_id)
 
 
-def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
-    """Compute effective node truth costs from premises and likelihood updates.
+@dataclass(frozen=True)
+class TruthInputs:
+    """Validated graph inputs to belief propagation, shared by cost and grounding checks."""
 
-    Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. Top-level `leads_to` factors replace
-    grouped member costs with a calibrated joint_probability.
-    Incoming `supports`/`contradicts` edges with `likelihood` or
-    `likelihood_ratio` update that base belief in odds space; grouped likelihood
-    factors replace correlated member likelihood updates.
-    Explicit node `posterior` is treated as already-calibrated and wins over
-    graph-derived updates to avoid double counting. Computed beliefs are returned
-    as costs; neither `prior` nor `posterior` is written back to nodes.
-    """
+    nodes: dict[str, dict[str, Any]]
+    premise_sources: dict[str, list[str]]
+    premise_group_costs: dict[str, list[float]]
+    grouped_premise_sources: dict[str, set[str]]
+    # Per-node log likelihood ratios after factor grouping, in edge-then-factor order.
+    evidence_log_likelihood_ratios: dict[str, list[float]]
+    belief_source_nodes: set[str]
+
+
+def truth_inputs(state: dict[str, Any]) -> TruthInputs:
+    """Collect premises and likelihood updates, validating edges and factors."""
 
     nodes = by_id(state.get("nodes", []), "node")
     premise_sources: dict[str, list[str]] = {node_id: [] for node_id in nodes}
@@ -385,6 +388,46 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         factor_likelihood_ratios[target].append(likelihood_ratio)
         grouped_for_relation.update(input_ids)
 
+    evidence_log_likelihood_ratios: dict[str, list[float]] = {}
+    for node_id in nodes:
+        ungrouped_likelihood_edges = [
+            edge
+            for edge in likelihood_edges.get(node_id, [])
+            if str(edge.get("from"))
+            not in grouped_likelihood_sources.get((node_id, str(edge.get("type") or edge.get("label"))), set())
+        ]
+        # Factors are explicit non-independent bundles; their calibrated
+        # likelihood replaces grouped member updates.
+        log_ratios = [math.log(likelihood_ratio_from_edge(edge)) for edge in ungrouped_likelihood_edges]
+        log_ratios += [math.log(likelihood_ratio) for likelihood_ratio in factor_likelihood_ratios.get(node_id, [])]
+        if log_ratios:
+            evidence_log_likelihood_ratios[node_id] = log_ratios
+
+    return TruthInputs(
+        nodes=nodes,
+        premise_sources=premise_sources,
+        premise_group_costs=premise_group_costs,
+        grouped_premise_sources=grouped_premise_sources,
+        evidence_log_likelihood_ratios=evidence_log_likelihood_ratios,
+        belief_source_nodes=grounded_nodes,
+    )
+
+
+def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
+    """Compute effective node truth costs from premises and likelihood updates.
+
+    Incoming `leads_to` edges are required premises and contribute source truth
+    cost to the target's base belief. Top-level `leads_to` factors replace
+    grouped member costs with a calibrated joint_probability.
+    Incoming `supports`/`contradicts` edges with `likelihood` or
+    `likelihood_ratio` update that base belief in odds space; grouped likelihood
+    factors replace correlated member likelihood updates.
+    Explicit node `posterior` is treated as already-calibrated and wins over
+    graph-derived updates to avoid double counting. Computed beliefs are returned
+    as costs; neither `prior` nor `posterior` is written back to nodes.
+    """
+
+    inputs = truth_inputs(state)
     memo: dict[str, float] = {}
     visiting: set[str] = set()
 
@@ -393,7 +436,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             return memo[node_id]
         if node_id in visiting:
             raise ValueError(f"cycle in truth dependency graph at {node_id}")
-        node = nodes.get(node_id)
+        node = inputs.nodes.get(node_id)
         if not node:
             return 0.0
         if "posterior" in node:
@@ -403,37 +446,27 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
 
         visiting.add(node_id)
         local_cost = node_local_truth_cost(node, include_posterior=False)
-        grouped_sources = grouped_premise_sources.get(node_id, set())
+        grouped_sources = inputs.grouped_premise_sources.get(node_id, set())
         ungrouped_source_cost = sum(
             effective_cost(source_id)
-            for source_id in premise_sources.get(node_id, [])
+            for source_id in inputs.premise_sources.get(node_id, [])
             if source_id not in grouped_sources
         )
         # Factors are explicit non-independent bundles; their calibrated
         # aggregation replaces grouped member costs.
-        premise_cost = sum(premise_group_costs.get(node_id, [])) + ungrouped_source_cost
+        premise_cost = sum(inputs.premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
-        ungrouped_likelihood_edges = [
-            edge
-            for edge in likelihood_edges.get(node_id, [])
-            if str(edge.get("from"))
-            not in grouped_likelihood_sources.get((node_id, str(edge.get("type") or edge.get("label"))), set())
-        ]
-        factor_lrs = factor_likelihood_ratios.get(node_id, [])
-        if node_id not in grounded_nodes and (
-            node.get("type") in BELIEF_NODE_TYPES or ungrouped_likelihood_edges or factor_lrs
-        ):
+        log_likelihood_ratios = inputs.evidence_log_likelihood_ratios.get(node_id, [])
+        if node_id not in inputs.belief_source_nodes and (node.get("type") in BELIEF_NODE_TYPES or log_likelihood_ratios):
             # Unknown claims must not become free certainty, even when the cost
             # engine is called without validation. A grounded zero stays certain.
             base_cost = probability_cost(NEUTRAL_UPDATE_PRIOR)
-        if ungrouped_likelihood_edges or factor_lrs:
+        if log_likelihood_ratios:
             # Stay in log space: exp(-base_cost) can underflow for valid inherited
             # beliefs. expm1 also preserves precision near explicit certainty.
             log_odds = -base_cost - math.log(-math.expm1(-base_cost)) if base_cost > 0 else math.inf
-            for edge in ungrouped_likelihood_edges:
-                log_odds += math.log(likelihood_ratio_from_edge(edge))
-            for likelihood_ratio in factor_lrs:
-                log_odds += math.log(likelihood_ratio)
+            for log_likelihood_ratio in log_likelihood_ratios:
+                log_odds += log_likelihood_ratio
             cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost
@@ -442,7 +475,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         memo[node_id] = cost
         return cost
 
-    for node_id in nodes:
+    for node_id in inputs.nodes:
         effective_cost(node_id)
     return memo
 
