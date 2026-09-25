@@ -73,6 +73,12 @@ CANDIDATE_STOP_OUTCOMES = {
     "candidate_count_met",
 }
 
+# Confidence claims need observation-backed belief; candidate_count_met measures breadth, not confidence.
+EVIDENCE_GROUNDED_STOP_OUTCOMES = {
+    "solved",
+    "candidate_threshold_met",
+}
+
 
 # A test result is what was observed; a conclusion drawn from it is a separate hypothesis
 # linked by leads_to from the observation.

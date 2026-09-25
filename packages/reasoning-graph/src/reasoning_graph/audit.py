@@ -8,8 +8,8 @@ from typing import Any
 
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
-from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
-from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_candidate_belief, unanswered_goal_messages, viable_candidate_ids
+from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
+from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_grounded_candidate_belief, unanswered_goal_messages, ungrounded_goal_answer_messages, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -216,7 +216,7 @@ def audit_stop_policy(
 
     min_candidates = int(policy.get("min_viable_candidates", 0))
     threshold = probability_from_value(policy.get("belief_threshold")) or 0.0
-    strongest_belief = strongest_candidate_belief(state)
+    strongest_belief = strongest_grounded_candidate_belief(state)
     enough_candidates = min_candidates > 0 and viable_count >= min_candidates
     confident_candidate = threshold > 0 and strongest_belief >= threshold
     if not enough_candidates and not confident_candidate:
@@ -224,7 +224,7 @@ def audit_stop_policy(
             result,
             "stop_policy not satisfied: live_frontier={live} > max_live_frontier_items={max_live}, "
             "viable_candidates={viable} < min_viable_candidates={min_candidates}, "
-            "strongest_belief={belief:.6g} < belief_threshold={threshold:.6g}".format(
+            "strongest_grounded_belief={belief:.6g} < belief_threshold={threshold:.6g}".format(
                 live=live_count,
                 max_live=max_live,
                 viable=viable_count,
@@ -796,6 +796,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if outcome in CANDIDATE_STOP_OUTCOMES:
                     for message in unanswered_goal_messages(state):
                         add_policy_violation(policy_result, f"{label}: {outcome} stop leaves an accepted goal open; {message}", severity)
+                if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
+                    for message in ungrounded_goal_answer_messages(state):
+                        add_policy_violation(policy_result, f"{label}: {outcome} stop needs an evidence-grounded answer; {message}", severity)
             seen_stop = True
 
     if not seen_init:

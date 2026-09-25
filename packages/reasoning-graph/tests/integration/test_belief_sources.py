@@ -153,11 +153,13 @@ def test_local_inference_prior_matches_an_explicit_validity_assumption():
 def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
+        {"id": "O1", "type": "observation", "text": "Observed clue", "prior": 1.0},
         {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.6},
         {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
          "answer_kind": "exact_answer", "prior": 0.55},
     ])
-    state["edges"].extend([edge("A1", "N1"), edge("CS2", "G1", "answers")])
+    # O1 grounds the premise chain; the threshold only credits evidence-grounded candidates.
+    state["edges"].extend([edge("O1", "A1"), edge("A1", "N1"), edge("CS2", "G1", "answers")])
     state["frontier"] = [
         {"id": "Q1", "node": "N1", "cost_components": {"truth": "auto"}},
         {"id": "Q2", "node": "CS2", "cost_components": {"truth": "auto"}},
@@ -170,8 +172,9 @@ def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
     assert sorted_frontier_items(state)[0]["node"] == "N1"
     assert audit_stop_policy(state, state["frontier"], len(ranked)).ok
 
-    # Removing the only absolute belief source must not pass the threshold.
-    del state["nodes"][2]["prior"]
+    # Removing the only absolute belief sources must not pass the threshold.
+    del next(node for node in state["nodes"] if node["id"] == "A1")["prior"]
+    state["edges"] = [item for item in state["edges"] if item["from"] != "O1"]
     assert not validate_state(state).ok
     assert belief(state) == pytest.approx(0.5)
     assert not audit_stop_policy(state, state["frontier"], len(ranked)).ok

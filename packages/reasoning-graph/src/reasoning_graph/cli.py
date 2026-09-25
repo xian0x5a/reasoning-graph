@@ -11,8 +11,8 @@ from typing import Any
 from .audit import audit_state, expansion_gaps, stop_policy_severity
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
-from .models import CANDIDATE_STOP_OUTCOMES, STOP_OUTCOMES
-from .policy import best_candidate_ids, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
+from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
+from .policy import best_candidate_ids, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages, ungrounded_goal_answer_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
@@ -1055,6 +1055,17 @@ def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
             print(
                 "error: add a candidate_solution with an answers edge, list the goal in goal_policy.optional_goals, "
                 "or stop with a non-candidate outcome such as inconclusive or budget_exhausted",
+                file=sys.stderr,
+            )
+            return 1
+    if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
+        ungrounded = ungrounded_goal_answer_messages(state)
+        for message in ungrounded:
+            print(f"error: stop outcome {outcome!r} requires an evidence-grounded answer; {message}", file=sys.stderr)
+        if ungrounded:
+            print(
+                "error: test those claims and record supporting observations, derive them from grounded premises, "
+                "or stop with a non-confidence outcome such as budget_exhausted and report them as open hypotheses",
                 file=sys.stderr,
             )
             return 1

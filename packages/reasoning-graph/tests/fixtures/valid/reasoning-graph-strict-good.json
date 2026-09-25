@@ -10,6 +10,13 @@
       "text": "Pick best cause"
     },
     {
+      "id": "O1",
+      "type": "observation",
+      "text": "Symptom matching the likely cause",
+      "source": "user report",
+      "prior": 1.0
+    },
+    {
       "id": "A1",
       "type": "hypothesis",
       "text": "Likely cause",
@@ -30,6 +37,13 @@
     }
   ],
   "edges": [
+    {
+      "id": "E0",
+      "from": "O1",
+      "to": "A1",
+      "type": "leads_to",
+      "reasoning": "The observed symptom is the premise for the likely cause."
+    },
     {
       "id": "E1",
       "from": "A1",

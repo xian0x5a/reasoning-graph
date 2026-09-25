@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value
+from .costs import node_effective_truth_costs, node_truth_cost, probability_from_value, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -294,8 +294,60 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(filtered, key=candidate_sort_key)
 
 
-def strongest_candidate_belief(state: dict[str, Any]) -> float:
-    beliefs = [finite_float(candidate.get("belief")) for candidate in ranked_viable_candidates(state)]
+def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str]) -> dict[str, list[str]]:
+    """Map each candidate to the claims whose hand-set scores, not observations, carry its belief.
+
+    A claim is evidence-grounded when its combined evidence updates favor it
+    (net likelihood ratio > 1) or every one of its `leads_to` premises is
+    grounded; observations are the base. Priors and posteriors never ground a
+    claim: a contradiction-only claim that still scores high is carried by its
+    prior. Reported claims are the deepest ungrounded ones on the premise chain,
+    which is where evidence is missing. Grounded candidates are omitted.
+    """
+
+    inputs = truth_inputs(state)
+    grounded_memo: dict[str, bool] = {}
+
+    def is_grounded(node_id: str) -> bool:
+        if node_id not in grounded_memo:
+            if inputs.nodes.get(node_id, {}).get("type") == "observation":
+                grounded_memo[node_id] = True
+            else:
+                premises = inputs.premise_sources.get(node_id, [])
+                grounded_memo[node_id] = sum(inputs.evidence_log_likelihood_ratios.get(node_id, [])) > 0 or (
+                    bool(premises) and all(is_grounded(premise) for premise in premises)
+                )
+        return grounded_memo[node_id]
+
+    def ungrounded_roots(node_id: str) -> set[str]:
+        ungrounded_premises = [premise for premise in inputs.premise_sources.get(node_id, []) if not is_grounded(premise)]
+        if not ungrounded_premises:
+            return {node_id}
+        return set().union(*(ungrounded_roots(premise) for premise in ungrounded_premises))
+
+    return {
+        candidate_id: sorted(ungrounded_roots(candidate_id))
+        for candidate_id in sorted(candidate_ids)
+        if not is_grounded(candidate_id)
+    }
+
+
+def ungrounded_goal_answer_messages(state: dict[str, Any]) -> list[str]:
+    """Explain each best answer to an accepted, non-optional goal that lacks evidence grounding."""
+
+    best_by_goal = goal_best_candidates(state)
+    required_goals = accepted_goal_ids(state) - optional_goal_ids(state)
+    best_candidates = {candidate_id for goal_id, candidate_id in best_by_goal.items() if goal_id in required_goals}
+    return [
+        f"best candidate {candidate_id} is not evidence-grounded; claims resting on scores alone: {', '.join(claims)}"
+        for candidate_id, claims in ungrounded_claims_by_candidate(state, best_candidates).items()
+    ]
+
+
+def strongest_grounded_candidate_belief(state: dict[str, Any]) -> float:
+    ranked = ranked_viable_candidates(state)
+    ungrounded = ungrounded_claims_by_candidate(state, {str(candidate["node"]) for candidate in ranked})
+    beliefs = [finite_float(candidate.get("belief")) for candidate in ranked if candidate["node"] not in ungrounded]
     return max((belief for belief in beliefs if belief is not None), default=0.0)
 
 

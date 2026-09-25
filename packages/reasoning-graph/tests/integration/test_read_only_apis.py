@@ -12,7 +12,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.audit import audit_state
-from reasoning_graph.policy import best_candidate_ids, ranked_viable_candidates, sorted_report_candidates, strongest_candidate_belief
+from reasoning_graph.policy import best_candidate_ids, ranked_viable_candidates, sorted_report_candidates, strongest_grounded_candidate_belief
 from reasoning_graph.schema_validation import patch_schema_errors, state_schema_errors
 from reasoning_graph.validation import validate_state
 
@@ -37,7 +37,7 @@ class ReadOnlyApiTests(unittest.TestCase):
         validate_state(state)
         ranked_viable_candidates(state)
         best_candidate_ids(state)
-        strongest_candidate_belief(state)
+        strongest_grounded_candidate_belief(state)
         sorted_report_candidates(state)
 
         self.assertTrue(result.ok, result.errors)
