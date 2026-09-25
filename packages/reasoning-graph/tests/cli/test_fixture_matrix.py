@@ -149,6 +149,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "premise-groups": {**modern_patch, "premise_groups": []},
             "update-premise-groups": {**modern_patch, "update_premise_groups": []},
             "no-reopen-reason": {**modern_patch, "no_reopen_reason": "legacy"},
+            "under-branching-reason": {**modern_patch, "under_branching_reason": "legacy"},
+            "existing-sibling-frontier": {**modern_patch, "existing_sibling_frontier": ["Q1"]},
             "stop-alias": {**modern_patch, "stop": "legacy stop", "outcome": "user_stopped"},
         }
         for name, patch in legacy_patch_variants.items():
@@ -158,7 +160,6 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
     def test_golden_cli_outputs_stay_stable(self) -> None:
         commands = {
             "init-strict.json": ("init", "--goal", "Solve the problem", "--strict"),
-            "init-benchmark.json": ("init", "--goal", "Solve the problem", "--profile", "benchmark"),
             "doctor-strict-driver.txt": ("doctor", str(FIXTURES / "valid" / "strict-driver-state.json")),
             "stop-review-pass.txt": ("stop-review", str(FIXTURES / "valid" / "stopped-reviewed-state.json")),
         }

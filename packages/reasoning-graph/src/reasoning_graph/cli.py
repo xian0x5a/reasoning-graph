@@ -71,21 +71,6 @@ STRICT_STOP_POLICY = {
 }
 
 
-DEFAULT_BRANCH_POLICY = {
-    "high_salience_min_children": 3,
-    "low_prior_wildcard_required": True,
-    "enforce_on": "exhaustion_stop",
-    "severity": "warning",
-}
-
-
-BENCHMARK_BRANCH_POLICY = {
-    **DEFAULT_BRANCH_POLICY,
-    "enforce_on": "always",
-    "severity": "error",
-}
-
-
 def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, Any]:
     state: dict[str, Any] = {
         "summary": {"title": "Reasoning Graph", "answer": ""},
@@ -93,10 +78,9 @@ def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, An
         "edges": [],
         "frontier": [],
     }
-    if profile in {"strict", "benchmark"}:
+    if profile == "strict":
         state["search_policy"] = {"estimated_remaining_weight": 1.0}
         state["stop_policy"] = dict(STRICT_STOP_POLICY)
-        state["branch_policy"] = dict(BENCHMARK_BRANCH_POLICY if profile == "benchmark" else DEFAULT_BRANCH_POLICY)
     return state
 
 
@@ -903,8 +887,6 @@ def cmd_expand(args: argparse.Namespace) -> int:
         "summary",
         "reason",
         "no_new_work_reason",
-        "under_branching_reason",
-        "existing_sibling_frontier",
     ):
         if key in patch:
             event[key] = patch[key]
@@ -1154,7 +1136,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     init = sub.add_parser("init", help="emit a starter state for a goal")
     init.add_argument("--goal", required=True, help="goal text for G1")
-    init.add_argument("--profile", choices=("minimal", "strict", "benchmark"), default="minimal", help="starter profile")
+    init.add_argument("--profile", choices=("minimal", "strict"), default="minimal", help="starter profile")
     init.add_argument("--strict", action="store_true", help="shortcut for --profile strict")
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)

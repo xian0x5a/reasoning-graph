@@ -95,7 +95,7 @@
       "add_frontier": [
         "Q3"
       ],
-      "under_branching_reason": "Fixture forces lazy stop violation."
+      "no_new_work_reason": "Fixture forces lazy stop violation."
     },
     {
       "step": 4,

@@ -156,12 +156,6 @@ State JSON shape:
     "require_frontier_exhausted_for_epistemic_stop": true,
     "severity": "warning"
   },
-  "branch_policy": {
-    "high_salience_min_children": 3,
-    "low_prior_wildcard_required": true,
-    "enforce_on": "exhaustion_stop",
-    "severity": "warning"
-  },
   "report": {
     "candidates": [
       {
@@ -195,8 +189,6 @@ State JSON shape:
   }
 }
 ```
-
-`branch_policy.high_salience_min_children` is an audit heuristic, not a hard branch count. It asks the driver to justify narrow high-salience expansions; use `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof instead of inventing weak branches.
 
 Cost behavior:
 
@@ -252,7 +244,7 @@ Expansion patch shape:
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id; detailed factor shapes live in `docs/schema/factors.md`. Stop events must include structured `outcome`. For high-salience branch policy, record `under_branching_reason` or `existing_sibling_frontier` when a narrow expansion is justified by the rules in `SKILL.md`.
+`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id; detailed factor shapes live in `docs/schema/factors.md`. Stop events must include structured `outcome`.
 
 ## Driver Loop
 
@@ -290,7 +282,7 @@ Allowed actions:
 - `init` — initial active frontier item ids after expansion-signature dedupe
 - `pop` — selected lowest-cost frontier item
 - `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
-- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result `observation` (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason` or `under_branching_reason`. For partial high-salience family/clue expansion, prefer named child frontier items or explicit justification fields per `SKILL.md`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`hypothesis` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
+- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result `observation` (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`hypothesis` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
 - `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
 - `rank` — current best viable `candidate_solution` computed from graph belief; optional `item` closes a pending popped item
 - `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
@@ -329,15 +321,13 @@ Required checks:
 
 - stop outcome/reason matches accepted goal, ranked best candidate, and stop policy
 - no meaningful answer-goal frontier remains hidden behind an epistemic/blocker stop
-- high-salience clue/family nodes are expanded, live, or explicitly exhausted
 - best candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
 - every accepted goal is answered, and `summary.answer`, `report.answer`, and the draft name the best candidate of each accepted goal by id or exact text
 - blockers are not disguised as answer candidates for normal solve goals
-- failed broad tests do not erase untested sibling interpretations or parent clue families
 - contradictions/failures penalize only affected branches
 - final answer draft matches graph state and invents no new observations
 
-Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Every `stop` requires no pending item; candidate-bearing `stop` auto-ranks only after terminal preflight passes. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight. A one-child expansion is allowed when no useful sibling branch comes to mind; audit treats it as a soft warning to reconsider branching, not a failure.
+Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Every `stop` requires no pending item; candidate-bearing `stop` auto-ranks only after terminal preflight passes. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight.
 
 Before final, validate, audit, and semantically review the stopped state:
 
@@ -365,8 +355,6 @@ Audit checks:
 - `expand` follows the pending pop or targets an in-flight assigned item
 - `add_frontier` items exist and usually parent to expanded item
 - expansions whose popped graph node has no outgoing edge to added nodes get a soft trace-topology warning
-- one-child non-terminal expansions get a soft under-branching warning only when the final stop claims exhaustion/completion, unless `under_branching_reason` or `existing_sibling_frontier` is recorded
-- high-salience clue/family expansions below `branch_policy.high_salience_min_children` warn/fail on exhaustion/completion stops unless they include `under_branching_reason`, `existing_sibling_frontier`, or exhaustion proof; set `branch_policy.enforce_on: "always"` for noisy development audits
 - candidate solutions contradicted by observations remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
 - `rank.best`, `rank.belief`, and `rank.candidates` rows match the values computed from the graph as it stood at rank time
 - each node, edge, and frontier item is claimed as added by at most one event

@@ -179,12 +179,6 @@
     "require_frontier_exhausted_for_epistemic_stop": true,
     "severity": "error"
   },
-  "branch_policy": {
-    "high_salience_min_children": 3,
-    "low_prior_wildcard_required": true,
-    "enforce_on": "exhaustion_stop",
-    "severity": "warning"
-  },
   "factors": [],
   "events": [
     {

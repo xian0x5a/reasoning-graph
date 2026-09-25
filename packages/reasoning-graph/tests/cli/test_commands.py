@@ -339,23 +339,16 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("rejected legacy field path_cost", result.stderr)
 
     def test_init_emits_valid_starter_states(self) -> None:
-        benchmark = self.run_cli("init", "--goal", "Benchmark solve", "--profile", "benchmark")
-        self.assertEqual(benchmark.returncode, 0, benchmark.stderr)
-        benchmark_state = json.loads(benchmark.stdout)
-        self.assertEqual(benchmark_state["nodes"][0]["id"], "G1")
-        self.assertEqual(benchmark_state["nodes"][0]["text"], "Benchmark solve")
-        self.assertEqual(benchmark_state["stop_policy"]["severity"], "error")
-        self.assertEqual(benchmark_state["branch_policy"]["enforce_on"], "always")
-
         init = self.run_cli("init", "--goal", "Diagnose production outage", "--strict")
         self.assertEqual(init.returncode, 0, init.stderr)
         init_state = json.loads(init.stdout)
+        self.assertEqual(init_state["nodes"][0]["id"], "G1")
         self.assertEqual(init_state["nodes"][0]["text"], "Diagnose production outage")
         self.assertEqual(init_state["stop_policy"]["severity"], "error")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "starter.json"
-            state_path.write_text(benchmark.stdout, encoding="utf-8")
+            state_path.write_text(init.stdout, encoding="utf-8")
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 

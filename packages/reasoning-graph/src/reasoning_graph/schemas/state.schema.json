@@ -55,9 +55,6 @@
     "stop_policy": {
       "$ref": "#/$defs/stopPolicy"
     },
-    "branch_policy": {
-      "$ref": "#/$defs/branchPolicy"
-    },
     "search_policy": {
       "$ref": "#/$defs/searchPolicy"
     },
@@ -181,14 +178,6 @@
             "clue_path",
             "blocker"
           ]
-        },
-        "clue_family": {
-          "type": "boolean"
-        },
-        "salience": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
         },
         "exhausted": {
           "type": "boolean"
@@ -819,12 +808,6 @@
         },
         "no_new_work_reason": {
           "type": "string"
-        },
-        "under_branching_reason": {
-          "type": "string"
-        },
-        "existing_sibling_frontier": {
-          "$ref": "#/$defs/stringList"
         }
       },
       "allOf": [
@@ -1057,31 +1040,6 @@
         },
         "require_frontier_exhausted_for_epistemic_stop": {
           "type": "boolean"
-        },
-        "severity": {
-          "enum": [
-            "warning",
-            "error"
-          ]
-        }
-      }
-    },
-    "branchPolicy": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "high_salience_min_children": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "low_prior_wildcard_required": {
-          "type": "boolean"
-        },
-        "enforce_on": {
-          "enum": [
-            "exhaustion_stop",
-            "always"
-          ]
         },
         "severity": {
           "enum": [

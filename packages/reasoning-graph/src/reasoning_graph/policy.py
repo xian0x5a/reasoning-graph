@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, probability_from_value, truth_inputs
-from .models import EPISTEMIC_GOAL_MARKERS, EXHAUSTION_STOP_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
+from .models import EPISTEMIC_GOAL_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
 
@@ -229,16 +229,6 @@ def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
     return {candidate_id for candidate_id, goal_targets in targets.items() if goal_targets & accepted}
 
 
-def salient_clue_family_ids(state: dict[str, Any]) -> set[str]:
-    nodes = by_id(state.get("nodes", []), "node")
-    clue_ids: set[str] = set()
-    for node_id, node in nodes.items():
-        salience = probability_from_value(node.get("salience"))
-        if node.get("clue_family") is True or node.get("role") == "clue_family" or (salience is not None and salience >= 0.7):
-            clue_ids.add(node_id)
-    return clue_ids
-
-
 def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
     try:
         truth_cost = float(candidate.get("effective_truth_cost", candidate.get("truth_cost")))
@@ -329,18 +319,3 @@ def strongest_grounded_candidate_belief(state: dict[str, Any]) -> float:
     return max((belief for belief in beliefs if belief is not None), default=0.0)
 
 
-def stop_reason_claims_exhaustion(reason: str) -> bool:
-    normalized = reason.lower()
-    negations = (
-        "not exhaust",
-        "not fully explored",
-        "not complete",
-        "not done",
-        "unfinished",
-        "budget reached",
-        "budget exhausted",
-        "time exhausted",
-    )
-    if any(negation in normalized for negation in negations):
-        return False
-    return any(marker in normalized for marker in EXHAUSTION_STOP_MARKERS)

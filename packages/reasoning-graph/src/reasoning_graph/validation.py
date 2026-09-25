@@ -86,15 +86,6 @@ def validate_state(state: Any) -> ValidationResult:
                     probability_cost(node[probability_field], probability_field)
                 except ValueError as exc:
                     errors.append(f"node {node_id or i}: {exc}")
-        if "clue_family" in node and not isinstance(node.get("clue_family"), bool):
-            errors.append(f"node {node_id or i} clue_family must be boolean when present")
-        if "salience" in node:
-            try:
-                salience = float(node.get("salience"))
-                if not 0 <= salience <= 1:
-                    errors.append(f"node {node_id or i} salience must be in [0, 1]")
-            except (TypeError, ValueError):
-                errors.append(f"node {node_id or i} salience must be numeric when present")
         if "exhausted" in node and not isinstance(node.get("exhausted"), bool):
             errors.append(f"node {node_id or i} exhausted must be boolean when present")
         if node.get("exhausted") is True and not str(node.get("exhaustion_reason") or "").strip():
@@ -160,22 +151,6 @@ def validate_state(state: Any) -> ValidationResult:
                 errors.append(f"stop_policy.{key} must be boolean when present")
         if "severity" in stop_policy and stop_policy.get("severity") not in {"warning", "error"}:
             errors.append("stop_policy.severity must be 'warning' or 'error' when present")
-    branch_policy = state.get("branch_policy", {})
-    if branch_policy is not None:
-        if not isinstance(branch_policy, dict):
-            errors.append("branch_policy must be object when present")
-            branch_policy = {}
-        for key in ("high_salience_min_children",):
-            if key in branch_policy:
-                value = branch_policy.get(key)
-                if not isinstance(value, int) or value < 0:
-                    errors.append(f"branch_policy.{key} must be a non-negative integer")
-        if "low_prior_wildcard_required" in branch_policy and not isinstance(branch_policy.get("low_prior_wildcard_required"), bool):
-            errors.append("branch_policy.low_prior_wildcard_required must be boolean when present")
-        if "severity" in branch_policy and branch_policy.get("severity") not in {"warning", "error"}:
-            errors.append("branch_policy.severity must be 'warning' or 'error' when present")
-        if "enforce_on" in branch_policy and branch_policy.get("enforce_on") not in {"exhaustion_stop", "always"}:
-            errors.append("branch_policy.enforce_on must be 'exhaustion_stop' or 'always' when present")
     search_policy = state.get("search_policy", {})
     if search_policy is not None:
         if not isinstance(search_policy, dict):

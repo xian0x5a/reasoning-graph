@@ -123,20 +123,6 @@ EPISTEMIC_GOAL_MARKERS = (
 )
 
 
-EXHAUSTION_STOP_MARKERS = (
-    "exhaust",
-    "fully explored",
-    "all branches",
-    "all meaningful",
-    "no more",
-    "nothing left",
-    "frontier empty",
-    "frontier exhausted",
-    "complete",
-    "done",
-)
-
-
 SEARCH_COST_COMPONENTS = (
     "truth",
     "verification",

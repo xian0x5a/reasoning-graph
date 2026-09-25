@@ -90,7 +90,7 @@ Expansion patches add result nodes and connect them to the existing test node.
 
 ## Strict result rule
 
-Under `stop_policy.severity: "error"` (the `--strict` and `benchmark` profiles), expanding a popped `test` item must add at least one `observation` node linked by `test --leads_to--> observation`. `expand` rejects the patch otherwise, and `audit` reports the gap as an error on replayed traces; without strict policy it is a warning.
+Under `stop_policy.severity: "error"` (the `--strict` profile), expanding a popped `test` item must add at least one `observation` node linked by `test --leads_to--> observation`. `expand` rejects the patch otherwise, and `audit` reports the gap as an error on replayed traces; without strict policy it is a warning.
 
 There is no escape field: an inconclusive, blocked, or failed check is recorded as a result observation describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation` so the frontier re-ranks siblings.
 

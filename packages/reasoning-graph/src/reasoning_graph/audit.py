@@ -9,7 +9,7 @@ from typing import Any
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
 from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
-from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, salient_clue_family_ids, stop_reason_claims_exhaustion, strongest_grounded_candidate_belief, unanswered_goal_messages, ungrounded_goal_answer_messages, viable_candidate_ids
+from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, strongest_grounded_candidate_belief, unanswered_goal_messages, ungrounded_goal_answer_messages, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -160,16 +160,11 @@ def expansion_gaps(
     added_types = {str(nodes[node_id].get("type")) for node_id in added_node_ids if node_id in nodes}
     added_contradiction = any(edge.get("type") == "contradicts" for edge in added_edges)
     item_exhausted = item_node.get("exhausted") is True and bool(str(item_node.get("exhaustion_reason") or "").strip())
-    has_escape = bool(
-        _event_escape_reason(event)
-        or str(event.get("under_branching_reason") or "").strip()
-        or event.get("existing_sibling_frontier")
-        or item_exhausted
-    )
+    has_escape = bool(_event_escape_reason(event) or item_exhausted)
     if not added_frontier_ids and "candidate_solution" not in added_types and not added_contradiction and not has_escape:
         gaps.append(
-            f"expansion of {item_node_id} added no frontier work and no candidate; add sibling interpretations as "
-            "frontier items or record no_new_work_reason/under_branching_reason"
+            f"expansion of {item_node_id} added no frontier work and no candidate; add frontier items for the "
+            "next work or record no_new_work_reason"
         )
     return gaps
 
@@ -312,17 +307,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     if not isinstance(policy_max_probe_concurrency, int) or policy_max_probe_concurrency < 1:
         policy_max_probe_concurrency = default_max_probe_concurrency
 
-    branch_policy = state.get("branch_policy") if isinstance(state.get("branch_policy"), dict) else {}
-    high_salience_min_children = int(branch_policy.get("high_salience_min_children", 3))
-    branch_policy_severity = str(branch_policy.get("severity") or "warning")
-    if branch_policy_severity not in {"warning", "error"}:
-        branch_policy_severity = "warning"
-    branch_policy_enforce_on = str(branch_policy.get("enforce_on") or "exhaustion_stop")
-    if branch_policy_enforce_on not in {"exhaustion_stop", "always"}:
-        branch_policy_enforce_on = "exhaustion_stop"
-    deferred_branch_warnings: list[str] = []
-    stop_reasons: list[str] = []
-    stop_outcomes: list[str] = []
     policy_result = ValidationResult(errors=errors, warnings=warnings)
     severity = stop_policy_severity(state)
 
@@ -501,16 +485,12 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: cannot expand unpopped item {item_id}")
 
             added_node_ids = as_string_list(event.get("add_nodes"), f"{label}.add_nodes", errors)
-            added_node_types: set[str] = set()
             for node_id in added_node_ids:
                 if node_id not in nodes:
                     errors.append(f"{label}: add_nodes references missing node {node_id}")
                 else:
                     event_added_nodes.add(node_id)
                     claim_added("node", node_id, index, label)
-                    node_type = nodes[node_id].get("type")
-                    if isinstance(node_type, str):
-                        added_node_types.add(node_type)
             added_edge_ids = as_string_list(event.get("add_edges"), f"{label}.add_edges", errors)
             for edge_id in added_edge_ids:
                 if edge_id not in edge_ids:
@@ -561,11 +541,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 claim_added("frontier item", child_id, index, label)
                 virtual_frontier.add(child_id)
 
-            contradiction_targets = {
-                str(edge.get("to"))
-                for edge in added_edges
-                if (edge.get("type") or edge.get("label")) == "contradicts" and isinstance(edge.get("to"), str)
-            }
             evidence_update_targets = {
                 str(edge.get("to"))
                 for edge in added_edges
@@ -624,54 +599,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     warnings.append(
                         f"{label}: evidence updated visited node {target_node_id}; costs will recompute, but add frontier for new work, record no_new_work_reason, or mark the node exhausted with exhaustion_reason"
                     )
-
-            terminal_or_contradicted = bool(added_node_types & {"candidate_solution"}) or bool(contradiction_targets)
-            item_node = nodes.get(item_node_id, {})
-            has_under_branching_escape = bool(str(event.get("under_branching_reason") or "").strip())
-            existing_siblings = as_string_list(event.get("existing_sibling_frontier"), f"{label}.existing_sibling_frontier", errors)
-            for sibling_id in existing_siblings:
-                if sibling_id not in items:
-                    errors.append(f"{label}: existing_sibling_frontier references missing frontier item {sibling_id}")
-            has_under_branching_escape = has_under_branching_escape or bool(existing_siblings)
-            item_exhausted = item_node.get("exhausted") is True and bool(
-                str(item_node.get("exhaustion_reason") or "").strip()
-            )
-            has_under_branching_escape = has_under_branching_escape or item_exhausted
-            if len(added_frontier_ids) == 1 and not terminal_or_contradicted and not has_under_branching_escape:
-                deferred_branch_warnings.append(
-                    f"{label}: one-child expansion may be under-branching; consider coarse sibling branches if any are meaningful"
-                )
-            is_high_salience = item_node_id in salient_clue_family_ids(state) or (
-                (probability_from_value(item_node.get("salience")) or 0.0) >= 0.7
-            )
-            if is_high_salience and len(added_frontier_ids) < high_salience_min_children and not has_under_branching_escape:
-                branch_result = ValidationResult(errors=[], warnings=[])
-                add_policy_violation(
-                    branch_result,
-                    f"{label}: high-salience expansion added {len(added_frontier_ids)} child frontier item(s), below branch_policy.high_salience_min_children={high_salience_min_children}; add meaningful siblings, under_branching_reason, existing_sibling_frontier, or exhaustion_reason",
-                    branch_policy_severity,
-                )
-                errors.extend(branch_result.errors)
-                deferred_branch_warnings.extend(branch_result.warnings)
-            try:
-                popped_prior = float(nodes.get(item_node_id, {}).get("prior"))
-            except (TypeError, ValueError):
-                popped_prior = 0.0
-            branch_penalized_by_contradiction = any(
-                (edge.get("type") or edge.get("label")) == "contradicts"
-                and edge.get("to") in ({item_node_id} | added_node_set)
-                for edge in added_edges
-            )
-            if (
-                popped_prior >= 0.65
-                and branch_penalized_by_contradiction
-                and not added_frontier_ids
-                and not no_new_work_reason
-                and not item_exhausted
-            ):
-                warnings.append(
-                    f"{label}: high-prior branch {item_node_id} received a contradiction penalty with no follow-up frontier; ensure the negative result exhausts the whole clue family, not only one bounded interpretation"
-                )
 
             expanded_items.add(item_id)
             in_flight_items.discard(item_id)
@@ -780,15 +707,12 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             reason = event.get("reason")
             if not isinstance(reason, str) or not reason.strip():
                 errors.append(f"{label}: stop reason must be non-empty")
-            else:
-                stop_reasons.append(reason)
             outcome = event.get("outcome")
             if outcome is None:
-                warnings.append(f"{label}: stop outcome missing; using legacy reason-text fallback for exhaustion/coverage checks")
+                warnings.append(f"{label}: stop outcome missing")
             elif not isinstance(outcome, str) or outcome not in STOP_OUTCOMES:
                 errors.append(f"{label}: stop outcome must be one of {sorted(STOP_OUTCOMES)}, got {outcome!r}")
             else:
-                stop_outcomes.append(outcome)
                 if outcome == "frontier_exhausted" and virtual_frontier:
                     errors.append(
                         f"{label}: frontier_exhausted stop requires no active frontier work; remaining items: {sorted(virtual_frontier)}"
@@ -805,14 +729,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         errors.append("strict search audit requires an init event before terminal search events")
     if not seen_stop:
         errors.append("strict search audit requires a stop event")
-    if stop_outcomes:
-        stop_claims_exhaustion = "frontier_exhausted" in stop_outcomes
-    else:
-        stop_claims_exhaustion = any(stop_reason_claims_exhaustion(reason) for reason in stop_reasons)
-    has_best_epistemic_candidate = bool(best_epistemic_candidate_ids(state))
-    emit_completion_coverage_warnings = branch_policy_enforce_on == "always" or stop_claims_exhaustion or has_best_epistemic_candidate
-    if deferred_branch_warnings and emit_completion_coverage_warnings:
-        warnings.extend(deferred_branch_warnings)
     if stats["pops"] == 0:
         warnings.append("strict search audit saw no pop events")
 
@@ -821,20 +737,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         for item_id in sorted(virtual_frontier)
         if item_id in items and item_id not in popped_items
     ]
-    for clue_id in sorted(salient_clue_family_ids(state)):
-        clue_node = nodes.get(clue_id, {})
-        if clue_node.get("exhausted") is True:
-            if not str(clue_node.get("exhaustion_reason") or "").strip():
-                warnings.append(f"salient clue family {clue_id} is marked exhausted but lacks exhaustion_reason")
-            continue
-        has_live_continuation = any(
-            item.get("node") == clue_id or clue_id in (item.get("related") or [])
-            for item in reachable_unpopped_frontier_items
-        )
-        if not has_live_continuation and emit_completion_coverage_warnings:
-            warnings.append(
-                f"salient clue family {clue_id} has no event-reachable unpopped frontier continuation and is not marked exhausted; bounded negative tests must not silently drop high-value clues"
-            )
 
     # Stop-policy thresholds count canonical graph candidates, not report metadata rows.
     # Keep report rows untouched: rendering intentionally preserves duplicate metadata.

@@ -74,16 +74,6 @@
     "no_new_work_reason": {
       "type": "string"
     },
-    "under_branching_reason": {
-      "type": "string"
-    },
-    "existing_sibling_frontier": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      }
-    },
     "rank": {
       "type": "boolean"
     },

@@ -315,6 +315,30 @@ class OnGraphBranchingTests(SpookyManorFlow):
             self.assertIn("Q3", frontier.stdout)
             self.assertIn("Q4", frontier.stdout)
 
+    def test_narrow_expansions_are_not_flagged_for_branching_breadth(self) -> None:
+        # Branch breadth is the agent's call: forced siblings pushed runs into busywork
+        # (Spooky room 8, Muse Spark), so audit must not nag about child counts.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start_trail(tmp_dir)
+            self.ok(self.expand(tmp_dir, state_path, "Q2", {
+                **self.OFF_GRAPH_EXPANSION,
+                "nodes": self.OFF_GRAPH_EXPANSION["nodes"] + [
+                    {"id": "A3", "type": "hypothesis", "text": "Tracks are ITA2 5-bit", "prior": 0.4},
+                ],
+                "edges": self.OFF_GRAPH_EXPANSION["edges"] + [
+                    {"id": "E4-A3", "from": "E4", "to": "A3", "type": "prompts", "reasoning": "Twenty 5-bit tracks fit ITA2."},
+                ],
+                "frontier": [{"id": "Q3", "node": "A3", "cost_components": {"truth": "auto", "verification": 0.2}}],
+            }))
+            self.ok(run_cli("next", str(state_path), "--pop"))
+            self.ok(self.expand(tmp_dir, state_path, "Q3", {"no_new_work_reason": "ITA2 decode needs no further split."}))
+            self.ok(run_cli("stop", str(state_path), "--outcome", "frontier_exhausted", "--reason", "Frontier exhausted."))
+
+            audit = run_cli("audit", str(state_path))
+
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+            self.assertNotIn("branch", audit.stdout + audit.stderr)
+
     def test_audit_reports_peak_live_frontier(self) -> None:
         audit = run_cli("audit", str(FIXTURE))
 
