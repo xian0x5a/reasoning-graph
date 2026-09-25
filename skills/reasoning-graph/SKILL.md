@@ -176,6 +176,8 @@ Stop is metric-gated. A normal stop is allowed only when at least one holds:
 
 Rules:
 
+- `solved` and `candidate_threshold_met` stops need an evidence-grounded best candidate, and the belief threshold counts only grounded candidates. A claim is grounded when its combined `supports`/`contradicts` updates favor it (net likelihood ratio > 1) or all of its `leads_to` premises are grounded; observations are the base. Priors and posteriors never ground a claim, and a claim with only contradicting evidence is still being carried by its prior. `stop` names the ungrounded claims: test them, or stop with `budget_exhausted`/`inconclusive` and report them as open hypotheses.
+- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it. Contradicting its siblings does not raise the survivor's belief.
 - `solved`, `candidate_threshold_met`, and `candidate_count_met` stops are rejected while any accepted goal is unanswered. Stop with `inconclusive`/`budget_exhausted` instead, or list the goal in `goal_policy.optional_goals`.
 - An epistemic/blocker stop is allowed while meaningful answer-goal frontier is live only if `stop_policy` explicitly allows it. For benchmark/search tasks use strict `stop_policy`: `min_viable_candidates: 3`, `belief_threshold: 0.8`, `max_live_frontier_items: 0`, `require_frontier_exhausted_for_epistemic_stop: true`, `severity: "error"`.
 - Close alternatives only when likelihood/cost updates make them clearly dominated. Contradicted candidates may stay visible with lower belief but satisfy high-confidence stop targets only if effective truth cost still passes.

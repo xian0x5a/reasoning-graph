@@ -297,7 +297,7 @@ Allowed actions:
 
 Ending commands:
 
-- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event. It is rejected while any accepted, non-optional goal is unanswered (`docs/schema/goals.md`).
+- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event. It is rejected while any accepted, non-optional goal is unanswered (`docs/schema/goals.md`). `solved` and `candidate_threshold_met` are also rejected while the best candidate of any accepted, non-optional goal is not evidence-grounded (`SKILL.md` stop gates); the error names the ungrounded claims.
 - `--force` on `expand`/`assign` skips ordering and concurrency policy guards only; driver init, an existing frontier item, and a prior pop are always required, so a forced command cannot persist a structurally invalid trace.
 - For non-candidate outcomes, `stop` only writes the terminal event.
 
@@ -372,6 +372,7 @@ Audit checks:
 - each node, edge, and frontier item is claimed as added by at most one event
 - under strict policy, `test` expansions record a `leads_to` result `observation` and zero-work expansions record a reason
 - candidate-bearing `stop` outcomes leave no accepted, non-optional goal unanswered
+- `solved`/`candidate_threshold_met` stops rest on evidence-grounded best candidates, and `stop_policy.belief_threshold` is met only by grounded candidates
 - `stop` has a reason
 - `audit` and `doctor` print `peak_live_frontier`, the largest active frontier reached during replay; peak 1 on a task with competing interpretations means the graph was not exercised
 - pop costs and remaining-frontier order are evaluated against the graph as it stood before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
