@@ -33,13 +33,18 @@ Mutating commands rewrite the input state file by default; use `-o <path>` for a
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
-reasoning-graph record state.json --patch step.json   # repeat as work progresses; refreshes state.html
+# repeat as work progresses; refreshes state.html
+reasoning-graph record state.json --patch - <<'JSON'
+{"reason": "...", "nodes": [...], "edges": [...]}
+JSON
 # the reviewer subagent runs: reasoning-graph review state.json --reviewer <its agent id> --verdict pass|fail --findings "<what it checked and found>"
-reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" -o state.stopped.json
-reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json
-reasoning-graph stop-review state.stopped.json --draft answer.md
+reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" -o state.stopped.json \
+  && reasoning-graph validate state.stopped.json \
+  && reasoning-graph audit state.stopped.json \
+  && reasoning-graph stop-review state.stopped.json --draft answer.md
 ```
+
+Pass each patch on stdin as above rather than writing a patch file first: one tool call per record. Chain the final checks with `&&` so the first failure stops the chain.
 
 Record patch:
 

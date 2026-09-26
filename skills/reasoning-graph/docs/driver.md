@@ -8,7 +8,9 @@ Mutating commands rewrite the input state file by default; use `-o <path>` for a
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
-reasoning-graph record state.json --patch step.json   # append progress with a reason; refreshes state.html
+reasoning-graph record state.json --patch - <<'JSON'   # append progress with a reason; refreshes state.html
+{"reason": "...", "nodes": [...], "edges": [...]}
+JSON
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
 reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows; --write refreshes stored beliefs after a hand edit)
 reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
