@@ -275,9 +275,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         )
     )
 
-    events = state.get("events")
-    if not isinstance(events, list) or not events:
-        print("doctor: audit skipped (no events)")
+    # audit judges a finished trace; a working state is healthy once it validates.
+    if not is_stopped(state):
+        print("doctor: audit skipped (not stopped)")
         return 0
 
     audit_result, stats = audit_state(state)
@@ -631,7 +631,7 @@ def build_parser() -> argparse.ArgumentParser:
     schema.add_argument("-o", "--output", help="write schema JSON to path instead of stdout")
     schema.set_defaults(func=cmd_schema)
 
-    doctor = sub.add_parser("doctor", help="validate state and summarize belief/audit health")
+    doctor = sub.add_parser("doctor", help="validate state, compute beliefs, and audit a stopped trace")
     doctor.add_argument("state", help="state JSON path, or - for stdin")
     doctor.set_defaults(func=cmd_doctor)
 

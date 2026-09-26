@@ -148,6 +148,6 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/factors.md` — `factors` examples and validation rules
 - `docs/schema/reporting.md` — report and presentation metadata
 - `docs/cost-model.md` — belief math and likelihoods
-- `docs/driver.md` — state JSON, events, audit, and stop-review mechanics
+- `docs/driver.md` — CLI commands, state JSON, events, audit, and stop-review mechanics
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install

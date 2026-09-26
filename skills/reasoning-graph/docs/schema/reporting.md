@@ -1,6 +1,6 @@
 # Report and Presentation Metadata
 
-Use this page as the shape and example reference for optional human-facing metadata. Source of truth remains `nodes`, `edges`, `frontier`, `factors`, and `events`.
+Use this page as the shape and example reference for optional human-facing metadata. Source of truth remains `nodes`, `edges`, `factors`, and `events`.
 
 ## `report` shape
 
@@ -15,7 +15,6 @@ Use this page as the shape and example reference for optional human-facing metad
       "belief": 0.45,
       "truth_cost": 0.798508,
       "effective_truth_cost": 0.798508,
-      "search_cost": 2.24,
       "weight": 0.72,
       "path_nodes": ["O1", "H2", "CS1"],
       "why": "Explains the most observations with lowest constraint tension",
@@ -48,8 +47,7 @@ Presentation views are curated and may omit low-value nodes for readability. The
 ```json
 "view": {
   "winning_path": ["O1", "H2", "CS1"],
-  "dimmed_branches": ["CS2", "CS3"],
-  "frontier": ["F1", "F2"]
+  "dimmed_branches": ["CS2", "CS3"]
 }
 ```
 
@@ -77,7 +75,6 @@ weight = belief / sum(belief of displayed candidates)
         "name": "Stale config",
         "belief": 0.67,
         "effective_truth_cost": 0.400478,
-        "search_cost": 1.4,
         "weight": 0.78,
         "path_nodes": ["O1", "H1", "CS1"],
         "why": "Deploy-time mtime and restart behavior support this branch.",

@@ -73,18 +73,18 @@ Give the result `observation` a local `prior` accounting for observation, script
 
 ## Patch example: recorded result
 
-Expansion patches add result nodes and connect them to the existing test node.
+A `record` patch adds the result node and connects it to the existing test node.
 
 ```json
 {
+  "reason": "Checked the startup logs",
   "nodes": [
     {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy", "prior": 0.95}
   ],
   "edges": [
     {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The test produced this observation."},
     {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
-  ],
-  "no_new_work_reason": "Result only updates ranking; no new follow-up branch needed."
+  ]
 }
 ```
 

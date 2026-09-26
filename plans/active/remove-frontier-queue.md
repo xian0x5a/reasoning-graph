@@ -57,11 +57,21 @@ Constraints:
 
 ## Progress
 
-- [ ] 1. Port harnesses
-- [ ] 2. Remove the queue
-- [ ] 3. Docs + ADR
+- [x] 1. Port harnesses (committed with 2 as 0bb5c71)
+- [x] 2. Remove the queue (0bb5c71)
+- [x] 3. Docs + ADR 0006
 - [ ] 4. Issue #33 comment (needs confirmation)
 
 ## Surprises & Discoveries
 
+- Milestones 1 and 2 could not be split: the opt-in `min_viable_candidates` check lived in `audit_stop_policy` behind the live-frontier count, so record-trace fixtures could not pass until audit was rewritten. Committed together.
+- `compute_costs` only annotated frontier items, so `costs` became a no-op without a queue; replaced by a read-only `beliefs` command.
+- With `rank` written only by `stop`, audit's historical replay and the record-event snapshots it needed were dead; removed.
+- State schema allows extra top-level keys, so `frontier`/`search_policy` are rejected through the existing legacy-field `not`/`required` rule.
+- `doctor` failed on every working state once `record` created events from step one (audit needs a stop); it now audits only stopped states.
+- `report.candidates[].search_cost` and the HTML "Search" column were queue leftovers; removed.
+
 ## Outcomes & Retrospective
+
+- CLI surface: `init`, `record`, `review`, `stop`, `validate`, `audit`, `stop-review`, `doctor`, `beliefs`, `schema`, `mermaid`, `html`.
+- Tests: 313 pass (369 before; the difference is queue-only tests). A subagent ported `tests/cli/test_commands.py`.

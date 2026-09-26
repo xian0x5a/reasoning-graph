@@ -1,332 +1,108 @@
-# Reasoning Graph Driver Reference
+# Reasoning Graph CLI Reference
 
-State shape, helper commands, record events, audit checks, and semantic stop review.
+State shape, commands, events, audit checks, and semantic stop review. The workflow and the record patch live in `../SKILL.md`.
 
-## Search State
+## Commands
 
-For every reasoning-graph skill use, maintain explicit graph/search state. Do not dump raw state to the user unless useful or requested.
-
-Separate graph nodes from search frontier items.
-
-Example graph nodes:
-
-```yaml
-- id: O1
-  type: observation
-  text: "The failing test is test_login_rejects_bad_token"
-  source: "tests/auth_test.py::test_login_rejects_bad_token"
-  prior: 0.99
-
-- id: C1
-  type: constraint
-  text: "Do not change public token format"
-  source: "inferred from compatibility requirement"
-
-- id: H2
-  type: hypothesis
-  text: "The root cause is stale cache"
-  prior: 0.6
-  prior_reason: "Common failure mode for this symptom"
-```
-
-Example frontier item:
-
-```yaml
-- id: Q7
-  node: H2
-  parent: Q3
-  related: [O1, C1]
-  scratch:
-    - "Cache branch may split into stale-read vs invalidation-order variants."
-    - "If this becomes important, promote it to a hypothesis/test node."
-  step_truth_cost: 0.51
-  truth_cost: 0.51
-  work_cost: 0.30
-  base_search_cost: 0.81
-  estimated_remaining_cost: 0.40
-  heuristic_cost: 0.40
-  step_cost: 1.21
-  search_cost: 1.21
-  active_assumptions: [H2]
-  evidence_version: O1
-```
-
-Do not treat a frontier item as a prewritten one-step instruction. The `node` is the thing to expand; its text is the prompt. The parent chain is the main context. Use optional `related` only for extra node IDs worth reading that are not already on the parent path. Use optional `scratch` for pre-pop inspirations/reminders; scratch is not an observation, not a constraint, and not a ranking input. If a scratch item becomes important, promote it to a real `observation`/`hypothesis`/`test` node. After popping an item, digest the node, parent path, `active_assumptions`, related nodes, and scratch, then record the resulting child branches, tests, or contradictions.
-
-Use parent pointers instead of copying full paths. Reconstruct a path by walking parent links.
-
-Use an expanded ledger to avoid loops, not to erase alternatives:
-
-```yaml
-expanded:
-  - signature: "node=H4|assumptions=H2,H5|scope=default"
-    item: Q9
-    search_cost: 2.1
-```
-
-Expansion signature minimum:
-
-```txt
-current_node + sorted active_assumption_ids + canonical expansion params/scope/budget
-```
-
-Guidelines:
-
-- Skip exact cycles.
-- Prefer expanding lower-cost frontier items first, best-first style.
-- Use the latest graph state when computing every active item's cost; do not include `evidence_version` in active dedupe.
-- Active frontier must contain at most one item per expansion signature. If two active items have the same signature, keep the lowest current `search_cost`; ties keep the existing/earlier item.
-- Do not hard-delete higher-cost or less-optimized paths solely because priors may be wrong when they represent different expansion signatures.
-- Keep multiple candidate paths in the frontier when they represent meaningfully different hypothesis chains, answer routes, params, scopes, or budgets.
-- If path-specific context should affect expansion, encode it as `active_assumptions`, a more specific child node, or explicit params/scope/budget; parent path alone is provenance, not separate live work.
-- If a new observation changes likelihood updates, an explicit posterior, or frontier ordering, recompute active costs and supersede stale duplicate active items instead of carrying duplicate work.
-
-## Helper CLI Reference
-
-The workflow and minimal patch shape live in `../SKILL.md`; this page documents command variants, full state shape, events, and audit behavior.
-
-Bookkeeping that does not change the search can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state. Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
+Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. Bookkeeping that records no new reasoning (fixing a typo, adding an obvious `source`, formatting JSON) can be edited directly.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph record state.json --patch step.json   # append progress with a reason; refreshes state.html
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
-reasoning-graph doctor state.json                  # validate, summarize frontier, audit when events exist
-reasoning-graph validate state.json                # schema/reference/cost sanity checks
-reasoning-graph costs state.json                   # compute truth_cost/search_cost in place
-reasoning-graph sort state.json                    # compute costs and sort frontier in place
-reasoning-graph costs state.json -o -              # print updated state without mutating state.json
-reasoning-graph costs - < state.json               # stdin input prints updated state to stdout
-reasoning-graph frontier state.json       # show active frontier computed from events
-reasoning-graph next state.json           # show lowest-cost active item + path context
-reasoning-graph next state.json --pop  # persist init/pop event for lowest-cost item
-reasoning-graph expand state.json --item Q7 --patch expansion.json  # Q7 is an example popped/assigned item id
-reasoning-graph assign state.json --item Q7 --agent researcher      # record async in-flight probe work
-reasoning-graph rank state.json --item Q7  # close pending item by recording current best viable candidate
-reasoning-graph seed state.json --patch later-root-seed.json        # add unrelated root inspiration; requires reason after driver init
-reasoning-graph stop state.json --reason "CS1 answers the goal and stop policy is satisfied" --outcome solved -o state.stopped.json
+reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows)
+reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
+reasoning-graph validate state.json                # schema/reference/belief sanity checks
+reasoning-graph stop state.json --reason "CS1 is grounded above threshold and review passed" --outcome solved -o state.stopped.json
 reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json  # audit strict-search compact events after driver events exist
-reasoning-graph stop-review state.stopped.json --draft answer.md  # final stop checklist after stop
-reasoning-graph path state.json Q7        # reconstruct parent-pointer path for an item id
-reasoning-graph mermaid state.json        # emit Mermaid source
-reasoning-graph html state.json -o graph.html  # replace with requested/durable path; use /tmp only as ad hoc fallback
+reasoning-graph audit state.stopped.json           # event trace and stop gates
+reasoning-graph stop-review state.stopped.json --draft answer.md  # final stop checklist
+reasoning-graph mermaid state.json                 # emit Mermaid source
+reasoning-graph html state.json -o graph.html      # render a report; record already keeps state.html current
+reasoning-graph schema state                       # packaged JSON Schema (also: schema patch)
 ```
 
 Use the installed `reasoning-graph` CLI. In a repository checkout, developers may run `uv --project packages/reasoning-graph run reasoning-graph ...`.
 
-State JSON shape:
+## State
 
 ```json
 {
-  "summary": {
-    "title": "Reasoning Graph",
-    "answer": "Compact answer shown above the graph."
-  },
+  "summary": {"title": "Reasoning Graph", "answer": "Compact answer shown above the graph."},
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "user prompt", "prior": 0.95},
-    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "inferred from user intent"},
-    {"id": "H1", "type": "hypothesis", "text": "Likely route", "prior": 0.6},
-    {"id": "CS1", "type": "candidate_solution", "text": "Candidate answer", "answer_kind": "exact_answer"}
+    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired", "prior": 0.95},
+    {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "user prompt"},
+    {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this."},
+    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer"}
   ],
   "edges": [
-    {"id": "H1-CS1", "from": "H1", "to": "CS1", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the answer requested by the goal."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "leads_to", "reasoning": "An expired token right after issue points to skew."},
+    {"id": "H1-CS1", "from": "H1", "to": "CS1", "type": "leads_to", "reasoning": "The fix follows from the cause."},
+    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the requested answer."}
   ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "H1",
-      "parent": null,
-      "cost_components": {
-        "truth": "auto",
-        "verification": 0.2,
-        "reasoning_complexity": 0.1,
-        "constraint_tension": 0
-      },
-      "estimated_remaining_cost": 0.5
-    }
-  ],
-  "search_policy": {
-    "estimated_remaining_weight": 1.0
-  },
-  "stop_policy": {
-    "belief_threshold": 0.8,
-    "require_review": true,
-    "severity": "warning"
-  },
-  "report": {
-    "candidates": [
-      {
-        "id": "CS1",
-        "name": "Likely route",
-        "belief": 0.6,
-        "search_cost": 1.310826,
-        "path_nodes": ["O1", "C1", "H1", "CS1"],
-        "why": "Lowest explored search cost and satisfies constraints",
-        "next_test": "Verify the supporting observation"
-      }
-    ],
-    "winning_path": ["Observed failure", "Likely route", "Candidate answer"],
-    "next_verification": "Verify the supporting observation"
-  },
-  "presentation": {
-    "include_nodes": ["O1", "C1", "H1", "G1"],
-    "highlight_nodes": ["H1", "G1"],
-    "dim_nodes": [],
-    "layout_hint": "observations-left-candidates-right"
-  },
+  "stop_policy": {"belief_threshold": 0.8, "require_review": true, "severity": "error"},
   "events": [
-    {"step": 1, "action": "init", "frontier": ["Q1"]},
-    {"step": 2, "action": "pop", "item": "Q1", "cost": 1.310826},
-    {"step": 3, "action": "rank", "item": "Q1", "best": "CS1", "belief": 0.6, "candidates": [{"node": "CS1", "belief": 0.6, "effective_truth_cost": 0.510826}]},
-    {"step": 4, "action": "stop", "reason": "CS1 answers G1 and no live frontier remains", "outcome": "solved"}
-  ],
-  "view": {
-    "winning_path": ["H1", "CS1", "G1"],
-    "dimmed_branches": []
-  }
-}
-```
-
-Cost behavior:
-
-- `truth: "auto"` or legacy `uncertainty: "auto"` uses effective node truth cost: explicit `posterior` when present; otherwise local probability plus ungrouped incoming `leads_to` premise costs and `leads_to` factor joint-probability costs, then ungrouped `supports`/`contradicts` likelihood updates and grouped factor likelihood updates.
-- `truth_cost` is the current node's effective truth cost. `step_truth_cost` is kept as a legacy mirror of `truth_cost`.
-- `work_cost` is local remaining work/risk for this next expansion: verification, effort budget, reasoning complexity, and constraint tension.
-- `base_search_cost` is `truth_cost + work_cost` before goal-distance heuristics.
-- `estimated_remaining_cost` is optional top-level heuristic remaining work.
-- Put remaining-cost fields on the frontier item itself, not inside `cost_components`.
-- `step_cost` and `search_cost` are the frontier priority score: `base_search_cost + weighted estimated_remaining_cost`. Parent pointers do not accumulate cost; past work is sunk.
-- Numeric cost inputs and computed search costs must be finite and non-negative. Likelihood ratios must be finite and positive, including ratios computed from likelihood probabilities and updates on nodes with posterior overrides. Invalid numbers and arithmetic overflow are rejected; JSON output never emits `NaN` or `Infinity`.
-- `sort` keeps all frontier ledger items but orders them by ascending `search_cost`; it is optional before `next` because `next` computes costs and sorts active items internally.
-- `frontier` derives the currently active virtual frontier from `events`, including `supersede` removals and assigned in-flight probes. Without strict events, older loose states expose stored frontier items for compatibility.
-- `next --pop` computes current costs, sorts active items internally, appends a deduped `init` when needed, keeps one item per expansion signature, then a `pop` event for the lowest-cost active item. If a popped item has not been expanded/assigned/ranked, `next --pop` refuses to continue.
-- `assign --item Q7` records a pending popped item as async in-flight probe work and clears the pending slot so the driver may pop more eligible work. Assigning additional async work is blocked at the concurrency budget. Default max concurrency is 5 unless `search_policy.max_probe_concurrency` or `--max-concurrency` says otherwise.
-- `seed --patch seed.json` adds root frontier items. Before driver init it bootstraps initial work without an event; after driver init it appends a `seed` event and requires patch `reason`. Use this for unrelated user clues or random inspirations, not for child work caused by a popped item.
-- `expand --patch` appends new nodes/edges/frontier items and records one `expand` event for the pending popped item or an in-flight assigned item. Duplicate active expansion signatures are deduped using latest `search_cost`; lower-cost new duplicates supersede older active items, while higher/equal-cost new duplicates are skipped.
-- Use patch `update_nodes` for existing node field changes. `nodes` is insert-only and duplicate ids are rejected. `update_nodes` entries are explicit top-level field replacements and require existing node ids, e.g. `{"update_nodes": [{"id": "H1", "set": {"posterior": 0.72}}]}`. The generated expand event records `updated_nodes` with changed field names.
-- `path` reconstructs a proof/search path from parent pointers.
-- `audit` replays graph changes before each pop, then checks compact strict-search events for coherent best-first expansion. Later observations can reorder remaining work, but cannot retroactively justify an earlier skipped cheaper item.
-
-Expansion patch shape:
-
-```json
-{
-  "summary": "Split the 74-byte clue into coarse container-format families.",
-  "nodes": [
-    {"id": "H8", "type": "hypothesis", "text": "WebCrypto AES-GCM layout family", "prior": 0.45},
-    {"id": "H9", "type": "hypothesis", "text": "libsodium/secretbox layout family", "prior": 0.2}
-  ],
-  "update_nodes": [
-    {"id": "H4", "set": {"posterior": 0.62}}
-  ],
-  "edges": [
-    {"id": "E20", "from": "H8", "to": "H4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "E21", "from": "H9", "to": "H4", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
-  ],
-  "frontier": [
-    {
-      "id": "Q8",
-      "node": "H8",
-      "related": ["O1"],
-      "scratch": ["Phrase length may matter, but branch container formats before committing."],
-      "cost_components": {"truth": "auto", "verification": 0.4}
-    },
-    {
-      "id": "Q9",
-      "node": "H9",
-      "related": ["O1"],
-      "cost_components": {"truth": "auto", "verification": 0.5}
-    }
+    {"step": 1, "action": "record", "reason": "Read the incident log", "add_nodes": ["O1", "H1", "CS1"], "add_edges": ["O1-H1", "H1-CS1", "CS1-G1"], "update_factors": []},
+    {"step": 2, "action": "review", "reviewer": "reviewer-1", "verdict": "pass", "findings": "O1 matches its quote; the answer adds nothing the graph lacks."},
+    {"step": 3, "action": "rank", "best": "CS1", "belief": 0.9025, "candidates": [{"node": "CS1", "belief": 0.9025, "effective_truth_cost": 0.102587}]},
+    {"step": 4, "action": "stop", "reason": "CS1 is grounded above threshold and review passed", "outcome": "solved"}
   ]
 }
 ```
 
-`expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id; detailed factor shapes live in `docs/schema/factors.md`. Stop events must include structured `outcome`.
+Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`), `report` / `presentation` / `view` (`docs/schema/reporting.md`).
 
-## Record Events
+`stop_policy` fields:
 
-`record` applies a patch (`reason` plus `nodes`, `update_nodes`, `edges`, `factors`; no `frontier`) and appends one event:
+- `belief_threshold` — a `solved` or `candidate_threshold_met` stop needs a grounded best candidate at or above it
+- `require_review` — such a stop also needs the latest review to pass with no `record` after it
+- `min_viable_candidates` — opt-in, for when the user asks for alternatives: a candidate-bearing stop needs this many viable candidates. `init --strict` never sets it
+- `severity` — `error` makes `audit` fail on stop-policy violations; `warning` reports them
 
-```json
-{"step": 1, "action": "record", "reason": "Read the maintenance log", "add_nodes": ["O1", "H1", "T1"], "add_edges": ["O1-H1", "H1-T1"], "update_factors": []}
-```
+## Record patch
 
-`review` appends the reviewer's verdict:
+`record` applies `reason` plus any of `nodes`, `update_nodes`, `edges`, `factors`:
 
-```json
-{"step": 6, "action": "review", "reviewer": "reviewer-1", "verdict": "fail", "findings": "O12 drops the source's 'expert needed' hedge"}
-```
+- `nodes` is insert-only; duplicate ids are rejected.
+- `update_nodes` replaces top-level fields on existing nodes, e.g. `{"id": "H1", "set": {"posterior": 0.72}}`; `id` and `type` are immutable. Use it to keep one node per claim as evidence arrives.
+- `factors` adds or replaces factors by id.
 
-With `stop_policy.require_review` (set by `init --strict`), a `solved` or `candidate_threshold_met` stop needs the latest review to pass with no `record` after it.
+The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference), nothing is written.
 
-The first `record` starts the trace, so `stop` needs no `init` event. `audit` checks that each record names a reason and the nodes/edges it added, that no object is claimed by two events, and that a confidence stop meets the stop gates in `../SKILL.md`. It skips the pop/rank/breadth checks below, which apply only to queue traces.
+## Events
 
-## Queue Driver Loop
+| action | written by | fields |
+| --- | --- | --- |
+| `record` | `record` | `reason`, `add_nodes`, `add_edges`, `update_factors`, and `updated_nodes` (ids with changed field names) when nodes were updated |
+| `review` | `review` | `reviewer`, `verdict` (`pass`/`fail`), `findings` |
+| `rank` | `stop`, for candidate-bearing outcomes | `best`, `belief`, `candidates` rows derived from the graph |
+| `stop` | `stop` | `reason`, `outcome` |
 
-The frontier queue is outside the skill workflow. It remains in the CLI for queue-driven traces: a compact `events` log plus `next --pop` / `assign` / `expand` commands, where the graph selects the next work item.
+Stop outcomes: `solved`, `candidate_threshold_met`, `candidate_count_met`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`.
 
-Do not include full frontier before/after snapshots; state already stores frontier items. Events record only search deltas:
+`stop` checks every gate before writing anything:
 
-```json
-"events": [
-  {"step": 1, "action": "init", "frontier": ["Q1", "Q2", "Q3"]},
-  {"step": 2, "action": "pop", "item": "Q1", "cost": 1.15},
-  {"step": 3, "action": "assign", "item": "Q1", "agent": "researcher", "run_id": "child-1", "max_concurrency": 3},
-  {"step": 4, "action": "pop", "item": "Q2", "cost": 1.3},
-  {"step": 5, "action": "assign", "item": "Q2", "agent": "scout", "run_id": "child-2", "max_concurrency": 3},
-  {
-    "step": 6,
-    "action": "expand",
-    "item": "Q1",
-    "summary": "Generated coarse sibling explanations and cheap discriminator tests.",
-    "add_nodes": ["H4", "H5", "T2"],
-    "add_edges": ["E1", "E2"],
-    "add_frontier": ["Q4", "Q5"],
-    "updated_nodes": [{"id": "H1", "fields": ["posterior"]}],
-    "updated_node_snapshots": [{"id": "H1", "before": {"id": "H1", "type": "hypothesis", "prior": 0.6}}],
-    "no_new_work_reason": "H1 score changed, but no new H1-local work was implied."
-  },
-  {"step": 7, "action": "expand", "item": "Q2", "add_nodes": [], "add_edges": [], "add_frontier": [], "no_new_work_reason": "scout found no new local constraints"},
-  {"step": 8, "action": "rank", "best": "CS1", "belief": 0.91, "candidates": [{"node": "CS1", "belief": 0.91, "effective_truth_cost": 0.094311}]},
-  {"step": 9, "action": "stop", "reason": "three viable candidates compared; CS1 satisfies the accepted goal above threshold", "outcome": "candidate_count_met"}
-]
-```
+- candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`) need every accepted, non-optional goal answered (`docs/schema/goals.md`) and any `min_viable_candidates`
+- `solved` and `candidate_threshold_met` also need the confidence gates in `../SKILL.md`: grounded best candidate, `belief_threshold`, test results, passing review
 
-Allowed actions:
+A failed gate names what is missing. Non-candidate outcomes only write the stop event. Nothing may be appended after `stop`.
 
-- `init` — initial active frontier item ids after expansion-signature dedupe
-- `pop` — selected lowest-cost frontier item
-- `assign` — pending popped item delegated to async probe/verification work; fields: `item`, optional `agent`, `run_id`, `probe`, `concurrency_group`, `max_concurrency`, `reason`. Assigned items are in-flight, not active frontier.
-- `expand` — nodes/edges/frontier items created from the popped or assigned item. Add an outgoing edge from the item node to at least one new test/result/child node when new nodes are added so the graph topology shows the exploration, not only the event log. Under strict policy a `test` expansion must add a `leads_to` result `observation` (`docs/schema/tests.md`), and an expansion with no new frontier item and no candidate must carry `no_new_work_reason`. Do not re-queue the same parent as a substitute for naming the next probe; create a `test`/`hypothesis` child for the unknown instead. Optional `mode`/`summary` fields may describe the expansion, but they are not controlled vocabulary.
-- `supersede` — retire an active frontier item because another active item has the same expansion signature and lower current `search_cost`; fields: `item`, `replacement`, `reason`
-- `rank` — current best viable `candidate_solution` computed from graph belief; optional `item` closes a pending popped item
-- `stop` — terminal event; must include `outcome` enum (`solved`, `candidate_threshold_met`, `candidate_count_met`, `frontier_exhausted`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`)
+## Audit
 
-Ending commands:
+`audit` validates the state, then checks the trace:
 
-- `stop` ranks the current best viable `candidate_solution` for candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`), then writes the terminal event. It is rejected while any accepted, non-optional goal is unanswered (`docs/schema/goals.md`). `solved` and `candidate_threshold_met` are also rejected while the best candidate of any accepted, non-optional goal is not evidence-grounded (`SKILL.md` stop gates); the error names the ungrounded claims.
-- `--force` on `expand`/`assign` skips ordering and concurrency policy guards only; driver init, an existing frontier item, and a prior pop are always required, so a forced command cannot persist a structurally invalid trace.
-- For non-candidate outcomes, `stop` only writes the terminal event.
+- steps strictly increase; actions are `record`, `review`, `rank`, `stop`; the trace ends with exactly one `stop`
+- each record has a reason and names nodes/edges/factors that exist; no node or edge is claimed as added by two events
+- each review names a reviewer, a verdict, and findings
+- `rank.best`, `rank.belief`, and `rank.candidates` rows match the values derived from the graph
+- the stop outcome meets the gates above; under `severity: error` a violation fails the audit
 
-### Semantic Stop Review
+`audit` and `doctor` print `events`, `records`, `reviews`, and `rankings` counts.
 
-Policy semantics live in `SKILL.md`; this section covers the CLI stop, validation, audit, and reviewer mechanics.
+## Semantic Stop Review
 
-Stop is two gates:
-
-Stop reasons must state the real stopping condition: threshold met, required candidate count met, frontier exhausted, budget exhausted, or blocker reached. Do not use tautologies like “best candidate has highest belief”; ranking already guarantees that.
-
-1. `reasoning-graph stop ... -o state.stopped.json` appends rank/stop events for candidate-bearing outcomes without mutating the working state; then run `validate`/`audit` on `state.stopped.json`.
-2. A semantic reviewer approves `state.stopped.json` before it is promoted.
-
-If gate 1 fails, continue/repair search. If gate 2 fails, discard the stopped candidate and continue/repair. Bound retries to one reviewer repair pass unless the user asked for exhaustive work.
-
-Prefer a fresh reviewer agent; otherwise switch roles. Reviewer reads the user request, stopped candidate state, original state if needed, and final answer draft. Do not solve from scratch except to check obvious missed contradictions or live branches.
-
-Reviewer output:
+`stop-review` runs after `stop` on the stopped state and prints:
 
 ```yaml
 verdict: pass | fail
@@ -335,52 +111,14 @@ semantic_tricks_checked: []
 notes: []
 ```
 
-Required checks:
+It fails when validation or audit fails, when the stop event lacks an outcome, when a candidate-bearing stop has no viable candidate or leaves an accepted goal open, or when `summary.answer`, `report.answer`, or the `--draft` file does not name the best candidate of each accepted goal by id or exact text. `--strict-warnings` promotes validation/audit warnings to required fixes.
 
-- stop outcome/reason matches accepted goal, ranked best candidate, and stop policy
-- no meaningful answer-goal frontier remains hidden behind an epistemic/blocker stop
-- best candidate answers the goal, satisfies constraints, and is not a placeholder/duplicate/non-answer
-- every accepted goal is answered, and `summary.answer`, `report.answer`, and the draft name the best candidate of each accepted goal by id or exact text
+Stop reasons state the real stopping condition: threshold met with review passed, requested candidate count met, budget exhausted, or blocker reached. "Best candidate has highest belief" is a tautology; ranking already guarantees it.
+
+The reviewer subagent that gates the stop (`../SKILL.md` Review) checks what the CLI cannot:
+
+- each observation the answer relies on says no more than its `quote` and `source`
+- every factual claim in the answer traces to an observation
+- evidence in the sources that cuts against the answer is recorded and addressed
 - blockers are not disguised as answer candidates for normal solve goals
-- contradictions/failures penalize only affected branches
-- final answer draft matches graph state and invents no new observations
-
-Do not call `next --pop` again until the pending popped item is expanded, assigned, or ranked. Every `stop` requires no pending item; candidate-bearing `stop` auto-ranks only after terminal preflight passes. Assigned items may complete out of pop order, but stop is invalid while any assigned item remains in-flight.
-
-Before final, validate, audit, and semantically review the stopped state:
-
-```bash
-reasoning-graph validate state.stopped.json
-reasoning-graph audit state.stopped.json
-reasoning-graph stop-review state.stopped.json --draft answer.md
-```
-
-Treat audit/stop-review warnings as actionable for benchmark/published artifacts. Either fix the state/events or explicitly explain why the warning is acceptable. In particular, if audit warns that `candidate_solution` nodes were not added or ranked by driver events, do one of these before final:
-
-- add proper `expand`/`rank`/contradiction-penalty events for those candidates,
-- demote them to `hypothesis` nodes if they were only speculative ideas,
-- or keep them out of `nodes` and mention them as unexpanded possibilities in prose/report metadata.
-
-Do not call a strict trace clean while leaving unexplored candidate nodes that only decorate the final graph.
-
-Audit checks:
-
-- steps strictly increase
-- `init` appears before search events
-- `pop` item is currently in virtual frontier
-- popped item has lowest current `search_cost`
-- `assign` follows the current pending pop and respects declared max concurrency
-- `expand` follows the pending pop or targets an in-flight assigned item
-- `add_frontier` items exist and usually parent to expanded item
-- expansions whose popped graph node has no outgoing edge to added nodes get a soft trace-topology warning
-- candidate solutions contradicted by observations remain nodes but should not satisfy belief/threshold targets unless their effective truth cost still passes
-- `rank.best`, `rank.belief`, and `rank.candidates` rows match the values computed from the graph as it stood at rank time
-- each node, edge, and frontier item is claimed as added by at most one event
-- under strict policy, `test` expansions record a `leads_to` result `observation` and zero-work expansions record a reason
-- candidate-bearing `stop` outcomes leave no accepted, non-optional goal unanswered
-- `solved`/`candidate_threshold_met` stops rest on evidence-grounded best candidates, and `stop_policy.belief_threshold` is met only by grounded candidates
-- `stop` has a reason
-- `audit` and `doctor` print `peak_live_frontier`, the largest active frontier reached during replay; peak 1 on a task with competing interpretations means the graph was not exercised
-- pop costs and remaining-frontier order are evaluated against the graph as it stood before each pop; CLI-generated node/factor update snapshots make mutable replacements replayable
-
-Limit: the driver loop still cannot prove hidden cognition used best-first ordering; it makes the external search trace auditable and catches incoherent post-hoc traces. The `next --pop` / `assign` / `expand` loop reduces post-hoc decoration by making the graph control the next work item before the agent reasons or uses tools.
+- contradictions penalize only the branches they bear on

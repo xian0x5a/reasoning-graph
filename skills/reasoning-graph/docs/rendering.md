@@ -85,7 +85,7 @@ Recommended graph/HTML flow:
 1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
 2. Build/update the state with `record` as work progresses (`../SKILL.md`); each `record` refreshes `<state>.html` as a live view, then `stop` when a gate holds.
 3. Run `reasoning-graph validate state.json` and fix errors.
-4. If driver events exist, run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
+4. After `stop`, run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
 5. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with explanation/audit graph views, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
 6. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph/HTML output was requested.
 7. For separate graph sources, run `reasoning-graph mermaid state.json > <slug>.mmd`.

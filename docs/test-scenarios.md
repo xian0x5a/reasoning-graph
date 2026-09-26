@@ -77,11 +77,10 @@ Score every run on the same sheet, whichever arm produced it:
 
 For reasoning-graph runs, also record from the stopped state:
 
-- `reasoning-graph audit` stats: `pops`, `expansions`, `rankings`, and `peak_live_frontier`
+- `reasoning-graph audit` stats: `records`, `reviews`, and `rankings`
 - number of `contradicts` edges, and which stop gate the `stop` event names
+- review verdicts and findings, and whether a reviewer subagent actually ran
 - `validate` / `audit` / `stop-review` verdicts
-
-Flag a run as **graph not exercised** when `peak_live_frontier` is 1 on a scenario that has an interpretation step (competing encodings, mappings, readings). Such a run says nothing about the skill's frontier queue and must not be counted as evidence for or against it.
 
 ## Assets
 

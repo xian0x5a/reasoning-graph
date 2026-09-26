@@ -126,7 +126,7 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
 
 ### Replace a factor in a patch
 
-Seed and expansion patches use `factors` to add or replace factors by `id`. To append an input, submit the full replacement factor with the updated `inputs` and recalibrated `aggregation`.
+Record patches use `factors` to add or replace factors by `id`. To append an input, submit the full replacement factor with the updated `inputs` and recalibrated `aggregation`.
 
 ```json
 {

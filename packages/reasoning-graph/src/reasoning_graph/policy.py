@@ -229,16 +229,12 @@ def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
     return {candidate_id for candidate_id, goal_targets in targets.items() if goal_targets & accepted}
 
 
-def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, float, str]:
+def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, str]:
     try:
         truth_cost = float(candidate.get("effective_truth_cost", candidate.get("truth_cost")))
     except (TypeError, ValueError):
         truth_cost = math.inf
-    try:
-        search_cost = float(candidate.get("search_cost"))
-    except (TypeError, ValueError):
-        search_cost = math.inf
-    return (truth_cost, search_cost, str(candidate.get("id") or candidate.get("name") or ""))
+    return (truth_cost, str(candidate.get("id") or candidate.get("name") or ""))
 
 
 def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -257,9 +253,6 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     for candidate_id in viable_candidate_ids(state):
         node = nodes.get(candidate_id, {})
         enriched = {"id": candidate_id, "name": node.get("text"), **metadata_by_id.get(candidate_id, {})}
-        search_cost = finite_float(enriched.get("search_cost"))
-        if search_cost is not None:
-            enriched["search_cost"] = round(search_cost, 6)
         truth_cost = node_truth_costs.get(candidate_id)
         if truth_cost is None:
             truth_cost = finite_float(enriched.get("truth_cost"))

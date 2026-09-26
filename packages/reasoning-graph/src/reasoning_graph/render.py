@@ -350,8 +350,6 @@ def candidate_rows(state: dict[str, Any]) -> str:
             suffix = f" ({', '.join(labels)})" if labels else ""
             target_parts.append(f"<code>{html.escape(goal_id)}</code>{html.escape(suffix)}")
         targets_html = ", ".join(target_parts)
-        search_value = candidate.get("search_cost", "n/a")
-        search_html = html.escape(str(search_value))
         truth_value = candidate.get("effective_truth_cost", candidate.get("truth_cost", "n/a"))
         penalty = candidate.get("contradiction_penalty")
         belief_value = candidate.get("belief", "n/a")
@@ -368,13 +366,13 @@ def candidate_rows(state: dict[str, Any]) -> str:
         rows.append(
             "<tr>"
             f"<th scope=\"row\">#{index}</th>"
-            f"<td><code>{cid}</code></td><td>{name}</td><td>{targets_html}</td><td>{search_html}</td>"
+            f"<td><code>{cid}</code></td><td>{name}</td><td>{targets_html}</td>"
             f"<td>{belief_html}</td><td>{weight_html}</td><td>{why}</td><td>{next_test}</td>"
             "</tr>"
         )
     return (
         "<table>"
-        "<thead><tr><th>Rank</th><th>ID</th><th>Candidate</th><th>Goal(s)</th><th>Search</th><th>Belief</th><th>Weight</th><th>Why</th><th>Next test</th></tr></thead>"
+        "<thead><tr><th>Rank</th><th>ID</th><th>Candidate</th><th>Goal(s)</th><th>Belief</th><th>Weight</th><th>Why</th><th>Next test</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
     )

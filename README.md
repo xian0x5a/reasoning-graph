@@ -2,7 +2,7 @@
 
 An agent skill for solving messy reasoning tasks with an explicit graph instead of a hidden linear chain.
 
-Use it when an agent needs to compare hypotheses, keep alternatives alive, and produce an auditable answer. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
+Use it when an agent needs durable working memory for a long task, an evidence-grounded answer, and a reviewable record of how it got there. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
 
 ## Repository layout
 
@@ -26,70 +26,55 @@ Development commands should be explicit from the repo root:
 uv --project packages/reasoning-graph run reasoning-graph validate packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 ```
 
-## Algorithm
+## How it works
 
-The skill treats reasoning as heuristic best-first search over a graph:
+The graph is the agent's working memory and the gate on its final answer, not a scheduler:
 
-1. Extract goal, facts, constraints.
-2. Add hypotheses/tests as frontier items.
-3. Score each item by truth cost, verification cost, effort budget, reasoning complexity, constraint tension, contradiction penalties, and optional estimated remaining work.
-4. Pop lowest `search_cost`; expand into observations, tests, child branches, or candidate answers.
-5. Update costs as observations arrive; keep branches visible instead of deleting them.
-6. Stop only when frontier is exhausted, confidence/quantity threshold is met, budget is spent, or a real blocker is proved.
+1. `init` frames the goal.
+2. The agent works the problem its own way and `record`s what each step produced: observations (with `source` and verbatim `quote`), hypotheses, tests and their results, candidate answers. Every `record` refreshes `state.html` so a human can follow along.
+3. Belief is computed from the graph: observation priors, `leads_to` premises, and likelihood updates.
+4. An independent reviewer subagent checks the graph against the sources and records its verdict with `review`.
+5. `stop` accepts a confident answer only when it is grounded in observations, above the belief threshold, every test has a recorded result, and the latest review passed.
 
 ## Helper commands
 
 File-input mutating commands rewrite the input state by default; use `-o <path>` for a separate file or `-o -` for stdout.
 
 ```bash
-# bootstrap and inspect state
-uv --project packages/reasoning-graph run reasoning-graph init --goal "Diagnose outage" --strict -o state.json
-cat > seed.json <<'JSON'
+rg="uv --project packages/reasoning-graph run reasoning-graph"
+
+$rg init --goal "Diagnose outage" --strict -o state.json
+cat > step.json <<'JSON'
 {
+  "reason": "Read the maintenance log",
   "nodes": [
-    {"id": "O1", "type": "observation", "text": "Initial observed fact", "prior": 0.9},
-    {"id": "H1", "type": "hypothesis", "text": "Plausible cause to test", "prior": 0.4},
-    {"id": "T1", "type": "test", "text": "Check the plausible cause"}
+    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14", "prior": 0.95},
+    {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
   "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
-  ],
-  "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.1}}]
+    {"id": "O1-T1", "from": "O1", "to": "T1", "type": "prompts", "reasoning": "Restarts just before an outage suggest a timing check."}
+  ]
 }
 JSON
-uv --project packages/reasoning-graph run reasoning-graph seed state.json --patch seed.json
-uv --project packages/reasoning-graph run reasoning-graph doctor state.json
+$rg record state.json --patch step.json      # appends a record event, refreshes state.html
+$rg beliefs state.json                        # computed belief per claim
+$rg doctor state.json
 
-# validate before driving search; audit after driver events exist
-uv --project packages/reasoning-graph run reasoning-graph validate state.json
+# the reviewer subagent records its verdict
+$rg review state.json --reviewer reviewer-1 --verdict pass --findings "O1 matches its quote"
+$rg stop state.json --reason "Smoke run stopped by user request" --outcome user_stopped -o state.stopped.json
 
-# drive graph search
-uv --project packages/reasoning-graph run reasoning-graph frontier state.json
-uv --project packages/reasoning-graph run reasoning-graph next state.json --pop
-cat > expansion.json <<'JSON'
-{
-  "nodes": [{"id": "O2", "type": "observation", "text": "Check ran; the plausible cause was not confirmed in this smoke run", "prior": 0.9}],
-  "edges": [{"id": "T1-O2", "from": "T1", "to": "O2", "type": "leads_to", "reasoning": "The check produced this observation."}],
-  "no_new_work_reason": "Smoke run; stop before adding real follow-up branches."
-}
-JSON
-uv --project packages/reasoning-graph run reasoning-graph expand state.json --item Q1 --patch expansion.json
-uv --project packages/reasoning-graph run reasoning-graph stop state.json --reason "Smoke run reached the first seeded test and stopped by user request" --outcome user_stopped -o state.stopped.json
-
-# final review for a stopped driver state
-uv --project packages/reasoning-graph run reasoning-graph validate state.stopped.json
-uv --project packages/reasoning-graph run reasoning-graph audit state.stopped.json
-uv --project packages/reasoning-graph run reasoning-graph stop-review state.stopped.json
+# final checks on the stopped state
+$rg validate state.stopped.json
+$rg audit state.stopped.json
+$rg stop-review state.stopped.json
 
 # render artifacts
-uv --project packages/reasoning-graph run reasoning-graph mermaid state.stopped.json > graph.mmd
-uv --project packages/reasoning-graph run reasoning-graph html state.stopped.json -o graph.html
+$rg mermaid state.stopped.json > graph.mmd
+$rg html state.stopped.json -o graph.html
 ```
 
-Under the strict profile, expanding a `test` item must record its result as an `observation` linked by `leads_to`, and an expansion that adds no frontier work must say why (`no_new_work_reason`); `expand` rejects the patch otherwise.
-
-`reasoning-graph seed` appends observations/constraints/hypotheses/tests plus root frontier items. Before the first driver event it leaves events empty so `next --pop` records the real `init`/`pop` events; after driver init it records a `seed` event and requires patch `reason` for provenance.
+A `solved` or `candidate_threshold_met` stop needs every test to have a result `observation` linked by `leads_to`; record a failed or skipped check as a result too.
 
 ## Schemas
 
@@ -102,8 +87,8 @@ reasoning-graph schema patch
 
 In this repository, source schemas live under `packages/reasoning-graph/src/reasoning_graph/schemas/`:
 
-- `state.schema.json` for graph/search state files
-- `patch.schema.json` for expansion patches
+- `state.schema.json` for graph state files
+- `patch.schema.json` for `record` patches
 
 Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `reasoning-graph validate` runs schema validation first, then semantic graph/policy validation that JSON Schema cannot express.
 

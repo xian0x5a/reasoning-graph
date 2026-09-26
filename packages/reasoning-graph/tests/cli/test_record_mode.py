@@ -76,6 +76,21 @@ class RecordModeTests(unittest.TestCase):
             self.assertIn("exit 3", live_view)
             self.assertIn("Only the last run was logged", live_view)
 
+    def test_doctor_accepts_a_working_state_and_audits_only_once_stopped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+
+            working = run_cli("doctor", str(state_path))
+            self.ok(working)
+            self.assertIn("audit skipped (not stopped)", working.stdout)
+
+            self.ok(self.review(state_path))
+            self.ok(self.stop(state_path))
+            stopped = run_cli("doctor", str(state_path))
+            self.ok(stopped)
+            self.assertIn("doctor: audit ok", stopped.stdout)
+
     def test_record_requires_reason_and_takes_no_frontier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)

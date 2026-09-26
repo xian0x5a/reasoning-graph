@@ -751,9 +751,6 @@
         "effective_truth_cost": {
           "type": "number"
         },
-        "search_cost": {
-          "type": "number"
-        },
         "weight": {
           "type": "number",
           "minimum": 0,

@@ -104,6 +104,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node and 
 
 ```json
 {
+  "reason": "Proved H3 from the row generator",
   "nodes": [
     {"id": "O4", "type": "observation", "text": "Row generator appends only multiples of 3 (src/rows.py:12-30)", "source": "src/rows.py", "prior": 0.95}
   ],
@@ -112,8 +113,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node and 
   ],
   "update_nodes": [
     {"id": "H3", "set": {"prior": 1.0}}
-  ],
-  "no_new_work_reason": "H3 is now premise-backed; the route continues from the candidate that uses it."
+  ]
 }
 ```
 
