@@ -90,6 +90,7 @@ Bookkeeping that does not change the search can be done directly: fixing typos, 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph record state.json --patch step.json   # append progress with a reason; refreshes state.html
+reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
 reasoning-graph doctor state.json                  # validate, summarize frontier, audit when events exist
 reasoning-graph validate state.json                # schema/reference/cost sanity checks
 reasoning-graph costs state.json                   # compute truth_cost/search_cost in place
@@ -152,6 +153,7 @@ State JSON shape:
   },
   "stop_policy": {
     "belief_threshold": 0.8,
+    "require_review": true,
     "severity": "warning"
   },
   "report": {
@@ -251,6 +253,14 @@ Expansion patch shape:
 ```json
 {"step": 1, "action": "record", "reason": "Read the maintenance log", "add_nodes": ["O1", "H1", "T1"], "add_edges": ["O1-H1", "H1-T1"], "update_factors": []}
 ```
+
+`review` appends the reviewer's verdict:
+
+```json
+{"step": 6, "action": "review", "reviewer": "reviewer-1", "verdict": "fail", "findings": "O12 drops the source's 'expert needed' hedge"}
+```
+
+With `stop_policy.require_review` (set by `init --strict`), a `solved` or `candidate_threshold_met` stop needs the latest review to pass with no `record` after it.
 
 The first `record` starts the trace, so `stop` needs no `init` event. `audit` checks that each record names a reason and the nodes/edges it added, that no object is claimed by two events, and that a confidence stop meets the stop gates in `../SKILL.md`. It skips the pop/rank/breadth checks below, which apply only to queue traces.
 

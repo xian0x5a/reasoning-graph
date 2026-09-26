@@ -14,25 +14,27 @@ Use this skill when a messy task is worth keeping what you have seen, suspected,
 The graph does three jobs:
 
 - **Memory:** `state.json` holds observations, hypotheses, tests, and candidate answers, so progress survives long runs and lost context. Read it to recall where you are.
-- **Stop gate:** `stop` accepts a confident answer only when it rests on recorded observations.
+- **Stop gate:** `stop` accepts a confident answer only when it rests on recorded observations and an independent reviewer has passed the graph.
 - **Progress view:** every `record` refreshes `state.html` beside the state for a human to follow.
 
 The graph does not choose your next step. Work the problem however you judge best; the graph keeps the record.
 
-Requirement: the helper CLI, installed separately; if `reasoning-graph --help` is unavailable, see `docs/install.md`.
+Requirements: the helper CLI, installed separately (if `reasoning-graph --help` is unavailable, see `docs/install.md`), and a subagent backend for the reviewer. Without a subagent backend, do not use this skill.
 
 ## Workflow
 
 1. **Frame the goal** with `init`. Add epistemic/blocker goals only when the user or task wording accepts them.
 2. **Work and record as you go.** After each meaningful step (reading a source, forming or dropping a hypothesis, running a test, reaching a candidate answer) record what it produced. The graph is your memory only if it is written before you need it; filling it in after solving leaves a story, not a record.
-3. **Stop** when a gate below holds.
-4. **Review** (below), then write the final answer.
+3. **Draft the answer** in `answer.md` once a candidate looks ready.
+4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record the fixes and review again; any `record` after a review makes it stale.
+5. **Stop** when a gate below holds, run the final checks, and give the answer.
 
 Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
 reasoning-graph record state.json --patch step.json   # repeat as work progresses; refreshes state.html
+# the reviewer subagent runs: reasoning-graph review state.json --reviewer <its agent id> --verdict pass|fail --findings "<what it checked and found>"
 reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" -o state.stopped.json
 reasoning-graph validate state.stopped.json
 reasoning-graph audit state.stopped.json
@@ -63,11 +65,12 @@ Record patch:
 - **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command). When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"). An observation claims no more than its quote.
 - **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from a result is a separate `hypothesis` linked by `leads_to` from the observation. Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no gate counts them.
+- **Notes are your memory.** Any node may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state.
 - **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
 
 ## Subagents
 
-Optional. Delegate bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent owns the graph: it reviews each child's report and records accepted results itself. Ask children for observations with source refs and quotes, and for every interpretation they tried, failures included.
+The reviewer is required (see Review). Other delegation is optional: bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent owns the graph: it reviews each child's report and records accepted results itself. Ask children for observations with source refs and quotes, and for every interpretation they tried, failures included.
 
 ## Stop gates
 
@@ -77,6 +80,7 @@ Optional. Delegate bounded probes (source research, file inspection, test runs, 
 - the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and priors or posteriors never ground a claim
 - its belief reaches `belief_threshold`
 - every `test` node has a result observation
+- the latest review passed and no `record` came after it (`require_review`)
 
 Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report the open hypotheses. The stop reason names the gate that fired.
 
@@ -87,16 +91,19 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 `prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
 
-Beliefs are bookkeeping for the stop gate, not calibrated probabilities: they come from priors and likelihoods you estimated. Use coarse numbers, and never quote them in the answer as probabilities; state strength in words and cite the evidence.
+Use coarse numbers.
 
-## Review before answering
+## Review
 
-1. Run `validate`, `audit`, and `stop-review --draft answer.md`; fix every required fix.
-2. **Observations against sources:** for each observation the answer relies on, compare its text with its `quote`/`source`. Does it claim more than the source says? Did a hedge drop out?
-3. **Answer against graph:** every factual claim in the answer traces to an observation; the answer adds nothing the graph lacks.
-4. **Evidence against the answer:** anything that cuts against it is recorded, and the answer addresses it.
+Before stopping, start an independent reviewer subagent. Give it the state path, the draft answer, and the sources; not your reasoning. It checks:
 
-For high-stakes answers, have an independent subagent do checks 2–4 against the sources.
+1. **Observations against sources:** each observation the answer relies on says no more than its `quote` and `source`; no hedge dropped out.
+2. **Answer against graph:** every factual claim in the answer traces to an observation; the answer adds nothing the graph lacks.
+3. **Evidence against the answer:** anything in the sources that cuts against it is recorded, and the answer addresses it.
+
+The reviewer does not edit the graph. It records its own verdict with `review`, naming itself and listing what it checked and found. On `fail`, fix the graph with `record` and the draft, then start a fresh review.
+
+After `stop`, run `validate`, `audit`, and `stop-review --draft answer.md`, and fix every required fix.
 
 ## Schema quick reference
 
