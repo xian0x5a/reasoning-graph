@@ -89,20 +89,18 @@ A goal is **answered** when it has an `answers` edge from a `candidate_solution`
 
 ### Lemma-shaped steps
 
-A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it can `supports`/`contradicts` other claims, weighted by its belief (`docs/cost-model.md`); while it rests on its prior alone, its support has no effect. While open it carries a `prior` and its own frontier item:
+A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it can `supports`/`contradicts` other claims, weighted by its belief (`docs/cost-model.md`); while it rests on its prior alone, its support has no effect. While open it carries a `prior`:
 
 ```json
 {
+  "reason": "Suspect a divisibility lemma",
   "nodes": [
     {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3", "prior": 0.5}
-  ],
-  "frontier": [
-    {"id": "Q3", "node": "H3", "cost_components": {"truth": "auto", "verification": 0.3}, "estimated_remaining_cost": 0.4}
   ]
 }
 ```
 
-Once proved, a later `expand` adds its `leads_to` premises to the same node and sets the local `prior` to the certainty of the inference step (`1.0` for an exact derivation, so belief comes from the premises alone):
+Once proved, a later `record` adds its `leads_to` premises to the same node and sets the local `prior` to the certainty of the inference step (`1.0` for an exact derivation, so belief comes from the premises alone):
 
 ```json
 {

@@ -88,11 +88,11 @@ Expansion patches add result nodes and connect them to the existing test node.
 }
 ```
 
-## Strict result rule
+## Result rule
 
-Under `stop_policy.severity: "error"` (the `--strict` profile), expanding a popped `test` item must add at least one `observation` node linked by `test --leads_to--> observation`. `expand` rejects the patch otherwise, and `audit` reports the gap as an error on replayed traces; without strict policy it is a warning.
+A `solved` or `candidate_threshold_met` stop is rejected while any `test` node lacks a result `observation` linked by `test --leads_to--> observation`; `audit` reports the same gap on a stopped trace.
 
-There is no escape field: an inconclusive, blocked, or failed check is recorded as a result observation describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation` so the frontier re-ranks siblings.
+There is no escape field: an inconclusive, blocked, failed, or skipped check is recorded as a result observation describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
 
 ## Validation checklist
 
@@ -102,5 +102,3 @@ There is no escape field: an inconclusive, blocked, or failed check is recorded 
 - Result observations, not test nodes, support or contradict claims.
 - Use `test --leads_to--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.
-- Use `no_new_work_reason` when a result only changes score/ranking and creates no new frontier work.
-- Use `exhaustion_reason` only when marking a node or family `exhausted: true`.

@@ -1,6 +1,6 @@
 # Reasoning Graph Driver Reference
 
-State shape, helper commands, strict driver loop, audit checks, and semantic stop review.
+State shape, helper commands, record events, audit checks, and semantic stop review.
 
 ## Search State
 
@@ -83,12 +83,13 @@ Guidelines:
 
 ## Helper CLI Reference
 
-Use the helper as the search driver. The executable loop and minimal patch shape live in `../SKILL.md`; this page documents command variants, full state shape, events, and audit behavior.
+The workflow and minimal patch shape live in `../SKILL.md`; this page documents command variants, full state shape, events, and audit behavior.
 
 Bookkeeping that does not change the search can be done directly: fixing typos, adding an obvious source field, formatting JSON, recomputing costs, validation, Mermaid/HTML generation, or writing the final report from an already-settled state. Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
+reasoning-graph record state.json --patch step.json   # append progress with a reason; refreshes state.html
 reasoning-graph doctor state.json                  # validate, summarize frontier, audit when events exist
 reasoning-graph validate state.json                # schema/reference/cost sanity checks
 reasoning-graph costs state.json                   # compute truth_cost/search_cost in place
@@ -150,10 +151,7 @@ State JSON shape:
     "estimated_remaining_weight": 1.0
   },
   "stop_policy": {
-    "min_viable_candidates": 3,
     "belief_threshold": 0.8,
-    "max_live_frontier_items": 0,
-    "require_frontier_exhausted_for_epistemic_stop": true,
     "severity": "warning"
   },
   "report": {
@@ -246,9 +244,19 @@ Expansion patch shape:
 
 `expand` fills missing child `parent` fields with the popped item id and records audit metadata automatically. In patch input, use `factors` to add or replace factors by id; detailed factor shapes live in `docs/schema/factors.md`. Stop events must include structured `outcome`.
 
-## Driver Loop
+## Record Events
 
-The driver loop is required for reasoning-graph skill use. It uses a compact `events` log plus `next --pop` / `assign` / `expand` commands so the graph controls the next work item before the agent reasons. This reduces post-hoc graph decoration and makes the search trace auditable.
+`record` applies a patch (`reason` plus `nodes`, `update_nodes`, `edges`, `factors`; no `frontier`) and appends one event:
+
+```json
+{"step": 1, "action": "record", "reason": "Read the maintenance log", "add_nodes": ["O1", "H1", "T1"], "add_edges": ["O1-H1", "H1-T1"], "update_factors": []}
+```
+
+The first `record` starts the trace, so `stop` needs no `init` event. `audit` checks that each record names a reason and the nodes/edges it added, that no object is claimed by two events, and that a confidence stop meets the stop gates in `../SKILL.md`. It skips the pop/rank/breadth checks below, which apply only to queue traces.
+
+## Queue Driver Loop
+
+The frontier queue is outside the skill workflow. It remains in the CLI for queue-driven traces: a compact `events` log plus `next --pop` / `assign` / `expand` commands, where the graph selects the next work item.
 
 Do not include full frontier before/after snapshots; state already stores frontier items. Events record only search deltas:
 
