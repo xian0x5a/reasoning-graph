@@ -328,7 +328,7 @@ def below_threshold_messages(state: dict[str, Any]) -> list[str]:
 
 
 def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
-    """Name tests with no result observation; a failed or inconclusive probe still records one."""
+    """Name tests with no result observation; a failed or inconclusive probe still records one, a not_run test states why none exists."""
 
     nodes = by_id(state.get("nodes", []), "node")
     tests_with_results = {
@@ -338,7 +338,11 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
         and edge.get("type") == "leads_to"
         and nodes.get(edge.get("to"), {}).get("type") == "observation"
     }
-    missing = sorted(node_id for node_id, node in nodes.items() if node.get("type") == "test" and node_id not in tests_with_results)
+    missing = sorted(
+        node_id
+        for node_id, node in nodes.items()
+        if node.get("type") == "test" and node_id not in tests_with_results and "not_run" not in node
+    )
     if not missing:
         return []
     return [f"test(s) without a recorded result observation: {', '.join(missing)}"]

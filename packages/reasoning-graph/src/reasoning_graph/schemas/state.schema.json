@@ -142,6 +142,11 @@
           "type": "string",
           "description": "Verbatim excerpt from the source backing an observation, hedges included, so review can compare the claim with what the source says."
         },
+        "not_run": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Test nodes only: why this check cannot be run here. A not-run test settles the test-result gate and must have no result observation."
+        },
         "prior": {
           "$ref": "#/$defs/probability",
           "description": "Optional local starting-probability factor, including observation or inference reliability. Multiplies inherited premise belief; omit when it would repeat uncertainty already in the premises. Not rewritten by the engine."

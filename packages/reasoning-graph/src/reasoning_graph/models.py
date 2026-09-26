@@ -128,6 +128,20 @@ CLASS_BY_NODE_TYPE = {
 }
 
 
+def node_type_label(node: dict) -> str:
+    """Short type label shown on a node; a not_run test says so, since no result will ever exist."""
+    node_type = str(node.get("type", "node"))
+    if node_type == "test" and "not_run" in node:
+        return "test · not run"
+    return "candidate" if node_type == "candidate_solution" else node_type
+
+
+def node_render_class(node: dict) -> str:
+    if node.get("type") == "test" and "not_run" in node:
+        return "not_run"
+    return CLASS_BY_NODE_TYPE.get(str(node.get("type")), "hypothesis")
+
+
 @dataclass
 class ValidationResult:
     errors: list[str]

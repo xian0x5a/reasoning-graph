@@ -14,7 +14,7 @@ from .costs import (
     probability_from_cost,
 )
 from .identities import RenderIdentityMap, render_identity_map
-from .models import BELIEF_NODE_TYPES, CLASS_BY_NODE_TYPE
+from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .offline_render import offline_graph_svg
 from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
@@ -46,9 +46,7 @@ def compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str
     # Keep graph labels stable and tiny. Full text lives in modal/detail cards;
     # long Mermaid labels are hard to navigate and can expose HTML entity noise.
     node_id = str(node.get("id") or "node")
-    node_type = str(node.get("type", "node"))
-    type_label = "candidate" if node_type == "candidate_solution" else node_type
-    parts = (node_id, type_label, node_belief_label(node, effective_truth_cost))
+    parts = (node_id, node_type_label(node), node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -57,8 +55,7 @@ def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
             continue
-        raw_type = str(node.get("type"))
-        cls = CLASS_BY_NODE_TYPE.get(raw_type, "hypothesis")
+        cls = node_render_class(node)
         node_id = str(node.get("id"))
         classes.setdefault(cls, set()).add(node_id)
     view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
@@ -249,6 +246,7 @@ def to_mermaid(
             "  classDef constraint fill:#fff7ed,stroke:#ea580c;",
             "  classDef hypothesis fill:#f5f3ff,stroke:#7c3aed;",
             "  classDef test fill:#e0f2fe,stroke:#0284c7;",
+            "  classDef not_run fill:#f8fafc,stroke:#94a3b8,stroke-dasharray:5 4,color:#64748b;",
             "  classDef candidate fill:#dbeafe,stroke:#2563eb,stroke-width:2px;",
             "  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:3px;",
             "  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;",
@@ -388,7 +386,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
         raw_id = str(node.get("id", ""))
         raw_type = str(node.get("type", "node"))
         node_type = html.escape(raw_type)
-        pill_text = raw_type
+        pill_text = node_type_label(node) if raw_type == "test" else raw_type
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
@@ -415,6 +413,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
             f'<p>{text}</p>'
             f'{"<p class=\"source\">Source: " + html.escape(source_text) + "</p>" if source_text else ""}'
             f'{"<p class=\"quote\">Quote: “" + html.escape(str(node["quote"])) + "”</p>" if node.get("quote") else ""}'
+            f'{"<p class=\"note\">Not run: " + html.escape(str(node["not_run"])) + "</p>" if node.get("not_run") else ""}'
             f'{"<p class=\"note\">Note: " + html.escape(str(node["note"])) + "</p>" if node.get("note") else ""}'
             f'{"<p class=\"extras\">" + " ".join(extras) + "</p>" if extras else ""}'
             f'{reasoning_html}'

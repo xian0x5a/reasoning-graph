@@ -243,6 +243,34 @@ class RecordModeTests(unittest.TestCase):
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
             self.assertIn("T2", stopped.stderr)
 
+    def test_not_run_test_settles_the_result_gate_and_shows_in_the_view(self) -> None:
+        # Issue #35: an unrunnable check was answered with an invented result; not_run records it honestly.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+            self.ok(self.record(state_path, {"reason": "Noted a decisive check nobody can run here", "nodes": [
+                {"id": "T2", "type": "test", "text": "Compare dental records", "not_run": "The case file has no dental records"},
+            ]}))
+            self.ok(self.review(state_path))
+
+            self.ok(self.stop(state_path))
+            view = state_path.with_suffix(".html").read_text(encoding="utf-8")
+            self.assertIn("not run", view)
+            self.assertIn("The case file has no dental records", view)
+
+    def test_not_run_is_only_a_reason_on_a_test_without_a_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+
+            on_hypothesis = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "prior": 0.5, "not_run": "x"}]})
+            blank_reason = self.record(state_path, {"reason": "r", "nodes": [{"id": "T2", "type": "test", "text": "Check", "not_run": " "}]})
+            with_result = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "T1", "set": {"not_run": "Could not run it"}}]})
+
+            for rejected in (on_hypothesis, blank_reason, with_result):
+                self.assertEqual(rejected.returncode, 1, rejected.stdout)
+                self.assertIn("not_run", rejected.stderr)
+
     def test_strict_profile_gates_on_confidence_and_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(self.start(tmp_dir).read_text(encoding="utf-8"))

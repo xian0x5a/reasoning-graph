@@ -83,6 +83,11 @@ def validate_state(state: Any) -> ValidationResult:
                     probability_cost(node[probability_field], probability_field)
                 except ValueError as exc:
                     errors.append(f"node {node_id or i}: {exc}")
+        if "not_run" in node:
+            if node_type != "test":
+                errors.append(f"node {node_id or i} not_run is only valid on test nodes")
+            elif not isinstance(node["not_run"], str) or not node["not_run"].strip():
+                errors.append(f"node {node_id or i} not_run must be a non-empty reason")
         if "exhausted" in node and not isinstance(node.get("exhausted"), bool):
             errors.append(f"node {node_id or i} exhausted must be boolean when present")
         if node.get("exhausted") is True and not str(node.get("exhaustion_reason") or "").strip():
@@ -207,6 +212,8 @@ def validate_state(state: Any) -> ValidationResult:
                 errors.append(f"edge {i} candidate_solution -> goal must use answers")
         if edge_type == "answers" and (src_type != "candidate_solution" or dst_type != "goal"):
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
+        if src_type == "test" and dst_type == "observation" and edge_type == "leads_to" and "not_run" in nodes_by_id.get(src, {}):
+            errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
         if src_type == "hypothesis" and dst_type == "goal":

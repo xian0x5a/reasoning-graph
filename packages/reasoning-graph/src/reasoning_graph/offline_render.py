@@ -7,6 +7,7 @@ from typing import Any
 
 from .costs import node_belief_label, node_effective_truth_costs
 from .identities import RenderIdentityMap, render_identity_map
+from .models import node_render_class, node_type_label
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
 
@@ -25,9 +26,7 @@ def _html_anchor(raw: str, prefix: str = "details") -> str:
 
 def _compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     node_id = str(node.get("id") or "node")
-    node_type = str(node.get("type", "node"))
-    type_label = "candidate" if node_type == "candidate_solution" else node_type
-    parts = (node_id, type_label, node_belief_label(node, effective_truth_cost))
+    parts = (node_id, node_type_label(node), node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -54,6 +53,8 @@ def _node_rank(node: dict[str, Any]) -> int:
 
 
 def _node_colors(node: dict[str, Any]) -> tuple[str, str]:
+    if node_render_class(node) == "not_run":
+        return ("#f8fafc", "#94a3b8")
     node_type = str(node.get("type") or "")
     return {
         "goal": ("#fef3c7", "#d97706"),
@@ -246,7 +247,7 @@ def offline_graph_svg(
         )
         node_parts.append(
             f'<a href="{anchor}"><g id="{mid}" class="node" data-node-id="{html.escape(raw_id, quote=True)}">'
-            f'<rect x="{x}" y="{y}" width="{node_width}" height="{node_height}" rx="12" fill="{fill}" stroke="{stroke}" stroke-width="2"/>'
+            f'<rect x="{x}" y="{y}" width="{node_width}" height="{node_height}" rx="12" fill="{fill}" stroke="{stroke}" stroke-width="2"{' stroke-dasharray="5 4"' if node_render_class(node) == "not_run" else ""}/>'
             f'<text x="{x + node_width // 2}" y="{y + node_height // 2}" text-anchor="middle" dominant-baseline="middle" font-size="13">{label}</text>'
             '</g></a>'
         )
