@@ -60,7 +60,7 @@ Constraints:
 - [x] 1. Port harnesses (committed with 2 as 0bb5c71)
 - [x] 2. Remove the queue (0bb5c71)
 - [x] 3. Docs + ADR 0006
-- [ ] 4. Issue #33 comment (needs confirmation)
+- [x] 4. Issue #33 comment posted: https://github.com/ewgdg/reasoning-graph/issues/33#issuecomment-5843212311
 
 ## Surprises & Discoveries
 
