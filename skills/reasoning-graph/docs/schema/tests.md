@@ -71,6 +71,22 @@ Give the result `observation` a local `prior` accounting for observation, script
 }
 ```
 
+### Not runnable here
+
+Add `test` nodes only for checks you can perform in this environment; a check nobody can run here goes in the answer's next test instead. If a recorded test turns out not to be runnable, say so and add no evidence edges. Never write a result for a check that did not happen.
+
+```json
+{
+  "nodes": [
+    {"id": "T3", "type": "test", "text": "Compare the body's dental records with Ada's"},
+    {"id": "O3", "type": "observation", "text": "Not run: the case file has no dental records and no exam can be done", "source": "case.md section 13", "quote": "Teeth not checked in field", "prior": 1.0}
+  ],
+  "edges": [
+    {"id": "T3-O3", "from": "T3", "to": "O3", "type": "leads_to", "reasoning": "The check could not be performed; this records why."}
+  ]
+}
+```
+
 ## Patch example: recorded result
 
 A `record` patch adds the result node and connects it to the existing test node.
@@ -92,7 +108,7 @@ A `record` patch adds the result node and connects it to the existing test node.
 
 A `solved` or `candidate_threshold_met` stop is rejected while any `test` node lacks a result `observation` linked by `test --leads_to--> observation`; `audit` reports the same gap on a stopped trace.
 
-There is no escape field: an inconclusive, blocked, failed, or skipped check is recorded as a result observation describing what happened (see the inconclusive example above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
+There is no escape field: an inconclusive, blocked, failed, skipped, or unrunnable check is recorded as a result observation describing what happened (see the inconclusive and not-runnable examples above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
 
 ## Validation checklist
 
@@ -102,3 +118,4 @@ There is no escape field: an inconclusive, blocked, failed, or skipped check is 
 - Result observations, not test nodes, support or contradict claims.
 - Use `test --leads_to--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.
+- A check that did not happen gets a "Not run" observation with no evidence edges, never an invented result.

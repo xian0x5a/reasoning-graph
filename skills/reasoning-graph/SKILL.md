@@ -67,7 +67,8 @@ Record patch:
 
 ## Recording
 
-- **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command). When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"). An observation claims no more than its quote.
+- **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command); for a local file, start `source` with its path. When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"); join separate excerpts with `...`. `record` rejects a quote that is not verbatim in the local file its `source` names. An observation claims no more than its quote.
+- **Tests are checks you can run here.** Add a `test` node only for a check you can perform in this environment. A check nobody can run here (a lab exam, an interview, forensics on a case file) belongs in the answer's next test, not the graph. If a recorded test turns out not to be runnable, its result is an observation "Not run: <why>" with no `supports` or `contradicts` edges.
 - **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from a result is a separate `hypothesis` linked by `leads_to` from the observation. Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no gate counts them.
 - **Notes are your memory.** Any node may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state.
@@ -102,7 +103,7 @@ Use coarse numbers.
 
 Before stopping, start an independent reviewer subagent. Give it the state path, the draft answer, and the sources; not your reasoning. It checks:
 
-1. **Observations against sources:** each observation the answer relies on says no more than its `quote` and `source`; no hedge dropped out.
+1. **Observations against sources:** each observation the answer relies on says no more than its `quote` and `source`; no hedge dropped out. Text that reports an action, test, or finding its quote does not describe is a fail.
 2. **Answer against graph:** every factual claim in the answer traces to an observation; the answer adds nothing the graph lacks.
 3. **Evidence against the answer:** anything in the sources that cuts against it is recorded, and the answer addresses it.
 

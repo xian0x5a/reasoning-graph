@@ -72,6 +72,7 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 - `update_nodes` replaces top-level fields on existing nodes, e.g. `{"id": "H1", "set": {"posterior": 0.72}}`; `id` and `type` are immutable. Use it to keep one node per claim as evidence arrives.
 - `factors` adds or replaces factors by id.
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
+- An added or updated observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked.
 
 The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference), nothing is written.
 
