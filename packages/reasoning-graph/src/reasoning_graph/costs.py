@@ -181,12 +181,11 @@ def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: boo
     if not node:
         return 0.0
     # Direct cost consumers do not necessarily run schema validation first.
-    # Reject obsolete/output-only inputs rather than silently changing belief.
+    # Reject obsolete inputs rather than silently changing belief. A stored
+    # `belief` is CLI-written output and is never read back as input.
     for field in ("confidence", "probability"):
         if field in node:
             raise ValueError(f"node {node.get('id')}: {field} is not supported; use prior for local probability")
-    if "belief" in node:
-        raise ValueError(f"node {node.get('id')}: belief is computed output; use posterior for an explicit override")
     fields = NODE_TRUTH_PROBABILITY_PRECEDENCE if include_posterior else ("prior",)
     for field in fields:
         if field in node:
@@ -512,3 +511,13 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     for node_id in inputs.nodes:
         effective_cost(node_id)
     return memo
+
+
+def claim_beliefs(state: dict[str, Any]) -> dict[str, float]:
+    """Computed belief per claim node, rounded like ranked candidate beliefs."""
+    truth_costs = node_effective_truth_costs(state)
+    return {
+        node["id"]: round(probability_from_cost(truth_costs[node["id"]]), 6)
+        for node in state.get("nodes", [])
+        if node.get("type") in BELIEF_NODE_TYPES
+    }

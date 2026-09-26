@@ -89,7 +89,7 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 ## Beliefs
 
-`prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
+`prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. `record` writes each claim's current `belief` into the state: read it there, never set it. After editing the state by hand, run `reasoning-graph beliefs state.json --write`. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
 
 Use coarse numbers.
 

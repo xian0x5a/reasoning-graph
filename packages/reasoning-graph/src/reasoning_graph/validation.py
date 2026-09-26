@@ -7,10 +7,10 @@ from typing import Any
 from .costs import (
     NODE_SCORE_FIELDS,
     assert_acyclic_premise_dependencies,
+    claim_beliefs,
     likelihood_ratio_from_edge,
     likelihood_ratio_from_likelihood,
     likelihood_ratio_from_value,
-    node_effective_truth_costs,
     nodes_with_belief_sources,
     probability_cost,
     probability_from_value,
@@ -19,6 +19,10 @@ from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
 from .schema_validation import state_schema_errors
 from .utils import as_string_list
+
+
+# Stored beliefs are rounded to 6 places when written.
+BELIEF_TOLERANCE = 1e-6
 
 
 def edge_id_set(state: dict[str, Any]) -> set[str]:
@@ -425,7 +429,17 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"solutions references non-candidate node {node_id!r}; selected answers must be candidate_solution nodes")
 
     try:
-        node_effective_truth_costs(state)
+        beliefs = claim_beliefs(state)
+        for node_id, node in nodes_by_id.items():
+            if "belief" not in node:
+                continue
+            if node_id not in beliefs:
+                errors.append(f"{node.get('type')} node {node_id} has belief; only claims carry a computed belief")
+            elif not isinstance(node["belief"], (int, float)) or abs(node["belief"] - beliefs[node_id]) > BELIEF_TOLERANCE:
+                errors.append(
+                    f"stale belief on {node_id}: stored {node['belief']!r}, computed {beliefs[node_id]}; "
+                    "run `reasoning-graph beliefs <state> --write`"
+                )
         grounded_nodes = nodes_with_belief_sources(state)
         for node_id, node in nodes_by_id.items():
             if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:

@@ -7,12 +7,12 @@ Local probability inputs, computed belief, calibrated overrides, and correlated 
 | concept | role |
 | --- | --- |
 | `prior` | Optional local starting-probability input, including observation or inference reliability |
-| Computed `belief` | Output after premise propagation and likelihood updates, reported from effective truth cost |
+| Computed `belief` | Output after premise propagation and likelihood updates, reported from effective truth cost and stored on each claim by the CLI |
 | Explicit `posterior` | Authored, already-calibrated overall value that overrides this node's calculation |
 
 Claim nodes (`observation`, `hypothesis`, and `candidate_solution`) accept `prior` and `posterior`. Each claim requires a **belief source**: a local prior, an explicit posterior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate` and `record` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
 
-Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence` and `probability` are rejected, not converted. `belief` is output-only and rejected as an authored node field.
+Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence` and `probability` are rejected, not converted. `belief` is output only: the CLI writes it on each claim, record patches reject it, and `validate` fails when a stored value no longer matches the graph.
 
 A local `prior` multiplies premise belief. **Omit it when it merely repeats uncertainty already represented by the premises.** A hypothesis at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` represents additional uncertainty. On a premise-backed node, `prior` is a local factor, not an estimate of the already-aggregated conclusion.
 

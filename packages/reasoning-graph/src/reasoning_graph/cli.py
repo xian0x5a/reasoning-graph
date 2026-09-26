@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from .audit import audit_state
-from .costs import node_effective_truth_costs, probability_from_cost
+from .costs import claim_beliefs
 from .events import is_stopped, next_event_step
-from .models import BELIEF_NODE_TYPES, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
+from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
 from .policy import best_candidate_ids, candidate_stop_messages, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
@@ -40,14 +40,16 @@ def cmd_schema(args: argparse.Namespace) -> int:
 
 
 def cmd_beliefs(args: argparse.Namespace) -> int:
-    """Print each claim's computed belief; state.json stores only authored inputs."""
+    """Print each claim's computed belief, or with --write refresh the stored ones after a hand edit."""
     state = load_state(args.state)
-    truth_costs = node_effective_truth_costs(state)
-    rows = [
-        {"id": node["id"], "type": node["type"], "belief": round(probability_from_cost(truth_costs[node["id"]]), 6)}
-        for node in state.get("nodes", [])
-        if node.get("type") in BELIEF_NODE_TYPES
-    ]
+    if args.write:
+        if not refresh_beliefs(state):
+            return 1
+        dump_state(state, args.output, default_in_place_source(args))
+        write_live_view(state, args)
+        return 0
+    beliefs = claim_beliefs(state)
+    rows = [{"id": node["id"], "type": node["type"], "belief": beliefs[node["id"]]} for node in state.get("nodes", []) if node["id"] in beliefs]
     if args.json:
         print(strict_json_dumps(rows, indent=2, ensure_ascii=False))
     else:
@@ -156,6 +158,25 @@ def _apply_graph_patch(
     }
 
 
+def refresh_beliefs(state: dict[str, Any]) -> bool:
+    """Validate the graph and rewrite each claim's stored belief; report errors and return False if invalid."""
+    # Stored beliefs describe the graph before this edit; drop them so validation judges the graph, not the stale copy.
+    for node in state.get("nodes", []):
+        node.pop("belief", None)
+    result = validate_state(state)
+    for error in result.errors:
+        print(f"error: {error}", file=sys.stderr)
+    if result.errors:
+        return False
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    beliefs = claim_beliefs(state)
+    for node in state["nodes"]:
+        if node["id"] in beliefs:
+            node["belief"] = beliefs[node["id"]]
+    return True
+
+
 def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
     """Refresh <state>.html beside the written state so a human can watch progress."""
     target = args.output or args.state
@@ -235,14 +256,8 @@ def cmd_record(args: argparse.Namespace) -> int:
         }
     )
 
-    result = validate_state(state)
-    for error in result.errors:
-        print(f"error: {error}", file=sys.stderr)
-    if result.errors:
+    if not refresh_beliefs(state):
         return 1
-    for warning in result.warnings:
-        print(f"warning: {warning}", file=sys.stderr)
-
     dump_state(state, args.output, default_in_place_source(args))
     write_live_view(state, args)
     return 0
@@ -260,7 +275,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        node_effective_truth_costs(state)
+        claim_beliefs(state)
     except Exception as exc:
         print(f"error: belief computation failed: {exc}", file=sys.stderr)
         print("doctor: belief computation failed")
@@ -644,6 +659,8 @@ def build_parser() -> argparse.ArgumentParser:
     beliefs = sub.add_parser("beliefs", help="print each claim's computed belief")
     beliefs.add_argument("state", help="state JSON path, or - for stdin")
     beliefs.add_argument("--json", action="store_true", help="print JSON instead of compact text")
+    beliefs.add_argument("--write", action="store_true", help="refresh the belief stored on each claim after a hand edit")
+    beliefs.add_argument("-o", "--output", help="with --write, write updated state to path")
     beliefs.set_defaults(func=cmd_beliefs)
 
     audit = sub.add_parser("audit", help="audit the event trace and stop gates")

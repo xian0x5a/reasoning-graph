@@ -120,6 +120,8 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
     assert result.returncode == 0, result.stderr
     updated = json.loads(state_path.read_text(encoding="utf-8"))
     assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(expected)
-    # Persisting a patch must not store computed belief or manufacture overrides.
+    stored_nodes = {node["id"]: node for node in updated["nodes"]}
+    assert stored_nodes["CS1"]["belief"] == pytest.approx(expected)
+    # Persisting a patch stores computed belief but must not manufacture overrides.
     expected_nodes = {node["id"]: node for node in state["nodes"] + patch["nodes"]}
-    assert {node["id"]: node for node in updated["nodes"]} == expected_nodes
+    assert {node_id: {k: v for k, v in node.items() if k != "belief"} for node_id, node in stored_nodes.items()} == expected_nodes

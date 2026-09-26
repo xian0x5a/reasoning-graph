@@ -4,13 +4,13 @@ State shape, commands, events, audit checks, and semantic stop review. The workf
 
 ## Commands
 
-Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. Bookkeeping that records no new reasoning (fixing a typo, adding an obvious `source`, formatting JSON) can be edited directly.
+Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. Bookkeeping that records no new reasoning (fixing a typo, adding an obvious `source`, formatting JSON) can be edited directly; if the edit touches scores or edges, run `beliefs --write` to refresh the stored beliefs.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph record state.json --patch step.json   # append progress with a reason; refreshes state.html
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
-reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows)
+reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows; --write refreshes stored beliefs after a hand edit)
 reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
 reasoning-graph validate state.json                # schema/reference/belief sanity checks
 reasoning-graph stop state.json --reason "CS1 is grounded above threshold and review passed" --outcome solved -o state.stopped.json
@@ -31,10 +31,10 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
   "summary": {"title": "Reasoning Graph", "answer": "Compact answer shown above the graph."},
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired", "prior": 0.95},
+    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired", "prior": 0.95, "belief": 0.95},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "user prompt"},
-    {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this."},
-    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer"}
+    {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this.", "belief": 0.95},
+    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer", "belief": 0.95}
   ],
   "edges": [
     {"id": "O1-H1", "from": "O1", "to": "H1", "type": "leads_to", "reasoning": "An expired token right after issue points to skew."},
@@ -45,11 +45,13 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
   "events": [
     {"step": 1, "action": "record", "reason": "Read the incident log", "add_nodes": ["O1", "H1", "CS1"], "add_edges": ["O1-H1", "H1-CS1", "CS1-G1"], "update_factors": []},
     {"step": 2, "action": "review", "reviewer": "reviewer-1", "verdict": "pass", "findings": "O1 matches its quote; the answer adds nothing the graph lacks."},
-    {"step": 3, "action": "rank", "best": "CS1", "belief": 0.9025, "candidates": [{"node": "CS1", "belief": 0.9025, "effective_truth_cost": 0.102587}]},
+    {"step": 3, "action": "rank", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
     {"step": 4, "action": "stop", "reason": "CS1 is grounded above threshold and review passed", "outcome": "solved"}
   ]
 }
 ```
+
+Claims carry `belief`, written by the CLI after every `record`; it is never authored.
 
 Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`), `report` / `presentation` / `view` (`docs/schema/reporting.md`).
 
@@ -67,6 +69,7 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 - `nodes` is insert-only; duplicate ids are rejected.
 - `update_nodes` replaces top-level fields on existing nodes, e.g. `{"id": "H1", "set": {"posterior": 0.72}}`; `id` and `type` are immutable. Use it to keep one node per claim as evidence arrives.
 - `factors` adds or replaces factors by id.
+- `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
 
 The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference), nothing is written.
 
@@ -92,6 +95,7 @@ A failed gate names what is missing. Non-candidate outcomes only write the stop 
 
 `audit` validates the state, then checks the trace:
 
+- `validate` fails on a stored `belief` that differs from the recomputed one
 - steps strictly increase; actions are `record`, `review`, `rank`, `stop`; the trace ends with exactly one `stop`
 - each record has a reason and names nodes/edges/factors that exist; no node or edge is claimed as added by two events
 - each review names a reviewer, a verdict, and findings

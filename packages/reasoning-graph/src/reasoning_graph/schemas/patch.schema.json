@@ -11,7 +11,13 @@
     "nodes": {
       "type": "array",
       "items": {
-        "$ref": "state.schema.json#/$defs/node"
+        "$ref": "state.schema.json#/$defs/node",
+        "not": {
+          "required": [
+            "belief"
+          ]
+        },
+        "description": "belief is computed and written by the CLI, never authored."
       }
     },
     "update_nodes": {
@@ -33,8 +39,17 @@
             "minProperties": 1,
             "additionalProperties": true,
             "not": {
-              "required": [
-                "id"
+              "anyOf": [
+                {
+                  "required": [
+                    "id"
+                  ]
+                },
+                {
+                  "required": [
+                    "belief"
+                  ]
+                }
               ]
             }
           }

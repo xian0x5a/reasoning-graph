@@ -22,7 +22,7 @@ from reasoning_graph.validation import validate_state
 
 
 FIELDS = ("prior", "posterior")
-REJECTED_INPUT_FIELDS = ("confidence", "probability", "belief")
+REJECTED_INPUT_FIELDS = ("confidence", "probability")
 
 CLAIM_TYPES = ("observation", "hypothesis", "candidate_solution", "hypothesis")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
@@ -59,9 +59,17 @@ def test_score_free_types_reject_every_score(node_type):
         assert state_schema_errors(state_with(node_type, **{field: 0.8})), field
 
 
+@pytest.mark.parametrize("node_type", sorted(set(CLAIM_TYPES)))
+def test_computed_belief_is_stored_on_claims_but_never_authored_in_a_patch(node_type):
+    node = build_node(node_type, prior=0.8, belief=0.8)
+    assert not state_schema_errors({"nodes": [node], "edges": []})
+    assert patch_schema_errors({"nodes": [node]})
+    assert patch_schema_errors({"update_nodes": [{"id": "N1", "set": {"belief": 0.8}}]})
+
+
 @pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
 @pytest.mark.parametrize("node_type", sorted(NODE_TYPES))
-def test_obsolete_scores_and_computed_belief_are_rejected_as_node_inputs(node_type, field):
+def test_obsolete_scores_are_rejected_as_node_inputs(node_type, field):
     score = {"prior": 0.8} if node_type in CLAIM_TYPES else {}
     node = build_node(node_type, **score, **{field: 0.9})
     state = {"nodes": [node], "edges": []}
