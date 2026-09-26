@@ -73,18 +73,10 @@ Give the result `observation` a local `prior` accounting for observation, script
 
 ### Not runnable here
 
-Add `test` nodes only for checks you can perform in this environment; a check nobody can run here goes in the answer's next test instead. If a recorded test turns out not to be runnable, say so and add no evidence edges. Never write a result for a check that did not happen.
+A check that would settle a claim but cannot be run in this environment stays in the graph with `not_run` set to the reason. It needs no result observation, may not have one, and renders dashed as "test · not run", so the view shows which decisive checks never happened. Never write a result for a check that did not happen.
 
 ```json
-{
-  "nodes": [
-    {"id": "T3", "type": "test", "text": "Compare the body's dental records with Ada's"},
-    {"id": "O3", "type": "observation", "text": "Not run: the case file has no dental records and no exam can be done", "source": "case.md section 13", "quote": "Teeth not checked in field", "prior": 1.0}
-  ],
-  "edges": [
-    {"id": "T3-O3", "from": "T3", "to": "O3", "type": "leads_to", "reasoning": "The check could not be performed; this records why."}
-  ]
-}
+{"id": "T3", "type": "test", "text": "Compare the body's dental records with Ada's", "not_run": "The case file has no dental records and no exam can be done"}
 ```
 
 ## Patch example: recorded result
@@ -106,9 +98,9 @@ A `record` patch adds the result node and connects it to the existing test node.
 
 ## Result rule
 
-A `solved` or `candidate_threshold_met` stop is rejected while any `test` node lacks a result `observation` linked by `test --leads_to--> observation`; `audit` reports the same gap on a stopped trace.
+A `solved` or `candidate_threshold_met` stop is rejected while any `test` node lacks both a result `observation` linked by `test --leads_to--> observation` and a `not_run` reason; `audit` reports the same gap on a stopped trace.
 
-There is no escape field: an inconclusive, blocked, failed, skipped, or unrunnable check is recorded as a result observation describing what happened (see the inconclusive and not-runnable examples above). A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
+A check that ran but did not settle anything (inconclusive, blocked, failed, or skipped midway) is recorded as a result observation describing what happened (see the inconclusive example above); `not_run` is only for a check that cannot be performed here at all. A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
 
 ## Validation checklist
 
@@ -118,4 +110,4 @@ There is no escape field: an inconclusive, blocked, failed, skipped, or unrunnab
 - Result observations, not test nodes, support or contradict claims.
 - Use `test --leads_to--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.
-- A check that did not happen gets a "Not run" observation with no evidence edges, never an invented result.
+- A check that cannot be run here carries `not_run` with the reason and has no result observation, never an invented one.
