@@ -162,6 +162,10 @@
         "source": {
           "type": "string"
         },
+        "quote": {
+          "type": "string",
+          "description": "Verbatim excerpt from the source backing an observation, hedges included, so review can compare the claim with what the source says."
+        },
         "prior": {
           "$ref": "#/$defs/probability",
           "description": "Optional local starting-probability factor, including observation or inference reliability. Multiplies inherited premise belief; omit when it would repeat uncertainty already in the premises. Not rewritten by the engine."
@@ -633,6 +637,7 @@
         "action": {
           "enum": [
             "init",
+            "record",
             "seed",
             "pop",
             "assign",
@@ -825,6 +830,25 @@
           "then": {
             "required": [
               "frontier"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "record"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason",
+              "add_nodes",
+              "add_edges"
             ]
           }
         },

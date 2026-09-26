@@ -9,7 +9,7 @@ from typing import Any
 from .costs import compute_costs, probability_from_value
 from .frontier import expansion_signature
 from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, DEFAULT_MAX_PROBE_CONCURRENCY, EVIDENCE_GROUNDED_STOP_OUTCOMES, RESULT_NODE_TYPES, STOP_OUTCOMES, ValidationResult
-from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, strongest_grounded_candidate_belief, unanswered_goal_messages, ungrounded_goal_answer_messages, viable_candidate_ids
+from .policy import best_epistemic_candidate_ids, ranked_viable_candidates, strongest_grounded_candidate_belief, unanswered_goal_messages, confidence_stop_messages, viable_candidate_ids
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -282,6 +282,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
     seen_init = False
     seen_stop = False
+    used_record = False
     previous_step: int | None = None
     virtual_frontier: set[str] = set()
     popped_items: set[str] = set()
@@ -352,6 +353,28 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 else:
                     virtual_frontier.add(item_id)
             seen_init = True
+            continue
+
+        if action == "record":
+            # Queue-free progress: recording starts the trace the way the first pop's init does.
+            seen_init = True
+            used_record = True
+            if not str(event.get("reason") or "").strip():
+                errors.append(f"{label}: record requires a non-empty reason")
+            for node_id in as_string_list(event.get("add_nodes"), f"{label}.add_nodes", errors):
+                if node_id not in nodes:
+                    errors.append(f"{label}: add_nodes references missing node {node_id}")
+                else:
+                    event_added_nodes.add(node_id)
+                    claim_added("node", node_id, index, label)
+            for edge_id in as_string_list(event.get("add_edges"), f"{label}.add_edges", errors):
+                if edge_id not in edge_ids:
+                    errors.append(f"{label}: add_edges references missing edge id {edge_id}")
+                else:
+                    claim_added("edge", edge_id, index, label)
+            for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
+                if factor_id not in factors_by_id:
+                    errors.append(f"{label}: update_factors references missing factor id {factor_id}")
             continue
 
         if not seen_init:
@@ -720,15 +743,17 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     for message in unanswered_goal_messages(state):
                         add_policy_violation(policy_result, f"{label}: {outcome} stop leaves an accepted goal open; {message}", severity)
                 if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
-                    for message in ungrounded_goal_answer_messages(state):
-                        add_policy_violation(policy_result, f"{label}: {outcome} stop needs an evidence-grounded answer; {message}", severity)
+                    for message in confidence_stop_messages(state):
+                        add_policy_violation(policy_result, f"{label}: {outcome} stop needs a grounded, confident answer; {message}", severity)
             seen_stop = True
 
     if not seen_init:
         errors.append("strict search audit requires an init event before terminal search events")
     if not seen_stop:
         errors.append("strict search audit requires a stop event")
-    if stats["pops"] == 0:
+    # Pop/rank/breadth checks audit the frontier queue; a record-mode trace never uses it.
+    queue_trace = not used_record or stats["pops"] > 0
+    if stats["pops"] == 0 and queue_trace:
         warnings.append("strict search audit saw no pop events")
 
     reachable_unpopped_frontier_items = [
@@ -744,6 +769,8 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     stop_policy_result = audit_stop_policy(state, reachable_unpopped_frontier_items, candidate_count)
     errors.extend(stop_policy_result.errors)
     warnings.extend(stop_policy_result.warnings)
+    if not queue_trace:
+        return ValidationResult(errors=errors, warnings=warnings), stats
     if stats["rankings"] == 0 and candidate_count > 0:
         warnings.append("strict search audit saw no candidate-rank events")
     if candidate_count >= 3:

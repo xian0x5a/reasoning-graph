@@ -12,7 +12,7 @@ from .audit import audit_state, expansion_gaps, stop_policy_severity
 from .costs import compute_costs, sorted_frontier, sorted_frontier_items
 from .frontier import expansion_signature, item_view, next_event_step, reconstruct_path, search_cursor
 from .models import CANDIDATE_STOP_OUTCOMES, DEFAULT_MAX_PROBE_CONCURRENCY, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
-from .policy import best_candidate_ids, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages, ungrounded_goal_answer_messages
+from .policy import best_candidate_ids, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
@@ -62,11 +62,10 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 1
 
 
+# Confidence alone gates a solved stop: minimum-candidate and empty-frontier gates pushed agents
+# into seeding rivals they never needed (countdown-island benchmark).
 STRICT_STOP_POLICY = {
-    "min_viable_candidates": 3,
     "belief_threshold": 0.8,
-    "max_live_frontier_items": 0,
-    "require_frontier_exhausted_for_epistemic_stop": True,
     "severity": "error",
 }
 
@@ -155,37 +154,9 @@ def cmd_seed(args: argparse.Namespace) -> int:
             return 1
         item.pop("parent", None)
 
-    existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
-    existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
     existing_frontier = {item.get("id") for item in state.get("frontier", []) if isinstance(item, dict)}
-    _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
-    _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
     _ensure_unique_new_ids({str(item) for item in existing_frontier if item}, frontier_to_add, "frontier")
-    _ensure_object_ids(factors_to_update, "update_factors")
-
-    node_update_snapshots = _node_update_snapshots(state, node_updates)
-    factor_update_snapshots = _factor_update_snapshots(state, factors_to_update)
-    updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
-    state.setdefault("nodes", []).extend(nodes_to_add)
-    state.setdefault("edges", []).extend(edges_to_add)
-    factors = state.setdefault("factors", [])
-    if not isinstance(factors, list):
-        raise ValueError("factors must be a list before seed can update it")
-    factor_indexes: dict[str, int] = {}
-    for index, factor in enumerate(factors):
-        if not isinstance(factor, dict) or not isinstance(factor.get("id"), str) or not factor.get("id"):
-            continue
-        factor_id = str(factor["id"])
-        if factor_id in factor_indexes:
-            raise ValueError(f"factors has duplicate id {factor_id}")
-        factor_indexes[factor_id] = index
-    for factor in factors_to_update:
-        factor_id = str(factor["id"])
-        if factor_id in factor_indexes:
-            factors[factor_indexes[factor_id]] = factor
-        else:
-            factor_indexes[factor_id] = len(factors)
-            factors.append(factor)
+    patch_trace = _apply_graph_patch(state, nodes_to_add, node_updates, edges_to_add, factors_to_update)
     supersede_events: list[dict[str, Any]] = []
     if is_driver_seed:
         frontier_to_add, supersede_events = _dedupe_frontier_additions(state, set(cursor["active_ids"]), frontier_to_add)
@@ -205,9 +176,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
                 "add_edges": [edge["id"] for edge in edges_to_add],
                 "add_frontier": [item["id"] for item in frontier_to_add],
                 "update_factors": [factor["id"] for factor in factors_to_update],
-                **({"updated_nodes": updated_node_specs} if updated_node_specs else {}),
-                **({"updated_node_snapshots": node_update_snapshots} if node_update_snapshots else {}),
-                **({"updated_factor_snapshots": factor_update_snapshots} if factor_update_snapshots else {}),
+                **patch_trace,
             }
         )
         for supersede_event in supersede_events:
@@ -222,6 +191,119 @@ def cmd_seed(args: argparse.Namespace) -> int:
         print(f"warning: {warning}", file=sys.stderr)
 
     dump_state(state, args.output, default_in_place_source(args))
+    return 0
+
+
+RECORD_PATCH_FIELDS = {"nodes", "update_nodes", "edges", "factors", "reason"}
+
+
+def _apply_graph_patch(
+    state: dict[str, Any],
+    nodes_to_add: list[dict[str, Any]],
+    node_updates: list[dict[str, Any]],
+    edges_to_add: list[dict[str, Any]],
+    factors_to_update: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Add nodes/edges and upsert factors; return the event fields that make the change auditable."""
+    existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
+    existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
+    _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
+    _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
+    _ensure_object_ids(factors_to_update, "update_factors")
+
+    node_update_snapshots = _node_update_snapshots(state, node_updates)
+    factor_update_snapshots = _factor_update_snapshots(state, factors_to_update)
+    updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
+    state.setdefault("nodes", []).extend(nodes_to_add)
+    state.setdefault("edges", []).extend(edges_to_add)
+    factors = state.setdefault("factors", [])
+    if not isinstance(factors, list):
+        raise ValueError("factors must be a list before a patch can update it")
+    factor_indexes: dict[str, int] = {}
+    for index, factor in enumerate(factors):
+        if not isinstance(factor, dict) or not isinstance(factor.get("id"), str) or not factor.get("id"):
+            continue
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            raise ValueError(f"factors has duplicate id {factor_id}")
+        factor_indexes[factor_id] = index
+    for factor in factors_to_update:
+        factor_id = str(factor["id"])
+        if factor_id in factor_indexes:
+            factors[factor_indexes[factor_id]] = factor
+        else:
+            factor_indexes[factor_id] = len(factors)
+            factors.append(factor)
+    return {
+        **({"updated_nodes": updated_node_specs} if updated_node_specs else {}),
+        **({"updated_node_snapshots": node_update_snapshots} if node_update_snapshots else {}),
+        **({"updated_factor_snapshots": factor_update_snapshots} if factor_update_snapshots else {}),
+    }
+
+
+def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
+    """Refresh <state>.html beside the written state so a human can watch progress."""
+    target = args.output or args.state
+    if target == "-":
+        return
+    document = html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid")
+    write_output_text(document, str(Path(target).with_suffix(".html")))
+
+
+def cmd_record(args: argparse.Namespace) -> int:
+    """Append graph progress without the frontier queue, then refresh the human-facing view."""
+    state = load_state(args.state)
+    if search_cursor(state)["stopped"]:
+        print("error: search already has a stop event; record cannot append work", file=sys.stderr)
+        return 1
+    patch = load_state(args.patch)
+    if not isinstance(patch, dict):
+        raise ValueError("record patch must be a JSON object")
+    patch_errors = patch_schema_errors(patch)
+    if patch_errors:
+        for error in patch_errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    unsupported_fields = sorted(set(patch) - RECORD_PATCH_FIELDS)
+    if unsupported_fields:
+        print(f"error: record patch field(s) not allowed: {', '.join(unsupported_fields)}", file=sys.stderr)
+        return 1
+    reason = str(patch.get("reason") or "").strip()
+    if not reason:
+        print("error: record patch requires reason: what this step did", file=sys.stderr)
+        return 1
+
+    nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    edges_to_add = _object_list(patch.get("edges"), "edges")
+    factors_to_update = _object_list(patch.get("factors"), "factors")
+    patch_trace = _apply_graph_patch(
+        state, nodes_to_add, _node_update_list(patch.get("update_nodes"), "update_nodes"), edges_to_add, factors_to_update
+    )
+    events = state.setdefault("events", [])
+    if not isinstance(events, list):
+        raise ValueError("events must be a list before record can append")
+    events.append(
+        {
+            "step": next_event_step(state),
+            "action": "record",
+            "reason": reason,
+            "add_nodes": [node["id"] for node in nodes_to_add],
+            "add_edges": [edge["id"] for edge in edges_to_add],
+            "update_factors": [factor["id"] for factor in factors_to_update],
+            **patch_trace,
+        }
+    )
+
+    result = validate_state(state)
+    for error in result.errors:
+        print(f"error: {error}", file=sys.stderr)
+    if result.errors:
+        return 1
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    dump_state(state, args.output, default_in_place_source(args))
+    write_live_view(state, args)
     return 0
 
 
@@ -1038,13 +1120,13 @@ def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
             )
             return 1
     if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
-        ungrounded = ungrounded_goal_answer_messages(state)
-        for message in ungrounded:
-            print(f"error: stop outcome {outcome!r} requires an evidence-grounded answer; {message}", file=sys.stderr)
-        if ungrounded:
+        unmet = confidence_stop_messages(state)
+        for message in unmet:
+            print(f"error: stop outcome {outcome!r} requires a grounded, confident answer; {message}", file=sys.stderr)
+        if unmet:
             print(
-                "error: test those claims and record supporting observations, derive them from grounded premises, "
-                "or stop with a non-confidence outcome such as budget_exhausted and report them as open hypotheses",
+                "error: record the missing results or supporting observations, "
+                "or stop with a non-confidence outcome such as inconclusive or budget_exhausted and report the open hypotheses",
                 file=sys.stderr,
             )
             return 1
@@ -1137,6 +1219,12 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--strict", action="store_true", help="shortcut for --profile strict")
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
+
+    record = sub.add_parser("record", help="append graph progress without the frontier queue and refresh <state>.html")
+    record.add_argument("state", help="state JSON path, or - for stdin")
+    record.add_argument("--patch", required=True, help="patch JSON path with reason and nodes/update_nodes/edges/factors, or - for stdin")
+    record.add_argument("-o", "--output", help="write updated state to path")
+    record.set_defaults(func=cmd_record)
 
     seed = sub.add_parser("seed", help="apply root ledger/frontier seed patch and optional node updates")
     seed.add_argument("state", help="state JSON path, or - for stdin")

@@ -319,3 +319,39 @@ def strongest_grounded_candidate_belief(state: dict[str, Any]) -> float:
     return max((belief for belief in beliefs if belief is not None), default=0.0)
 
 
+
+
+def below_threshold_messages(state: dict[str, Any]) -> list[str]:
+    """Explain a confidence stop whose strongest grounded candidate misses stop_policy.belief_threshold."""
+
+    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
+    threshold = probability_from_value(policy.get("belief_threshold"))
+    if threshold is None:
+        return []
+    strongest = strongest_grounded_candidate_belief(state)
+    if strongest >= threshold:
+        return []
+    return [f"strongest grounded candidate belief {strongest:.3g} < stop_policy.belief_threshold {threshold:.3g}"]
+
+
+def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
+    """Name tests with no result observation; a failed or inconclusive probe still records one."""
+
+    nodes = by_id(state.get("nodes", []), "node")
+    tests_with_results = {
+        edge.get("from")
+        for edge in state.get("edges", [])
+        if isinstance(edge, dict)
+        and edge.get("type") == "leads_to"
+        and nodes.get(edge.get("to"), {}).get("type") == "observation"
+    }
+    missing = sorted(node_id for node_id, node in nodes.items() if node.get("type") == "test" and node_id not in tests_with_results)
+    if not missing:
+        return []
+    return [f"test(s) without a recorded result observation: {', '.join(missing)}"]
+
+
+def confidence_stop_messages(state: dict[str, Any]) -> list[str]:
+    """Everything a solved/candidate_threshold_met stop must satisfy beyond answering each goal."""
+
+    return ungrounded_goal_answer_messages(state) + below_threshold_messages(state) + unrecorded_test_messages(state)
