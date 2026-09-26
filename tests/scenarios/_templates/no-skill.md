@@ -8,3 +8,4 @@ Rules:
 - Do not use the `reasoning-graph` skill or helper scripts.
 - Use only facts from the problem file and local assets it references.
 - Flag uncertainty and explain why leading alternatives lose.
+- Keep all working files under the current directory and write the final answer to `answer.md`.

@@ -8,3 +8,4 @@ Rules:
 - Use only facts from the problem file and local assets it references.
 - Return the answer requested by the problem file.
 - Include the graph artifact path when graph output is generated.
+- Keep all working files, including graph state and output, under the current directory and write the final answer to `answer.md`.

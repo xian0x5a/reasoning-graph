@@ -57,6 +57,16 @@ Recommended validator sections:
 
 Keep validators in Markdown for human review. Add machine-readable validator files only when a runner needs them; if so, put them beside `validator.md` with explicit names like `validator.json`.
 
+## Running an arm
+
+`tests/scenarios/bench.sh` runs one arm on one scenario:
+
+1. `bench.sh prepare <scenario> <arm> <run-id>` creates a scratch workspace outside the repo (default `/tmp/rg-bench/<scenario>/<arm>/<run-id>/`). It holds only the problem file, any assets, the rendered `prompt.md`, and `meta.json` with the skill commit. The agent works there so it cannot read `validator.md` or the skill source.
+2. Start the agent with that workspace as its cwd and its session log in `<workspace>/session`, then send `prompt.md` as the first message. For pi: `pi --session-dir <workspace>/session`.
+3. `bench.sh collect <scenario> <arm> <run-id>` copies the workspace (answer, graph state, transcript) to ignored `test-results/<scenario>/<arm>/<run-id>/`.
+
+Keep the skill commit fixed across the runs being compared; `meta.json` records it.
+
 ## Run metrics
 
 Score every run on the same sheet, whichever arm produced it:
