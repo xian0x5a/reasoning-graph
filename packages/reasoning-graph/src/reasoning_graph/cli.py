@@ -14,6 +14,7 @@ from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, ST
 from .policy import best_candidate_ids, candidate_stop_messages, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
+from .source_quotes import quote_mismatch_messages
 from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
 from .validation import validate_state
 
@@ -243,9 +244,19 @@ def cmd_record(args: argparse.Namespace) -> int:
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     factors_to_update = _object_list(patch.get("factors"), "factors")
-    patch_trace = _apply_graph_patch(
-        state, nodes_to_add, _node_update_list(patch.get("update_nodes"), "update_nodes"), edges_to_add, factors_to_update
-    )
+    node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
+    patch_trace = _apply_graph_patch(state, nodes_to_add, node_updates, edges_to_add, factors_to_update)
+    touched_node_ids = {node["id"] for node in nodes_to_add} | {update["id"] for update in node_updates}
+    source_base_dir = Path(args.state).parent if args.state != "-" else Path.cwd()
+    quote_errors = [
+        message
+        for node_id in sorted(touched_node_ids)
+        for message in quote_mismatch_messages(by_id(state["nodes"], "nodes")[node_id], source_base_dir)
+    ]
+    if quote_errors:
+        for message in quote_errors:
+            print(f"error: {message}", file=sys.stderr)
+        return 1
     events = state.setdefault("events", [])
     if not isinstance(events, list):
         raise ValueError("events must be a list before record can append")

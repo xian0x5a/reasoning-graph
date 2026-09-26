@@ -130,6 +130,42 @@ class RecordModeTests(unittest.TestCase):
                 self.assertEqual(rejected.returncode, 1, rejected.stdout)
                 self.assertIn("belief", rejected.stderr)
 
+    def test_record_checks_quotes_against_a_local_source_file(self) -> None:
+        # Issue #35: stitched or trimmed quotes passed the reviewer, so the CLI checks them verbatim.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            Path(tmp_dir, "case.md").write_text(
+                "## Section 8\n\n"
+                "- Railing screws partly sawed or filed; not fresh? maybe bright metal visible.\n"
+                "- Dr. Saye was seen with Mira, then “checking sedatives” until 20:43.\n\n"
+                "> Four bells argue, three bells lie,  \n"
+                "> two bells swear, and one asks why.\n",
+                encoding="utf-8",
+            )
+
+            def observation(node_id: str, quote: str, source: str = "case.md Section 8") -> dict:
+                return {"id": node_id, "type": "observation", "text": "Seen in the case file", "source": source, "quote": quote, "prior": 0.9}
+
+            # Line breaks, blockquote markers, quote-mark style, and ellipsis-joined fragments are not edits.
+            self.ok(self.record(state_path, {"reason": "Read the case file", "nodes": [
+                observation("O1", "Four bells argue, three bells lie, two bells swear"),
+                observation("O2", "Railing screws partly sawed or filed ... then 'checking sedatives' until 20:43"),
+            ]}))
+            # A source that is not a local file cannot be checked and stays free-form.
+            self.ok(self.record(state_path, {"reason": "Noted a report", "nodes": [
+                observation("O3", "anything", source="https://example.com/report"),
+            ]}))
+
+            events_before = len(json.loads(state_path.read_text(encoding="utf-8"))["events"])
+            trimmed_hedge = self.record(state_path, {"reason": "r", "nodes": [observation("O4", "Railing screws partly sawed or filed; bright metal visible")]})
+            stitched_update = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "O1", "set": {"quote": "Section 8: Railing screws partly sawed"}}]})
+
+            for rejected, node_id in ((trimmed_hedge, "O4"), (stitched_update, "O1")):
+                self.assertEqual(rejected.returncode, 1, rejected.stdout)
+                self.assertIn(node_id, rejected.stderr)
+                self.assertIn("case.md", rejected.stderr)
+            self.assertEqual(len(json.loads(state_path.read_text(encoding="utf-8"))["events"]), events_before)
+
     def test_stale_belief_fails_validation_until_refreshed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
