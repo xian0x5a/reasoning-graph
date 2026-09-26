@@ -50,7 +50,6 @@ class NodeVocabularyTests(unittest.TestCase):
                 {"id": "O1H1", "from": "O1", "to": "H1", "type": "leads_to", "reasoning": "The observation establishes the step."},
                 {"id": "H1G1", "from": "H1", "to": "G1", "type": "leads_to", "reasoning": "The step is taken as the answer."},
             ],
-            "frontier": [],
         }
         for label, state in {"prior-backed": prior_backed, "premise-backed": premise_backed}.items():
             with self.subTest(hypothesis=label):

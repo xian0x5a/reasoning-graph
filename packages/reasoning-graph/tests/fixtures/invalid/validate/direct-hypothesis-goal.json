@@ -33,6 +33,5 @@
       "type": "leads_to",
       "reasoning": "The step is taken as the answer."
     }
-  ],
-  "frontier": []
+  ]
 }

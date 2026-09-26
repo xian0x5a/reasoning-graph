@@ -60,14 +60,5 @@
       "type": "answers",
       "reasoning": "The candidate identifies a cause for the outage as requested by the goal."
     }
-  ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "cost_components": {
-        "truth": "auto"
-      }
-    }
   ]
 }

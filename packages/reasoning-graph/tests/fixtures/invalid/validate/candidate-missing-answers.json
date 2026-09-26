@@ -27,14 +27,5 @@
       "type": "leads_to",
       "reasoning": "The target conclusion depends on this premise."
     }
-  ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "cost_components": {
-        "truth": "auto"
-      }
-    }
   ]
 }

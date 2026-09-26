@@ -12,17 +12,13 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
-from reasoning_graph.costs import compute_costs, likelihood_ratio_from_likelihood
+from reasoning_graph.costs import likelihood_ratio_from_likelihood, node_effective_truth_costs
 from reasoning_graph.state import dump_state
 from reasoning_graph.validation import validate_state
 
 
-def frontier_truth_cost(state: dict, item_id: str = "Q1") -> float:
-    costed = compute_costs(state)
-    for item in costed["frontier"]:
-        if item["id"] == item_id:
-            return float(item["truth_cost"])
-    raise AssertionError(f"missing frontier item {item_id}")
+def truth_cost(state: dict, node_id: str = "A1") -> float:
+    return node_effective_truth_costs(state)[node_id]
 
 
 class ReasoningGraphCostInvariantTests(unittest.TestCase):
@@ -35,7 +31,6 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
             ],
             "edges": edges or [],
             "factors": factors or [],
-            "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
         }
 
     def test_posterior_overrides_prior_edges_and_factors(self) -> None:
@@ -58,27 +53,25 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         )
         state["nodes"][2]["posterior"] = 0.3
 
-        self.assertAlmostEqual(frontier_truth_cost(state), -math.log(0.3), places=6)
+        self.assertAlmostEqual(truth_cost(state), -math.log(0.3), places=6)
 
     def test_recomputed_costs_track_later_evidence(self) -> None:
-        # A persisted state must not freeze truth: "auto" into a number, or later
-        # contradictions would never change frontier priority.
+        # Belief is derived on every read, never cached in state, so later evidence always counts.
         state = self.base_state(prior=0.5)
-        first = frontier_truth_cost(state)
+        first = truth_cost(state)
         state["edges"].append(
             {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25, "reasoning": "The signal is less likely when A1 holds."}
         )
         state = json.loads(json.dumps(state))
 
-        second = frontier_truth_cost(state)
+        second = truth_cost(state)
 
-        self.assertEqual(state["frontier"][0]["cost_components"]["truth"], "auto")
         self.assertAlmostEqual(first, -math.log(0.5), places=6)
         self.assertAlmostEqual(second, -math.log(0.2), places=6)
 
     def test_supporting_likelihood_update_lowers_truth_cost(self) -> None:
-        baseline = frontier_truth_cost(self.base_state(prior=0.5))
-        supported = frontier_truth_cost(
+        baseline = truth_cost(self.base_state(prior=0.5))
+        supported = truth_cost(
             self.base_state(
                 prior=0.5,
                 edges=[{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3}],
@@ -89,8 +82,8 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         self.assertAlmostEqual(supported, -math.log(0.75), places=6)
 
     def test_contradicting_likelihood_update_raises_truth_cost(self) -> None:
-        baseline = frontier_truth_cost(self.base_state(prior=0.5))
-        contradicted = frontier_truth_cost(
+        baseline = truth_cost(self.base_state(prior=0.5))
+        contradicted = truth_cost(
             self.base_state(
                 prior=0.5,
                 edges=[{"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.25}],
@@ -114,16 +107,16 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
             "reason": "Correlated evidence should count once as grouped LR 4.",
         }
 
-        grouped = frontier_truth_cost(self.base_state(prior=0.5, edges=edges, factors=[factor]))
-        independent = frontier_truth_cost(self.base_state(prior=0.5, edges=edges))
+        grouped = truth_cost(self.base_state(prior=0.5, edges=edges, factors=[factor]))
+        independent = truth_cost(self.base_state(prior=0.5, edges=edges))
 
         self.assertGreater(grouped, independent)
         self.assertAlmostEqual(grouped, -math.log(0.8), places=6)
         self.assertAlmostEqual(independent, -math.log(16 / 17), places=6)
 
     def test_neutral_explanatory_edges_do_not_change_truth_cost(self) -> None:
-        baseline = frontier_truth_cost(self.base_state(prior=0.5))
-        explanatory = frontier_truth_cost(
+        baseline = truth_cost(self.base_state(prior=0.5))
+        explanatory = truth_cost(
             self.base_state(
                 prior=0.5,
                 edges=[{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports"}],
@@ -131,15 +124,6 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         )
 
         self.assertAlmostEqual(explanatory, baseline, places=6)
-
-    def test_cost_components_reject_non_finite_and_negative_values(self) -> None:
-        for component in ("truth", "verification", "effort_budget", "reasoning_complexity", "constraint_tension"):
-            for invalid in (math.nan, math.inf, -math.inf, -0.1, 10**400):
-                with self.subTest(component=component, invalid=invalid):
-                    state = self.base_state()
-                    state["frontier"][0]["cost_components"][component] = invalid
-                    with self.assertRaises(ValueError):
-                        compute_costs(state)
 
     def test_inherited_tiny_belief_keeps_finite_cost_after_likelihood_update(self) -> None:
         for relation, ratio in (("supports", 2.0), ("contradicts", 5e-324)):
@@ -152,7 +136,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
                 state["nodes"][0]["prior"] = 1e-200
                 original_nodes = json.loads(json.dumps(state["nodes"]))
 
-                cost = frontier_truth_cost(state)
+                cost = truth_cost(state)
 
                 self.assertTrue(math.isfinite(cost))
                 self.assertAlmostEqual(cost, -2 * math.log(1e-200) - math.log(ratio), places=6)
@@ -174,7 +158,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
                     ]
                 )
                 with self.assertRaises(ValueError):
-                    compute_costs(state)
+                    node_effective_truth_costs(state)
 
     def test_likelihood_ratio_from_likelihood_rejects_extreme_overflow(self) -> None:
         with self.assertRaisesRegex(ValueError, "ratio must be finite"):
@@ -186,7 +170,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         self.assertTrue(math.isfinite(tiny_ratio))
         self.assertGreater(tiny_ratio, 0.0)
 
-    def test_compute_costs_rejects_extreme_edge_ratio_with_explicit_posterior(self) -> None:
+    def test_belief_rejects_extreme_edge_ratio_with_explicit_posterior(self) -> None:
         state = self.base_state(
             edges=[
                 {
@@ -201,7 +185,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         state["nodes"][2]["posterior"] = 0.7
 
         with self.assertRaisesRegex(ValueError, "ratio must be finite"):
-            compute_costs(state)
+            node_effective_truth_costs(state)
 
     def test_validator_reports_non_finite_json_numbers(self) -> None:
         for invalid in (math.nan, math.inf, -math.inf):
@@ -224,7 +208,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(any("prior must be numeric" in error for error in result.errors))
-        self.assertTrue(any("cost computation failed" in error for error in result.errors))
+        self.assertTrue(any("belief computation failed" in error for error in result.errors))
 
     def test_state_serialization_rejects_non_finite_values_before_writing(self) -> None:
         output = io.StringIO()

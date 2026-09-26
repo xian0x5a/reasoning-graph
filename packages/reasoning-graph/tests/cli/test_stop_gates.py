@@ -1,5 +1,5 @@
 """Stop gates learned from the Spooky Manor run: unanswered goals (#29), answer-to-candidate
-matching (#30), strict test results (#31), and on-graph branching (#32)."""
+matching (#30), and strict test results (#31)."""
 
 import json
 import subprocess
@@ -37,7 +37,7 @@ ROOM_SEED = {
         {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2, "reasoning": "Two-by-three panes match Braille cells."},
         {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "The Braille reading motivates a decode probe."},
     ],
-    "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}}],
+    "reason": "Read room 1",
 }
 
 ROOM_ONE_SOLVED = {
@@ -57,7 +57,7 @@ ROOM_ONE_SOLVED = {
         {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "likelihood_ratio": 1.5, "reasoning": "Square waves suggest bit tracks."},
         {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts", "reasoning": "The 5-bit reading motivates a decode probe."},
     ],
-    "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto", "verification": 0.3}}],
+    "reason": "Solved room 1 and read room 2",
 }
 
 
@@ -67,30 +67,28 @@ class SpookyManorFlow(unittest.TestCase):
     def start_trail(self, tmp_dir: str) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         self.assertEqual(run_cli("init", "--goal", "Find the URL path into the manor", "--strict", "-o", str(state_path)).returncode, 0)
-        self.ok(run_cli("seed", str(state_path), "--patch", str(write_json(Path(tmp_dir) / "seed.json", ROOM_SEED))))
-        self.ok(run_cli("next", str(state_path), "--pop"))
-        self.ok(run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(write_json(Path(tmp_dir) / "room1.json", ROOM_ONE_SOLVED))))
-        self.ok(run_cli("next", str(state_path), "--pop"))
+        self.ok(self.record(tmp_dir, state_path, "room1", ROOM_SEED))
+        self.ok(self.record(tmp_dir, state_path, "room2", ROOM_ONE_SOLVED))
         return state_path
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def expand(self, tmp_dir: str, state_path: Path, item: str, patch: dict) -> subprocess.CompletedProcess[str]:
-        return run_cli("expand", str(state_path), "--item", item, "--patch", str(write_json(Path(tmp_dir) / f"{item}.json", patch)))
+    def record(self, tmp_dir: str, state_path: Path, name: str, patch: dict) -> subprocess.CompletedProcess[str]:
+        return run_cli("record", str(state_path), "--patch", str(write_json(Path(tmp_dir) / f"{name}.json", patch)))
 
 
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
         "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
         "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
-        "no_new_work_reason": "Profile recorded; decode reasoning continues off-graph.",
+        "reason": "Profiled the room 2 waveform",
     }
 
     def test_solved_stop_is_rejected_while_an_accepted_goal_is_unanswered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            self.ok(self.expand(tmp_dir, state_path, "Q2", self.PROFILE_ONLY))
+            self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
             before = state_path.read_text(encoding="utf-8")
 
             stopped = run_cli("stop", str(state_path), "--reason", "all rooms solved", "--outcome", "solved")
@@ -106,7 +104,7 @@ class UnansweredGoalTests(SpookyManorFlow):
     def test_parent_goal_is_not_answered_until_required_sub_goal_is(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            self.ok(self.expand(tmp_dir, state_path, "Q2", self.PROFILE_ONLY))
+            self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"accepted_goals": ["G1"]}
             write_json(state_path, state)
@@ -120,7 +118,7 @@ class UnansweredGoalTests(SpookyManorFlow):
     def test_optional_goal_does_not_block_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            self.ok(self.expand(tmp_dir, state_path, "Q2", self.PROFILE_ONLY))
+            self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
@@ -133,12 +131,12 @@ class UnansweredGoalTests(SpookyManorFlow):
     def test_stop_review_and_audit_name_the_unanswered_goal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            self.ok(self.expand(tmp_dir, state_path, "Q2", self.PROFILE_ONLY))
+            self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
             state = json.loads(state_path.read_text(encoding="utf-8"))
             # Forge the terminal events by hand to bypass the CLI preflight.
             step = state["events"][-1]["step"]
             state["events"].extend([
-                {"step": step + 1, "action": "rank", "item": "Q2", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
+                {"step": step + 1, "action": "rank", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
                 {"step": step + 2, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved"},
             ])
             write_json(state_path, state)
@@ -220,131 +218,27 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
 
 
 class StrictTestResultTests(SpookyManorFlow):
-    def test_strict_test_expansion_requires_a_result_node(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            before = state_path.read_text(encoding="utf-8")
-
-            no_result = self.expand(tmp_dir, state_path, "Q2", {
-                "nodes": [{"id": "A3", "type": "hypothesis", "text": "Maybe ITA2", "prior": 0.4}],
-                "edges": [{"id": "T2-A3", "from": "T2", "to": "A3", "type": "prompts", "reasoning": "The decode attempt suggests ITA2."}],
-                "frontier": [{"id": "Q3", "node": "A3", "cost_components": {"truth": "auto"}}],
-            })
-
-            self.assertEqual(no_result.returncode, 1, no_result.stdout)
-            self.assertIn("expanded test T2 recorded no result", no_result.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
-
-    def test_strict_test_expansion_accepts_observation_result(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            result = self.expand(tmp_dir, state_path, "Q2", {
-                "nodes": [{"id": "O4", "type": "observation", "text": "ITA2 decode gives garbage; URL probe 404", "source": "probe", "prior": 0.95}],
-                "edges": [
-                    {"id": "T2-O4", "from": "T2", "to": "O4", "type": "leads_to", "reasoning": "The probe produced this result."},
-                    {"id": "O4-A2", "from": "O4", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "A failed decode is less likely if the reading is right."},
-                ],
-                "no_new_work_reason": "Failed probe recorded; sibling interpretations already exhausted for this smoke test.",
-            })
-            self.ok(result)
-
-    def test_strict_test_expansion_rejects_hypothesis_as_result(self) -> None:
+    def test_solved_stop_rejects_a_hypothesis_as_a_test_result(self) -> None:
         # A conclusion drawn from a probe is not what was seen; the observation must be recorded first.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            before = state_path.read_text(encoding="utf-8")
-            result = self.expand(tmp_dir, state_path, "Q2", {
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["goal_policy"] = {"optional_goals": ["G2"]}
+            write_json(state_path, state)
+            self.ok(self.record(tmp_dir, state_path, "conclusion", {
+                "reason": "Concluded from the decode attempt",
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "prior": 0.9}],
                 "edges": [
                     {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to", "reasoning": "The probe suggests this conclusion."},
                     {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
                 ],
-                "no_new_work_reason": "Conclusion recorded without its observation.",
-            })
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("expanded test T2 recorded no result", result.stderr)
-            self.assertIn("add an observation node", result.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
-
-    def test_missing_test_result_is_only_a_warning_without_strict_policy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            state["stop_policy"]["severity"] = "warning"
-            write_json(state_path, state)
-
-            result = self.expand(tmp_dir, state_path, "Q2", {"no_new_work_reason": "Nothing recorded for this loose run."})
-
-            self.ok(result)
-            self.assertIn("expanded test T2 recorded no result", result.stderr)
-
-
-class OnGraphBranchingTests(SpookyManorFlow):
-    OFF_GRAPH_EXPANSION = {
-        "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
-        "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
-    }
-
-    def test_strict_expansion_without_new_work_needs_a_recorded_reason(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            before = state_path.read_text(encoding="utf-8")
-
-            result = self.expand(tmp_dir, state_path, "Q2", self.OFF_GRAPH_EXPANSION)
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("added no frontier work and no candidate", result.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
-
-            with_siblings = self.expand(tmp_dir, state_path, "Q2", {
-                **self.OFF_GRAPH_EXPANSION,
-                "nodes": self.OFF_GRAPH_EXPANSION["nodes"] + [
-                    {"id": "A3", "type": "hypothesis", "text": "Tracks are ITA2 5-bit", "prior": 0.4},
-                    {"id": "A4", "type": "hypothesis", "text": "Tracks are A=1..26 with a bit-order permutation", "prior": 0.4},
-                ],
-                "edges": self.OFF_GRAPH_EXPANSION["edges"] + [
-                    {"id": "E4-A3", "from": "E4", "to": "A3", "type": "prompts", "reasoning": "Twenty 5-bit tracks fit ITA2."},
-                    {"id": "E4-A4", "from": "E4", "to": "A4", "type": "prompts", "reasoning": "Twenty 5-bit tracks also fit alphabet indexes."},
-                ],
-                "frontier": [
-                    {"id": "Q3", "node": "A3", "cost_components": {"truth": "auto", "verification": 0.2}},
-                    {"id": "Q4", "node": "A4", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-            })
-            self.ok(with_siblings)
-            frontier = run_cli("frontier", str(state_path))
-            self.assertIn("Q3", frontier.stdout)
-            self.assertIn("Q4", frontier.stdout)
-
-    def test_narrow_expansions_are_not_flagged_for_branching_breadth(self) -> None:
-        # Branch breadth is the agent's call: forced siblings pushed runs into busywork
-        # (Spooky room 8, Muse Spark), so audit must not nag about child counts.
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            self.ok(self.expand(tmp_dir, state_path, "Q2", {
-                **self.OFF_GRAPH_EXPANSION,
-                "nodes": self.OFF_GRAPH_EXPANSION["nodes"] + [
-                    {"id": "A3", "type": "hypothesis", "text": "Tracks are ITA2 5-bit", "prior": 0.4},
-                ],
-                "edges": self.OFF_GRAPH_EXPANSION["edges"] + [
-                    {"id": "E4-A3", "from": "E4", "to": "A3", "type": "prompts", "reasoning": "Twenty 5-bit tracks fit ITA2."},
-                ],
-                "frontier": [{"id": "Q3", "node": "A3", "cost_components": {"truth": "auto", "verification": 0.2}}],
             }))
-            self.ok(run_cli("next", str(state_path), "--pop"))
-            self.ok(self.expand(tmp_dir, state_path, "Q3", {"no_new_work_reason": "ITA2 decode needs no further split."}))
-            self.ok(run_cli("stop", str(state_path), "--outcome", "frontier_exhausted", "--reason", "Frontier exhausted."))
+            self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
 
-            audit = run_cli("audit", str(state_path))
+            stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
 
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-            self.assertNotIn("branch", audit.stdout + audit.stderr)
-
-    def test_audit_reports_peak_live_frontier(self) -> None:
-        audit = run_cli("audit", str(FIXTURE))
-
-        self.assertEqual(audit.returncode, 0, audit.stderr)
-        self.assertIn("peak_live_frontier=2", audit.stdout)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout)
+            self.assertIn("without a recorded result observation: T2", stopped.stderr)
 
 
 if __name__ == "__main__":
@@ -355,24 +249,16 @@ class GroundedPathTests(unittest.TestCase):
     """High-confidence stops need a candidate whose belief is earned from observations,
     not carried by hand-set priors on the claims it rests on."""
 
-    SEED = {
-        "nodes": [{"id": "T1", "type": "test", "text": "Probe the system"}],
-        "edges": [],
-        "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto", "verification": 0.2}}],
-    }
-
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def expanded_state(
-        self, tmp_dir: str, nodes: list[dict], edges: list[dict], frontier: list[dict] | None = None, candidate_prior: float | None = None
-    ) -> Path:
+    def recorded_state(self, tmp_dir: str, nodes: list[dict], edges: list[dict], candidate_prior: float | None = None) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         self.ok(run_cli("init", "--goal", "Explain the failure", "--strict", "-o", str(state_path)))
-        self.ok(run_cli("seed", str(state_path), "--patch", str(write_json(Path(tmp_dir) / "seed.json", self.SEED))))
-        self.ok(run_cli("next", str(state_path), "--pop"))
         patch = {
+            "reason": "Probed the system",
             "nodes": [
+                {"id": "T1", "type": "test", "text": "Probe the system"},
                 {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe", "prior": 0.95},
                 {"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}
                 | ({"prior": candidate_prior} if candidate_prior is not None else {}),
@@ -383,10 +269,8 @@ class GroundedPathTests(unittest.TestCase):
                 {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "The candidate explains the failure."},
                 *edges,
             ],
-            "frontier": frontier or [],
-            "no_new_work_reason": "The probe settled the chain under test.",
         }
-        self.ok(run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(write_json(Path(tmp_dir) / "expand.json", patch))))
+        self.ok(run_cli("record", str(state_path), "--patch", str(write_json(Path(tmp_dir) / "record.json", patch))))
         return state_path
 
     def stop(self, state_path: Path, outcome: str = "candidate_threshold_met") -> subprocess.CompletedProcess[str]:
@@ -407,7 +291,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_prior_only_hypothesis_blocks_threshold_and_solved_stops(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
 
             for outcome in ("candidate_threshold_met", "solved"):
                 stopped = self.stop(state_path, outcome)
@@ -417,12 +301,12 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_prior_only_path_may_stop_as_budget_exhausted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
             self.ok(self.stop(state_path, "budget_exhausted"))
 
     def test_prior_only_candidate_blocks_threshold_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(tmp_dir, [], [], candidate_prior=0.9)
+            state_path = self.recorded_state(tmp_dir, [], [], candidate_prior=0.9)
 
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
@@ -430,7 +314,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_contradiction_alone_does_not_ground_a_hypothesis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.99)],
                 [self.edge("O1", "H1", "contradicts", likelihood_ratio=0.8), self.edge("H1", "CS1", "leads_to")],
@@ -441,7 +325,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_net_supporting_evidence_grounds_a_hypothesis_despite_a_contradiction(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.6), {"id": "O2", "type": "observation", "text": "Odd log line", "source": "logs", "prior": 0.9}],
                 [
@@ -454,7 +338,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_elimination_recorded_as_support_grounds_the_survivor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.5), self.hypothesis("H2", 0.5)],
                 [
@@ -467,11 +351,11 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_premise_chain_is_grounded_only_when_every_premise_is(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            grounded = self.expanded_state(tmp_dir, [self.hypothesis("H1")], [self.edge("O1", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")])
+            grounded = self.recorded_state(tmp_dir, [self.hypothesis("H1")], [self.edge("O1", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")])
             self.ok(self.stop(grounded))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            mixed = self.expanded_state(
+            mixed = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H0", 0.99), self.hypothesis("H1")],
                 [self.edge("O1", "H1", "leads_to"), self.edge("H0", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")],
@@ -482,7 +366,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_support_from_an_ungrounded_hypothesis_does_not_ground_its_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.5), self.hypothesis("H2", 0.9)],
                 [self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
@@ -493,7 +377,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_support_from_a_grounded_hypothesis_grounds_its_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.5), self.hypothesis("H2")],
                 [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
@@ -502,7 +386,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_contradiction_from_an_ungrounded_source_still_weighs_against_grounding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
+            state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 0.95), self.hypothesis("H2", 0.5)],
                 [
@@ -514,16 +398,3 @@ class GroundedPathTests(unittest.TestCase):
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
             self.assertIn("H1", stopped.stderr)
-
-    def test_audit_does_not_count_an_ungrounded_candidate_toward_the_belief_threshold(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.expanded_state(
-                tmp_dir,
-                [self.hypothesis("H1", 0.95), {"id": "T2", "type": "test", "text": "Probe the alternative"}],
-                [self.edge("H1", "CS1", "leads_to"), self.edge("O1", "T2", "prompts")],
-                frontier=[{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto", "verification": 0.3}}],
-            )
-            self.ok(self.stop(state_path, "budget_exhausted"))
-
-            audited = run_cli("audit", str(state_path.with_name("stopped.json")))
-            self.assertIn("grounded", audited.stdout + audited.stderr)

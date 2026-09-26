@@ -370,6 +370,25 @@ def missing_review_messages(state: dict[str, Any]) -> list[str]:
     return []
 
 
+def too_few_candidates_messages(state: dict[str, Any]) -> list[str]:
+    """Opt-in breadth gate for when the user asked for alternatives; strict init never sets it."""
+
+    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
+    minimum = policy.get("min_viable_candidates")
+    if not isinstance(minimum, int) or minimum <= 0:
+        return []
+    viable = len(viable_candidate_ids(state))
+    if viable >= minimum:
+        return []
+    return [f"viable candidates {viable} < stop_policy.min_viable_candidates {minimum}"]
+
+
+def candidate_stop_messages(state: dict[str, Any]) -> list[str]:
+    """Everything a candidate-bearing stop must satisfy: each accepted goal answered, and requested breadth."""
+
+    return unanswered_goal_messages(state) + too_few_candidates_messages(state)
+
+
 def confidence_stop_messages(state: dict[str, Any]) -> list[str]:
     """Everything a solved/candidate_threshold_met stop must satisfy beyond answering each goal."""
 

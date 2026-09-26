@@ -44,53 +44,11 @@
       "reasoning": "The candidate proposes an answer to the accepted goal."
     }
   ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "parent": null,
-      "cost_components": {
-        "uncertainty": "auto",
-        "verification": 0.1
-      }
-    },
-    {
-      "id": "Q2",
-      "node": "A2",
-      "parent": null,
-      "cost_components": {
-        "uncertainty": "auto",
-        "verification": 0.1
-      }
-    },
-    {
-      "id": "Q3",
-      "node": "CS1",
-      "parent": "Q1",
-      "cost_components": {
-        "reasoning_complexity": 0.1
-      }
-    }
-  ],
   "events": [
     {
       "step": 1,
-      "action": "init",
-      "frontier": [
-        "Q1",
-        "Q2"
-      ]
-    },
-    {
-      "step": 2,
-      "action": "pop",
-      "item": "Q1",
-      "cost": 0.610826
-    },
-    {
-      "step": 3,
-      "action": "expand",
-      "item": "Q1",
+      "action": "record",
+      "reason": "Worked Q1",
       "add_nodes": [
         "CS1"
       ],
@@ -98,20 +56,11 @@
         "E1",
         "E2"
       ],
-      "add_frontier": [
-        "Q3"
-      ]
+      "update_factors": []
     },
     {
-      "step": 4,
-      "action": "pop",
-      "item": "Q3",
-      "cost": 0.610826
-    },
-    {
-      "step": 5,
+      "step": 2,
       "action": "rank",
-      "item": "Q3",
       "best": "CS1",
       "belief": 0.6,
       "candidates": [
@@ -123,15 +72,14 @@
       ]
     },
     {
-      "step": 6,
+      "step": 3,
       "action": "stop",
-      "reason": "CS1 answers G1 and explored sample frontier is complete",
+      "reason": "CS1 answers G1 and its premise chain is recorded",
       "outcome": "solved"
     }
   ],
   "stop_policy": {
     "min_viable_candidates": 3,
-    "max_live_frontier_items": 0,
     "severity": "error"
   },
   "report": {

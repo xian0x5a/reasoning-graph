@@ -22,13 +22,6 @@
       },
       "default": []
     },
-    "frontier": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/frontierItem"
-      },
-      "default": []
-    },
     "factors": {
       "type": "array",
       "items": {
@@ -55,9 +48,6 @@
     "stop_policy": {
       "$ref": "#/$defs/stopPolicy"
     },
-    "search_policy": {
-      "$ref": "#/$defs/searchPolicy"
-    },
     "report": {
       "$ref": "#/$defs/report"
     },
@@ -77,24 +67,6 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
-    },
-    "nonNegativeNumber": {
-      "type": "number",
-      "minimum": 0
-    },
-    "autoNumber": {
-      "anyOf": [
-        {
-          "type": "number",
-          "minimum": 0
-        },
-        {
-          "const": "auto"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "stringList": {
       "type": "array",
@@ -466,166 +438,6 @@
         ]
       }
     },
-    "costComponents": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "truth": {
-          "$ref": "#/$defs/autoNumber"
-        },
-        "uncertainty": {
-          "$ref": "#/$defs/autoNumber"
-        },
-        "verification": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "effort_budget": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "resource_budget": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "compute_budget": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "reasoning_complexity": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "constraint_tension": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        }
-      }
-    },
-    "frontierItem": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": [
-        "id",
-        "node"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
-        "node": {
-          "$ref": "#/$defs/id"
-        },
-        "parent": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/id"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "related": {
-          "$ref": "#/$defs/stringList"
-        },
-        "scratch": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "active_assumptions": {
-          "$ref": "#/$defs/stringList"
-        },
-        "scope": {},
-        "params": {},
-        "budget": {
-          "type": "object",
-          "additionalProperties": true,
-          "properties": {
-            "max_attempts": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "max_seconds": {
-              "type": "number",
-              "minimum": 0
-            },
-            "max_items": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "max_sources": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "stop_after": {
-              "type": "string"
-            }
-          }
-        },
-        "cost_components": {
-          "$ref": "#/$defs/costComponents"
-        },
-        "cost": {
-          "$ref": "#/$defs/costComponents"
-        },
-        "estimated_remaining_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "truth_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "work_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "base_search_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "heuristic_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "search_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "step_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "step_truth_cost": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        }
-      },
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "path_cost"
-            ]
-          },
-          {
-            "required": [
-              "next_action"
-            ]
-          },
-          {
-            "required": [
-              "expansion_hint"
-            ]
-          },
-          {
-            "required": [
-              "context"
-            ]
-          },
-          {
-            "required": [
-              "additional_info"
-            ]
-          },
-          {
-            "required": [
-              "focus"
-            ]
-          }
-        ]
-      }
-    },
     "event": {
       "type": "object",
       "additionalProperties": true,
@@ -640,54 +452,14 @@
         },
         "action": {
           "enum": [
-            "init",
             "record",
             "review",
-            "seed",
-            "pop",
-            "assign",
-            "expand",
-            "supersede",
             "rank",
             "stop"
           ]
         },
-        "frontier": {
-          "$ref": "#/$defs/stringList"
-        },
-        "item": {
-          "$ref": "#/$defs/id"
-        },
-        "replacement": {
-          "$ref": "#/$defs/id"
-        },
-        "agent": {
-          "type": "string",
-          "minLength": 1
-        },
-        "run_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "probe": {
-          "$ref": "#/$defs/id"
-        },
-        "concurrency_group": {
-          "type": "string",
-          "minLength": 1
-        },
-        "max_concurrency": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "node": {
-          "$ref": "#/$defs/id"
-        },
         "best": {
           "$ref": "#/$defs/id"
-        },
-        "cost": {
-          "type": "number"
         },
         "belief": {
           "type": "number",
@@ -727,7 +499,6 @@
             "solved",
             "candidate_threshold_met",
             "candidate_count_met",
-            "frontier_exhausted",
             "budget_exhausted",
             "blocked",
             "user_stopped",
@@ -738,9 +509,6 @@
           "$ref": "#/$defs/stringList"
         },
         "add_edges": {
-          "$ref": "#/$defs/stringList"
-        },
-        "add_frontier": {
           "$ref": "#/$defs/stringList"
         },
         "update_factors": {
@@ -770,74 +538,9 @@
               }
             ]
           }
-        },
-        "updated_node_snapshots": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true,
-            "required": [
-              "id",
-              "before"
-            ],
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/id"
-              },
-              "before": {
-                "type": "object"
-              }
-            }
-          }
-        },
-        "updated_factor_snapshots": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true,
-            "required": [
-              "id",
-              "before"
-            ],
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/id"
-              },
-              "before": {
-                "anyOf": [
-                  {
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "no_new_work_reason": {
-          "type": "string"
         }
       },
       "allOf": [
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "init"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "frontier"
-            ]
-          }
-        },
         {
           "if": {
             "properties": {
@@ -873,100 +576,6 @@
               "reviewer",
               "verdict",
               "findings"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "seed"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "reason",
-              "add_nodes",
-              "add_edges",
-              "add_frontier"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "pop"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "item",
-              "cost"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "assign"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "item"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "expand"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "item",
-              "add_nodes",
-              "add_edges",
-              "add_frontier"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "supersede"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "item",
-              "replacement",
-              "reason"
             ]
           }
         },
@@ -1082,13 +691,6 @@
         "belief_threshold": {
           "$ref": "#/$defs/probability"
         },
-        "max_live_frontier_items": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "require_frontier_exhausted_for_epistemic_stop": {
-          "type": "boolean"
-        },
         "require_review": {
           "type": "boolean",
           "description": "Confidence stops need a passing review event recorded after the last record event."
@@ -1098,19 +700,6 @@
             "warning",
             "error"
           ]
-        }
-      }
-    },
-    "searchPolicy": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "estimated_remaining_weight": {
-          "$ref": "#/$defs/nonNegativeNumber"
-        },
-        "max_probe_concurrency": {
-          "type": "integer",
-          "minimum": 1
         }
       }
     },
@@ -1211,9 +800,6 @@
         },
         "dimmed_branches": {
           "$ref": "#/$defs/stringList"
-        },
-        "frontier": {
-          "$ref": "#/$defs/stringList"
         }
       }
     }
@@ -1230,6 +816,16 @@
           {
             "required": [
               "premise_groups"
+            ]
+          },
+          {
+            "required": [
+              "frontier"
+            ]
+          },
+          {
+            "required": [
+              "search_policy"
             ]
           }
         ]

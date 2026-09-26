@@ -81,15 +81,5 @@
       },
       "reason": "Signals share one detector and should be grouped as correlated support."
     }
-  ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "cost_components": {
-        "truth": "auto",
-        "verification": 0.2
-      }
-    }
   ]
 }

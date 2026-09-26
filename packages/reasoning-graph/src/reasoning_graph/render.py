@@ -8,7 +8,6 @@ import math
 from typing import Any
 
 from .costs import (
-    compute_costs,
     node_belief_label,
     node_effective_truth_costs,
     node_truth_cost,
@@ -64,7 +63,7 @@ def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
         classes.setdefault(cls, set()).add(node_id)
     view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
     presentation = state.get("presentation", {}) if isinstance(state.get("presentation"), dict) else {}
-    for cls_name, key in (("winning", "winning_path"), ("dim", "dimmed_branches"), ("frontier", "frontier")):
+    for cls_name, key in (("winning", "winning_path"), ("dim", "dimmed_branches")):
         for node_id in view.get(key, []) if isinstance(view.get(key, []), list) else []:
             classes.setdefault(cls_name, set()).add(str(node_id))
     for node_id in presentation.get("highlight_nodes", []) if isinstance(presentation.get("highlight_nodes", []), list) else []:
@@ -254,7 +253,6 @@ def to_mermaid(
             "  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:3px;",
             "  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;",
             "  classDef bad fill:#fee2e2,stroke:#dc2626,stroke-width:2px;",
-            "  classDef frontier fill:#fafafa,stroke:#71717a,stroke-dasharray: 5 5;",
             "  classDef factor fill:#f1f5f9,stroke:#475569,stroke-dasharray: 3 3;",
             "",
         ]

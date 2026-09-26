@@ -61,14 +61,5 @@
       "type": "answers",
       "reasoning": "This candidate supplies the answer requested by the goal."
     }
-  ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "cost_components": {
-        "truth": "auto"
-      }
-    }
   ]
 }

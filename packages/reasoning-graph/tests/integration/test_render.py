@@ -77,7 +77,6 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A-B>A B", "from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
                 {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
-            "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
         }
         identities = render_identity_map(state)
@@ -126,7 +125,6 @@ class RenderIdentityTests(unittest.TestCase):
                 edge("H4", "leads_to", "CS2"),
                 edge("CS2", "answers", "G1"),
             ],
-            "frontier": [],
         }
         document = html_document(state, to_mermaid(state), render_mode="offline")
         focus_map = json.loads(re.search(r"candidateFocusMap = (\{.*?\});", document).group(1))
@@ -147,7 +145,6 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "CS1>G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "CS1 answers G1."},
                 {"id": "CS2>G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "CS2 answers G1."},
             ],
-            "frontier": [],
         }
         identities = render_identity_map(state)
         document = html_document(state, to_mermaid(state, identities=identities), render_mode="offline")

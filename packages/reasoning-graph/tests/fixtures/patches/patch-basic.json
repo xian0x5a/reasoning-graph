@@ -1,5 +1,5 @@
 {
-  "summary": "Add one candidate answer from A1.",
+  "reason": "Add one candidate answer from A1.",
   "nodes": [
     {
       "id": "CS2",
@@ -23,15 +23,6 @@
       "to": "G1",
       "type": "answers",
       "reasoning": "This candidate supplies the answer requested by the goal."
-    }
-  ],
-  "frontier": [
-    {
-      "id": "Q4",
-      "node": "CS2",
-      "cost_components": {
-        "reasoning_complexity": 0.1
-      }
     }
   ]
 }

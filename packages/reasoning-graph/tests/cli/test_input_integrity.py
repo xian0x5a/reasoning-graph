@@ -11,6 +11,8 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parents[1]
 FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
+# record refuses a stopped state, so in-place write tests start from one still open.
+UNSTOPPED_FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "minimal-state.json"
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -27,7 +29,7 @@ class MalformedStateInputTests(unittest.TestCase):
         "list": ("[]", "state must be an object"),
         "null": ("null", "state must be an object"),
         "bad-probability": (
-            json.dumps({"nodes": [{"id": "A1", "type": "hypothesis", "prior": "high"}], "edges": [], "frontier": []}),
+            json.dumps({"nodes": [{"id": "A1", "type": "hypothesis", "prior": "high"}], "edges": []}),
             "prior",
         ),
     }
@@ -72,17 +74,23 @@ class MalformedStateInputTests(unittest.TestCase):
                     self.assertNotIn("has no attribute", result.stderr)
 
 
+def record_step(state_path: Path, patch_path: Path | None = None) -> subprocess.CompletedProcess[str]:
+    patch_path = patch_path or state_path.with_name("patch.json")
+    patch_path.write_text(json.dumps({"reason": "Rewrite the state in place"}), encoding="utf-8")
+    return run_cli("record", str(state_path), "--patch", str(patch_path))
+
+
 class AtomicStateWriteTests(unittest.TestCase):
     def test_in_place_write_leaves_no_temporary_files_and_preserves_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
-            state_path.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+            state_path.write_text(UNSTOPPED_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
             os.chmod(state_path, 0o640)
 
-            result = run_cli("costs", str(state_path))
+            result = record_step(state_path)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["state.json"])
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["patch.json", "state.html", "state.json"])
             self.assertEqual(os.stat(state_path).st_mode & 0o777, 0o640)
             json.loads(state_path.read_text(encoding="utf-8"))
 
@@ -92,11 +100,11 @@ class AtomicStateWriteTests(unittest.TestCase):
             state_dir = Path(tmp_dir) / "locked"
             state_dir.mkdir()
             state_path = state_dir / "state.json"
-            original = FIXTURE.read_text(encoding="utf-8")
+            original = UNSTOPPED_FIXTURE.read_text(encoding="utf-8")
             state_path.write_text(original, encoding="utf-8")
             os.chmod(state_dir, 0o500)
             try:
-                result = run_cli("costs", str(state_path))
+                result = record_step(state_path, Path(tmp_dir) / "patch.json")
             finally:
                 os.chmod(state_dir, 0o700)
 

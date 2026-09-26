@@ -1,4 +1,4 @@
-"""Seed and expand reject score and anchoring violations without touching state."""
+"""Record rejects score and anchoring violations without touching state."""
 
 import json
 import subprocess
@@ -38,7 +38,7 @@ def valid_patch() -> dict:
             {"id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
              "reasoning": "The conclusion rests on this reading."},
         ],
-        "frontier": [{"id": "Q2", "node": "D1", "cost_components": {"truth": "auto"}}],
+        "reason": "Derive the conclusion",
     }
 
 
@@ -79,42 +79,31 @@ INVALID_PARTS = {
 }
 
 
-@pytest.mark.parametrize("command", ["seed", "expand"])
 @pytest.mark.parametrize("invalid_part", sorted(INVALID_PARTS))
-def test_invalid_patch_does_not_modify_state(tmp_path, command, invalid_part):
+def test_invalid_patch_does_not_modify_state(tmp_path, invalid_part):
     state = starter_state("default")
     state["nodes"].append({"id": "E0", "type": "observation", "text": "Existing observation", "prior": 0.8})
-    state["frontier"] = [{"id": "Q1", "node": "G1"}]
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    if command == "expand":
-        assert run("next", str(state_path), "--pop").returncode == 0
     original = state_path.read_bytes()
 
     patch_path.write_text(json.dumps(patch_for(invalid_part)), encoding="utf-8")
-    args = [command, str(state_path), "--patch", str(patch_path)]
-    if command == "expand":
-        args += ["--item", "Q1"]
-    result = run(*args)
+    result = run("record", str(state_path), "--patch", str(patch_path))
     assert result.returncode != 0
     assert INVALID_PARTS[invalid_part] in result.stderr
     assert state_path.read_bytes() == original
 
 
-@pytest.mark.parametrize("command", ["seed", "expand"])
 @pytest.mark.parametrize("score,expected", [({}, 0.45), ({"prior": 0.9}, 0.405), ({"prior": 0.9, "posterior": 0.7}, 0.7)])
-def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, command, score, expected):
+def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, score, expected):
     state = starter_state("default")
     state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "prior": 0.5})
-    state["frontier"] = [{"id": "Q1", "node": "G1"}]
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    if command == "expand":
-        assert run("next", str(state_path), "--pop").returncode == 0
 
     patch = valid_patch()
     patch["nodes"][1].update(score)
@@ -127,10 +116,7 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, com
     ])
     patch["edges"][0]["reasoning"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2. " * 2
     patch_path.write_text(json.dumps(patch), encoding="utf-8")
-    args = [command, str(state_path), "--patch", str(patch_path)]
-    if command == "expand":
-        args += ["--item", "Q1"]
-    result = run(*args)
+    result = run("record", str(state_path), "--patch", str(patch_path))
     assert result.returncode == 0, result.stderr
     updated = json.loads(state_path.read_text(encoding="utf-8"))
     assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(expected)

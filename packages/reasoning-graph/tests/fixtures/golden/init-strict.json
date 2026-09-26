@@ -11,10 +11,6 @@
     }
   ],
   "edges": [],
-  "frontier": [],
-  "search_policy": {
-    "estimated_remaining_weight": 1.0
-  },
   "stop_policy": {
     "belief_threshold": 0.8,
     "require_review": true,

@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .costs import (
     NODE_SCORE_FIELDS,
     assert_acyclic_premise_dependencies,
-    compute_costs,
-    item_has_explicit_effort_budget,
     likelihood_ratio_from_edge,
     likelihood_ratio_from_likelihood,
     likelihood_ratio_from_value,
+    node_effective_truth_costs,
     nodes_with_belief_sources,
     probability_cost,
     probability_from_value,
-    text_looks_probe_like,
 )
 from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
@@ -39,7 +36,6 @@ def validate_state(state: Any) -> ValidationResult:
     warnings: list[str] = []
     nodes_raw = state.get("nodes", [])
     edges_raw = state.get("edges", [])
-    frontier_raw = state.get("frontier", [])
     solutions_raw = state.get("solutions", [])
     factors_raw = state.get("factors", [])
 
@@ -51,9 +47,6 @@ def validate_state(state: Any) -> ValidationResult:
     if not isinstance(edges_raw, list):
         errors.append("edges must be a list")
         edges_raw = []
-    if not isinstance(frontier_raw, list):
-        errors.append("frontier must be a list")
-        frontier_raw = []
     if not isinstance(solutions_raw, list):
         errors.append("solutions must be a list")
         solutions_raw = []
@@ -137,29 +130,18 @@ def validate_state(state: Any) -> ValidationResult:
         if not isinstance(stop_policy, dict):
             errors.append("stop_policy must be object when present")
             stop_policy = {}
-        for key in ("min_viable_candidates", "max_live_frontier_items"):
-            if key in stop_policy:
-                value = stop_policy.get(key)
-                if not isinstance(value, int) or value < 0:
-                    errors.append(f"stop_policy.{key} must be a non-negative integer")
+        if "min_viable_candidates" in stop_policy:
+            value = stop_policy.get("min_viable_candidates")
+            if not isinstance(value, int) or value < 0:
+                errors.append("stop_policy.min_viable_candidates must be a non-negative integer")
         if "belief_threshold" in stop_policy:
             probability = probability_from_value(stop_policy.get("belief_threshold"))
             if probability is None or probability <= 0:
                 errors.append("stop_policy.belief_threshold must be in (0, 1]")
-        for key in ("require_frontier_exhausted_for_epistemic_stop", "require_review"):
-            if key in stop_policy and not isinstance(stop_policy.get(key), bool):
-                errors.append(f"stop_policy.{key} must be boolean when present")
+        if "require_review" in stop_policy and not isinstance(stop_policy.get("require_review"), bool):
+            errors.append("stop_policy.require_review must be boolean when present")
         if "severity" in stop_policy and stop_policy.get("severity") not in {"warning", "error"}:
             errors.append("stop_policy.severity must be 'warning' or 'error' when present")
-    search_policy = state.get("search_policy", {})
-    if search_policy is not None:
-        if not isinstance(search_policy, dict):
-            errors.append("search_policy must be object when present")
-            search_policy = {}
-        if "max_probe_concurrency" in search_policy:
-            value = search_policy.get("max_probe_concurrency")
-            if not isinstance(value, int) or value < 1:
-                errors.append("search_policy.max_probe_concurrency must be a positive integer")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}
@@ -392,59 +374,6 @@ def validate_state(state: Any) -> ValidationResult:
         elif isinstance(accepted_goal_values, list) and candidate_id not in candidate_accepted_goal_edges:
             errors.append(f"candidate_solution {candidate_id} must connect to an accepted goal with an answers edge")
 
-    frontier_ids: set[str] = set()
-    for i, item in enumerate(frontier_raw):
-        if not isinstance(item, dict):
-            errors.append(f"frontier[{i}] must be object")
-            continue
-        item_id = item.get("id")
-        node = item.get("node")
-        parent = item.get("parent")
-        if not isinstance(item_id, str) or not item_id:
-            errors.append(f"frontier[{i}] missing string id")
-        elif item_id in frontier_ids:
-            errors.append(f"duplicate frontier id {item_id}")
-        else:
-            frontier_ids.add(item_id)
-        if node not in node_ids:
-            errors.append(f"frontier item {item_id or i} references missing node {node!r}")
-        if parent is not None and parent != "" and parent not in frontier_ids:
-            # Parent may appear later; check all ids after collection below.
-            pass
-        for forbidden_field in ("next_action", "expansion_hint", "context", "additional_info", "focus"):
-            if forbidden_field in item:
-                errors.append(f"frontier item {item_id or i} uses forbidden field {forbidden_field}; use node plus related node ids only")
-        related = item.get("related", [])
-        if "related" in item:
-            if not isinstance(related, list):
-                errors.append(f"frontier item {item_id or i} related must be a list of node ids")
-            else:
-                for related_index, related_node in enumerate(related):
-                    if related_node not in node_ids:
-                        errors.append(f"frontier item {item_id or i} related[{related_index}] references missing node {related_node!r}")
-        scratch = item.get("scratch", [])
-        if "scratch" in item:
-            if not isinstance(scratch, list):
-                errors.append(f"frontier item {item_id or i} scratch must be a list of strings")
-            else:
-                for scratch_index, note in enumerate(scratch):
-                    if not isinstance(note, str) or not note.strip():
-                        errors.append(f"frontier item {item_id or i} scratch[{scratch_index}] must be a non-empty string")
-        node_obj = nodes_by_id.get(str(node), {}) if isinstance(node, str) else {}
-        scratch_text = " ".join(note for note in scratch if isinstance(note, str)) if isinstance(scratch, list) else ""
-        if text_looks_probe_like(node_obj.get("text"), item.get("summary"), scratch_text) and not item_has_explicit_effort_budget(item):
-            warnings.append(
-                f"frontier item {item_id or i} looks probe/brute-force-like; add cost_components.effort_budget and budget metadata so frontier priority prices bounded effort"
-            )
-
-    all_frontier_ids = {item.get("id") for item in frontier_raw if isinstance(item, dict)}
-    for item in frontier_raw:
-        if not isinstance(item, dict):
-            continue
-        parent = item.get("parent")
-        if parent is not None and parent != "" and parent not in all_frontier_ids:
-            errors.append(f"frontier item {item.get('id')} references missing parent {parent!r}")
-
     try:
         assert_acyclic_premise_dependencies({goal_id: sorted(subs) for goal_id, subs in goal_requirements(state).items()})
     except ValueError as exc:
@@ -474,7 +403,7 @@ def validate_state(state: Any) -> ValidationResult:
                 if step not in node_ids and step.strip() not in node_texts:
                     errors.append(f"report.winning_path[{index}] {step!r} matches no node id or exact node text")
 
-    for section, keys in (("presentation", ("include_nodes", "highlight_nodes", "dim_nodes")), ("view", ("winning_path", "dimmed_branches", "frontier"))):
+    for section, keys in (("presentation", ("include_nodes", "highlight_nodes", "dim_nodes")), ("view", ("winning_path", "dimmed_branches"))):
         metadata = state.get(section)
         if metadata is None:
             continue
@@ -496,7 +425,7 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"solutions references non-candidate node {node_id!r}; selected answers must be candidate_solution nodes")
 
     try:
-        compute_costs(json.loads(json.dumps(state)))
+        node_effective_truth_costs(state)
         grounded_nodes = nodes_with_belief_sources(state)
         for node_id, node in nodes_by_id.items():
             if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:
@@ -506,6 +435,6 @@ def validate_state(state: Any) -> ValidationResult:
                     "or a calibrated joint-probability factor"
                 )
     except Exception as exc:  # validation should report instead of throwing
-        errors.append(f"cost computation failed: {exc}")
+        errors.append(f"belief computation failed: {exc}")
 
     return ValidationResult(errors=errors, warnings=warnings)

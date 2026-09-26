@@ -36,7 +36,6 @@ def report_state(*, support=False, posterior=None):
             {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
             {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
         ],
-        "frontier": [],
         "report": {"candidates": [{"id": "CS1", "name": "Answer", "belief": 0.123}]},
         "presentation": {"include_nodes": ["D1", "CS1", "G1"]},
     }

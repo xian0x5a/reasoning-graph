@@ -25,11 +25,7 @@ def load_fixture(*parts: str) -> dict:
 
 class ReadOnlyApiTests(unittest.TestCase):
     def test_audit_state_leaves_state_unchanged(self) -> None:
-        # Strip computed cost fields so any recomputation written back would be visible.
         state = load_fixture("valid", "reasoning-graph-strict-good.json")
-        for item in state["frontier"]:
-            for field in ("search_cost", "truth_cost", "work_cost", "base_search_cost", "step_cost", "step_truth_cost"):
-                item.pop(field, None)
         state.setdefault("report", {"candidates": [{"id": "CS1", "name": "Candidate"}]})
         before = json.dumps(state, sort_keys=True)
 

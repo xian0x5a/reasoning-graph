@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from typing import Any
 
 try:
     import jsonschema
@@ -19,12 +20,30 @@ PACKAGE_SRC_ROOT = PACKAGE_ROOT / "src"
 sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
 from reasoning_graph.cli import append_stop_event
-from reasoning_graph.frontier import search_cursor
+from reasoning_graph.costs import node_effective_truth_costs
 
 
 FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
 STATE_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "state.schema.json"
 PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.json"
+
+# A valid record patch against the fixture: one new observation supporting A1.
+FIXTURE_RECORD_PATCH = {
+    "reason": "Recorded a second symptom report",
+    "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "prior": 0.9}],
+    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."}],
+}
+
+
+def unstopped_fixture_state() -> dict[str, Any]:
+    """Fixture graph before its terminal rank/stop events, so mutating commands can append."""
+    state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+    return state
+
+
+def truth_cost(state: dict[str, Any], node_id: str) -> float:
+    return node_effective_truth_costs(state)[node_id]
 
 
 class ReasoningGraphCliBasicTests(unittest.TestCase):
@@ -50,44 +69,37 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             **kwargs,
         )
 
+    def write_unstopped_fixture(self, tmp_dir: str) -> tuple[Path, Path, str]:
+        """Write the unstopped fixture state and the sample record patch; return (state, patch, original text)."""
+        state_path = Path(tmp_dir) / "state.json"
+        patch_path = Path(tmp_dir) / "patch.json"
+        original = json.dumps(unstopped_fixture_state())
+        state_path.write_text(original, encoding="utf-8")
+        patch_path.write_text(json.dumps(FIXTURE_RECORD_PATCH), encoding="utf-8")
+        return state_path, patch_path, original
+
     def test_json_schemas_parse_and_cover_core_enums(self) -> None:
         state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
+        event_actions = state_schema["$defs"]["event"]["properties"]["action"]["enum"]
 
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
-        self.assertIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
-        self.assertIn("seed", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
-        self.assertIn("assign", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
+        self.assertEqual(set(event_actions), {"record", "review", "rank", "stop"})
+        self.assertNotIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
-        self.assertIn("stop_outcome", patch_schema["properties"])
+        self.assertIn("reason", patch_schema["properties"])
         serialized_schemas = json.dumps({"state": state_schema, "patch": patch_schema})
         self.assertNotIn('"deprecated"', serialized_schemas)
         self.assertNotIn('"solutions"', state_schema["properties"])
+        self.assertNotIn("frontier", state_schema["properties"])
         self.assertNotIn('"label"', state_schema["$defs"]["edge"]["properties"])
-        self.assertNotIn('"path_cost"', state_schema["$defs"]["frontierItem"]["properties"])
-        self.assertNotIn("solution", state_schema["$defs"]["event"]["properties"]["action"]["enum"])
+        self.assertNotIn("solution", event_actions)
+        self.assertNotIn("frontier", patch_schema["properties"])
+        self.assertNotIn("stop_outcome", patch_schema["properties"])
         self.assertNotIn('"solution_node"', patch_schema["properties"])
         self.assertNotIn('"no_reopen_reason"', patch_schema["properties"])
-
-    def test_numeric_validation_preserves_existing_frontier_metadata(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "frontier-metadata.json"
-            state_path.write_text(
-                json.dumps(
-                    {
-                        "nodes": [{"id": "A1", "type": "hypothesis", "prior": 0.5}],
-                        "edges": [],
-                        "frontier": [{"id": "Q1", "node": "A1", "unexpected_metric": 1}],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            result = self.run_cli("validate", str(state_path))
-
-        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_schema_command_emits_packaged_schema_json(self) -> None:
         result = self.run_cli("schema", "state")
@@ -102,12 +114,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         emitted_schema = json.loads(result.stdout)
         patch = {
+            "reason": "Added two hypotheses and a grouped premise",
             "nodes": [
                 {"prior": 0.5, "id": "A1", "type": "hypothesis", "text": "First"},
                 {"prior": 0.5, "id": "A2", "type": "hypothesis", "text": "Second"},
             ],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
-            "frontier": [{"id": "Q1", "node": "A1"}],
             "factors": [{
                 "id": "F1",
                 "relation": "leads_to",
@@ -133,91 +145,52 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
     def test_mutating_commands_rewrite_state_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state_path.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+            state_path, patch_path, _ = self.write_unstopped_fixture(tmp_dir)
 
-            result = self.run_cli("costs", str(state_path))
+            result = self.run_cli("record", str(state_path), "--patch", str(patch_path))
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
             state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertTrue(all("search_cost" in item for item in state["frontier"]))
+            self.assertEqual(state["events"][-1]["action"], "record")
+            self.assertIn("O2", {node["id"] for node in state["nodes"]})
 
     def test_output_path_overrides_default_in_place(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            output_path = Path(tmp_dir) / "costs.json"
-            original = FIXTURE.read_text(encoding="utf-8")
-            state_path.write_text(original, encoding="utf-8")
+            state_path, _, original = self.write_unstopped_fixture(tmp_dir)
+            output_path = Path(tmp_dir) / "reviewed.json"
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli(
+                "review", str(state_path), "--reviewer", "checker", "--verdict", "pass", "--findings", "chain holds",
+                "-o", str(output_path),
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
-            self.assertTrue(output_path.is_file())
+            reviewed = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(reviewed["events"][-1]["action"], "review")
 
     def test_output_dash_emits_stdout_without_mutating_input(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            original = FIXTURE.read_text(encoding="utf-8")
-            state_path.write_text(original, encoding="utf-8")
+            state_path, patch_path, original = self.write_unstopped_fixture(tmp_dir)
 
-            result = self.run_cli("costs", str(state_path), "-o", "-")
+            result = self.run_cli("record", str(state_path), "--patch", str(patch_path), "-o", "-")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             state = json.loads(result.stdout)
-            self.assertTrue(all("search_cost" in item for item in state["frontier"]))
+            self.assertEqual(state["events"][-1]["action"], "record")
 
-    def test_next_pop_rewrites_state_by_default(self) -> None:
+    def test_record_stdin_emits_mutated_state_to_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state_path.write_text(
-                json.dumps({
-                    "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-                }),
-                encoding="utf-8",
-            )
+            patch_path = Path(tmp_dir) / "patch.json"
+            patch_path.write_text(json.dumps(FIXTURE_RECORD_PATCH), encoding="utf-8")
 
-            result = self.run_cli("next", str(state_path), "--pop")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("next Q1", result.stdout)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in state["events"]], ["init", "pop"])
-
-    def test_next_pop_output_dash_emits_mutated_state_without_mutating_input(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            original_state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
-                "edges": [],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-            }
-            original = json.dumps(original_state)
-            state_path.write_text(original, encoding="utf-8")
-
-            result = self.run_cli("next", str(state_path), "--pop", "-o", "-")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
-            persisted = json.loads(result.stdout)
-            self.assertEqual([event["action"] for event in persisted["events"]], ["init", "pop"])
-
-    def test_next_pop_stdin_emits_mutated_state_to_stdout(self) -> None:
-        state = json.dumps({
-            "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
-            "edges": [],
-            "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-        })
-
-        result = self.run_cli("next", "-", "--pop", input=state)
+            result = self.run_cli("record", "-", "--patch", str(patch_path), input=json.dumps(unstopped_fixture_state()))
 
         self.assertEqual(result.returncode, 0, result.stderr)
         persisted = json.loads(result.stdout)
-        self.assertEqual([event["action"] for event in persisted["events"]], ["init", "pop"])
+        self.assertEqual([event["action"] for event in persisted["events"]], ["record", "record"])
 
     def test_text_output_dash_emits_stdout(self) -> None:
         result = self.run_cli("mermaid", str(FIXTURE), "-o", "-")
@@ -231,12 +204,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
         fixture_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         patch = {
+            "reason": "Added a third cause",
             "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "prior": 0.2}],
             "update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
-            "frontier": [{"id": "Q4", "node": "A3", "cost_components": {"truth": "auto"}}],
-            "stop_reason": "sample stop",
-            "stop_outcome": "user_stopped",
         }
 
         state_validator = jsonschema.Draft202012Validator(state_schema)
@@ -256,12 +227,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_validator = jsonschema.Draft202012Validator(patch_schema, resolver=resolver)
         patch_validator.validate(patch)
         with self.assertRaises(jsonschema.ValidationError):
-            patch_validator.validate({"stop_reason": "missing outcome"})
+            patch_validator.validate({"reason": "stop via patch", "stop_reason": "done", "stop_outcome": "solved"})
 
         with self.assertRaises(jsonschema.ValidationError):
             patch_validator.validate({"update_nodes": [{"id": "A1", "set": {"id": "A2"}}]})
 
-    def test_expand_patch_updates_existing_node_fields(self) -> None:
+    def test_record_patch_updates_existing_node_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
@@ -269,23 +240,19 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 json.dumps({
                     "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
                     "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
             )
-            popped = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
-
             patch_path.write_text(
                 json.dumps({
+                    "reason": "Cheap checks on A1 complete; only its score changed.",
                     "update_nodes": [{"id": "A1", "set": {"posterior": 0.75, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
-                    "no_new_work_reason": "Only A1 score/exhaustion changed; no child work remains.",
                 }),
                 encoding="utf-8",
             )
 
-            expanded = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
-            self.assertEqual(expanded.returncode, 0, expanded.stderr)
+            recorded = self.run_cli("record", str(state_path), "--patch", str(patch_path))
+            self.assertEqual(recorded.returncode, 0, recorded.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
             self.assertEqual(updated["nodes"][0]["posterior"], 0.75)
@@ -295,9 +262,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 updated["events"][-1]["updated_nodes"],
                 [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "posterior"]}],
             )
-            self.assertEqual(updated["events"][-1]["updated_node_snapshots"][0]["before"]["prior"], 0.2)
 
-    def test_expand_patch_rejects_missing_or_identity_node_updates(self) -> None:
+    def test_record_patch_rejects_missing_or_identity_node_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
@@ -305,38 +271,19 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 json.dumps({
                     "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
                     "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
                 }),
                 encoding="utf-8",
             )
-            popped = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
 
-            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A2", "set": {"posterior": 0.5}}]}), encoding="utf-8")
-            missing = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"posterior": 0.5}}]}), encoding="utf-8")
+            missing = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("update_nodes id A2 does not exist", missing.stderr)
 
-            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A1", "set": {"type": "hypothesis"}}]}), encoding="utf-8")
-            identity = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
+            patch_path.write_text(json.dumps({"reason": "retype A1", "update_nodes": [{"id": "A1", "set": {"type": "hypothesis"}}]}), encoding="utf-8")
+            identity = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(identity.returncode, 0, identity.stdout)
             self.assertIn("update_nodes[0].set cannot change type", identity.stderr)
-
-    def test_costs_reject_legacy_path_cost_at_runtime(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "legacy-path-cost.json"
-            state_path.write_text(
-                json.dumps({
-                    "nodes": [{"id": "G1", "type": "goal", "text": "Solve"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "G1", "path_cost": 1.0}],
-                }),
-                encoding="utf-8",
-            )
-
-            result = self.run_cli("costs", str(state_path))
-            self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("rejected legacy field path_cost", result.stderr)
 
     def test_init_emits_valid_starter_states(self) -> None:
         init = self.run_cli("init", "--goal", "Diagnose production outage", "--strict")
@@ -352,132 +299,43 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_seed_enables_fresh_init_next_pop_flow(self) -> None:
+    def test_record_enables_fresh_init_flow_and_requires_reason(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
-            seed_path = Path(tmp_dir) / "seed.json"
+            patch_path = Path(tmp_dir) / "patch.json"
             init = self.run_cli("init", "--goal", "Diagnose outage", "--strict", "-o", str(state_path))
             self.assertEqual(init.returncode, 0, init.stderr)
 
-            empty_next = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertNotEqual(empty_next.returncode, 0, empty_next.stdout)
-            self.assertIn("active frontier is empty", empty_next.stderr)
+            patch = {
+                "nodes": [
+                    {"id": "E1", "type": "observation", "text": "API error rate increased", "prior": 0.9},
+                    {"id": "A1", "type": "hypothesis", "text": "Database latency is causing errors", "prior": 0.4},
+                    {"id": "T1", "type": "test", "text": "Check database latency metrics"},
+                ],
+                "edges": [
+                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+                    {"reasoning": "This claim motivates the follow-up check.", "id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
+                ],
+            }
+            patch_path.write_text(json.dumps({**patch, "reason": "   "}), encoding="utf-8")
+            before_rejected_record = state_path.read_text(encoding="utf-8")
+            missing_reason = self.run_cli("record", str(state_path), "--patch", str(patch_path))
+            self.assertNotEqual(missing_reason.returncode, 0, missing_reason.stdout)
+            self.assertIn("requires reason", missing_reason.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before_rejected_record)
 
-            seed_path.write_text(
-                json.dumps({
-                    "nodes": [
-                        {"id": "E1", "type": "observation", "text": "API error rate increased", "prior": 0.9},
-                        {"id": "A1", "type": "hypothesis", "text": "Database latency is causing errors", "prior": 0.4},
-                        {"id": "T1", "type": "test", "text": "Check database latency metrics"},
-                    ],
-                    "edges": [
-                        {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
-                        {"reasoning": "This claim motivates the follow-up check.", "id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
-                    ],
-                    "frontier": [
-                        {
-                            "id": "Q1",
-                            "node": "T1",
-                            "related": ["E1", "A1"],
-                            "cost_components": {"truth": "auto", "verification": 0.1, "effort_budget": 0.2},
-                            "budget": {"max_seconds": 300, "stop_after": "first discriminating metric"},
-                        }
-                    ],
-                }),
-                encoding="utf-8",
-            )
-
-            seeded = self.run_cli("seed", str(state_path), "--patch", str(seed_path), "-i")
-            self.assertEqual(seeded.returncode, 0, seeded.stderr)
-            seeded_state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertNotIn("events", seeded_state)
-            self.assertNotIn("parent", seeded_state["frontier"][0])
-            self.assertIn("search_cost", seeded_state["frontier"][0])
+            patch_path.write_text(json.dumps({**patch, "reason": "Framed the outage from the first report"}), encoding="utf-8")
+            recorded = self.run_cli("record", str(state_path), "--patch", str(patch_path))
+            self.assertEqual(recorded.returncode, 0, recorded.stderr)
+            recorded_state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual([event["action"] for event in recorded_state["events"]], ["record"])
+            self.assertEqual(recorded_state["events"][0]["reason"], "Framed the outage from the first report")
+            self.assertEqual(recorded_state["events"][0]["add_nodes"], ["E1", "A1", "T1"])
+            self.assertEqual(recorded_state["events"][0]["add_edges"], ["E1-A1", "A1-T1"])
+            self.assertTrue(state_path.with_suffix(".html").is_file())
 
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
-
-            popped = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
-            self.assertIn("next Q1", popped.stdout)
-            popped_state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in popped_state["events"]], ["init", "pop"])
-            self.assertEqual(popped_state["events"][0]["frontier"], ["Q1"])
-
-            second_state_path = Path(tmp_dir) / "second-state.json"
-            second_init = self.run_cli("init", "--goal", "Solve the problem", "--strict", "-o", str(second_state_path))
-            self.assertEqual(second_init.returncode, 0, second_init.stderr)
-            second_seeded = self.run_cli("seed", str(second_state_path), "--patch", str(seed_path), "-i")
-            self.assertEqual(second_seeded.returncode, 0, second_seeded.stderr)
-            second_popped = self.run_cli("next", str(second_state_path), "--pop", "-i")
-            self.assertEqual(second_popped.returncode, 0, second_popped.stderr)
-            self.assertIn("next Q1", second_popped.stdout)
-
-    def test_seed_rejects_non_root_frontier_and_can_add_later_root_work(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            bad_seed_path = Path(tmp_dir) / "bad-seed.json"
-            good_seed_path = Path(tmp_dir) / "good-seed.json"
-            init = self.run_cli("init", "--goal", "Diagnose outage", "-o", str(state_path))
-            self.assertEqual(init.returncode, 0, init.stderr)
-
-            bad_seed_path.write_text(
-                json.dumps({
-                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
-                    "frontier": [{"id": "Q1", "node": "T1", "parent": "Q0"}],
-                }),
-                encoding="utf-8",
-            )
-            bad = self.run_cli("seed", str(state_path), "--patch", str(bad_seed_path), "-i")
-            self.assertNotEqual(bad.returncode, 0, bad.stdout)
-            self.assertIn("must be a root item without parent", bad.stderr)
-
-            good_seed_path.write_text(
-                json.dumps({
-                    "nodes": [{"id": "T1", "type": "test", "text": "Check logs"}],
-                    "frontier": [{"id": "Q1", "node": "T1", "cost_components": {"truth": "auto"}}],
-                }),
-                encoding="utf-8",
-            )
-            good = self.run_cli("seed", str(state_path), "--patch", str(good_seed_path), "-i")
-            self.assertEqual(good.returncode, 0, good.stderr)
-            popped = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
-            later_without_reason_path = Path(tmp_dir) / "later-without-reason.json"
-            later_with_reason_path = Path(tmp_dir) / "later-with-reason.json"
-            later_without_reason_path.write_text(
-                json.dumps({
-                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
-                    "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
-                }),
-                encoding="utf-8",
-            )
-            missing_reason = self.run_cli("seed", str(state_path), "--patch", str(later_without_reason_path), "-i")
-            self.assertNotEqual(missing_reason.returncode, 0, missing_reason.stdout)
-            self.assertIn("requires patch.reason", missing_reason.stderr)
-
-            later_with_reason_path.write_text(
-                json.dumps({
-                    "reason": "New root hypothesis from user inspiration",
-                    "nodes": [{"id": "T2", "type": "test", "text": "Check deploy log"}],
-                    "frontier": [{"id": "Q2", "node": "T2", "cost_components": {"truth": "auto"}}],
-                }),
-                encoding="utf-8",
-            )
-            later_seed = self.run_cli("seed", str(state_path), "--patch", str(later_with_reason_path), "-i")
-            self.assertEqual(later_seed.returncode, 0, later_seed.stderr)
-            seeded_later_state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in seeded_later_state["events"]], ["init", "pop", "seed"])
-            self.assertEqual(seeded_later_state["events"][-1]["add_frontier"], ["Q2"])
-            self.assertNotIn("parent", next(item for item in seeded_later_state["frontier"] if item["id"] == "Q2"))
-
-            expansion_path = Path(tmp_dir) / "expansion.json"
-            expansion_path.write_text(json.dumps({"no_new_work_reason": "first root item closed"}), encoding="utf-8")
-            expanded = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(expansion_path), "-i")
-            self.assertEqual(expanded.returncode, 0, expanded.stderr)
-            later_pop = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(later_pop.returncode, 0, later_pop.stderr)
-            self.assertIn("next Q2", later_pop.stdout)
 
     def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
         ok = self.run_cli("stop-review", str(FIXTURE))
@@ -531,6 +389,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         audit = self.run_cli("audit", str(FIXTURE))
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
+        self.assertIn("events=3 records=1 reviews=0 rankings=1", audit.stdout)
 
     def test_audit_reports_validation_errors_without_deeper_audit_crash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -538,11 +397,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state = {
                 "nodes": [],
                 "edges": [],
-                "frontier": [],
-                "stop_policy": {"max_live_frontier_items": "x", "min_viable_candidates": "y"},
+                "stop_policy": {"belief_threshold": "x", "min_viable_candidates": "y"},
                 "events": [
-                    {"step": 1, "action": "init", "frontier": []},
-                    {"step": 2, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
+                    {"step": 1, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
                 ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -550,9 +407,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0, audit.stdout)
-            self.assertIn("stop_policy.max_live_frontier_items must be a non-negative integer", audit.stderr)
+            self.assertIn("stop_policy.belief_threshold must be in (0, 1]", audit.stderr)
             self.assertIn("stop_policy.min_viable_candidates must be a non-negative integer", audit.stderr)
             self.assertNotIn("invalid literal for int()", audit.stderr)
+            self.assertNotIn("could not convert", audit.stderr)
 
     def test_validate_accepts_evidence_and_rejects_legacy_fact_contradiction_nodes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -570,7 +428,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
                     {"id": "CS1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "CS1", "to": "G1", "type": "answers"},
                 ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             legacy_state = {
                 "nodes": [
@@ -579,7 +436,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "X1", "type": "contradiction", "text": "Legacy contradiction"},
                 ],
                 "edges": [],
-                "frontier": [],
             }
             state_path.write_text(json.dumps(evidence_state), encoding="utf-8")
             legacy_path.write_text(json.dumps(legacy_state), encoding="utf-8")
@@ -607,7 +463,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1-G1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "CS1", "to": "G1", "type": "leads_to"},
                     {"id": "A1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "A1", "to": "G1", "type": "answers"},
                 ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
 
@@ -625,7 +480,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
                 "edges": [{"id": "A1-T1-prompts", "reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -633,62 +487,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("ok", valid.stdout)
 
-    def test_audit_uses_no_new_work_reason_for_score_only_visited_updates(self) -> None:
-        base_state = {
-            "nodes": [
-                {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 1.0},
-                {"id": "T1", "type": "test", "text": "Check likely cause"},
-                {"id": "D1", "type": "hypothesis", "text": "A1 explored once"},
-                {"id": "E2", "type": "observation", "text": "Negative result", "prior": 0.8},
-            ],
-            "edges": [
-                {"reasoning": "The target conclusion depends on this premise.", "id": "EA1D1", "from": "A1", "to": "D1", "type": "leads_to"},
-                {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "ET1E2", "from": "T1", "to": "E2", "type": "supports"},
-                {"reasoning": "The observed signal is less likely when the target claim is true.", "id": "EE2A1", "from": "E2", "to": "A1", "type": "contradicts"},
-            ],
-            "frontier": [
-                {"id": "Q1", "node": "A1"},
-                {"id": "Q2", "node": "T1"},
-            ],
-            "events": [
-                {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                {"step": 3, "action": "expand", "item": "Q1", "add_nodes": ["D1"], "add_edges": ["EA1D1"], "add_frontier": []},
-                {"step": 4, "action": "pop", "item": "Q2", "cost": 0.0},
-                {
-                    "step": 5,
-                    "action": "expand",
-                    "item": "Q2",
-                    "add_nodes": ["E2"],
-                    "add_edges": ["ET1E2", "EE2A1"],
-                    "add_frontier": [],
-                    "updated_nodes": [{"id": "A1", "fields": ["truth_cost"]}],
-                    "no_new_work_reason": "E2 only changes A1 score; no new A1-local work implied.",
-                },
-                {"step": 6, "action": "stop", "reason": "test stop", "outcome": "user_stopped"},
-            ],
-        }
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            ok_path = Path(tmp_dir) / "ok.json"
-            missing_path = Path(tmp_dir) / "missing.json"
-            ok_path.write_text(json.dumps(base_state), encoding="utf-8")
-            missing_state = json.loads(json.dumps(base_state))
-            del missing_state["events"][4]["no_new_work_reason"]
-            missing_path.write_text(json.dumps(missing_state), encoding="utf-8")
-
-            ok = self.run_cli("audit", str(ok_path))
-            self.assertEqual(ok.returncode, 0, ok.stderr)
-            self.assertNotIn("evidence updated visited node", ok.stderr)
-
-            missing = self.run_cli("audit", str(missing_path))
-            self.assertEqual(missing.returncode, 0, missing.stderr)
-            self.assertIn("evidence updated visited node A1", missing.stderr)
-            self.assertIn("no_new_work_reason", missing.stderr)
-
-    def test_costs_use_conditional_likelihood_updates(self) -> None:
+    def test_beliefs_use_conditional_likelihood_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "likelihood-state.json"
-            output_path = Path(tmp_dir) / "likelihood-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
@@ -699,20 +500,19 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.75, "if_target_false": 0.25}},
                     {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.2, "if_target_false": 0.4}},
                 ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
+            result = self.run_cli("beliefs", str(state_path), "--json")
             self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
+            beliefs = {row["id"]: row["belief"] for row in json.loads(result.stdout)}
             # Prior odds 1 * (0.75/0.25) * (0.2/0.4) = odds 1.5 => posterior 0.6 => -ln(.6).
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
+            self.assertAlmostEqual(beliefs["A1"], 0.6, places=6)
+            self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
 
-    def test_costs_handle_certain_prior_with_finite_likelihood_update(self) -> None:
+    def test_beliefs_handle_certain_prior_with_finite_likelihood_update(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "certain-prior-state.json"
-            output_path = Path(tmp_dir) / "certain-prior-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Certain premise", "prior": 1.0},
@@ -721,974 +521,52 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "edges": [
                     {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The signal supports the target with a finite likelihood ratio."},
                 ],
-                "frontier": [
-                    {
-                        "id": "Q1",
-                        "node": "A1",
-                        "cost_components": {"truth": "auto", "verification": 0.25},
-                    }
-                ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
             validation = self.run_cli("validate", str(state_path))
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
 
             self.assertEqual(validation.returncode, 0, validation.stderr)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            frontier_item = costed["frontier"][0]
-            self.assertEqual(frontier_item["truth_cost"], 0.0)
-            self.assertEqual(frontier_item["search_cost"], 0.25)
-            self.assertTrue(math.isfinite(frontier_item["truth_cost"]))
-            self.assertTrue(math.isfinite(frontier_item["search_cost"]))
-            self.assertGreaterEqual(frontier_item["truth_cost"], 0.0)
-            self.assertGreaterEqual(frontier_item["search_cost"], 0.0)
+            a1_truth_cost = truth_cost(state, "A1")
+            self.assertEqual(a1_truth_cost, 0.0)
+            self.assertTrue(math.isfinite(a1_truth_cost))
 
-    def test_costs_use_likelihood_ratio_updates(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "lr-state.json"
-            output_path = Path(tmp_dir) / "lr-output.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Negative signal"},
-                ],
-                "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
-                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
-                ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.510826, places=6)
-
-    def test_search_cursor_does_not_mutate_frontier_costs(self) -> None:
+    def test_beliefs_use_likelihood_ratio_updates(self) -> None:
         state = {
-            "nodes": [{"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.5}],
-            "edges": [],
-            "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-        }
-        original = json.loads(json.dumps(state))
-
-        cursor = search_cursor(state)
-
-        self.assertEqual(cursor["active_ids"], {"Q1"})
-        self.assertEqual(state, original)
-
-    def test_search_cursor_applies_supersede_events(self) -> None:
-        state = {
-            "nodes": [{"id": "A1", "type": "hypothesis", "text": "Shared work", "prior": 1.0}],
-            "edges": [],
-            "frontier": [
-                {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
+            "nodes": [
+                {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
+                {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal"},
+                {"prior": 0.95, "id": "E2", "type": "observation", "text": "Negative signal"},
             ],
-            "events": [
-                {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                {
-                    "step": 2,
-                    "action": "supersede",
-                    "item": "Q2",
-                    "replacement": "Q1",
-                    "reason": "duplicate expansion_signature; kept lower latest search_cost",
-                },
+            "edges": [
+                {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
+                {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
             ],
         }
 
-        cursor = search_cursor(state)
+        # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
+        self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
 
-        self.assertEqual(cursor["active_ids"], {"Q1"})
-
-    def test_audit_rejects_equal_cost_supersede(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "equal-cost-supersede.json"
-            state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Shared work", "prior": 1.0}],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {
-                        "step": 2,
-                        "action": "supersede",
-                        "item": "Q1",
-                        "replacement": "Q2",
-                        "reason": "duplicate expansion_signature",
-                    },
-                    {"step": 3, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("must be lower than superseded item", result.stderr)
-
-    def test_next_initializes_deduped_frontier(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Shared work", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Other work", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
-                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q3", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-
-            self.assertEqual(updated["events"][0], {"step": 1, "action": "init", "frontier": ["Q2", "Q3"]})
-            self.assertEqual(updated["events"][1]["action"], "pop")
-            self.assertEqual(updated["events"][1]["item"], "Q2")
-
-    def test_assign_records_async_probe_and_allows_next_pop(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "search_policy": {"max_probe_concurrency": 2},
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First probe", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Second probe", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            first_pop = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(first_pop.returncode, 0, first_pop.stderr)
-            assigned = self.run_cli(
-                "assign",
-                str(state_path),
-                "--item",
-                "Q1",
-                "--agent",
-                "researcher",
-                "--run-id",
-                "child-1",
-                "-i",
-            )
-            self.assertEqual(assigned.returncode, 0, assigned.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-            cursor = search_cursor(updated)
-            self.assertIsNone(cursor["pending_item"])
-            self.assertEqual(cursor["in_flight_ids"], {"Q1"})
-            self.assertEqual(cursor["active_ids"], {"Q2"})
-
-            second_pop = self.run_cli("next", str(state_path), "--pop", "-i")
-            self.assertEqual(second_pop.returncode, 0, second_pop.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop"])
-            self.assertEqual(updated["events"][2]["agent"], "researcher")
-            self.assertEqual(updated["events"][2]["run_id"], "child-1")
-            self.assertEqual(updated["events"][3]["item"], "Q2")
-
-    def test_assign_enforces_max_probe_concurrency(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First probe", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Second probe", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "--max-concurrency", "1", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            over_limit = self.run_cli("assign", str(state_path), "--item", "Q2", "--max-concurrency", "1", "-i")
-
-            self.assertNotEqual(over_limit.returncode, 0)
-            self.assertIn("max probe concurrency reached", over_limit.stderr)
-
-    def test_default_concurrency_allows_five_in_flight_probes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            probe_count = 6
-            state = {
-                "nodes": [
-                    {"id": f"A{index}", "type": "hypothesis", "text": f"Probe {index}", "prior": 1.0}
-                    for index in range(1, probe_count + 1)
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": f"Q{index}", "node": f"A{index}", "cost_components": {"truth": "auto", "verification": index / 10}}
-                    for index in range(1, probe_count + 1)
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            for index in range(1, 6):
-                self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-                assigned = self.run_cli("assign", str(state_path), "--item", f"Q{index}", "-i")
-                self.assertEqual(assigned.returncode, 0, assigned.stderr)
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            over_limit = self.run_cli("assign", str(state_path), "--item", "Q6", "-i")
-
-            self.assertNotEqual(over_limit.returncode, 0)
-            self.assertIn("max probe concurrency reached (5/5)", over_limit.stderr)
-
-    def test_expand_can_merge_assigned_probe_out_of_pop_order(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_q1_path = Path(tmp_dir) / "patch-q1.json"
-            patch_q2_path = Path(tmp_dir) / "patch-q2.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Async probe", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Inline probe", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-            }
-            patch_q1_path.write_text(json.dumps({"no_new_work_reason": "delegated probe completed without new evidence"}), encoding="utf-8")
-            patch_q2_path.write_text(json.dumps({"no_new_work_reason": "inline probe closed"}), encoding="utf-8")
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "--agent", "researcher", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            expand_q2 = self.run_cli("expand", str(state_path), "--item", "Q2", "--patch", str(patch_q2_path), "-i")
-            self.assertEqual(expand_q2.returncode, 0, expand_q2.stderr)
-            expand_q1 = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_q1_path), "-i")
-            self.assertEqual(expand_q1.returncode, 0, expand_q1.stderr)
-            audit = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", "frontier_exhausted", "-i")
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual(search_cursor(updated)["in_flight_ids"], set())
-            self.assertEqual([event["action"] for event in updated["events"]], ["init", "pop", "assign", "pop", "expand", "expand", "stop"])
-
-    def test_stop_rejects_unresolved_in_flight_probe(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Async probe", "prior": 1.0}],
-                "edges": [],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
-            stopped = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", "user_stopped", "-i")
-
-            self.assertNotEqual(stopped.returncode, 0)
-            self.assertIn("assigned items remain in-flight", stopped.stderr)
-
-    def test_stop_candidate_outcome_rejects_pending_item_without_persisting_rank_or_stop(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
-            original = json.dumps(state)
-            state_path.write_text(original, encoding="utf-8")
-
-            stopped = self.run_cli(
-                "stop",
-                str(state_path),
-                "--reason",
-                "candidate answers goal",
-                "--outcome",
-                "solved",
-                "-i",
-            )
-
-            self.assertNotEqual(stopped.returncode, 0)
-            self.assertIn("pending popped item", stopped.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
-            persisted = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertNotIn("rank", [event["action"] for event in persisted["events"]])
-            self.assertNotIn("stop", [event["action"] for event in persisted["events"]])
-
-    def test_stop_preflight_rejects_invalid_terminal_states_without_persisting(self) -> None:
-        cases = {
-            "uninitialized": (
-                {"nodes": [{"id": "A1", "type": "hypothesis"}], "edges": [], "frontier": []},
-                "user_stopped",
-                "driver init",
-            ),
-            "duplicate": (
-                {
-                    "nodes": [],
-                    "edges": [],
-                    "frontier": [],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": []},
-                        {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
-                    ],
-                },
-                "user_stopped",
-                "already has a stop",
-            ),
-            "false exhaustion": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [{"step": 1, "action": "init", "frontier": ["Q1"]}],
-                },
-                "frontier_exhausted",
-                "active frontier",
-            ),
-            "pending": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": ["Q1"]},
-                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                    ],
-                },
-                "user_stopped",
-                "pending popped item",
-            ),
-            "in-flight": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": ["Q1"]},
-                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                        {"step": 3, "action": "assign", "item": "Q1"},
-                    ],
-                },
-                "user_stopped",
-                "in-flight",
-            ),
-        }
-        for name, (state, outcome, expected_error) in cases.items():
-            # Explicit certainty keeps these synthetic zero-cost traces valid.
-            for node in state["nodes"]:
-                node["prior"] = 1.0
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = Path(tmp_dir) / "state.json"
-                original = json.dumps(state)
-                state_path.write_text(original, encoding="utf-8")
-                stopped = self.run_cli("stop", str(state_path), "--reason", "done", "--outcome", outcome, "-i")
-
-                self.assertNotEqual(stopped.returncode, 0)
-                self.assertIn(expected_error, stopped.stderr)
-                self.assertEqual(state_path.read_text(encoding="utf-8"), original)
-
-    def test_append_stop_event_rejects_pending_state_without_mutation(self) -> None:
+    def test_beliefs_propagate_leads_to_premises(self) -> None:
         state = {
-            "frontier": [{"id": "Q1", "node": "A1"}],
-            "events": [
-                {"step": 1, "action": "init", "frontier": ["Q1"]},
-                {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
+            "nodes": [
+                {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.8},
+                {"id": "E1", "type": "observation", "text": "Premise E", "prior": 0.9},
+                {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
+            ],
+            "edges": [
+                {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
+                {"id": "E1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "E1", "to": "D1", "type": "leads_to"},
             ],
         }
-        original = json.loads(json.dumps(state))
 
-        self.assertNotEqual(append_stop_event(state, "done", "user_stopped"), 0)
-        self.assertEqual(state, original)
+        self.assertAlmostEqual(truth_cost(state, "A1"), 0.223144, places=6)
+        # D1 truth is graph-derived from both premises: -ln(0.8 * 0.9).
+        self.assertAlmostEqual(truth_cost(state, "D1"), 0.328504, places=6)
 
-    def test_audit_rejects_invalid_terminal_states(self) -> None:
-        cases = {
-            "uninitialized": (
-                {
-                    "nodes": [],
-                    "edges": [],
-                    "frontier": [],
-                    "events": [{"step": 1, "action": "stop", "reason": "done", "outcome": "user_stopped"}],
-                },
-                "requires an init event",
-            ),
-            "duplicate": (
-                {
-                    "nodes": [],
-                    "edges": [],
-                    "frontier": [],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": []},
-                        {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
-                        {"step": 3, "action": "stop", "reason": "again", "outcome": "user_stopped"},
-                    ],
-                },
-                "duplicate stop event",
-            ),
-            "false exhaustion": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": ["Q1"]},
-                        {"step": 2, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
-                    ],
-                },
-                "frontier_exhausted stop requires no active frontier work",
-            ),
-            "pending": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": ["Q1"]},
-                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                        {"step": 3, "action": "stop", "reason": "done", "outcome": "user_stopped"},
-                    ],
-                },
-                "stop cannot follow unresolved popped item",
-            ),
-            "in-flight": (
-                {
-                    "nodes": [{"id": "A1", "type": "hypothesis"}],
-                    "edges": [],
-                    "frontier": [{"id": "Q1", "node": "A1"}],
-                    "events": [
-                        {"step": 1, "action": "init", "frontier": ["Q1"]},
-                        {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                        {"step": 3, "action": "assign", "item": "Q1"},
-                        {"step": 4, "action": "stop", "reason": "done", "outcome": "user_stopped"},
-                    ],
-                },
-                "assigned items remain in-flight",
-            ),
-        }
-        for name, (state, expected_error) in cases.items():
-            # Test terminal invariants, not missing belief-source diagnostics.
-            for node in state["nodes"]:
-                node["prior"] = 1.0
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = Path(tmp_dir) / "state.json"
-                state_path.write_text(json.dumps(state), encoding="utf-8")
-                audit = self.run_cli("audit", str(state_path))
-
-                self.assertNotEqual(audit.returncode, 0)
-                self.assertIn(expected_error, audit.stderr)
-
-    def test_expand_patch_stop_rejects_other_in_flight_probe(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_path = Path(tmp_dir) / "patch.json"
-            state = {
-                "search_policy": {"max_probe_concurrency": 2},
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First async probe", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Second async probe", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
-                ],
-            }
-            patch = {
-                "no_new_work_reason": "first probe complete",
-                "stop_reason": "done",
-                "stop_outcome": "frontier_exhausted",
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-            patch_path.write_text(json.dumps(patch), encoding="utf-8")
-
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q1", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("next", str(state_path), "--pop", "-i").returncode, 0)
-            self.assertEqual(self.run_cli("assign", str(state_path), "--item", "Q2", "-i").returncode, 0)
-            before_rejected_expand = state_path.read_text(encoding="utf-8")
-            stopped = self.run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-i")
-
-            self.assertNotEqual(stopped.returncode, 0)
-            self.assertIn("assigned items remain in-flight", stopped.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before_rejected_expand)
-
-    def test_audit_enforces_policy_max_probe_concurrency_without_event_field(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "search_policy": {"max_probe_concurrency": 1},
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Second", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                    {"step": 3, "action": "assign", "item": "Q1"},
-                    {"step": 4, "action": "pop", "item": "Q2", "cost": 0.1},
-                    {"step": 5, "action": "assign", "item": "Q2"},
-                    {"step": 6, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(audit.returncode, 0)
-            self.assertIn("max probe concurrency exceeded (2/1)", audit.stderr)
-
-    def test_audit_rejects_stop_with_unresolved_assigned_probe(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Async probe", "prior": 1.0}],
-                "edges": [],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                    {"step": 3, "action": "assign", "item": "Q1", "max_concurrency": 2},
-                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(audit.returncode, 0)
-            self.assertIn("assigned items remain in-flight", audit.stderr)
-
-    def test_audit_rejects_second_pop_before_treating_pending_item(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Second", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto", "verification": 0.1}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.0},
-                    {"step": 3, "action": "pop", "item": "Q2", "cost": 0.1},
-                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(audit.returncode, 0)
-            self.assertIn("cannot pop while unresolved popped item Q1 is pending", audit.stderr)
-
-    def test_audit_rejects_pop_that_skipped_cheaper_item_before_direct_update(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "direct-cost-update-out-of-order.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First branch", "prior": 0.5},
-                    {"id": "A2", "type": "hypothesis", "text": "Second branch", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Later contradiction"},
-                ],
-                "edges": [
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A2", "from": "E1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.01},
-                ],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto"}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.793147},
-                    {
-                        "step": 3,
-                        "action": "expand",
-                        "item": "Q1",
-                        "add_nodes": [],
-                        "add_edges": ["E1A2"],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Evidence was recorded for later review; no child work added.",
-                    },
-                    {"step": 4, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(audit.returncode, 0, audit.stdout)
-            self.assertIn("lowest frontier search_cost", audit.stderr)
-
-    def test_audit_accepts_best_first_pop_after_direct_update(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "direct-cost-update-in-order.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First branch", "prior": 0.5},
-                    {"id": "A2", "type": "hypothesis", "text": "Second branch", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Later contradiction"},
-                ],
-                "edges": [
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.01},
-                ],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "A2", "cost_components": {"truth": "auto"}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q2", "cost": 0.693147},
-                    {
-                        "step": 3,
-                        "action": "expand",
-                        "item": "Q2",
-                        "add_nodes": [],
-                        "add_edges": ["E1A1"],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Evidence changed Q1 priority but created no new work.",
-                    },
-                    {"step": 4, "action": "pop", "item": "Q1", "cost": 4.715121},
-                    {
-                        "step": 5,
-                        "action": "expand",
-                        "item": "Q1",
-                        "add_nodes": [],
-                        "add_edges": [],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Branch complete.",
-                    },
-                    {"step": 6, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-
-    def test_audit_rejects_pop_that_skipped_cheaper_item_before_transitive_update(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "transitive-cost-update-out-of-order.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First premise", "prior": 0.5},
-                    {"id": "A2", "type": "hypothesis", "text": "Second premise", "prior": 0.5},
-                    {"id": "D1", "type": "hypothesis", "text": "First derived branch"},
-                    {"id": "D2", "type": "hypothesis", "text": "Second derived branch"},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Later contradiction"},
-                ],
-                "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "id": "A1D1", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "id": "A2D2", "from": "A2", "to": "D2", "type": "leads_to"},
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.01},
-                ],
-                "frontier": [
-                    {"id": "Q1", "node": "D1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "D2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q2", "cost": 0.893147},
-                    {
-                        "step": 3,
-                        "action": "expand",
-                        "item": "Q2",
-                        "add_nodes": [],
-                        "add_edges": ["E1A1"],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Evidence was recorded for later review; no child work added.",
-                    },
-                    {"step": 4, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertNotEqual(audit.returncode, 0, audit.stdout)
-            self.assertIn("lowest frontier search_cost", audit.stderr)
-
-    def test_audit_accepts_best_first_pop_after_transitive_update(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "transitive-cost-update-in-order.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "First premise", "prior": 0.5},
-                    {"id": "A2", "type": "hypothesis", "text": "Second premise", "prior": 0.5},
-                    {"id": "D1", "type": "hypothesis", "text": "First derived branch"},
-                    {"id": "D2", "type": "hypothesis", "text": "Second derived branch"},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Later contradiction"},
-                ],
-                "edges": [
-                    {"reasoning": "The target conclusion depends on this premise.", "id": "A1D1", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"reasoning": "The target conclusion depends on this premise.", "id": "A2D2", "from": "A2", "to": "D2", "type": "leads_to"},
-                    {"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A2", "from": "E1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.01},
-                ],
-                "frontier": [
-                    {"id": "Q1", "node": "D1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                    {"id": "Q2", "node": "D2", "cost_components": {"truth": "auto", "verification": 0.2}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1", "Q2"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.793147},
-                    {
-                        "step": 3,
-                        "action": "expand",
-                        "item": "Q1",
-                        "add_nodes": [],
-                        "add_edges": ["E1A2"],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Evidence changed Q2 priority but created no new work.",
-                    },
-                    {"step": 4, "action": "pop", "item": "Q2", "cost": 4.815121},
-                    {
-                        "step": 5,
-                        "action": "expand",
-                        "item": "Q2",
-                        "add_nodes": [],
-                        "add_edges": [],
-                        "add_frontier": [],
-                        "no_new_work_reason": "Branch complete.",
-                    },
-                    {"step": 6, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            audit = self.run_cli("audit", str(state_path))
-
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-
-    def test_expand_supersedes_existing_duplicate_when_new_item_is_cheaper(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_path = Path(tmp_dir) / "patch.json"
-            state = {
-                "nodes": [
-                    {"id": "A0", "type": "hypothesis", "text": "Start", "prior": 1.0},
-                    {"id": "A1", "type": "hypothesis", "text": "Shared next work", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q0", "node": "A0", "cost_components": {"truth": "auto"}},
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q0", "Q1"]},
-                    {"step": 2, "action": "pop", "item": "Q0", "cost": 0.0},
-                ],
-            }
-            patch = {
-                "frontier": [
-                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}}
-                ]
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-            patch_path.write_text(json.dumps(patch), encoding="utf-8")
-
-            result = self.run_cli("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-
-            self.assertIn("Q2", {item["id"] for item in updated["frontier"]})
-            self.assertEqual(updated["events"][-2]["action"], "expand")
-            self.assertEqual(updated["events"][-2]["add_frontier"], ["Q2"])
-            self.assertEqual(updated["events"][-1]["action"], "supersede")
-            self.assertEqual(updated["events"][-1]["item"], "Q1")
-            self.assertEqual(updated["events"][-1]["replacement"], "Q2")
-            self.assertEqual(search_cursor(updated)["active_ids"], {"Q2"})
-
-    def test_expand_skips_new_duplicate_when_existing_item_is_cheaper(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_path = Path(tmp_dir) / "patch.json"
-            state = {
-                "nodes": [
-                    {"id": "A0", "type": "hypothesis", "text": "Start", "prior": 1.0},
-                    {"id": "A1", "type": "hypothesis", "text": "Shared next work", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {"id": "Q0", "node": "A0", "cost_components": {"truth": "auto"}},
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.1}},
-                ],
-                "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q0", "Q1"]},
-                    {"step": 2, "action": "pop", "item": "Q0", "cost": 0.0},
-                ],
-            }
-            patch = {
-                "frontier": [
-                    {"id": "Q2", "node": "A1", "cost_components": {"truth": "auto", "verification": 0.5}}
-                ]
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-            patch_path.write_text(json.dumps(patch), encoding="utf-8")
-
-            result = self.run_cli("expand", str(state_path), "--item", "Q0", "--patch", str(patch_path), "-i")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-
-            self.assertNotIn("Q2", {item["id"] for item in updated["frontier"]})
-            self.assertEqual(updated["events"][-1]["action"], "expand")
-            self.assertEqual(updated["events"][-1]["add_frontier"], [])
-            self.assertEqual(search_cursor(updated)["active_ids"], {"Q1"})
-
-    def test_costs_include_estimated_remaining_cost_as_frontier_heuristic(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "remaining-cost-state.json"
-            output_path = Path(tmp_dir) / "remaining-cost-output.json"
-            state = {
-                "search_policy": {"estimated_remaining_weight": 0.5},
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Cheap but far", "prior": 1.0},
-                    {"id": "A2", "type": "hypothesis", "text": "Expensive but near", "prior": 1.0},
-                ],
-                "edges": [],
-                "frontier": [
-                    {
-                        "id": "Q1",
-                        "node": "A1",
-                        "cost_components": {"truth": "auto", "verification": 0.1},
-                        "estimated_remaining_cost": 2.0,
-                    },
-                    {
-                        "id": "Q2",
-                        "node": "A2",
-                        "cost_components": {"truth": "auto", "verification": 1.0},
-                        "estimated_remaining_cost": 0.0,
-                    },
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("sort", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            by_id = {item["id"]: item for item in costed["frontier"]}
-            self.assertEqual([item["id"] for item in costed["frontier"]], ["Q2", "Q1"])
-            self.assertAlmostEqual(by_id["Q1"]["base_search_cost"], 0.1, places=6)
-            self.assertAlmostEqual(by_id["Q1"]["heuristic_cost"], 1.0, places=6)
-            self.assertAlmostEqual(by_id["Q1"]["search_cost"], 1.1, places=6)
-            self.assertAlmostEqual(by_id["Q2"]["search_cost"], 1.0, places=6)
-
-    def test_costs_reject_misplaced_estimated_remaining_cost_component(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "misplaced-distance-field.json"
-            state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Branch", "prior": 1.0}],
-                "edges": [],
-                "frontier": [
-                    {
-                        "id": "Q1",
-                        "node": "A1",
-                        "cost_components": {"truth": "auto", "estimated_remaining_cost": 0.75},
-                    }
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("validate", str(state_path))
-            self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("cost_components.estimated_remaining_cost must be top-level", result.stderr)
-
-    def test_costs_reject_invalid_estimated_remaining_cost(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "invalid-distance.json"
-            state = {
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Branch", "prior": 1.0}],
-                "edges": [],
-                "frontier": [
-                    {
-                        "id": "Q1",
-                        "node": "A1",
-                        "cost_components": {"truth": "auto"},
-                        "estimated_remaining_cost": -0.1,
-                    }
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("costs", str(state_path))
-            self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("estimated_remaining_cost must be non-negative", result.stderr)
-
-    def test_costs_reject_invalid_estimated_remaining_weight(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "invalid-weight.json"
-            state = {
-                "search_policy": {"estimated_remaining_weight": -1},
-                "nodes": [{"id": "A1", "type": "hypothesis", "text": "Branch", "prior": 1.0}],
-                "edges": [],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("costs", str(state_path))
-            self.assertNotEqual(result.returncode, 0, result.stdout)
-            self.assertIn("search_policy.estimated_remaining_weight must be non-negative", result.stderr)
-
-    def test_costs_propagate_leads_to_premises_without_parent_double_count(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "premise-state.json"
-            output_path = Path(tmp_dir) / "premise-output.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.8},
-                    {"id": "E1", "type": "observation", "text": "Premise E", "prior": 0.9},
-                    {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
-                ],
-                "edges": [
-                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "E1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "E1", "to": "D1", "type": "leads_to"},
-                ],
-                "frontier": [
-                    {"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}},
-                    {"id": "Q2", "node": "D1", "parent": "Q1", "cost_components": {"truth": "auto"}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            by_id = {item["id"]: item for item in costed["frontier"]}
-            self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.223144, places=6)
-            # D1 truth is graph-derived from both premises; parent chain is audit context, not probability accumulation.
-            self.assertAlmostEqual(by_id["Q2"]["step_truth_cost"], 0.328504, places=6)
-            self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.328504, places=6)
-
-    def test_costs_factor_replaces_correlated_likelihood_updates(self) -> None:
+    def test_beliefs_factor_replaces_correlated_likelihood_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "factor-likelihood-state.json"
-            output_path = Path(tmp_dir) / "factor-likelihood-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
@@ -1711,23 +589,18 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "E1 and E2 are correlated, so their combined LR is calibrated directly.",
                     }
                 ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
             # Prior odds 1 * grouped LR 3 * independent LR 2 = odds 6 => posterior 6/7 => -ln(6/7).
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.154151, places=6)
+            self.assertAlmostEqual(truth_cost(state, "A1"), 0.154151, places=6)
 
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_costs_leads_to_factor_replaces_independent_member_costs(self) -> None:
+    def test_beliefs_leads_to_factor_replaces_independent_member_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "factor-leads-to-state.json"
-            output_path = Path(tmp_dir) / "factor-leads-to-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.2},
@@ -1750,17 +623,28 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "A1 and B1 share a latent source.",
                     }
                 ],
-                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 2.407946, places=6)
+            self.assertAlmostEqual(truth_cost(state, "D1"), 2.407946, places=6)
 
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
+
+    def test_beliefs_command_prints_claim_beliefs_without_mutating_state(self) -> None:
+        original = FIXTURE.read_text(encoding="utf-8")
+
+        as_json = self.run_cli("beliefs", str(FIXTURE), "--json")
+        as_text = self.run_cli("beliefs", str(FIXTURE))
+
+        self.assertEqual(as_json.returncode, 0, as_json.stderr)
+        rows = {row["id"]: row for row in json.loads(as_json.stdout)}
+        # Goals carry no belief; only observation/hypothesis/candidate claims are listed.
+        self.assertEqual(set(rows), {"O1", "A1", "A2", "CS1"})
+        self.assertEqual(rows["CS1"], {"id": "CS1", "type": "candidate_solution", "belief": 0.6})
+        self.assertEqual(as_text.returncode, 0, as_text.stderr)
+        self.assertIn("CS1 candidate_solution belief 0.6", as_text.stdout)
+        self.assertEqual(FIXTURE.read_text(encoding="utf-8"), original)
 
     def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1786,7 +670,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "Factor cost must not hide the raw cycle.",
                     }
                 ],
-                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -1816,7 +699,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "aggregation": {"kind": "joint_probability", "probability": 0.7},
                     }
                 ],
-                "frontier": [{"id": "Q1", "node": "D1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -1824,11 +706,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("should include reason", valid.stderr)
 
-    def test_expand_patch_upserts_new_factors(self) -> None:
+    def test_record_patch_upserts_new_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "expand-factor-state.json"
-            patch_path = Path(tmp_dir) / "expand-factor-patch.json"
-            output_path = Path(tmp_dir) / "expand-factor-output.json"
+            state_path = Path(tmp_dir) / "record-factor-state.json"
+            patch_path = Path(tmp_dir) / "record-factor-patch.json"
+            output_path = Path(tmp_dir) / "record-factor-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
@@ -1836,9 +718,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"prior": 0.95, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}}],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             patch = {
+                "reason": "E2 shares E1's source, so their evidence is grouped.",
                 "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}}],
                 "factors": [
                     {
@@ -1853,18 +735,14 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
-            popped = self.run_cli("next", str(state_path), "--pop")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
 
-            result = self.run_cli(
-                "expand", str(state_path), "--item", "Q1", "--patch", str(patch_path), "-o", str(output_path)
-            )
+            result = self.run_cli("record", str(state_path), "--patch", str(patch_path), "-o", str(output_path))
             self.assertEqual(result.returncode, 0, result.stderr)
-            expanded = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(expanded["factors"][0]["id"], "F1")
-            self.assertEqual(expanded["events"][-1]["update_factors"], ["F1"])
-            self.assertEqual(expanded["events"][-1]["updated_factor_snapshots"][0]["before"], None)
-            self.assertAlmostEqual(expanded["frontier"][0]["truth_cost"], 0.287682, places=6)
+            recorded = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(recorded["factors"][0]["id"], "F1")
+            self.assertEqual(recorded["events"][-1]["update_factors"], ["F1"])
+            # Grouped LR 3 replaces the member LRs 4 and 3 => odds 3 => -ln(0.75).
+            self.assertAlmostEqual(truth_cost(recorded, "A1"), 0.287682, places=6)
 
     def test_audit_accepts_updated_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1889,21 +767,16 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "E1 and E2 share source.",
                     }
                 ],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
                 "events": [
-                    {"step": 1, "action": "init", "frontier": ["Q1"]},
-                    {"step": 2, "action": "pop", "item": "Q1", "cost": 0.287682},
                     {
-                        "step": 3,
-                        "action": "expand",
-                        "item": "Q1",
+                        "step": 1,
+                        "action": "record",
+                        "reason": "Calibration only.",
                         "add_nodes": [],
                         "add_edges": ["E2A"],
-                        "add_frontier": [],
                         "update_factors": ["F1"],
-                        "no_new_work_reason": "Calibration only.",
                     },
-                    {"step": 4, "action": "stop", "reason": "done", "outcome": "frontier_exhausted"},
+                    {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
                 ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -1911,70 +784,30 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_costs_explicit_posterior_overrides_graph_updates(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "posterior-state.json"
-            output_path = Path(tmp_dir) / "posterior-output.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2, "posterior": 0.7},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Negative signal"},
-                ],
-                "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
+    def test_beliefs_explicit_posterior_overrides_graph_updates(self) -> None:
+        state = {
+            "nodes": [
+                {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2, "posterior": 0.7},
+                {"prior": 0.95, "id": "E1", "type": "observation", "text": "Negative signal"},
+            ],
+            "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
+        }
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.356675, places=6)
-
-    def test_costs_do_not_subtract_unrelated_parent_truth(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "unrelated-parent-state.json"
-            output_path = Path(tmp_dir) / "unrelated-parent-output.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Required premise", "prior": 0.5},
-                    {"id": "B1", "type": "hypothesis", "text": "Audit parent only", "prior": 0.5},
-                    {"id": "D1", "type": "hypothesis", "text": "Derived from A"},
-                ],
-                "edges": [{"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"}],
-                "frontier": [
-                    {"id": "Q1", "node": "B1", "cost_components": {"truth": "auto"}},
-                    {"id": "Q2", "node": "D1", "parent": "Q1", "cost_components": {"truth": "auto"}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            by_id = {item["id"]: item for item in costed["frontier"]}
-            self.assertNotIn("path_cost", by_id["Q1"])
-            self.assertAlmostEqual(by_id["Q1"]["truth_cost"], 0.693147, places=6)
-            self.assertAlmostEqual(by_id["Q2"]["truth_cost"], 0.693147, places=6)
-            self.assertAlmostEqual(by_id["Q2"]["search_cost"], 0.693147, places=6)
+        self.assertAlmostEqual(truth_cost(state, "A1"), 0.356675, places=6)
 
     def test_contradicts_without_likelihood_ratio_is_explanatory_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "legacy-contradiction-state.json"
-            output_path = Path(tmp_dir) / "legacy-contradiction-output.json"
             state = {
                 "nodes": [
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
                     {"id": "E1", "type": "observation", "text": "Negative signal", "prior": 0.1},
                 ],
                 "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
-                "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_cli("costs", str(state_path), "-o", str(output_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            costed = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertAlmostEqual(costed["frontier"][0]["truth_cost"], 0.693147, places=6)
+            self.assertAlmostEqual(truth_cost(state, "A1"), 0.693147, places=6)
 
             valid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(valid.returncode, 0, valid.stdout)
@@ -2001,7 +834,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     },
                     {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
                 ],
-                "frontier": [],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -2045,7 +877,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "overlaps and E3 has no support edge",
                     },
                 ],
-                "frontier": [],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -2056,18 +887,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("factors[1] input 'E3' must have a supports edge to target 'A1'", invalid.stderr)
             self.assertIn("supports factors for target 'A1' overlap on input(s) E2", invalid.stderr)
             self.assertIn("factors[1].aggregation.kind must be 'likelihood' for supports/contradicts factors", invalid.stderr)
-
-    def test_costs_writes_computed_frontier_costs(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            output = Path(tmp_dir) / "costs.json"
-            result = self.run_cli("costs", str(FIXTURE), "-o", str(output))
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            state = json.loads(output.read_text(encoding="utf-8"))
-            frontier = state["frontier"]
-            self.assertTrue(frontier)
-            self.assertTrue(all("search_cost" in item for item in frontier))
-            self.assertTrue(all("truth_cost" in item for item in frontier))
 
     def test_stop_output_does_not_mutate_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2097,45 +916,18 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-1]["action"], "stop")
             self.assertEqual(stopped["events"][-1]["outcome"], "user_stopped")
 
-    def test_pending_expand_with_ranked_candidate_stop_produces_auditable_trace(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_path = Path(tmp_dir) / "patch.json"
-            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
-            patch = {
-                "rank": True,
-                "no_new_work_reason": "candidate already supported; closing pending item",
-                "stop_reason": "CS1 answers G1 and sample frontier is complete",
-                "stop_outcome": "solved",
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-            patch_path.write_text(json.dumps(patch), encoding="utf-8")
-
-            result = self.run_cli("expand", str(state_path), "--item", "Q3", "--patch", str(patch_path), "-i")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            updated = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in updated["events"][-3:]], ["expand", "rank", "stop"])
-            self.assertEqual(sum(1 for event in updated["events"] if event.get("action") == "rank"), 1)
-            audit = self.run_cli("audit", str(state_path))
-            self.assertEqual(audit.returncode, 0, audit.stderr)
-
     def test_stop_ranks_candidate_outcomes_without_mutating_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             stopped_path = Path(tmp_dir) / "stopped.json"
-            state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-            state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
-            state["events"].append({"step": 5, "action": "expand", "item": "Q3", "add_nodes": [], "add_edges": [], "add_frontier": []})
-            original = json.dumps(state, indent=2) + "\n"
+            original = json.dumps(unstopped_fixture_state(), indent=2) + "\n"
             state_path.write_text(original, encoding="utf-8")
 
             result = self.run_cli(
                 "stop",
                 str(state_path),
                 "--reason",
-                "CS1 answers G1 and sample frontier is complete",
+                "CS1 answers G1 and its premise chain is recorded",
                 "--outcome",
                 "solved",
                 "-o",
@@ -2146,11 +938,113 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             stopped = json.loads(stopped_path.read_text(encoding="utf-8"))
             self.assertEqual([event["action"] for event in stopped["events"][-2:]], ["rank", "stop"])
+            self.assertNotIn("item", stopped["events"][-2])
             self.assertEqual(stopped["events"][-2]["best"], "CS1")
             self.assertEqual(stopped["events"][-1]["outcome"], "solved")
 
             audit = self.run_cli("audit", str(stopped_path))
             self.assertEqual(audit.returncode, 0, audit.stderr)
+
+    def test_stop_candidate_outcome_rejects_unmet_gate_without_persisting_rank_or_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state = unstopped_fixture_state()
+            state["edges"] = [edge for edge in state["edges"] if edge.get("type") != "answers"]
+            original = json.dumps(state)
+            state_path.write_text(original, encoding="utf-8")
+
+            stopped = self.run_cli(
+                "stop",
+                str(state_path),
+                "--reason",
+                "candidate answers goal",
+                "--outcome",
+                "solved",
+                "-i",
+            )
+
+            self.assertNotEqual(stopped.returncode, 0)
+            self.assertIn("stop outcome 'solved' is not met", stopped.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertNotIn("rank", [event["action"] for event in persisted["events"]])
+            self.assertNotIn("stop", [event["action"] for event in persisted["events"]])
+
+    def test_stop_preflight_rejects_invalid_terminal_states_without_persisting(self) -> None:
+        cases = {
+            "duplicate": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "events": [
+                        {"step": 1, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                    ],
+                },
+                "done",
+                "already has a stop",
+            ),
+            "blank reason": (
+                {"nodes": [{"id": "A1", "type": "hypothesis", "prior": 1.0}], "edges": []},
+                "   ",
+                "stop reason must be non-empty",
+            ),
+        }
+        for name, (state, reason, expected_error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                original = json.dumps(state)
+                state_path.write_text(original, encoding="utf-8")
+                stopped = self.run_cli("stop", str(state_path), "--reason", reason, "--outcome", "user_stopped", "-i")
+
+                self.assertNotEqual(stopped.returncode, 0)
+                self.assertIn(expected_error, stopped.stderr)
+                self.assertEqual(state_path.read_text(encoding="utf-8"), original)
+
+    def test_append_stop_event_rejects_stopped_state_without_mutation(self) -> None:
+        state = {
+            "events": [
+                {"step": 1, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+            ],
+        }
+        original = json.loads(json.dumps(state))
+
+        self.assertNotEqual(append_stop_event(state, "again", "user_stopped"), 0)
+        self.assertEqual(state, original)
+
+    def test_audit_rejects_invalid_terminal_states(self) -> None:
+        cases = {
+            "no events": (
+                {"nodes": [], "edges": [], "events": []},
+                "events must be a non-empty list for audit",
+            ),
+            "missing stop": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "events": [{"step": 1, "action": "record", "reason": "nothing yet", "add_nodes": [], "add_edges": []}],
+                },
+                "audit requires a stop event",
+            ),
+            "duplicate": (
+                {
+                    "nodes": [],
+                    "edges": [],
+                    "events": [
+                        {"step": 1, "action": "stop", "reason": "done", "outcome": "user_stopped"},
+                        {"step": 2, "action": "stop", "reason": "again", "outcome": "user_stopped"},
+                    ],
+                },
+                "duplicate stop event",
+            ),
+        }
+        for name, (state, expected_error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                state_path.write_text(json.dumps(state), encoding="utf-8")
+                audit = self.run_cli("audit", str(state_path))
+
+                self.assertNotEqual(audit.returncode, 0)
+                self.assertIn(expected_error, audit.stderr)
 
     def test_mermaid_and_html_smoke(self) -> None:
         mermaid = self.run_cli("mermaid", str(FIXTURE))
@@ -2188,7 +1082,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "A-B-A B-answers", "from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
                 {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
             ],
-            "frontier": [],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
         }
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2235,7 +1128,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                         "reason": "E1 and E2 share source.",
                     }
                 ],
-                "frontier": [],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 

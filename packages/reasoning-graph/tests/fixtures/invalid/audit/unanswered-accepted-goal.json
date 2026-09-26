@@ -138,66 +138,17 @@
       "reasoning": "The probe produced this profile."
     }
   ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "T1",
-      "cost_components": {
-        "truth": "auto",
-        "verification": 0.2
-      },
-      "truth_cost": 0.0,
-      "work_cost": 0.2,
-      "base_search_cost": 0.2,
-      "step_truth_cost": 0.0,
-      "step_cost": 0.2,
-      "search_cost": 0.2
-    },
-    {
-      "id": "Q2",
-      "node": "T2",
-      "cost_components": {
-        "truth": "auto",
-        "verification": 0.3
-      },
-      "parent": "Q1",
-      "truth_cost": 0.0,
-      "work_cost": 0.3,
-      "base_search_cost": 0.3,
-      "step_truth_cost": 0.0,
-      "step_cost": 0.3,
-      "search_cost": 0.3
-    }
-  ],
-  "search_policy": {
-    "estimated_remaining_weight": 1.0
-  },
   "stop_policy": {
     "min_viable_candidates": 3,
     "belief_threshold": 0.8,
-    "max_live_frontier_items": 0,
-    "require_frontier_exhausted_for_epistemic_stop": true,
     "severity": "error"
   },
   "factors": [],
   "events": [
     {
       "step": 1,
-      "action": "init",
-      "frontier": [
-        "Q1"
-      ]
-    },
-    {
-      "step": 2,
-      "action": "pop",
-      "item": "Q1",
-      "cost": 0.2
-    },
-    {
-      "step": 3,
-      "action": "expand",
-      "item": "Q1",
+      "action": "record",
+      "reason": "Worked Q1",
       "add_nodes": [
         "E2",
         "CS1",
@@ -214,35 +165,23 @@
         "E3-A2",
         "A2-T2"
       ],
-      "add_frontier": [
-        "Q2"
-      ],
       "update_factors": []
     },
     {
-      "step": 4,
-      "action": "pop",
-      "item": "Q2",
-      "cost": 0.3
-    },
-    {
-      "step": 5,
-      "action": "expand",
-      "item": "Q2",
+      "step": 2,
+      "action": "record",
+      "reason": "Profile recorded; decode reasoning continues off-graph.",
       "add_nodes": [
         "E4"
       ],
       "add_edges": [
         "T2-E4"
       ],
-      "add_frontier": [],
-      "update_factors": [],
-      "no_new_work_reason": "Profile recorded; decode reasoning continues off-graph."
+      "update_factors": []
     },
     {
-      "step": 6,
+      "step": 3,
       "action": "rank",
-      "item": "Q2",
       "best": "CS1",
       "belief": 0.95,
       "candidates": [
@@ -254,7 +193,7 @@
       ]
     },
     {
-      "step": 7,
+      "step": 4,
       "action": "stop",
       "reason": "systematically solved stage by stage",
       "outcome": "solved"

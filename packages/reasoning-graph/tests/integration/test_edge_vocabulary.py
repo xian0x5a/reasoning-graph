@@ -28,7 +28,6 @@ class EdgeVocabularyTests(unittest.TestCase):
                 {"id": "D1", "type": "hypothesis", "text": "Conclusion", "prior": 1.0},
             ],
             "edges": [{"id": "D1-A1-assumes", "from": "D1", "to": "A1", "type": "assumes"}],
-            "frontier": [],
         }
         errors = state_schema_errors(state)
         self.assertTrue(any("assumes" in error for error in errors), errors)

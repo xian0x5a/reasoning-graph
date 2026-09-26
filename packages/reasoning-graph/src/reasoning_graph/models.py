@@ -44,14 +44,8 @@ FACTOR_AGGREGATION_KINDS = {
 
 
 AUDIT_EVENT_ACTIONS = {
-    "init",
     "record",
     "review",
-    "seed",
-    "pop",
-    "assign",
-    "expand",
-    "supersede",
     "rank",
     "stop",
 }
@@ -61,7 +55,6 @@ STOP_OUTCOMES = {
     "solved",
     "candidate_threshold_met",
     "candidate_count_met",
-    "frontier_exhausted",
     "budget_exhausted",
     "blocked",
     "user_stopped",
@@ -122,38 +115,6 @@ EPISTEMIC_GOAL_MARKERS = (
     "not established",
     "cannot establish",
     "missing dependency",
-)
-
-
-# In-flight subagent probes allowed when search_policy.max_probe_concurrency is unset.
-DEFAULT_MAX_PROBE_CONCURRENCY = 5
-
-
-SEARCH_COST_COMPONENTS = (
-    "truth",
-    "verification",
-    "effort_budget",
-    "reasoning_complexity",
-    "constraint_tension",
-)
-
-
-LEGACY_COST_COMPONENT_ALIASES = {
-    "uncertainty": "truth",
-    "resource_budget": "effort_budget",
-    "compute_budget": "effort_budget",
-}
-
-
-PROBE_LIKE_MARKERS = (
-    "brute force",
-    "bruteforce",
-    "probe",
-    "sweep",
-    "enumerate",
-    "try variants",
-    "attempt variants",
-    "batch test",
 )
 
 

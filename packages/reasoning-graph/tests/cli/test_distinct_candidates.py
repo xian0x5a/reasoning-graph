@@ -25,13 +25,12 @@ class DistinctCandidateCliTests(unittest.TestCase):
         result = self.run_cli("stop-review", str(DUPLICATE_FIXTURE))
 
         self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn("viable_candidates=1 < min_viable_candidates=3", result.stdout)
+        self.assertIn("viable candidates 1 < stop_policy.min_viable_candidates 3", result.stdout)
 
     def test_audit_accepts_three_distinct_graph_candidates(self) -> None:
         state = json.loads(STRICT_FIXTURE.read_text(encoding="utf-8"))
         state["stop_policy"] = {
             "min_viable_candidates": 3,
-            "max_live_frontier_items": 0,
             "severity": "error",
         }
         state["nodes"].extend([

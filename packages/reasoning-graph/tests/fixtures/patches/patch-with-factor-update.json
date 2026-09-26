@@ -1,5 +1,5 @@
 {
-  "summary": "Add grouped evidence factor for A1.",
+  "reason": "Add grouped evidence factor for A1.",
   "nodes": [
     {
       "id": "E3",
@@ -30,7 +30,7 @@
       "reasoning": "The observed signal is more likely when the target claim is true."
     }
   ],
-  "update_factors": [
+  "factors": [
     {
       "id": "F_SUPPORTS_A1_EXTRA",
       "relation": "supports",
@@ -46,6 +46,5 @@
       },
       "reason": "New signals are correlated with each other and grouped together."
     }
-  ],
-  "no_new_work_reason": "Evidence only reranks existing branch."
+  ]
 }

@@ -38,7 +38,7 @@ def build_node(node_type: str, **extra: object) -> dict:
 
 
 def state_with(node_type: str, **extra: object) -> dict:
-    return {"nodes": [build_node(node_type, **extra)], "edges": [], "frontier": []}
+    return {"nodes": [build_node(node_type, **extra)], "edges": []}
 
 
 @pytest.mark.parametrize("node_type,field", ACCEPTED)
@@ -64,7 +64,7 @@ def test_score_free_types_reject_every_score(node_type):
 def test_obsolete_scores_and_computed_belief_are_rejected_as_node_inputs(node_type, field):
     score = {"prior": 0.8} if node_type in CLAIM_TYPES else {}
     node = build_node(node_type, **score, **{field: 0.9})
-    state = {"nodes": [node], "edges": [], "frontier": []}
+    state = {"nodes": [node], "edges": []}
     patch = {"nodes": [node]}
     assert state_schema_errors(state)
     assert patch_schema_errors(patch)
@@ -81,7 +81,7 @@ def test_direct_cost_consumers_reject_invalid_score_inputs(field, override):
     with pytest.raises(ValueError, match=field):
         node_local_truth_cost(node)
     with pytest.raises(ValueError, match=field):
-        node_effective_truth_costs({"nodes": [node], "edges": [], "frontier": []})
+        node_effective_truth_costs({"nodes": [node], "edges": []})
 
 
 @pytest.mark.parametrize("value", [0, -0.1, 1.1, True, "0.8", None])
@@ -101,7 +101,6 @@ def derived_state(**derived: object) -> dict:
             {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this observation."},
             {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to", "reasoning": "The conclusion rests on this premise."},
         ],
-        "frontier": [],
     }
 
 
@@ -158,7 +157,6 @@ def test_derived_belief_updates_from_likelihoods_on_uncertain_premises():
             {"id": "E2-D1", "from": "E2", "to": "D1", "type": "contradicts", "likelihood_ratio": 0.1,
              "reasoning": "This independent observation is ten times less likely if the conclusion is true."},
         ],
-        "frontier": [],
     }
     assert validate_state(state).ok
     # Premise 0.8 gives odds 4; ratio 0.1 gives odds 0.4 and belief 2/7.

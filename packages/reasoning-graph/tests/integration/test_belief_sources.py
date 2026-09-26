@@ -9,9 +9,8 @@ import pytest
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
-from reasoning_graph.audit import audit_stop_policy
-from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost, sorted_frontier_items
-from reasoning_graph.policy import ranked_viable_candidates
+from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
+from reasoning_graph.policy import below_threshold_messages, ranked_viable_candidates
 from reasoning_graph.validation import validate_state
 
 
@@ -31,7 +30,6 @@ def claim_state(node_type="candidate_solution", **score):
              **({"answer_kind": "exact_answer"} if node_type == "candidate_solution" else {}), **score},
         ],
         "edges": [edge("N1", "G1", "answers")] if node_type == "candidate_solution" else [],
-        "frontier": [],
     }
 
 
@@ -150,7 +148,7 @@ def test_local_inference_prior_matches_an_explicit_validity_assumption():
     assert belief(state) == pytest.approx(0.72)
 
 
-def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
+def test_candidate_ranking_and_stopping_use_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
         {"id": "O1", "type": "observation", "text": "Observed clue", "prior": 1.0},
@@ -160,24 +158,18 @@ def test_candidate_ranking_frontier_and_stopping_use_inherited_belief():
     ])
     # O1 grounds the premise chain; the threshold only credits evidence-grounded candidates.
     state["edges"].extend([edge("O1", "A1"), edge("A1", "N1"), edge("CS2", "G1", "answers")])
-    state["frontier"] = [
-        {"id": "Q1", "node": "N1", "cost_components": {"truth": "auto"}},
-        {"id": "Q2", "node": "CS2", "cost_components": {"truth": "auto"}},
-    ]
-    state["stop_policy"] = {"min_viable_candidates": 3, "belief_threshold": 0.6,
-                            "max_live_frontier_items": 0, "severity": "error"}
+    state["stop_policy"] = {"belief_threshold": 0.6, "severity": "error"}
     assert validate_state(state).ok
     ranked = ranked_viable_candidates(state)
     assert [(item["node"], item["belief"]) for item in ranked] == [("N1", 0.6), ("CS2", 0.55)]
-    assert sorted_frontier_items(state)[0]["node"] == "N1"
-    assert audit_stop_policy(state, state["frontier"], len(ranked)).ok
+    assert below_threshold_messages(state) == []
 
     # Removing the only absolute belief sources must not pass the threshold.
     del next(node for node in state["nodes"] if node["id"] == "A1")["prior"]
     state["edges"] = [item for item in state["edges"] if item["from"] != "O1"]
     assert not validate_state(state).ok
     assert belief(state) == pytest.approx(0.5)
-    assert not audit_stop_policy(state, state["frontier"], len(ranked)).ok
+    assert below_threshold_messages(state)
 
 
 def test_computed_belief_recalculates_without_writing_node_scores():
@@ -274,10 +266,9 @@ def test_ungrounded_support_cannot_lift_a_grounded_candidate_past_the_threshold(
         {"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9},
     ])
     state["edges"].extend([edge("O1", "N1"), edge("H2", "N1", "supports", likelihood_ratio=9)])
-    state["frontier"] = [{"id": "Q1", "node": "N1", "cost_components": {"truth": "auto"}}]
-    state["stop_policy"] = {"belief_threshold": 0.8, "max_live_frontier_items": 0, "severity": "error"}
+    state["stop_policy"] = {"belief_threshold": 0.8, "severity": "error"}
     assert belief(state) == pytest.approx(0.6)
-    assert not audit_stop_policy(state, state["frontier"], 1).ok
+    assert below_threshold_messages(state)
 
 
 def test_evidence_cycle_between_hypotheses_is_invalid():

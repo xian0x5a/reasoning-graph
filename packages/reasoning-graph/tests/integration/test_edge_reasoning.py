@@ -39,7 +39,7 @@ def test_all_edge_types_require_reasoning(edge_type):
 ])
 def test_nonblank_reasoning_applies_to_state_patch_and_exported_schema(reasoning, valid):
     edge = {"id": "A-B", "from": "A", "to": "B", "type": "supports", "reasoning": reasoning}
-    state = {"nodes": [], "edges": [edge], "frontier": []}
+    state = {"nodes": [], "edges": [edge]}
     patch = {"edges": [edge]}
     assert (not state_schema_errors(state)) == valid
     assert (not patch_schema_errors(patch)) == valid
@@ -56,7 +56,6 @@ def test_detail_cards_escape_edge_reasoning():
             {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",
              "reasoning": "The <script> tag is text, not executable markup."},
         ],
-        "frontier": [],
     }
     cards = node_detail_cards(state)
     assert "&lt;script&gt;" in cards

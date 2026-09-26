@@ -1,4 +1,4 @@
-"""Truth/search cost and evidence-update helpers."""
+"""Truth cost, belief, and evidence-update helpers."""
 
 from __future__ import annotations
 
@@ -6,14 +6,12 @@ import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS, LEGACY_COST_COMPONENT_ALIASES, PROBE_LIKE_MARKERS, SEARCH_COST_COMPONENTS
+from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS
 from .state import by_id
 from .utils import require_finite_float, require_non_negative_float
 
 
 NEUTRAL_UPDATE_PRIOR = 0.5
-DEFAULT_ESTIMATED_REMAINING_WEIGHT = 1.0
-ESTIMATED_REMAINING_COST_FIELD = "estimated_remaining_cost"
 
 # Posterior is an authored override, not a cache of computed belief. Listings
 # keep the local prior visible first even when a posterior overrides it.
@@ -30,29 +28,6 @@ def require_probability(value: Any, field: str = "probability") -> float:
 
 def probability_cost(value: Any, field: str = "probability") -> float:
     return -math.log(require_probability(value, field))
-
-
-def uncertainty_cost_from_prior(prior: Any) -> float:
-    return probability_cost(prior, "prior")
-
-
-def text_looks_probe_like(*values: Any) -> bool:
-    text = " ".join(str(value or "").lower() for value in values)
-    return any(marker in text for marker in PROBE_LIKE_MARKERS)
-
-
-def item_has_explicit_effort_budget(item: dict[str, Any]) -> bool:
-    components = item.get("cost_components") if isinstance(item.get("cost_components"), dict) else {}
-    has_cost_component = any(
-        key in components
-        for key in ("effort_budget", "resource_budget", "compute_budget")
-    )
-    budget = item.get("budget")
-    has_budget_metadata = isinstance(budget, dict) and any(
-        key in budget
-        for key in ("max_attempts", "max_seconds", "max_items", "max_sources", "stop_after")
-    )
-    return has_cost_component and has_budget_metadata
 
 
 def probability_from_value(value: Any) -> float | None:
@@ -537,150 +512,3 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     for node_id in inputs.nodes:
         effective_cost(node_id)
     return memo
-
-
-def search_policy_estimated_remaining_weight(state: dict[str, Any]) -> float:
-    policy = state.get("search_policy", {})
-    if policy is None:
-        policy = {}
-    if not isinstance(policy, dict):
-        raise ValueError("search_policy must be an object when present")
-    return require_non_negative_float(
-        policy.get("estimated_remaining_weight", DEFAULT_ESTIMATED_REMAINING_WEIGHT),
-        "search_policy.estimated_remaining_weight",
-    )
-
-
-def estimated_remaining_cost_for_item(item: dict[str, Any]) -> tuple[float, bool]:
-    if ESTIMATED_REMAINING_COST_FIELD not in item:
-        return 0.0, False
-    estimated_remaining_cost = require_non_negative_float(
-        item.get(ESTIMATED_REMAINING_COST_FIELD),
-        f"frontier item {item.get('id')} estimated_remaining_cost",
-    )
-    return estimated_remaining_cost, True
-
-
-def cost_components_for_item(
-    item: dict[str, Any],
-    nodes: dict[str, dict[str, Any]],
-    node_truth_costs: dict[str, float],
-) -> dict[str, float]:
-    explicit = item.get("cost_components") or item.get("cost") or {}
-    if explicit is None:
-        explicit = {}
-    if not isinstance(explicit, dict):
-        raise ValueError(f"frontier item {item.get('id')} cost_components must be object")
-
-    components: dict[str, float] = {}
-    for raw_key, raw_value in explicit.items():
-        key = str(raw_key)
-        if key == ESTIMATED_REMAINING_COST_FIELD:
-            raise ValueError(f"frontier item {item.get('id')} cost_components.{key} must be top-level")
-        key = LEGACY_COST_COMPONENT_ALIASES.get(key, key)
-        if key not in SEARCH_COST_COMPONENTS:
-            continue
-        if raw_value is None or raw_value == "auto":
-            continue
-        components[key] = require_non_negative_float(
-            raw_value,
-            f"frontier item {item.get('id')} component {raw_key}",
-        )
-
-    node_id = str(item.get("node"))
-    node = nodes.get(node_id)
-    if "truth" not in components:
-        components["truth"] = node_truth_costs.get(node_id, node_truth_cost(node))
-
-    for key in SEARCH_COST_COMPONENTS:
-        components.setdefault(key, 0.0)
-    return components
-
-
-def compute_costs(state: dict[str, Any]) -> dict[str, Any]:
-    nodes = by_id(state.get("nodes", []), "node")
-    node_truth_costs = node_effective_truth_costs(state)
-    frontier = state.get("frontier", [])
-    estimated_remaining_weight = search_policy_estimated_remaining_weight(state)
-
-    for item in frontier:
-        if not isinstance(item, dict):
-            continue
-        if "path_cost" in item:
-            raise ValueError(f"frontier item {item.get('id')} uses rejected legacy field path_cost; use search_cost/cost_components")
-        if "cost_components" not in item and "cost" not in item and "step_cost" in item:
-            node_id = str(item.get("node"))
-            if "step_truth_cost" in item:
-                truth_cost = require_non_negative_float(
-                    item["step_truth_cost"],
-                    f"frontier item {item.get('id')} step_truth_cost",
-                )
-            else:
-                truth_cost = node_truth_costs.get(node_id, node_truth_cost(nodes.get(node_id)))
-            truth_cost = require_non_negative_float(
-                truth_cost,
-                f"frontier item {item.get('id')} step_truth_cost",
-            )
-            legacy_search_cost = require_non_negative_float(
-                item["step_cost"],
-                f"frontier item {item.get('id')} step_cost",
-            )
-            work_cost = max(0.0, legacy_search_cost - truth_cost)
-            item["cost_components"] = {
-                "truth": round(truth_cost, 6),
-                "verification": round(work_cost, 6),
-                "effort_budget": 0.0,
-                "reasoning_complexity": 0.0,
-                "constraint_tension": 0.0,
-            }
-        else:
-            # Keep the authored spec (including truth: "auto") untouched: persisting the
-            # resolved number here would freeze the item's priority against later evidence.
-            components = cost_components_for_item(item, nodes, node_truth_costs)
-            truth_cost = components["truth"]
-            work_cost = sum(value for key, value in components.items() if key != "truth")
-
-        truth_cost = require_non_negative_float(truth_cost, f"frontier item {item.get('id')} truth cost")
-        work_cost = require_non_negative_float(work_cost, f"frontier item {item.get('id')} work cost")
-        base_search_cost = require_non_negative_float(
-            truth_cost + work_cost,
-            f"frontier item {item.get('id')} base search cost",
-        )
-        estimated_remaining_cost, has_estimated_remaining_cost = estimated_remaining_cost_for_item(item)
-        heuristic_cost = require_non_negative_float(
-            estimated_remaining_weight * estimated_remaining_cost,
-            f"frontier item {item.get('id')} heuristic cost",
-        )
-        search_cost = require_non_negative_float(
-            base_search_cost + heuristic_cost,
-            f"frontier item {item.get('id')} search cost",
-        )
-
-        item["truth_cost"] = round(truth_cost, 6)
-        item["work_cost"] = round(work_cost, 6)
-        item["base_search_cost"] = round(base_search_cost, 6)
-        if has_estimated_remaining_cost:
-            item["estimated_remaining_cost"] = round(estimated_remaining_cost, 6)
-            item["heuristic_cost"] = round(heuristic_cost, 6)
-        else:
-            item.pop("heuristic_cost", None)
-        item["step_truth_cost"] = round(truth_cost, 6)
-        item["step_cost"] = round(search_cost, 6)
-        item["search_cost"] = round(search_cost, 6)
-    return state
-
-
-def sorted_frontier(state: dict[str, Any]) -> dict[str, Any]:
-    compute_costs(state)
-    state["frontier"] = sorted(
-        state.get("frontier", []),
-        key=lambda item: (float(item.get("search_cost", math.inf)), str(item.get("id", ""))),
-    )
-    return state
-
-
-def sorted_frontier_items(state: dict[str, Any], item_ids: Iterable[str] | None = None) -> list[dict[str, Any]]:
-    compute_costs(state)
-    items = by_id(state.get("frontier", []), "frontier item")
-    selected = items.values() if item_ids is None else (items[item_id] for item_id in item_ids if item_id in items)
-    return sorted(selected, key=lambda item: (float(item.get("search_cost", math.inf)), str(item.get("id", ""))))

@@ -34,7 +34,6 @@ def base_state() -> dict:
             {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate depends on the likely route."},
             {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "The candidate supplies the requested answer."},
         ],
-        "frontier": [{"id": "Q1", "node": "A1", "cost_components": {"truth": "auto"}}],
     }
 
 
@@ -45,15 +44,13 @@ class ContractAlignmentTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
             return run_cli("validate", str(state_path))
 
-    def expand(self, patch: dict) -> subprocess.CompletedProcess[str]:
+    def record(self, patch: dict) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
-            popped = run_cli("next", str(state_path), "--pop")
-            self.assertEqual(popped.returncode, 0, popped.stderr)
-            patch_path.write_text(json.dumps(patch), encoding="utf-8")
-            return run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path))
+            patch_path.write_text(json.dumps({"reason": "Test step", **patch}), encoding="utf-8")
+            return run_cli("record", str(state_path), "--patch", str(patch_path))
 
     # --- #12 edge identity ---
 
@@ -64,7 +61,7 @@ class ContractAlignmentTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("schema $.edges[0]: 'id' is a required property", result.stderr)
 
-        patched = self.expand({"edges": [{"from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
+        patched = self.record({"edges": [{"from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("$.edges[0]: 'id' is a required property", patched.stderr)
 
@@ -75,7 +72,7 @@ class ContractAlignmentTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("duplicate edge id A1-CS1", result.stderr)
 
-        patched = self.expand({"edges": [{"id": "A1-CS1", "from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
+        patched = self.record({"edges": [{"id": "A1-CS1", "from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("edges id A1-CS1 already exists", patched.stderr)
 
@@ -90,7 +87,7 @@ class ContractAlignmentTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn("answer_kind", result.stderr)
 
-        patched = self.expand({
+        patched = self.record({
             "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "prior": 0.4}],
             "edges": [{"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "Second candidate answers the goal."}],
         })
@@ -111,12 +108,12 @@ class ContractAlignmentTests(unittest.TestCase):
         rejected_patches = {
             "outcome-alias": {"stop_reason": "done", "stop_outcome": "user_stopped", "outcome": "solved"},
             "factors-and-update-factors": {"factors": [factor], "update_factors": [factor]},
-            "decorative-updated-nodes": {"updated_nodes": [{"id": "A1", "fields": ["prior"]}], "no_new_work_reason": "n/a"},
-            "unknown-field": {"notes": "free text", "no_new_work_reason": "n/a"},
+            "decorative-updated-nodes": {"updated_nodes": [{"id": "A1", "fields": ["prior"]}]},
+            "unknown-field": {"notes": "free text"},
         }
         for label, patch in rejected_patches.items():
             with self.subTest(patch=label):
-                result = self.expand(patch)
+                result = self.record(patch)
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn("error: schema $", result.stderr)
 
@@ -125,12 +122,11 @@ class ContractAlignmentTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
-            self.assertEqual(run_cli("next", str(state_path), "--pop").returncode, 0)
             patch_path.write_text(
-                json.dumps({"update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}], "no_new_work_reason": "Calibration only."}),
+                json.dumps({"update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}], "reason": "Calibration only."}),
                 encoding="utf-8",
             )
-            result = run_cli("expand", str(state_path), "--item", "Q1", "--patch", str(patch_path))
+            result = run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             event = json.loads(state_path.read_text(encoding="utf-8"))["events"][-1]
             self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["posterior"]}])
@@ -144,7 +140,6 @@ class ContractAlignmentTests(unittest.TestCase):
             "presentation.dim_nodes": ("presentation", "dim_nodes"),
             "view.winning_path": ("view", "winning_path"),
             "view.dimmed_branches": ("view", "dimmed_branches"),
-            "view.frontier": ("view", "frontier"),
         }
         for label, (section, key) in collections.items():
             with self.subTest(collection=label):
@@ -156,7 +151,7 @@ class ContractAlignmentTests(unittest.TestCase):
 
         state = base_state()
         state["presentation"] = {"include_nodes": ["A1", "CS1", "G1"], "highlight_nodes": ["CS1"], "dim_nodes": ["A1"]}
-        state["view"] = {"winning_path": ["A1", "CS1", "G1"], "dimmed_branches": ["A2"], "frontier": ["A1"]}
+        state["view"] = {"winning_path": ["A1", "CS1", "G1"], "dimmed_branches": ["A2"]}
         ok = self.validate(state)
         self.assertEqual(ok.returncode, 0, ok.stderr)
 

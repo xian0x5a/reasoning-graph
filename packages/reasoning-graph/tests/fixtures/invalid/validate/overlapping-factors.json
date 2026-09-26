@@ -96,15 +96,5 @@
       },
       "reason": "Bad duplicate grouping for overlap fixture."
     }
-  ],
-  "frontier": [
-    {
-      "id": "Q1",
-      "node": "A1",
-      "cost_components": {
-        "truth": "auto",
-        "verification": 0.2
-      }
-    }
   ]
 }
