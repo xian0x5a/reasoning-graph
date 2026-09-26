@@ -125,6 +125,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
 
+            self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered; G2 optional", "--outcome", "solved", "-o", str(Path(tmp_dir) / "stopped.json"))
 
             self.ok(stopped)
@@ -389,6 +390,8 @@ class GroundedPathTests(unittest.TestCase):
         return state_path
 
     def stop(self, state_path: Path, outcome: str = "candidate_threshold_met") -> subprocess.CompletedProcess[str]:
+        # The strict profile also requires a review; pass it so these tests isolate grounding.
+        self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
         return run_cli("stop", str(state_path), "--reason", "CS1 crosses the belief threshold", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
 
     @staticmethod

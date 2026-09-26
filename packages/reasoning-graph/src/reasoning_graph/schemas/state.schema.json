@@ -162,6 +162,10 @@
         "source": {
           "type": "string"
         },
+        "note": {
+          "type": "string",
+          "description": "The agent's own working memory for this node: caveats, what is left to check, why an inference holds."
+        },
         "quote": {
           "type": "string",
           "description": "Verbatim excerpt from the source backing an observation, hedges included, so review can compare the claim with what the source says."
@@ -638,6 +642,7 @@
           "enum": [
             "init",
             "record",
+            "review",
             "seed",
             "pop",
             "assign",
@@ -856,6 +861,25 @@
           "if": {
             "properties": {
               "action": {
+                "const": "review"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "reviewer",
+              "verdict",
+              "findings"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
                 "const": "seed"
               }
             },
@@ -1064,6 +1088,10 @@
         },
         "require_frontier_exhausted_for_epistemic_stop": {
           "type": "boolean"
+        },
+        "require_review": {
+          "type": "boolean",
+          "description": "Confidence stops need a passing review event recorded after the last record event."
         },
         "severity": {
           "enum": [

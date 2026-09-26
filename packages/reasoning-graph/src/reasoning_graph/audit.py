@@ -377,6 +377,15 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     errors.append(f"{label}: update_factors references missing factor id {factor_id}")
             continue
 
+        if action == "review":
+            if not str(event.get("reviewer") or "").strip():
+                errors.append(f"{label}: review requires a reviewer")
+            if event.get("verdict") not in ("pass", "fail"):
+                errors.append(f"{label}: review verdict must be pass or fail")
+            if not str(event.get("findings") or "").strip():
+                errors.append(f"{label}: review requires findings")
+            continue
+
         if not seen_init:
             errors.append(f"{label}: init event must appear before {action}")
             continue

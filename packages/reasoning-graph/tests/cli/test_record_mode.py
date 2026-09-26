@@ -46,7 +46,7 @@ class RecordModeTests(unittest.TestCase):
             "reason": "Ran the probe",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
-                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "prior": observation_prior},
+                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "note": "Only the last run was logged", "prior": observation_prior},
             ],
             "edges": [edge("T1", "O1", "leads_to")],
         }))
@@ -55,6 +55,9 @@ class RecordModeTests(unittest.TestCase):
             "nodes": [{"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}],
             "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers")],
         }))
+
+    def review(self, state_path: Path, verdict: str = "pass", findings: str = "Observations match their quotes.") -> subprocess.CompletedProcess[str]:
+        return run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", verdict, "--findings", findings)
 
     def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
         return run_cli("stop", str(state_path), "--reason", "CS1 is grounded and confident", "--outcome", outcome)
@@ -68,7 +71,10 @@ class RecordModeTests(unittest.TestCase):
             records = [event for event in state["events"] if event["action"] == "record"]
             self.assertEqual([event["reason"] for event in records], ["Ran the probe", "Concluded from the probe"])
             self.assertEqual(records[0]["add_nodes"], ["T1", "O1"])
-            self.assertIn("CS1", state_path.with_suffix(".html").read_text(encoding="utf-8"))
+            live_view = state_path.with_suffix(".html").read_text(encoding="utf-8")
+            self.assertIn("CS1", live_view)
+            self.assertIn("exit 3", live_view)
+            self.assertIn("Only the last run was logged", live_view)
 
     def test_record_requires_reason_and_takes_no_frontier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -87,6 +93,7 @@ class RecordModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 0.95)
+            self.ok(self.review(state_path))
 
             self.ok(self.stop(state_path))
             audit = run_cli("audit", str(state_path))
@@ -116,11 +123,40 @@ class RecordModeTests(unittest.TestCase):
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
             self.assertIn("T2", stopped.stderr)
 
-    def test_strict_profile_gates_on_confidence_only(self) -> None:
+    def test_strict_profile_gates_on_confidence_and_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(self.start(tmp_dir).read_text(encoding="utf-8"))
 
-            self.assertEqual(state["stop_policy"], {"belief_threshold": 0.8, "severity": "error"})
+            self.assertEqual(state["stop_policy"], {"belief_threshold": 0.8, "require_review": True, "severity": "error"})
+
+    def test_solved_stop_needs_a_passing_review_of_the_final_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+
+            unreviewed = self.stop(state_path)
+            self.ok(self.review(state_path, "fail", "O1 overstates its quote"))
+            failed_review = self.stop(state_path)
+            self.ok(self.review(state_path))
+            self.ok(self.record(state_path, {"reason": "Late addition", "nodes": [{"id": "O2", "type": "observation", "text": "Late log", "source": "probe.log", "prior": 0.9}]}))
+            stale_review = self.stop(state_path)
+
+            for stopped in (unreviewed, failed_review, stale_review):
+                self.assertEqual(stopped.returncode, 1, stopped.stdout)
+                self.assertIn("review", stopped.stderr)
+            self.ok(self.review(state_path))
+            self.ok(self.stop(state_path))
+
+    def test_review_needs_reviewer_and_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+
+            no_findings = run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "fail", "--findings", " ")
+            no_reviewer = run_cli("review", str(state_path), "--reviewer", " ", "--verdict", "pass", "--findings", "ok")
+
+            self.assertEqual(no_findings.returncode, 1)
+            self.assertEqual(no_reviewer.returncode, 1)
 
 
 if __name__ == "__main__":

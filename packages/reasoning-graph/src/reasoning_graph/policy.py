@@ -351,7 +351,31 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
     return [f"test(s) without a recorded result observation: {', '.join(missing)}"]
 
 
+def missing_review_messages(state: dict[str, Any]) -> list[str]:
+    """Require a passing review recorded after the last graph change when stop_policy.require_review is set."""
+
+    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
+    if policy.get("require_review") is not True:
+        return []
+    events = [event for event in state.get("events") or [] if isinstance(event, dict)]
+    last_record = max((index for index, event in enumerate(events) if event.get("action") == "record"), default=-1)
+    reviews = [(index, event) for index, event in enumerate(events) if event.get("action") == "review"]
+    if not reviews:
+        return ["no review recorded; have an independent reviewer check the graph and record its verdict with review"]
+    index, latest = reviews[-1]
+    if index < last_record:
+        return ["the graph changed after the latest review; review it again"]
+    if latest.get("verdict") != "pass":
+        return [f"latest review by {latest.get('reviewer')} failed: {latest.get('findings')}; fix and review again"]
+    return []
+
+
 def confidence_stop_messages(state: dict[str, Any]) -> list[str]:
     """Everything a solved/candidate_threshold_met stop must satisfy beyond answering each goal."""
 
-    return ungrounded_goal_answer_messages(state) + below_threshold_messages(state) + unrecorded_test_messages(state)
+    return (
+        ungrounded_goal_answer_messages(state)
+        + below_threshold_messages(state)
+        + unrecorded_test_messages(state)
+        + missing_review_messages(state)
+    )

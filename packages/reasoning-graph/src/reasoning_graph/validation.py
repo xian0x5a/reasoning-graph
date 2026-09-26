@@ -146,7 +146,7 @@ def validate_state(state: Any) -> ValidationResult:
             probability = probability_from_value(stop_policy.get("belief_threshold"))
             if probability is None or probability <= 0:
                 errors.append("stop_policy.belief_threshold must be in (0, 1]")
-        for key in ("require_frontier_exhausted_for_epistemic_stop",):
+        for key in ("require_frontier_exhausted_for_epistemic_stop", "require_review"):
             if key in stop_policy and not isinstance(stop_policy.get(key), bool):
                 errors.append(f"stop_policy.{key} must be boolean when present")
         if "severity" in stop_policy and stop_policy.get("severity") not in {"warning", "error"}:

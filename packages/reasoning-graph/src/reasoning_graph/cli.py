@@ -62,10 +62,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 1
 
 
-# Confidence alone gates a solved stop: minimum-candidate and empty-frontier gates pushed agents
-# into seeding rivals they never needed (countdown-island benchmark).
+# Confidence plus an independent review gate a solved stop: minimum-candidate and empty-frontier
+# gates pushed agents into seeding rivals they never needed (countdown-island benchmark).
 STRICT_STOP_POLICY = {
     "belief_threshold": 0.8,
+    "require_review": True,
     "severity": "error",
 }
 
@@ -248,6 +249,33 @@ def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
         return
     document = html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid")
     write_output_text(document, str(Path(target).with_suffix(".html")))
+
+
+REVIEW_VERDICTS = ("pass", "fail")
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    """Append a reviewer's verdict on the current graph; a later record makes it stale."""
+    state = load_state(args.state)
+    cursor = search_cursor(state)
+    if cursor["stopped"]:
+        print("error: search already has a stop event; review cannot append", file=sys.stderr)
+        return 1
+    if not cursor["initialized"]:
+        print("error: nothing to review; record the graph first", file=sys.stderr)
+        return 1
+    reviewer = args.reviewer.strip()
+    findings = args.findings.strip()
+    if not reviewer:
+        print("error: --reviewer must name the reviewing agent", file=sys.stderr)
+        return 1
+    if not findings:
+        print("error: --findings must say what was checked and what was found", file=sys.stderr)
+        return 1
+    events = state["events"]
+    events.append({"step": next_event_step(state), "action": "review", "reviewer": reviewer, "verdict": args.verdict, "findings": findings})
+    dump_state(state, args.output, default_in_place_source(args))
+    return 0
 
 
 def cmd_record(args: argparse.Namespace) -> int:
@@ -1225,6 +1253,14 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--patch", required=True, help="patch JSON path with reason and nodes/update_nodes/edges/factors, or - for stdin")
     record.add_argument("-o", "--output", help="write updated state to path")
     record.set_defaults(func=cmd_record)
+
+    review = sub.add_parser("review", help="record an independent reviewer's verdict on the current graph")
+    review.add_argument("state", help="state JSON path, or - for stdin")
+    review.add_argument("--reviewer", required=True, help="id of the reviewing agent")
+    review.add_argument("--verdict", required=True, choices=REVIEW_VERDICTS, help="pass, or fail with findings to fix")
+    review.add_argument("--findings", required=True, help="what was checked and what was found")
+    review.add_argument("-o", "--output", help="write updated state to path")
+    review.set_defaults(func=cmd_review)
 
     seed = sub.add_parser("seed", help="apply root ledger/frontier seed patch and optional node updates")
     seed.add_argument("state", help="state JSON path, or - for stdin")

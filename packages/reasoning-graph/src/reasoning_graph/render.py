@@ -418,6 +418,8 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
             f'<header><code>{html.escape(raw_id)}</code><span class="pill">{html.escape(pill_text)}</span></header>'
             f'<p>{text}</p>'
             f'{"<p class=\"source\">Source: " + html.escape(source_text) + "</p>" if source_text else ""}'
+            f'{"<p class=\"quote\">Quote: “" + html.escape(str(node["quote"])) + "”</p>" if node.get("quote") else ""}'
+            f'{"<p class=\"note\">Note: " + html.escape(str(node["note"])) + "</p>" if node.get("note") else ""}'
             f'{"<p class=\"extras\">" + " ".join(extras) + "</p>" if extras else ""}'
             f'{reasoning_html}'
             '</article>'
