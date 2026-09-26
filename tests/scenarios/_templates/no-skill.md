@@ -9,3 +9,4 @@ Rules:
 - Use only facts from the problem file and local assets it references.
 - Flag uncertainty and explain why leading alternatives lose.
 - Keep all working files under the current directory and write the final answer to `answer.md`.
+- If you spawn subagents, pass `config.model` as `{"id": "inherit", "thinking": "inherit"}` so they run on your model and thinking level.
