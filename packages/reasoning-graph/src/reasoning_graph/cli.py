@@ -183,7 +183,12 @@ def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
     if target == "-":
         return
     document = html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid")
-    write_output_text(document, str(Path(target).with_suffix(".html")))
+    live_view_path = Path(target).with_suffix(".html")
+    # The view omits the event log, so a record can leave it byte-identical; skipping
+    # the rewrite saves the disk write and keeps the file's mtime a real change signal.
+    if live_view_path.is_file() and live_view_path.read_text(encoding="utf-8") == document:
+        return
+    write_output_text(document, str(live_view_path))
 
 
 REVIEW_VERDICTS = ("pass", "fail")

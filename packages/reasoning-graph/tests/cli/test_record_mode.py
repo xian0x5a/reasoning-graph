@@ -76,6 +76,20 @@ class RecordModeTests(unittest.TestCase):
             self.assertIn("exit 3", live_view)
             self.assertIn("Only the last run was logged", live_view)
 
+    def test_record_leaves_live_view_untouched_when_the_view_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 0.95)
+            live_view_path = state_path.with_suffix(".html")
+            before = live_view_path.stat()
+
+            self.ok(self.record(state_path, {"reason": "Re-read the probe log; nothing new"}))
+            unchanged = live_view_path.stat()
+            self.assertEqual((unchanged.st_ino, unchanged.st_mtime_ns), (before.st_ino, before.st_mtime_ns))
+
+            self.ok(self.record(state_path, {"reason": "Noted a constraint", "nodes": [{"id": "C1", "type": "constraint", "text": "Keep the API", "source": "user prompt"}]}))
+            self.assertIn("Keep the API", live_view_path.read_text(encoding="utf-8"))
+
     def test_doctor_accepts_a_working_state_and_audits_only_once_stopped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
