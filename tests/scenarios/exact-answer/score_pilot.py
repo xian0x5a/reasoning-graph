@@ -4,7 +4,8 @@
 
 items-root is test-results/exact-answer or one source dir under it.
 
-Keep rule, fixed before the A/B: keep an item when at least one pilot run is wrong.
+Keep rule, fixed before the A/B: keep an item when at least one pilot run is wrong, and
+the A/B uses every kept item.
 McNemar's test ignores items both arms get wrong, so an always-wrong item costs runs but
 adds no bias, and it is where the skill has the most room to help. Repeating the same wrong
 answer is not evidence of a bad gold label: a hand check of such an item found a fair
