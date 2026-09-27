@@ -10,10 +10,14 @@
 # problem file, so it cannot wander into validator.md or the skill's source.
 # Start the agent with that workspace as cwd, `--session-dir <workspace>/session`,
 # and the text of <workspace>/prompt.md as its first message.
+#
+# RG_BENCH_PROBLEMS_DIR points <scenario> at problem packets outside tests/scenarios,
+# for datasets that must stay out of git (see exact-answer/build_items.py).
 set -euo pipefail
 
 repo_root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 scenarios_dir="$repo_root/tests/scenarios"
+problems_dir="${RG_BENCH_PROBLEMS_DIR:-$scenarios_dir}"
 workspace_root="${RG_BENCH_WORKSPACE_ROOT:-/tmp/rg-bench}"
 
 usage() { sed -n '2,7p' "$0" >&2; exit 2; }
@@ -28,9 +32,9 @@ prepare() {
   [[ -f $template ]] || { echo "unknown arm: $arm" >&2; exit 2; }
   [[ ! -e $workspace ]] || { echo "workspace exists: $workspace" >&2; exit 1; }
   mkdir -p "$workspace/session"
-  cp "$scenarios_dir/$scenario/$problem_file" "$workspace/problem.md"
-  if [[ -d $scenarios_dir/$scenario/assets ]]; then
-    cp -r "$scenarios_dir/$scenario/assets" "$workspace/assets"
+  cp "$problems_dir/$scenario/$problem_file" "$workspace/problem.md"
+  if [[ -d $problems_dir/$scenario/assets ]]; then
+    cp -r "$problems_dir/$scenario/assets" "$workspace/assets"
   fi
   sed 's/{{PROBLEM_FILE}}/problem.md/g' "$template" > "$workspace/prompt.md"
   cat > "$workspace/meta.json" <<EOF
