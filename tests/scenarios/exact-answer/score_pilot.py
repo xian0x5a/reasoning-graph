@@ -1,6 +1,8 @@
 """Score the no-skill pilot by exact match and pick items for the A/B (issue #34).
 
-    uv run tests/scenarios/exact-answer/score_pilot.py test-results/exact-answer pilot-r1 pilot-r2
+    uv run tests/scenarios/exact-answer/score_pilot.py <items-root> <run-id>...
+
+items-root is test-results/exact-answer or one source dir under it.
 
 Keep rule, fixed before the A/B: keep an item when at least one pilot run is wrong.
 McNemar's test ignores items both arms get wrong, so an always-wrong item costs runs but
@@ -28,9 +30,14 @@ def final_answer(run_dir: Path, choices: list[str]) -> str | None:
     return answer if answer in choices else None
 
 
-def session_cost(run_dir: Path) -> float:
+def run_cost(run_dir: Path) -> float:
+    """Claude Code reports the run total in its final stream-json event; pi logs cost per message."""
+    transcript = run_dir / "transcript.jsonl"
+    if transcript.is_file():
+        events = [json.loads(line) for line in transcript.read_text(encoding="utf-8").splitlines() if line]
+        return sum(event.get("total_cost_usd", 0.0) for event in events if event.get("type") == "result")
     total = 0.0
-    for session_file in (run_dir / "session").glob("*.jsonl"):
+    for session_file in (run_dir / "session").glob("**/*.jsonl"):
         for line in session_file.read_text(encoding="utf-8").splitlines():
             message = json.loads(line).get("message")
             if isinstance(message, dict) and "cost" in (message.get("usage") or {}):
@@ -58,7 +65,7 @@ def score_item(item_dir: Path, run_ids: list[str]) -> dict:
         "correct": answers.count(gold["answer"]),
         "wrong": len(wrong_answers),
         "decision": decision,
-        "cost": sum(session_cost(run_dir) for run_dir in run_dirs if run_dir.is_dir()),
+        "cost": sum(run_cost(run_dir) for run_dir in run_dirs if run_dir.is_dir()),
     }
 
 
@@ -69,7 +76,7 @@ def main() -> None:
     args = parser.parse_args()
 
     results = [score_item(gold_file.parent, args.run_ids)
-               for gold_file in sorted(args.items_root.glob("*/*/gold.json"))]
+               for gold_file in sorted(args.items_root.glob("**/gold.json"))]
     for result in results:
         print(f"{result['decision']:<11} wrong={result['wrong']}  gold={result['gold']:<9} "
               f"answers={','.join(answer or '-' for answer in result['answers']):<20} {result['item']}")

@@ -1,8 +1,10 @@
 """Sample exact-answer benchmark items into problem packets (issue #34).
 
     uv run tests/scenarios/exact-answer/build_items.py \
-        --true-detective <detective-puzzles.csv> --boardgame-qa <bbeh_boardgame_qa/task.json> \
-        --per-source 20 --out test-results/exact-answer
+        [--true-detective <detective-puzzles.csv>] [--boardgame-qa <bbeh_boardgame_qa/task.json>] \
+        --per-source 30 --out test-results/exact-answer
+
+Only the sources given are sampled. The fixed seed makes a larger sample extend a smaller one.
 
 Writes <out>/<source>/<item-id>/problem.md and gold.json. bench.sh copies only
 problem.md into the agent workspace, so the gold answer never reaches the agent.
@@ -115,16 +117,22 @@ def write_items(out_dir: Path, source: str, items: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--true-detective", type=Path, required=True)
-    parser.add_argument("--boardgame-qa", type=Path, required=True)
+    parser.add_argument("--true-detective", type=Path)
+    parser.add_argument("--boardgame-qa", type=Path)
     parser.add_argument("--per-source", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
-    rng = random.Random(SAMPLE_SEED)
-    # True Detective answers are option letters whose count varies per case, so a plain sample.
-    write_items(args.out, "true-detective", rng.sample(true_detective_items(args.true_detective), args.per_source))
-    write_items(args.out, "boardgame-qa", stratified_sample(boardgame_qa_items(args.boardgame_qa), args.per_source, rng))
+    if not (args.true_detective or args.boardgame_qa):
+        parser.error("give at least one source")
+    # Each source gets its own seeded generator, so sampling one source never shifts the other.
+    if args.true_detective:
+        # True Detective answers are option letters whose count varies per case, so a plain sample.
+        items = true_detective_items(args.true_detective)
+        write_items(args.out, "true-detective", random.Random(SAMPLE_SEED).sample(items, args.per_source))
+    if args.boardgame_qa:
+        items = boardgame_qa_items(args.boardgame_qa)
+        write_items(args.out, "boardgame-qa", stratified_sample(items, args.per_source, random.Random(SAMPLE_SEED)))
 
 
 if __name__ == "__main__":
