@@ -6,9 +6,10 @@ items-root is test-results/exact-answer or one source dir under it.
 
 Keep rule, fixed before the A/B: keep an item when at least one pilot run is wrong.
 McNemar's test ignores items both arms get wrong, so an always-wrong item costs runs but
-adds no bias, and it is where the skill has the most room to help. When every run gives
-the same wrong answer, the gold label itself may be wrong, so the item is flagged for a
-hand check. A run with no parseable answer is neither right nor wrong: rerun it first.
+adds no bias, and it is where the skill has the most room to help. Repeating the same wrong
+answer is not evidence of a bad gold label: a hand check of such an item found a fair
+puzzle and a real reasoning error. A run with no parseable answer is neither right nor
+wrong: rerun it first.
 """
 
 import argparse
@@ -54,8 +55,6 @@ def score_item(item_dir: Path, run_ids: list[str]) -> dict:
         decision = "rerun"
     elif not wrong_answers:
         decision = "drop"
-    elif len(wrong_answers) == len(answers) and len(set(wrong_answers)) == 1:
-        decision = "check-gold"
     else:
         decision = "keep"
     return {
@@ -78,7 +77,7 @@ def main() -> None:
     results = [score_item(gold_file.parent, args.run_ids)
                for gold_file in sorted(args.items_root.glob("**/gold.json"))]
     for result in results:
-        print(f"{result['decision']:<11} wrong={result['wrong']}  gold={result['gold']:<9} "
+        print(f"{result['decision']:<6} wrong={result['wrong']}  gold={result['gold']:<9} "
               f"answers={','.join(answer or '-' for answer in result['answers']):<20} {result['item']}")
 
     print()
@@ -87,7 +86,7 @@ def main() -> None:
         total_runs = len(source_results) * len(args.run_ids)
         correct_runs = sum(result["correct"] for result in source_results)
         decisions = {decision: sum(result["decision"] == decision for result in source_results)
-                     for decision in ("keep", "check-gold", "drop", "rerun")}
+                     for decision in ("keep", "drop", "rerun")}
         print(f"{source}: correct {correct_runs}/{total_runs} runs; {decisions}")
     print(f"total cost ${sum(result['cost'] for result in results):.2f}")
 
