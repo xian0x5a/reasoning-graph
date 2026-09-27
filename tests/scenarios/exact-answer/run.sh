@@ -5,7 +5,7 @@
 #
 #   harness   pi      model as pi's "provider/id", e.g. antigravity/gemini-3.8-flash
 #             claude  model as a Claude Code model id, e.g. claude-sonnet-5
-#   item-dir  from build_items.py, e.g. test-results/exact-answer/true-detective/*
+#   item-dir  from build_items.py, e.g. test-results/exact-answer/true-detective/*/
 #
 # Each item goes through bench.sh prepare -> agent -> bench.sh collect, so runs land in
 # <item-dir>/<arm>/<run-id>/. Items whose result dir already exists are skipped, so a
@@ -40,6 +40,8 @@ run_claude() {
 run_item() {
   local harness=$1 model=$2 arm=$3 run_id=$4 item_dir scenario workspace
   item_dir=$(realpath "$5")
+  # A loose glob also matches files beside the items, such as pilot-selection.json.
+  [[ -f $item_dir/problem.md ]] || { echo "not an item dir: $5" >&2; return 1; }
   scenario=${item_dir#"$RG_BENCH_PROBLEMS_DIR/"}
   if [[ -e $item_dir/$arm/$run_id ]]; then
     echo "skip  $scenario ($arm/$run_id exists)"
