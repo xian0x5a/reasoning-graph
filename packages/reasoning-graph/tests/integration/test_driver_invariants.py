@@ -33,28 +33,6 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
             "factors": factors or [],
         }
 
-    def test_posterior_overrides_prior_edges_and_factors(self) -> None:
-        state = self.base_state(
-            prior=0.1,
-            edges=[
-                {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 100},
-                {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A1", "from": "E2", "to": "A1", "type": "supports", "likelihood_ratio": 2},
-            ],
-            factors=[
-                {
-                    "id": "F1",
-                    "relation": "supports",
-                    "target": "A1",
-                    "inputs": ["E1", "E2"],
-                    "aggregation": {"kind": "likelihood", "if_target_true": 0.9, "if_target_false": 0.1},
-                    "reason": "Grouped update should still lose to explicit posterior.",
-                }
-            ],
-        )
-        state["nodes"][2]["posterior"] = 0.3
-
-        self.assertAlmostEqual(truth_cost(state), -math.log(0.3), places=6)
-
     def test_recomputed_costs_track_later_evidence(self) -> None:
         # Belief is derived on every read, never cached in state, so later evidence always counts.
         state = self.base_state(prior=0.5)
@@ -170,7 +148,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         self.assertTrue(math.isfinite(tiny_ratio))
         self.assertGreater(tiny_ratio, 0.0)
 
-    def test_belief_rejects_extreme_edge_ratio_with_explicit_posterior(self) -> None:
+    def test_belief_rejects_extreme_edge_ratio(self) -> None:
         state = self.base_state(
             edges=[
                 {
@@ -182,7 +160,6 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
                 }
             ]
         )
-        state["nodes"][2]["posterior"] = 0.7
 
         with self.assertRaisesRegex(ValueError, "ratio must be finite"):
             node_effective_truth_costs(state)
@@ -191,13 +168,13 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         for invalid in (math.nan, math.inf, -math.inf):
             with self.subTest(invalid=invalid):
                 state = json.loads(json.dumps(self.base_state()))
-                state["nodes"][2]["posterior"] = invalid
+                state["nodes"][2]["prior"] = invalid
 
                 result = validate_state(state)
 
                 self.assertFalse(result.ok)
                 self.assertTrue(
-                    any("schema $.nodes[2].posterior: number must be finite" in error for error in result.errors)
+                    any("schema $.nodes[2].prior: number must be finite" in error for error in result.errors)
                 )
 
     def test_validator_reports_invalid_probability_without_throwing(self) -> None:

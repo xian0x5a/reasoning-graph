@@ -123,13 +123,13 @@ class ContractAlignmentTests(unittest.TestCase):
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
             patch_path.write_text(
-                json.dumps({"update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}], "reason": "Calibration only."}),
+                json.dumps({"update_nodes": [{"id": "A1", "set": {"prior": 0.7}}], "reason": "Calibration only."}),
                 encoding="utf-8",
             )
             result = run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             event = json.loads(state_path.read_text(encoding="utf-8"))["events"][-1]
-            self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["posterior"]}])
+            self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["prior"]}])
 
     # --- #10 presentation/view references ---
 

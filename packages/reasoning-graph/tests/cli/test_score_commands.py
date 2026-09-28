@@ -50,10 +50,10 @@ def patch_for(invalid_part: str) -> dict:
         patch["edges"] = [edge for edge in patch["edges"] if edge["type"] != "leads_to"]
     elif invalid_part == "removed_probability":
         patch["nodes"][0] = {"id": "A2", "type": "hypothesis", "text": "Second branch", "probability": 0.5}
-    elif invalid_part in {"removed_confidence", "computed_belief"}:
-        field = "confidence" if invalid_part == "removed_confidence" else "belief"
+    elif invalid_part in {"removed_confidence", "removed_posterior", "computed_belief"}:
+        field = "belief" if invalid_part == "computed_belief" else invalid_part.removeprefix("removed_")
         patch["nodes"][0][field] = 0.9
-    elif invalid_part in {"update_confidence", "update_belief"}:
+    elif invalid_part in {"update_confidence", "update_posterior", "update_belief"}:
         field = invalid_part.removeprefix("update_")
         patch["update_nodes"] = [{"id": "E0", "set": {field: 0.9}}]
     elif invalid_part == "missing_reasoning":
@@ -70,8 +70,10 @@ INVALID_PARTS = {
     "unanchored_derived": "belief source",
     "removed_probability": "schema",
     "removed_confidence": "confidence",
+    "removed_posterior": "posterior",
     "computed_belief": "belief",
     "update_confidence": "confidence",
+    "update_posterior": "posterior was removed",
     "update_belief": "belief",
     "missing_reasoning": "schema",
     "blank_reasoning": "schema",
@@ -96,7 +98,7 @@ def test_invalid_patch_does_not_modify_state(tmp_path, invalid_part):
     assert state_path.read_bytes() == original
 
 
-@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"prior": 0.9}, 0.405), ({"prior": 0.9, "posterior": 0.7}, 0.7)])
+@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"prior": 0.9}, 0.405)])
 def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, score, expected):
     state = starter_state("default")
     state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "prior": 0.5})

@@ -63,7 +63,7 @@ Record patch:
 `reason` says what the checkpoint did and becomes the progress log. One patch carries every kind of change:
 
 - **Add:** `nodes`, `edges`, `factors` (a factor whose `id` exists replaces it).
-- **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["posterior"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
+- **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
 Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand. The next `record` or `stop` checks the edit as it would a patch and logs it; run `reasoning-graph refresh state.json` to do that now and read the recomputed beliefs.
@@ -87,7 +87,7 @@ A `solved` or `candidate_threshold_met` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
 - `summary.answer`, `report.answer`, and the `--draft` file name the best candidate of each accepted goal, by id or exact text
-- the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and priors or posteriors never ground a claim
+- the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a prior never grounds a claim
 - every `test` node has a result observation or a `not_run` reason
 
 No belief level gates a stop. `stop` computes every belief itself and ignores stored ones.
@@ -99,7 +99,7 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 ## Beliefs
 
-`prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. `record` writes each claim's current `belief` into the state: read it there, never set it. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
+`prior` is local input and `belief` is computed output; nothing you write overrides it. `record` writes each claim's current `belief` into the state: read it there, never set it. Claims need a prior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
 
 Use coarse numbers.
 

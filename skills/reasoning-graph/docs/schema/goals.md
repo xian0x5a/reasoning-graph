@@ -17,8 +17,7 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
   "id": "CS1",
   "type": "candidate_solution",
   "text": "Plaintext is ...",
-  "answer_kind": "exact_answer",
-  "posterior": 0.8
+  "answer_kind": "exact_answer"
 }
 ```
 

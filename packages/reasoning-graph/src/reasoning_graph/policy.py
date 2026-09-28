@@ -262,8 +262,6 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
         effective_belief = math.exp(-effective_truth_cost)
         enriched["truth_cost"] = round(truth_cost, 6)
         enriched["effective_truth_cost"] = round(effective_truth_cost, 6)
-        if "posterior" in node:
-            enriched["posterior"] = node["posterior"]
         enriched["belief"] = round(effective_belief, 6)
         filtered.append(enriched)
 

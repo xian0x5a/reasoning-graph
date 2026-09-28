@@ -20,7 +20,7 @@ from reasoning_graph.validation import validate_state
 RENDERERS = ("mermaid", "grouped-mermaid", "offline")
 
 
-def report_state(*, support=False, posterior=None):
+def report_state(*, support=False):
     state = {
         "nodes": [
             {"id": "E1", "type": "observation", "text": "Observed premise", "prior": 0.8},
@@ -44,8 +44,6 @@ def report_state(*, support=False, posterior=None):
             "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "likelihood_ratio": 2,
             "reasoning": "The signal is twice as likely when the conclusion is true.",
         })
-    if posterior is not None:
-        state["nodes"][2]["posterior"] = posterior
     assert validate_state(state).ok
     return state
 
@@ -75,13 +73,12 @@ def detail_card(document, node_id):
 
 @pytest.mark.parametrize("renderer", RENDERERS)
 @pytest.mark.parametrize("filtered", [False, True])
-@pytest.mark.parametrize("support,posterior,expected", [
-    (False, None, "0.72"),
-    (True, None, "0.837"),  # 0.72 base and LR 2 give 36/43.
-    (True, 0.65, "0.65"),
+@pytest.mark.parametrize("support,expected", [
+    (False, "0.72"),
+    (True, "0.837"),  # 0.72 base and LR 2 give 36/43.
 ])
-def test_graph_labels_use_full_graph_belief(renderer, filtered, support, posterior, expected):
-    state = report_state(support=support, posterior=posterior)
+def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expected):
+    state = report_state(support=support)
     original = deepcopy(state)
     selected = {"D1", "CS1", "G1", "C1", "T1"} if filtered else None
     labels = graph_labels(state, renderer, selected)
@@ -112,25 +109,19 @@ def test_filtered_graph_uses_calibrated_factor_and_refreshes_inputs(renderer):
     state["factors"][0]["aggregation"]["probability"] = 1.0
     state["nodes"][2]["prior"] = 1.0
     assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 1"
-    assert all("belief" not in node and "posterior" not in node for node in state["nodes"])
+    assert all("belief" not in node for node in state["nodes"])
 
 
-@pytest.mark.parametrize("posterior,expected", [(None, "0.837209"), (0.65, "0.65")])
-def test_details_separate_effective_belief_from_authored_inputs(posterior, expected):
-    state = report_state(support=True, posterior=posterior)
+def test_details_separate_effective_belief_from_authored_inputs():
+    state = report_state(support=True)
     original = deepcopy(state)
     cards = node_detail_cards(state)
     derived = detail_card(cards, "D1")
-    assert f"Effective belief: {expected}" in derived
+    assert "Effective belief: 0.837209" in derived
     assert "Local prior: 0.9" in derived
-    if posterior is None:
-        assert "Posterior override" not in derived
-    else:
-        assert "Posterior override: 0.65" in derived
     candidate = detail_card(cards, "CS1")
-    assert f"Effective belief: {expected}" in candidate
+    assert "Effective belief: 0.837209" in candidate
     assert "Local prior" not in candidate
-    assert "Posterior override" not in candidate
     for node_id in ("G1", "C1", "T1"):
         assert "Effective belief" not in detail_card(cards, node_id)
     assert state == original
@@ -138,21 +129,11 @@ def test_details_separate_effective_belief_from_authored_inputs(posterior, expec
 
 @pytest.mark.parametrize("render_mode", ["mermaid", "offline"])
 def test_html_report_keeps_labels_details_and_candidate_table_consistent(render_mode):
-    state = report_state(support=True, posterior=0.65)
+    state = report_state(support=True)
     original_nodes = deepcopy(state["nodes"])
-    document = html_document(state, to_mermaid(state), render_mode=render_mode)
-    assert "belief 0.65" in document
-    assert "Effective belief: 0.65" in detail_card(document, "CS1")
-    assert "<td>0.65</td>" in document  # Candidate table overrides stale report metadata.
-    assert "Local prior: 0.9" in detail_card(document, "D1")
-    assert "Posterior override: 0.65" in detail_card(document, "D1")
-    assert state["nodes"] == original_nodes
-
-    # Rendering cannot pin belief: removing the override resumes live calculation.
-    del state["nodes"][2]["posterior"]
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert "belief 0.837" in document
     assert "Effective belief: 0.837209" in detail_card(document, "CS1")
-    assert "<td>0.837209</td>" in document
-    assert "Posterior override" not in detail_card(document, "D1")
-    assert all("belief" not in node and "posterior" not in node for node in state["nodes"])
+    assert "<td>0.837209</td>" in document  # Candidate table overrides stale report metadata.
+    assert "Local prior: 0.9" in detail_card(document, "D1")
+    assert state["nodes"] == original_nodes

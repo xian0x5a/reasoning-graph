@@ -95,11 +95,6 @@
             "required": [
               "prior"
             ]
-          },
-          {
-            "required": [
-              "posterior"
-            ]
           }
         ]
       }
@@ -150,10 +145,6 @@
         "prior": {
           "$ref": "#/$defs/probability",
           "description": "Optional local starting-probability factor, including observation or inference reliability. Multiplies inherited premise belief; omit when it would repeat uncertainty already in the premises. Not rewritten by the engine."
-        },
-        "posterior": {
-          "$ref": "#/$defs/probability",
-          "description": "Explicit calibrated override for this node's overall belief. Bypasses its prior and incoming premise, factor, and likelihood calculations. Never populated automatically; refresh explicitly when calibration changes."
         },
         "belief": {
           "type": "number",
@@ -226,10 +217,15 @@
             "required": [
               "probability"
             ]
+          },
+          {
+            "required": [
+              "posterior"
+            ]
           }
         ]
       },
-      "description": "Claims use prior as their optional local input, computed belief as output, and posterior as an explicit calibrated override. Without prior or posterior, a claim must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks the complete graph. A local prior multiplies premise belief, so omit it when it repeats the same uncertainty. Goals, constraints, and tests carry no score. Removed confidence/probability fields are rejected on nodes, not silently ignored or converted. Claims carry the computed belief the CLI writes; it is never authored."
+      "description": "Claims use prior as their optional local input and computed belief as output. Without a prior, a claim must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks the complete graph. A local prior multiplies premise belief, so omit it when it repeats the same uncertainty. Goals, constraints, and tests carry no score. Removed confidence/probability/posterior fields are rejected on nodes, not silently ignored or converted. Claims carry the computed belief the CLI writes; it is never authored."
     },
     "likelihood": {
       "type": "object",

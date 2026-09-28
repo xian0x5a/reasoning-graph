@@ -212,7 +212,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch = {
             "reason": "Added a third cause",
             "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "prior": 0.2}],
-            "update_nodes": [{"id": "A1", "set": {"posterior": 0.7}}],
+            "update_nodes": [{"id": "A1", "set": {"prior": 0.7}}],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
         }
 
@@ -252,7 +252,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_path.write_text(
                 json.dumps({
                     "reason": "Cheap checks on A1 complete; only its score changed.",
-                    "update_nodes": [{"id": "A1", "set": {"posterior": 0.75, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
+                    "update_nodes": [{"id": "A1", "set": {"prior": 0.75, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
                 }),
                 encoding="utf-8",
             )
@@ -261,12 +261,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(recorded.returncode, 0, recorded.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
-            self.assertEqual(updated["nodes"][0]["posterior"], 0.75)
+            self.assertEqual(updated["nodes"][0]["prior"], 0.75)
             self.assertTrue(updated["nodes"][0]["exhausted"])
             self.assertEqual(updated["nodes"][0]["exhaustion_reason"], "cheap checks complete")
             self.assertEqual(
                 updated["events"][-1]["updated_nodes"],
-                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "posterior"]}],
+                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "prior"]}],
             )
 
     def test_record_patch_rejects_missing_or_identity_node_updates(self) -> None:
@@ -281,7 +281,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"posterior": 0.5}}]}), encoding="utf-8")
+            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"prior": 0.5}}]}), encoding="utf-8")
             missing = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("update_nodes id A2 does not exist", missing.stderr)
@@ -770,17 +770,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_beliefs_explicit_posterior_overrides_graph_updates(self) -> None:
-        state = {
-            "nodes": [
-                {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2, "posterior": 0.7},
-                {"prior": 0.95, "id": "E1", "type": "observation", "text": "Negative signal"},
-            ],
-            "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.1}],
-        }
-
-        self.assertAlmostEqual(truth_cost(state, "A1"), 0.356675, places=6)
 
     def test_contradicts_without_likelihood_ratio_is_explanatory_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

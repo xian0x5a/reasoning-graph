@@ -191,33 +191,6 @@ def test_computed_belief_recalculates_without_writing_node_scores():
     assert state == updated
 
 
-def test_posterior_overrides_only_its_node_and_can_be_removed():
-    state = claim_state(prior=0.5)
-    state["nodes"].extend([
-        {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
-        {"id": "L1", "type": "observation", "text": "Independent observation", "prior": 0.9},
-        {"id": "D1", "type": "hypothesis", "text": "Calibrated inference", "prior": 0.9, "posterior": 0.7},
-    ])
-    state["edges"].extend([
-        edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),
-    ])
-    original = deepcopy(state)
-    assert validate_state(state).ok
-    assert belief(state, "D1") == pytest.approx(0.7)
-    assert belief(state) == pytest.approx(0.35)
-    assert state == original
-
-    state["nodes"][2]["prior"] = 0.5
-    state["edges"][2]["likelihood_ratio"] = 3
-    assert belief(state, "D1") == pytest.approx(0.7)
-    assert belief(state) == pytest.approx(0.35)
-
-    del state["nodes"][4]["posterior"]
-    # Removing the override resumes current inputs: 0.5 * 0.9, then LR 3.
-    assert belief(state, "D1") == pytest.approx(27 / 38)
-    assert belief(state) == pytest.approx(27 / 76)
-
-
 def hypothesis_evidence_state(source_nodes, source_edges, relation, ratio):
     """N1 starts at 0.5; H2 bears evidence on it with the given relation and ratio."""
     state = claim_state(prior=0.5)

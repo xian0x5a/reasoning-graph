@@ -13,10 +13,10 @@ from .utils import require_finite_float, require_non_negative_float
 
 NEUTRAL_UPDATE_PRIOR = 0.5
 
-# Posterior is an authored override, not a cache of computed belief. Listings
-# keep the local prior visible first even when a posterior overrides it.
-NODE_TRUTH_PROBABILITY_PRECEDENCE = ("posterior", "prior")
-NODE_SCORE_FIELDS = ("prior", "posterior")
+NODE_SCORE_FIELDS = ("prior",)
+# Score fields that no longer exist. `posterior` let an author overrule the graph's own
+# evidence (issue #37); belief now always follows the recorded inputs.
+REMOVED_NODE_SCORE_FIELDS = ("confidence", "probability", "posterior")
 
 
 def require_probability(value: Any, field: str = "probability") -> float:
@@ -165,7 +165,7 @@ def truth_cost_from_log_odds(log_odds: float) -> float:
 
 
 def node_has_score(node: dict[str, Any] | None) -> bool:
-    return bool(node) and any(field in node for field in NODE_TRUTH_PROBABILITY_PRECEDENCE)
+    return bool(node) and any(field in node for field in NODE_SCORE_FIELDS)
 
 
 def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
@@ -175,21 +175,19 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {probability_from_cost(effective_truth_cost):.3g}"
 
 
-def node_local_truth_cost(node: dict[str, Any] | None, *, include_posterior: bool = True) -> float:
-    """Cost of the local prior, or the explicit posterior override when enabled."""
+def node_local_truth_cost(node: dict[str, Any] | None) -> float:
+    """Cost of the local prior; zero when the node has none."""
 
     if not node:
         return 0.0
     # Direct cost consumers do not necessarily run schema validation first.
     # Reject obsolete inputs rather than silently changing belief. A stored
     # `belief` is CLI-written output and is never read back as input.
-    for field in ("confidence", "probability"):
+    for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
             raise ValueError(f"node {node.get('id')}: {field} is not supported; use prior for local probability")
-    fields = NODE_TRUTH_PROBABILITY_PRECEDENCE if include_posterior else ("prior",)
-    for field in fields:
-        if field in node:
-            return probability_cost(node[field], field)
+    if "prior" in node:
+        return probability_cost(node["prior"], "prior")
     return 0.0
 
 
@@ -296,7 +294,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
-        # Validate every edge before posterior short-circuiting can hide malformed updates.
+        # Validate every edge, including those the belief walk never reaches.
         if "likelihood" in edge or "likelihood_ratio" in edge:
             likelihood_ratio_from_edge(edge)
         edge_type = edge.get("type") or edge.get("label")
@@ -407,7 +405,7 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
     `leads_to` premises is grounded, or when its evidence favors it (net
     likelihood ratio > 1) counting supporting updates only from grounded sources
     and contradicting updates from any source: unbacked support cannot lift a
-    claim, but unbacked doubt still weighs. Priors and posteriors never ground a
+    claim, but unbacked doubt still weighs. A prior never grounds a
     claim. Evidence cycles between claims are rejected by `truth_inputs`.
     """
 
@@ -441,9 +439,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     Incoming `supports`/`contradicts` edges with `likelihood` or
     `likelihood_ratio` update that base belief in odds space; grouped likelihood
     factors replace correlated member likelihood updates.
-    Explicit node `posterior` is treated as already-calibrated and wins over
-    graph-derived updates to avoid double counting. Computed beliefs are returned
-    as costs; neither `prior` nor `posterior` is written back to nodes.
+    Computed beliefs are returned as costs; `prior` is never rewritten.
     """
 
     inputs = truth_inputs(state)
@@ -472,13 +468,9 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         node = inputs.nodes.get(node_id)
         if not node:
             return 0.0
-        if "posterior" in node:
-            cost = node_local_truth_cost(node)
-            memo[node_id] = cost
-            return cost
 
         visiting.add(node_id)
-        local_cost = node_local_truth_cost(node, include_posterior=False)
+        local_cost = node_local_truth_cost(node)
         grouped_sources = inputs.grouped_premise_sources.get(node_id, set())
         ungrouped_source_cost = sum(
             effective_cost(source_id)

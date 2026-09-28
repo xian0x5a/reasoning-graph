@@ -1,26 +1,25 @@
 # Reasoning Graph Cost Model
 
-Local probability inputs, computed belief, calibrated overrides, and correlated evidence.
+Local probability inputs, computed belief, and correlated evidence.
 
-## Local input, computed belief, and explicit override
+## Local input and computed belief
 
 | concept | role |
 | --- | --- |
 | `prior` | Optional local starting-probability input, including observation or inference reliability |
 | Computed `belief` | Output after premise propagation and likelihood updates, reported from effective truth cost and stored on each claim by the CLI |
-| Explicit `posterior` | Authored, already-calibrated overall value that overrides this node's calculation |
 
-Claim nodes (`observation`, `hypothesis`, and `candidate_solution`) accept `prior` and `posterior`. Each claim requires a **belief source**: a local prior, an explicit posterior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate` and `record` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
+Claim nodes (`observation`, `hypothesis`, and `candidate_solution`) accept `prior`. Each claim requires a **belief source**: a local prior, a source inherited through `leads_to` premises, or a calibrated joint-probability factor. A chain of unscored claims, a scoreless goal/constraint/test, or likelihood updates alone cannot supply a starting belief. `validate` and `record` check grounding on the complete graph; patch schemas permit omitted scores because their premises may already exist in the state.
 
-Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence` and `probability` are rejected, not converted. `belief` is output only: the CLI writes it on each claim, record patches reject it, and `validate` fails when a stored value no longer matches the graph.
+Authored probabilities are in `(0, 1]`. Zero is excluded because cost is `-ln(P)`; record impossibility in the claim or status instead of inventing a small number. Use coarse values and avoid fake precision. Removed node fields `confidence`, `probability`, and `posterior` are rejected, not converted: no authored value overrides the computed belief. `belief` is output only: the CLI writes it on each claim, record patches reject it, and `validate` fails when a stored value no longer matches the graph.
 
 A local `prior` multiplies premise belief. **Omit it when it merely repeats uncertainty already represented by the premises.** A hypothesis at `0.6` leading to an unscored candidate gives candidate belief `0.6`, not `0.3`; adding a candidate `prior: 0.5` represents additional uncertainty. On a premise-backed node, `prior` is a local factor, not an estimate of the already-aggregated conclusion.
 
 For a soft inference, observation `prior: 0.8` times inference `prior: 0.9` gives base belief `0.72`. Alternatively, put inference validity in a separate hypothesis with `prior: 0.9` and a `leads_to` edge when it deserves independent scrutiny. Use one representation, not both. Omitting the local prior adds no extra uncertainty; validation checks grounding, not logical entailment. Keep derivation edges to explain conclusions, even when a local prior alone satisfies validation.
 
-The engine computes effective belief from this base and likelihood updates; it never writes that result into a node's `prior`, `posterior`, or `belief`. For example, base `0.72` and supporting ratio `2` give computed belief `36/43`, while the authored priors remain `0.8` and `0.9`. Changing the premises or likelihoods changes the next computed result.
+The engine computes effective belief from this base and likelihood updates; it never writes that result into a node's `prior`. For example, base `0.72` and supporting ratio `2` give computed belief `36/43`, while the authored priors remain `0.8` and `0.9`. Changing the premises or likelihoods changes the next computed result.
 
-A stored `posterior` is different: it overrides this node's prior and incoming premise, factor, and likelihood calculations until explicitly refreshed or removed. It is trusted as calibrated, not verified by the engine. A node with `prior: 0.9` and `posterior: 0.7` has effective belief `0.7`; downstream nodes can inherit that value and apply their own priors and updates. Removing the override resumes computation from the current inputs. Preserve the local prior for auditing. Graph labels and candidate tables show effective belief; node details distinguish that result from the local prior and any posterior override. See [belief display](rendering.md#belief-display).
+Graph labels and candidate tables show effective belief; node details distinguish that result from the local prior. See [belief display](rendering.md#belief-display).
 
 Mutually exclusive sibling hypotheses should form a local distribution summing to `1.0`; independent hypotheses need not. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node. Goals, constraints, and tests carry no score.
 
@@ -82,6 +81,6 @@ likelihood_ratio = P(evidence | target true) / P(evidence | target false)
 - The likelihood update from an observation should already include source reliability. Observation `prior` supplies its local starting probability and contributes through `leads_to`; neither that prior nor the observation's computed belief dampens its `supports`/`contradicts` update.
 - Evidence from a claim (`hypothesis` or `candidate_solution`) is only as strong as the claim: with source belief `b`, ratio `r` acts as `1 + b·(r − 1)`, treating a false source as uninformative. A factor with claim inputs uses the product of their beliefs. `supports` from a claim that is not evidence-grounded (`SKILL.md` stop gates) has no effect; `contradicts` always applies, scaled. Claim-sourced evidence is a truth dependency, so cycles through it are invalid.
 - Correlated/overlapping evidence should be merged, represented with a `factor`, or represented with already-adjusted effective likelihoods; do not add a separate weight field.
-- If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields; if the whole target belief is calibrated, use explicit target `posterior` instead of stacking approximate updates.
+- If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields.
 
-`leads_to` is not a likelihood update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `leads_to` factor joint-probability costs. `supports`/`contradicts` then update that base belief, with factor likelihoods replacing grouped member likelihood updates. If a target has explicit `posterior`, treat it as calibrated and do not also count incoming premise, factor, or likelihood edges for that target.
+`leads_to` is not a likelihood update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `leads_to` factor joint-probability costs. `supports`/`contradicts` then update that base belief, with factor likelihoods replacing grouped member likelihood updates.

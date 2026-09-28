@@ -351,10 +351,7 @@ def candidate_rows(state: dict[str, Any]) -> str:
         truth_value = candidate.get("effective_truth_cost", candidate.get("truth_cost", "n/a"))
         penalty = candidate.get("contradiction_penalty")
         belief_value = candidate.get("belief", "n/a")
-        posterior_value = candidate.get("posterior")
         belief_html = html.escape(str(belief_value))
-        if posterior_value is not None:
-            belief_html = f"{belief_html} <small>(explicit posterior {html.escape(str(posterior_value))})</small>"
         if penalty is not None:
             belief_html = f"{belief_html} <small>(truth cost {html.escape(str(truth_value))}; +{html.escape(str(penalty))} contradicting evidence)</small>"
         weight = candidate.get("weight", candidate.get("relative_weight", candidate.get("relative_weight_among_explored", "n/a")))
@@ -394,9 +391,8 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
         if raw_type in BELIEF_NODE_TYPES:
             belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
             extras.append(f"<span>Effective belief: {belief}</span>")
-            for key, label in (("prior", "Local prior"), ("posterior", "Posterior override")):
-                if key in node:
-                    extras.append(f"<span>{label}: {html.escape(str(node[key]))}</span>")
+            if "prior" in node:
+                extras.append(f"<span>Local prior: {html.escape(str(node['prior']))}</span>")
         edge_reasons = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):

@@ -157,4 +157,3 @@ Record patches use `factors` to add or replace factors by `id`. To append an inp
 - `supports` and `contradicts` use `likelihood` with `if_target_true` and `if_target_false`.
 - `supports` likelihood ratio is `> 1`; `contradicts` likelihood ratio is in `(0, 1)`.
 - Factor does not set `effective_truth_cost` or direct `likelihood_ratio`.
-- If `target` has explicit `posterior`, that posterior overrides factor costs computed from the graph.

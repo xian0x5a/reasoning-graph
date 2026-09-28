@@ -79,6 +79,8 @@ def validate_state(state: Any) -> ValidationResult:
             node_ids.add(node_id)
         if node_type not in NODE_TYPES:
             errors.append(f"node {node_id or i} invalid type {node_type!r}")
+        if "posterior" in node:
+            errors.append(f"node {node_id or i}: posterior was removed; belief always follows prior, premises, and evidence; delete the field")
         for probability_field in NODE_SCORE_FIELDS:
             if probability_field in node:
                 try:
@@ -185,7 +187,7 @@ def validate_state(state: Any) -> ValidationResult:
         ignored_legacy_fields = sorted(field for field in ("hard", "mode", "strength") if field in edge)
         if ignored_legacy_fields:
             warnings.append(
-                f"edge {i} uses ignored legacy field(s) {', '.join(ignored_legacy_fields)}; use likelihood/likelihood_ratio or target posterior for numeric belief updates"
+                f"edge {i} uses ignored legacy field(s) {', '.join(ignored_legacy_fields)}; use likelihood/likelihood_ratio for numeric belief updates"
             )
         has_likelihood_update = "likelihood_ratio" in edge or "likelihood" in edge
         if has_likelihood_update:
@@ -259,11 +261,6 @@ def validate_state(state: Any) -> ValidationResult:
             target_valid = False
         else:
             target_valid = True
-            if "posterior" in nodes_by_id.get(target, {}):
-                warnings.append(
-                    f"factor {factor_id or i} targets node {target} with explicit posterior; "
-                    "posterior overrides factor costs"
-                )
 
         inputs = factor.get("inputs")
         if not isinstance(inputs, list) or len(inputs) < 2:
@@ -455,7 +452,7 @@ def validate_state(state: Any) -> ValidationResult:
             if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:
                 errors.append(
                     f"{node.get('type')} node {node_id} requires a belief source: "
-                    "a local prior, an explicit posterior override, belief-bearing leads_to premises, "
+                    "a local prior, belief-bearing leads_to premises, "
                     "or a calibrated joint-probability factor"
                 )
     except Exception as exc:  # validation should report instead of throwing

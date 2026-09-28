@@ -1,4 +1,4 @@
-"""Prior is a local input, belief is computed, and posterior is an override."""
+"""Prior is a local input and belief is computed; no authored field overrides it."""
 
 import json
 import sys
@@ -21,8 +21,8 @@ from reasoning_graph.schema_validation import patch_schema_errors, standalone_sc
 from reasoning_graph.validation import validate_state
 
 
-FIELDS = ("prior", "posterior")
-REJECTED_INPUT_FIELDS = ("confidence", "probability")
+FIELDS = ("prior",)
+REJECTED_INPUT_FIELDS = ("confidence", "probability", "posterior")
 
 CLAIM_TYPES = ("observation", "hypothesis", "candidate_solution", "hypothesis")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
@@ -81,11 +81,8 @@ def test_obsolete_scores_are_rejected_as_node_inputs(node_type, field):
 
 
 @pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
-@pytest.mark.parametrize("override", [False, True])
-def test_direct_cost_consumers_reject_invalid_score_inputs(field, override):
+def test_direct_cost_consumers_reject_invalid_score_inputs(field):
     node = build_node("hypothesis", prior=0.8, **{field: 0.9})
-    if override:
-        node["posterior"] = 0.7
     with pytest.raises(ValueError, match=field):
         node_local_truth_cost(node)
     with pytest.raises(ValueError, match=field):
@@ -117,8 +114,6 @@ def test_derived_belief_is_the_premise_product():
     assert validate_state(state).ok
     assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.72)
 
-    state["nodes"][2]["posterior"] = 0.72
-    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.72)
     assert "belief 0.72" in to_mermaid(state)
     assert "belief 0.72" in offline_graph_svg(state)
 

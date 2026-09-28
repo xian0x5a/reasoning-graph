@@ -17,13 +17,13 @@ uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoni
 
 ## Score fixtures
 
-Claims use an optional local `prior` and may supply a calibrated `posterior`
-override. Effective `belief` is computed from the graph, not stored on nodes.
-Goal, constraint, and test nodes carry no score. Removed `confidence` and
-`probability` fields, and authored node `belief`, appear only in rejection tests.
+Claims use an optional local `prior`. Effective `belief` is computed from the
+graph. Goal, constraint, and test nodes carry no score. Removed `confidence`,
+`probability`, and `posterior` fields, and authored node `belief`, appear only
+in rejection tests.
 
-Standalone claims require a prior or posterior; premise-backed claims may
+Standalone claims require a prior; premise-backed claims may
 inherit belief without another local factor. `0.5` denotes a deliberately
 neutral prior, and `1.0` means certainty, never an unknown score. Tests cover
 inherited certainty, local inference priors, recalculation without writeback,
-explicit overrides, and atomic rejection of invalid inputs.
+and atomic rejection of invalid inputs.

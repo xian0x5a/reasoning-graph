@@ -96,7 +96,7 @@ Recommended graph/HTML flow:
 
 Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the local `prior`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief**, **Local prior**, and **Posterior override**, displaying authored fields only when present. For example, premise `0.8` and local prior `0.9` give a graph label `belief 0.72` and details `Local prior: 0.9`. A posterior override replaces the effective value without hiding the stored prior in details. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
+Node details separate **Effective belief** from **Local prior**, which shows only when authored. For example, premise `0.8` and local prior `0.9` give a graph label `belief 0.72` and details `Local prior: 0.9`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
 
 Canvas rules:
 
