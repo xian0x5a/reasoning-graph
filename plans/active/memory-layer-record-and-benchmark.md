@@ -68,9 +68,9 @@ Tests first for each step, seen failing for the expected reason. Deletions come 
 3. **1–5 scale with defaults.** One optional `score` on claims and on evidence edges. Observation defaults to 5, open hypothesis and candidate to 3, edge to 3. The CLI maps the scale to numbers through one named table.
 4. **Correlation groups.** A group is a list of edge ids plus one combined score.
 5. **`note` replaces `reasoning`.** Optional on edges, the same field nodes have.
-6. **Belief leaves the state.** `record` stops writing `belief`. `render.py` computes the ranking at render time. The `beliefs` command is removed. The HTML marks an answer that is not the top-ranked candidate; the agent is not warned.
+6. **Belief leaves the state.** `record` stops writing `belief`. `render.py` computes the ranking at render time. The `beliefs` command is removed. The HTML marks an answer that is not the top-ranked candidate; the agent is not warned. The `stop` answer check then accepts any candidate of the goal, not only the best one.
 7. **Index file.** `record` refreshes `<state>.index.md` beside the state: one line per node and edge, open hypotheses and `not_run` tests first, no quotes.
-8. **Docs.** `SKILL.md`, `docs/driver.md`, `docs/cost-model.md`, `docs/schema/factors.md`, and new ADRs replacing 0003, 0004 and 0007.
+8. **Docs.** `SKILL.md`, `docs/driver.md`, `docs/cost-model.md`, `docs/schema/factors.md`, and new ADRs replacing 0003, 0004 and 0007. ADR 0006 stays, but its stop-gate line still names the threshold and the review, so the new ADR amends it.
 
 Modules touched, from a field-usage grep: `costs.py`, `validation.py`, `policy.py`, `cli.py`, `render.py`, `offline_render.py`, `state.py`, `models.py`, `audit.py`, `events.py`, `visual_factors.py`, both schemas.
 
@@ -116,8 +116,11 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - [x] Decisions recorded on #37
 - [x] 1. Pilot on Sonnet 5.5: 97 of 120 runs correct, 15 of 60 items kept, 8 of them wrong in both runs. Cost $13.54.
 - [x] 2. Rubrics: 14 items, rewritten by hand from the drafts. `the-diamond-necklace` is left out because its decisive clue appears only in the solution.
-- [ ] 3. Loop harness and baseline arms: driver and scorer work; both baseline arms are running as `s55-loop-r1`
+- [x] 3. Loop harness and baseline arms: both arms ran as `s55-loop-r1` on 14 items. `notes-file` passed 12, `no-memory` passed 3. Table under Outcomes.
 - [ ] 4. Record changes
+  - [x] 4.1 Reviewer and threshold removed: `9599b4d`, `e0b6f62`
+  - [x] 4.2 `posterior` removed: `6b17b82`
+  - [ ] 4.3 to 4.8
 - [ ] 5. Graph arm and result
 
 ## Surprises & Discoveries
@@ -139,6 +142,12 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - The rubric drafter fills its maximum: 4 key points each when allowed 4, 3 each when allowed 3. In the first draft six hints named the gold suspect; the drafter now redrafts such a rubric.
 - Risk: the items are small. A handoff summary may carry every hint and rejected answer, and then the three arms tie. A tie is a real result: on tasks this size the memory layer adds nothing over compaction.
 - ADR 0001 and 0002 are already superseded. Only 0003, 0004 and 0007 are live and affected.
+- The baseline arms separate. After a reset the `no-memory` arm submitted an answer it had already been told is wrong 17 times; the `notes-file` arm never did. The benchmark can therefore tell a memory from none. The bar for the graph is a notes file that fails 2 of 14 items, `the-anonymous-bank-robber` and `the-card-shark`.
+- `notes-file` was also cheaper, $6.86 against $11.05, because it needed fewer rounds.
+- The first `notes-file` launch hit the usage limit and left 7 items unfinished. The driver now sets a stopped run aside and reruns it from round 1. All 113 transcripts of the finished loops are free of session errors.
+- The "answer names the best candidate" check lived only in `stop-review`. It moved into `stop`, which gained `--draft`. `audit` rechecks `summary.answer` and `report.answer`, since both sit outside the digest.
+- `init --strict` now sets only `stop_policy.severity` to `error`.
+- With the threshold gone `candidate_threshold_met` had the same gates as `solved`, so the outcome was removed.
 - Agents already write tiers. Across 262 graphs in `test-results/`, 93% of observation priors sit in 0.80–0.95, and edge ratios cluster on 1.2, 1.3, 1.5, 2 and 3.
 
 ## Decisions
@@ -174,4 +183,19 @@ Proposed scale table, to confirm in step 4.3. The edge values are the ratios age
 
 ## Outcomes & Retrospective
 
-Not started.
+Baseline arms, run id `s55-loop-r1`, 14 items, one run per arm, so a repeat can shift the counts.
+
+| Measure | no-memory | notes-file |
+|---|---|---|
+| First submit right | 6 | 7 |
+| Passed | 3 | 12 |
+| Submits used | 49 | 39 |
+| Repeated a rejected answer | 17 | 0 |
+| Hints used in the next submit | 5 of 35 | 20 of 25 |
+| Cost | $11.05 | $6.86 |
+
+Reproduce:
+
+    uv run tests/scenarios/exact-answer/score_loop.py test-results/exact-answer/true-detective s55-loop-r1 no-memory notes-file
+
+The graph arm and the record changes are open.
