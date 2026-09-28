@@ -69,7 +69,7 @@ Record patch:
 - **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["posterior"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
-Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand, then run `reasoning-graph refresh state.json`: it validates, rechecks every quote, recomputes beliefs, and logs the edit. `record` and `stop` refuse a hand-edited state until `refresh` has run.
+Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand. The next `record` or `stop` checks the edit as it would a patch and logs it; run `reasoning-graph refresh state.json` to do that now and read the recomputed beliefs.
 
 ## Recording
 
@@ -94,7 +94,7 @@ The reviewer is required (see Review). Other delegation is optional: bounded pro
 - every `test` node has a result observation or a `not_run` reason
 - the latest review passed and the graph has not changed since (`require_review`)
 
-`stop` computes every belief itself and ignores stored ones, and it refuses a graph edited outside the CLI.
+`stop` computes every belief itself and ignores stored ones; a hand edit after the latest review makes that review stale.
 
 Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report the open hypotheses. The stop reason names the gate that fired.
 

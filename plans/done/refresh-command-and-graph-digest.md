@@ -67,3 +67,7 @@ Gaps in `stop` today:
   4. Editing the stopped state made `audit` fail with "the graph changed after stop".
 - Surprise: 11 existing tests hand-built or hand-edited states and then called `stop` or `audit`. They now go through `refresh`, or stamp digests on forged events, the same path agents take.
 - Surprise: `stop` never validated the graph before. It now does, so an invalid graph fails with the validation error instead of a gate message.
+
+## Superseded in part
+
+`record` and `stop` no longer refuse a hand-edited graph. They run the same checks as `refresh` and log the edit, because the review gate already catches a hand edit made after a review, so refusing only cost a turn.

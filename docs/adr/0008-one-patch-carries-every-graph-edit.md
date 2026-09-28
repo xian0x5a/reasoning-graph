@@ -23,8 +23,8 @@ A patch could only add nodes, edges, and factors, and set node fields. Agents ha
 - Identity fields are fixed: a node's `id` and `type`, and an edge's `id`, `from`, and `to`. Changing one means removing the object and adding a new one.
 - Removing a node removes its edges. Factors are never removed implicitly, because a factor's calibrated aggregation has to be re-authored rather than silently dropped.
 - `record`, `refresh`, `review`, and `stop` events store a `graph_digest`: a hash of nodes (without `belief`), edges, factors, and the gate policies.
-- `reasoning-graph refresh` is the one command to run after a hand-edit. It validates, rechecks every quote, rewrites beliefs and the view, and appends a `refresh` event that lists removed objects. It replaces `beliefs --write`, which is removed.
-- `record` and `stop` refuse a state whose digest differs from the last `record` or `refresh` event.
+- A digest that differs from the last `record` or `refresh` event marks a hand-edit. `refresh`, `record`, and `stop` all take one in: the graph must validate and every quote must match, then a `refresh` event lists the removed objects. `refresh` does only that, plus rewriting beliefs and the view. It replaces `beliefs --write`, which is removed.
+- `record` and `stop` take the edit in themselves rather than refusing and sending the agent to `refresh`: refusing only cost a turn, because the review gate already catches a hand-edit after a review.
 - A review is stale when its digest differs from the current graph's, whether the change came from a patch or a hand-edit.
 - `stop` validates the graph and computes every belief itself; stored beliefs are overwritten. `audit` fails when the graph changed after `stop`.
 - `audit` replays each record's removals, then its additions, so an object can be removed and later added again.
@@ -33,6 +33,6 @@ A patch could only add nodes, edges, and factors, and set node fields. Agents ha
 ## Consequences
 
 - A review round, or a belief fix that used to need several records or a Python edit, is one `record`.
-- A hand-edit can't reach a stop unchecked: it needs `refresh`, which runs the same checks as a patch, and then a fresh review.
+- A hand-edit can't reach a stop unchecked: it passes the same checks as a patch, is logged, and needs a fresh review.
 - The digest makes accidental and casual tampering visible, but the trace is still a file the agent can write. It doesn't stop a deliberate forgery that recomputes digests.
 - Objects added by hand stay untraced, like the goal `init` writes.

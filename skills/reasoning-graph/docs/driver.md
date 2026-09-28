@@ -4,14 +4,14 @@ State shape, commands, events, audit checks, and semantic stop review. The workf
 
 ## Commands
 
-Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. After a hand edit of the state, run `refresh` before anything else: `record` and `stop` refuse a graph that differs from the one the last `record` or `refresh` wrote.
+Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. After a hand edit of the state, the next `record` or `stop` checks and logs it; `refresh` does the same without writing anything else.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph record state.json --patch - <<'JSON'   # append progress with a reason; refreshes state.html
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
-reasoning-graph refresh state.json                 # after a hand edit: validate, recheck quotes, recompute beliefs, log the edit
+reasoning-graph refresh state.json                 # take in a hand edit now: validate, recheck quotes, recompute beliefs, log it
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
 reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows)
 reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
@@ -82,8 +82,9 @@ The patch is applied atomically: if the merged graph fails validation (missing b
 
 `record`, `refresh`, `review`, and `stop` events store `graph_digest`: a short sha256 over nodes (without `belief`), edges, and factors, each sorted by id, plus `stop_policy`, `goal_policy`, and `goal_groups`. It is how the CLI notices an edit it did not make.
 
-- `record` and `stop` refuse a state whose digest differs from the latest `record` or `refresh` event, and name `refresh`.
-- `refresh` validates the state, rechecks every quote, rewrites beliefs and `state.html`, and appends a `refresh` event when the digest changed. The event lists as removals any object an earlier event added that the state no longer has, so `audit` stays consistent. Objects added by hand stay untraced, like the goal `init` writes.
+- A state whose digest differs from the latest `record` or `refresh` event was edited by hand. `refresh`, `record`, and `stop` take such an edit in: the graph must validate and every quote must match its source, and a `refresh` event is logged. `record` runs those checks on the patched graph, so a patch can repair a hand edit, and logs the `refresh` event just before its own.
+- The `refresh` event lists as removals any object an earlier event added that the state no longer has, so `audit` stays consistent. Objects added by hand stay untraced, like the goal `init` writes.
+- `refresh` also rewrites beliefs and `state.html`; with no hand edit it logs nothing.
 - A review is stale when its digest differs from the current graph's.
 - `stop` validates the graph and computes every belief itself before the gates; stored beliefs are overwritten, never read. The stop event's digest lets `audit` detect an edit made after `stop`.
 
@@ -92,7 +93,7 @@ The patch is applied atomically: if the merged graph fails validation (missing b
 | action | written by | fields |
 | --- | --- | --- |
 | `record` | `record` | `reason`, `add_nodes`, `add_edges`, `update_factors`; when non-empty, `updated_nodes` and `updated_edges` (ids with changed field names) and `remove_nodes`, `remove_edges`, `remove_factors` |
-| `refresh` | `refresh`, when the graph changed | `remove_nodes`, `remove_edges`, `remove_factors` when non-empty |
+| `refresh` | `refresh`, `record`, or `stop`, after a hand edit | `remove_nodes`, `remove_edges`, `remove_factors` when non-empty |
 | `review` | `review` | `reviewer`, `verdict` (`pass`/`fail`), `findings` |
 | `rank` | `stop`, for candidate-bearing outcomes | `best`, `belief`, `candidates` rows derived from the graph |
 | `stop` | `stop` | `reason`, `outcome` |

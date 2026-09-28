@@ -110,7 +110,6 @@ class UnansweredGoalTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"accepted_goals": ["G1"]}
             write_json(state_path, state)
-            self.ok(run_cli("refresh", str(state_path)))
 
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
 
@@ -125,7 +124,6 @@ class UnansweredGoalTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
-            self.ok(run_cli("refresh", str(state_path)))
 
             self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered; G2 optional", "--outcome", "solved", "-o", str(Path(tmp_dir) / "stopped.json"))
@@ -229,7 +227,6 @@ class StrictTestResultTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
-            self.ok(run_cli("refresh", str(state_path)))
             self.ok(self.record(tmp_dir, state_path, "conclusion", {
                 "reason": "Concluded from the decode attempt",
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "prior": 0.9}],

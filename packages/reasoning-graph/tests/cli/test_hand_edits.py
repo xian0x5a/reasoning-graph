@@ -1,4 +1,5 @@
-"""A hand-edited state is re-synced with `refresh`, and the stop gate computes what it checks itself.
+"""A hand-edited state passes the checks a patch would before anything builds on it, and the stop
+gate computes what it checks itself.
 
 Agents edited state.json with Python in 15 of 22 #34 runs. A hand edit after a passing review
 left the review current, and stored beliefs were trusted until something validated them."""
@@ -121,27 +122,43 @@ class HandEditTests(unittest.TestCase):
             self.fails(run_cli("refresh", str(state_path)), "O1", "problem.md")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-    def test_record_refuses_a_hand_edited_state_until_refreshed(self) -> None:
+    def test_record_logs_a_hand_edit_before_its_patch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.hand_edit(state_path, lambda state: self.node(state, "H2").update({"prior": 0.1}))
-            note = {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "Only his word"}}]}
 
-            self.fails(self.record(state_path, note), "refresh")
-            self.ok(run_cli("refresh", str(state_path)))
-            self.ok(self.record(state_path, note))
+            def drop_edge_and_lower_prior(state: dict) -> None:
+                state["edges"] = [item for item in state["edges"] if item["id"] != "O1-H2"]
+                self.node(state, "H2")["prior"] = 0.1
 
-    def test_stop_refuses_a_graph_changed_after_its_review(self) -> None:
+            self.hand_edit(state_path, drop_edge_and_lower_prior)
+            self.ok(self.record(state_path, {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "Only his word"}}]}))
+
+            state = self.load(state_path)
+            hand_edit, record = state["events"][-2:]
+            self.assertEqual((hand_edit["action"], hand_edit["remove_edges"]), ("refresh", ["O1-H2"]))
+            self.assertEqual(record["action"], "record")
+            self.ok(run_cli("validate", str(state_path)))
+
+    def test_record_and_stop_recheck_a_hand_edited_quote(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
+            before = state_path.read_text(encoding="utf-8")
+
+            self.fails(self.record(state_path, {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "x"}}]}), "O1", "problem.md")
+            self.fails(self.stop(state_path, "inconclusive"), "O1", "problem.md")
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
+
+    def test_stop_needs_a_new_review_after_a_hand_edit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.ok(self.review(state_path))
             self.hand_edit(state_path, lambda state: self.node(state, "H1").update({"prior": 0.95}))
 
-            self.fails(self.stop(state_path), "refresh")
-            self.ok(run_cli("refresh", str(state_path)))
             self.fails(self.stop(state_path), "changed after the latest review")
             self.ok(self.review(state_path))
             self.ok(self.stop(state_path))
+            self.assertIn("refresh", [event["action"] for event in self.load(state_path)["events"]])
             self.ok(run_cli("audit", str(state_path)))
 
     def test_stop_recomputes_beliefs_instead_of_trusting_stored_ones(self) -> None:

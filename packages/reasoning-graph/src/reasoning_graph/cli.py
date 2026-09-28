@@ -179,12 +179,35 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str
     }
 
 
-def _edited_outside_cli_message(state: dict[str, Any]) -> str | None:
-    """Explain how to re-sync when the graph differs from the one the last record or refresh wrote."""
+def _hand_edit_event(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Describe edits made outside the CLI since the last record or refresh as refresh event fields.
+
+    Callers append the event only after the edited graph passes the checks a patch would, so the
+    trace records the edit and any review of the older graph goes stale.
+    """
     last_change = last_graph_change(state)
-    if last_change is None or last_change.get("graph_digest") == graph_digest(state):
+    digest = graph_digest(state)
+    if last_change is None or last_change.get("graph_digest") == digest:
         return None
-    return f"the graph was edited outside the CLI after step {last_change.get('step')}; run `reasoning-graph refresh <state>`"
+    return {"action": "refresh", **_objects_removed_outside_record(state), "graph_digest": digest}
+
+
+def _take_in_hand_edit(state: dict[str, Any], state_path: str) -> bool:
+    """Validate the graph, recheck every quote, rewrite beliefs, and log any hand edit as a refresh event.
+
+    Prints why the graph fails a check and returns False.
+    """
+    hand_edit = _hand_edit_event(state)
+    if not refresh_beliefs(state):
+        return False
+    quote_errors = _quote_errors(state, state_path)
+    if quote_errors:
+        for message in quote_errors:
+            print(f"error: {message}", file=sys.stderr)
+        return False
+    if hand_edit:
+        state.setdefault("events", []).append({"step": next_event_step(state), **hand_edit})
+    return True
 
 
 def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
@@ -295,10 +318,8 @@ def cmd_record(args: argparse.Namespace) -> int:
         print("error: record patch requires reason: what this step did", file=sys.stderr)
         return 1
 
-    unsynced = _edited_outside_cli_message(state)
-    if unsynced:
-        print(f"error: {unsynced}", file=sys.stderr)
-        return 1
+    # Validation and quote checks below judge the patched graph, so a patch may repair a hand edit.
+    hand_edit = _hand_edit_event(state)
     patch_trace = _apply_graph_patch(state, patch)
     quote_errors = _quote_errors(state, args.state)
     if quote_errors:
@@ -308,6 +329,8 @@ def cmd_record(args: argparse.Namespace) -> int:
     events = state.setdefault("events", [])
     if not isinstance(events, list):
         raise ValueError("events must be a list before record can append")
+    if hand_edit:
+        events.append({"step": next_event_step(state), **hand_edit})
     events.append(
         {
             "step": next_event_step(state),
@@ -331,24 +354,17 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if is_stopped(state):
         print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
         return 1
-    removed = _objects_removed_outside_record(state)
-    if not refresh_beliefs(state):
+    events_before = len(state.get("events") or [])
+    if not _take_in_hand_edit(state, args.state):
         return 1
-    quote_errors = _quote_errors(state, args.state)
-    if quote_errors:
-        for message in quote_errors:
-            print(f"error: {message}", file=sys.stderr)
-        return 1
-    digest = graph_digest(state)
-    last_change = last_graph_change(state)
-    if last_change is not None and last_change.get("graph_digest") == digest:
-        print(f"ok: graph unchanged since step {last_change.get('step')}; beliefs rewritten")
-    else:
-        step = next_event_step(state)
-        state.setdefault("events", []).append({"step": step, "action": "refresh", **removed, "graph_digest": digest})
-        print(f"ok: logged the hand edit as refresh step {step}")
-        for field, object_ids in removed.items():
-            print(f"{field}: {', '.join(object_ids)}")
+    logged = (state.get("events") or [])[events_before:]
+    if not logged:
+        print("ok: no edits outside the CLI; beliefs rewritten")
+    for event in logged:
+        print(f"ok: logged the hand edit as refresh step {event['step']}")
+        for _, remove_field in RECORD_CLAIM_FIELDS.values():
+            if event.get(remove_field):
+                print(f"{remove_field}: {', '.join(event[remove_field])}")
     dump_state(state, args.output, default_in_place_source(args))
     write_live_view(state, args)
     return 0
@@ -670,12 +686,9 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    unsynced = _edited_outside_cli_message(state)
-    if unsynced:
-        print(f"error: {unsynced}, then get it reviewed again", file=sys.stderr)
-        return 1
     # The gate judges beliefs it computes itself; stored ones are overwritten, never trusted.
-    if not refresh_beliefs(state):
+    # A hand edit passes the same checks as a patch and makes an older review stale.
+    if _take_in_hand_edit(state, args.state) is False:
         return 1
     # Preflight all terminal invariants before candidate auto-ranking can append
     # a rank event.
