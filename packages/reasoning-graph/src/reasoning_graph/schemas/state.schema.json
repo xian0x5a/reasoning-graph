@@ -544,6 +544,40 @@
               }
             ]
           }
+        },
+        "remove_nodes": {
+          "$ref": "#/$defs/stringList"
+        },
+        "remove_edges": {
+          "$ref": "#/$defs/stringList"
+        },
+        "remove_factors": {
+          "$ref": "#/$defs/stringList"
+        },
+        "updated_edges": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/id"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "fields": {
+                    "$ref": "#/$defs/stringList"
+                  }
+                }
+              }
+            ]
+          }
         }
       },
       "allOf": [

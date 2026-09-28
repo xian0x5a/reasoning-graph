@@ -9,7 +9,7 @@ from typing import Any
 
 from .audit import audit_state
 from .costs import claim_beliefs
-from .events import is_stopped, next_event_step
+from .events import RECORD_CLAIM_FIELDS, is_stopped, live_record_claims, next_event_step
 from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
 from .policy import best_candidate_ids, candidate_stop_messages, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
@@ -41,14 +41,8 @@ def cmd_schema(args: argparse.Namespace) -> int:
 
 
 def cmd_beliefs(args: argparse.Namespace) -> int:
-    """Print each claim's computed belief, or with --write refresh the stored ones after a hand edit."""
+    """Print each claim's computed belief."""
     state = load_state(args.state)
-    if args.write:
-        if not refresh_beliefs(state):
-            return 1
-        dump_state(state, args.output, default_in_place_source(args))
-        write_live_view(state, args)
-        return 0
     beliefs = claim_beliefs(state)
     rows = [{"id": node["id"], "type": node["type"], "belief": beliefs[node["id"]]} for node in state.get("nodes", []) if node["id"] in beliefs]
     if args.json:
@@ -116,24 +110,40 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-RECORD_PATCH_FIELDS = {"nodes", "update_nodes", "edges", "factors", "reason"}
+RECORD_PATCH_FIELDS = {
+    "reason",
+    "nodes", "update_nodes", "remove_nodes",
+    "edges", "update_edges", "remove_edges",
+    "factors", "remove_factors",
+}
 
 
-def _apply_graph_patch(
-    state: dict[str, Any],
-    nodes_to_add: list[dict[str, Any]],
-    node_updates: list[dict[str, Any]],
-    edges_to_add: list[dict[str, Any]],
-    factors_to_update: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Add nodes/edges and upsert factors; return the event fields that make the change auditable."""
+def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """Apply removals, then updates, then additions; return the event fields that make the change auditable."""
+    nodes_to_add = _object_list(patch.get("nodes"), "nodes")
+    edges_to_add = _object_list(patch.get("edges"), "edges")
+    factors_to_upsert = _object_list(patch.get("factors"), "factors")
+    node_updates = _field_update_list(patch.get("update_nodes"), "update_nodes")
+    edge_updates = _field_update_list(patch.get("update_edges"), "update_edges")
+
+    removed_node_ids = _remove_by_id(state, "nodes", patch.get("remove_nodes") or [])
+    # An edge means nothing without both endpoints, so removing a node removes its edges.
+    incident_edge_ids = [
+        edge["id"]
+        for edge in state.get("edges", [])
+        if isinstance(edge, dict) and (edge.get("from") in removed_node_ids or edge.get("to") in removed_node_ids)
+    ]
+    removed_edge_ids = _remove_by_id(state, "edges", [*(patch.get("remove_edges") or []), *incident_edge_ids])
+    removed_factor_ids = _remove_by_id(state, "factors", patch.get("remove_factors") or [])
+
+    updated_nodes = _apply_field_updates(state.get("nodes", []), node_updates, "update_nodes")
+    updated_edges = _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
+
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
     existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
     _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
-    _ensure_object_ids(factors_to_update, "update_factors")
-
-    updated_node_specs = _apply_node_updates(state, node_updates, "update_nodes")
+    _ensure_object_ids(factors_to_upsert, "factors")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
     factors = state.setdefault("factors", [])
@@ -147,16 +157,44 @@ def _apply_graph_patch(
         if factor_id in factor_indexes:
             raise ValueError(f"factors has duplicate id {factor_id}")
         factor_indexes[factor_id] = index
-    for factor in factors_to_update:
+    for factor in factors_to_upsert:
         factor_id = str(factor["id"])
         if factor_id in factor_indexes:
             factors[factor_indexes[factor_id]] = factor
         else:
             factor_indexes[factor_id] = len(factors)
             factors.append(factor)
-    return {
-        **({"updated_nodes": updated_node_specs} if updated_node_specs else {}),
+    optional_fields = {
+        "updated_nodes": updated_nodes,
+        "updated_edges": updated_edges,
+        "remove_nodes": removed_node_ids,
+        "remove_edges": removed_edge_ids,
+        "remove_factors": removed_factor_ids,
     }
+    return {
+        "add_nodes": [node["id"] for node in nodes_to_add],
+        "add_edges": [edge["id"] for edge in edges_to_add],
+        "update_factors": [factor["id"] for factor in factors_to_upsert],
+        **{field: value for field, value in optional_fields.items() if value},
+    }
+
+
+def _objects_removed_outside_record(state: dict[str, Any]) -> dict[str, list[str]]:
+    """Name, by event removal field, objects an earlier record added that the state no longer holds.
+
+    Only a hand edit removes an object without a record; logging the removal keeps `audit` consistent.
+    Objects added by hand stay untraced, like the goal `init` writes.
+    """
+    existing_ids = {
+        "node": {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)},
+        "edge": {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict)},
+        "factor": {factor.get("id") for factor in state.get("factors", []) or [] if isinstance(factor, dict)},
+    }
+    removed: dict[str, list[str]] = {}
+    for kind, object_id in live_record_claims(state.get("events")):
+        if object_id not in existing_ids[kind]:
+            removed.setdefault(RECORD_CLAIM_FIELDS[kind][1], []).append(object_id)
+    return removed
 
 
 def refresh_beliefs(state: dict[str, Any]) -> bool:
@@ -241,18 +279,14 @@ def cmd_record(args: argparse.Namespace) -> int:
         print("error: record patch requires reason: what this step did", file=sys.stderr)
         return 1
 
-    nodes_to_add = _object_list(patch.get("nodes"), "nodes")
-    edges_to_add = _object_list(patch.get("edges"), "edges")
-    factors_to_update = _object_list(patch.get("factors"), "factors")
-    node_updates = _node_update_list(patch.get("update_nodes"), "update_nodes")
-    patch_trace = _apply_graph_patch(state, nodes_to_add, node_updates, edges_to_add, factors_to_update)
-    touched_node_ids = {node["id"] for node in nodes_to_add} | {update["id"] for update in node_updates}
+    removed_outside_record = _objects_removed_outside_record(state)
+    patch_trace = _apply_graph_patch(state, patch)
+    for field, object_ids in removed_outside_record.items():
+        patch_trace[field] = [*patch_trace.get(field, []), *object_ids]
+        print(f"note: logged {field} {', '.join(object_ids)}, removed outside record", file=sys.stderr)
+    # Every quote is rechecked, not just the patched ones, because a hand edit can reword any of them.
     source_base_dir = Path(args.state).parent if args.state != "-" else Path.cwd()
-    quote_errors = [
-        message
-        for node_id in sorted(touched_node_ids)
-        for message in quote_mismatch_messages(by_id(state["nodes"], "nodes")[node_id], source_base_dir)
-    ]
+    quote_errors = [message for node in state["nodes"] for message in quote_mismatch_messages(node, source_base_dir)]
     if quote_errors:
         for message in quote_errors:
             print(f"error: {message}", file=sys.stderr)
@@ -265,9 +299,6 @@ def cmd_record(args: argparse.Namespace) -> int:
             "step": next_event_step(state),
             "action": "record",
             "reason": reason,
-            "add_nodes": [node["id"] for node in nodes_to_add],
-            "add_edges": [edge["id"] for edge in edges_to_add],
-            "update_factors": [factor["id"] for factor in factors_to_update],
             **patch_trace,
         }
     )
@@ -467,52 +498,57 @@ def _ensure_unique_new_ids(existing: set[str], additions: list[dict[str, Any]], 
             raise ValueError(f"{field} id {item_id} already exists")
 
 
-IMMUTABLE_NODE_UPDATE_FIELDS = {"id", "type"}
+# Identity fields: changing one would make a different claim or edge, so a patch removes the
+# object and adds a new one instead.
+IMMUTABLE_UPDATE_FIELDS = {"update_nodes": {"id", "type"}, "update_edges": {"id", "from", "to"}}
 
 
-def _node_update_list(value: Any, field: str) -> list[dict[str, Any]]:
+def _field_update_list(value: Any, field: str) -> list[dict[str, Any]]:
     updates = _object_list(value, field)
-    seen: set[str] = set()
     for index, update in enumerate(updates):
-        node_id = update.get("id")
-        if not isinstance(node_id, str) or not node_id:
-            raise ValueError(f"{field}[{index}] missing string id")
-        if node_id in seen:
-            raise ValueError(f"{field}[{index}] duplicate id {node_id}")
-        seen.add(node_id)
-        changes = update.get("set")
-        if not isinstance(changes, dict) or not changes:
-            raise ValueError(f"{field}[{index}].set must be a non-empty object")
-        for immutable_field in sorted(IMMUTABLE_NODE_UPDATE_FIELDS):
-            if immutable_field in changes:
-                raise ValueError(f"{field}[{index}].set cannot change {immutable_field}")
+        changes, removals = update.get("set") or {}, update.get("unset") or []
+        for operation, names in (("set", set(changes)), ("unset", set(removals))):
+            immutable = sorted(names & IMMUTABLE_UPDATE_FIELDS[field])
+            if immutable:
+                raise ValueError(f"{field}[{index}].{operation} cannot change {', '.join(immutable)}")
+        conflicting = sorted(set(changes) & set(removals))
+        if conflicting:
+            raise ValueError(f"{field}[{index}] both sets and unsets {', '.join(conflicting)}")
+    _ensure_object_ids(updates, field)
     return updates
 
 
-def _apply_node_updates(state: dict[str, Any], updates: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
-    if not updates:
-        return []
-    nodes = state.setdefault("nodes", [])
-    if not isinstance(nodes, list):
-        raise ValueError("nodes must be a list before node updates can be applied")
-    node_indexes: dict[str, int] = {}
-    for index, node in enumerate(nodes):
-        if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node.get("id"):
-            continue
-        node_id = str(node["id"])
-        if node_id in node_indexes:
-            raise ValueError(f"nodes has duplicate id {node_id}")
-        node_indexes[node_id] = index
-
-    updated_specs: list[dict[str, Any]] = []
+def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
+    """Set and unset fields on existing items by id; return each item's changed field names for the event."""
+    items_by_id = {item["id"]: item for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    specs: list[dict[str, Any]] = []
     for update in updates:
-        node_id = str(update["id"])
-        if node_id not in node_indexes:
-            raise ValueError(f"{field} id {node_id} does not exist")
-        changes = update["set"]
-        nodes[node_indexes[node_id]].update(changes)
-        updated_specs.append({"id": node_id, "fields": sorted(changes)})
-    return updated_specs
+        item_id = str(update["id"])
+        item = items_by_id.get(item_id)
+        if item is None:
+            raise ValueError(f"{field} id {item_id} does not exist")
+        changes, removals = update.get("set") or {}, update.get("unset") or []
+        for name in removals:
+            if name not in item:
+                raise ValueError(f"{field} id {item_id} has no {name} to unset")
+            del item[name]
+        item.update(changes)
+        specs.append({"id": item_id, "fields": sorted({*changes, *removals})})
+    return specs
+
+
+def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
+    """Remove items from state[key] by id and return the removed ids in order."""
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return []
+    items = state.get(key) or []
+    present = {item.get("id") for item in items if isinstance(item, dict)}
+    for item_id in ids:
+        if item_id not in present:
+            raise ValueError(f"remove_{key} id {item_id} does not exist")
+    state[key] = [item for item in items if not (isinstance(item, dict) and item.get("id") in ids)]
+    return ids
 
 
 def append_rank_event(state: dict[str, Any], top: int = 10) -> int:
@@ -640,7 +676,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     record = sub.add_parser("record", help="append graph progress and refresh <state>.html")
     record.add_argument("state", help="state JSON path, or - for stdin")
-    record.add_argument("--patch", required=True, help="patch JSON path with reason and nodes/update_nodes/edges/factors, or - for stdin")
+    record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: reason plus any add, update, or remove operations; reason alone re-syncs a hand-edited state")
     record.add_argument("-o", "--output", help="write updated state to path")
     record.set_defaults(func=cmd_record)
 
@@ -675,8 +711,6 @@ def build_parser() -> argparse.ArgumentParser:
     beliefs = sub.add_parser("beliefs", help="print each claim's computed belief")
     beliefs.add_argument("state", help="state JSON path, or - for stdin")
     beliefs.add_argument("--json", action="store_true", help="print JSON instead of compact text")
-    beliefs.add_argument("--write", action="store_true", help="refresh the belief stored on each claim after a hand edit")
-    beliefs.add_argument("-o", "--output", help="with --write, write updated state to path")
     beliefs.set_defaults(func=cmd_beliefs)
 
     audit = sub.add_parser("audit", help="audit the event trace and stop gates")

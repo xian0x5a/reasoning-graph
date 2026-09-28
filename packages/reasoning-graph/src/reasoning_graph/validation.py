@@ -445,7 +445,7 @@ def validate_state(state: Any) -> ValidationResult:
             elif not isinstance(node["belief"], (int, float)) or abs(node["belief"] - beliefs[node_id]) > BELIEF_TOLERANCE:
                 errors.append(
                     f"stale belief on {node_id}: stored {node['belief']!r}, computed {beliefs[node_id]}; "
-                    "run `reasoning-graph beliefs <state> --write`"
+                    "after a hand edit, run `reasoning-graph record` with a patch holding only a reason"
                 )
         grounded_nodes = nodes_with_belief_sources(state)
         for node_id, node in nodes_by_id.items():

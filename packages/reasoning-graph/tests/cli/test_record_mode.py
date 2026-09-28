@@ -175,12 +175,12 @@ class RecordModeTests(unittest.TestCase):
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
             stale = run_cli("validate", str(state_path))
-            self.ok(run_cli("beliefs", str(state_path), "--write"))
+            self.ok(self.record(state_path, {"reason": "Hand edit: lowered O1's prior"}))
             refreshed = json.loads(state_path.read_text(encoding="utf-8"))
 
             self.assertEqual(stale.returncode, 1, stale.stdout)
             self.assertIn("stale belief", stale.stderr)
-            self.assertIn("beliefs", stale.stderr)
+            self.assertIn("record", stale.stderr)
             self.ok(run_cli("validate", str(state_path)))
             self.assertEqual(next(node for node in refreshed["nodes"] if node["id"] == "O1")["belief"], 0.6)
 

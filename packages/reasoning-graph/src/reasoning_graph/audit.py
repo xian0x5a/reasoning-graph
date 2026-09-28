@@ -8,6 +8,7 @@ from typing import Any
 from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES, ValidationResult
 from .policy import candidate_stop_messages, confidence_stop_messages, ranked_viable_candidates
 from .costs import probability_from_value
+from .events import RECORD_CLAIM_FIELDS, live_record_claims
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -24,6 +25,11 @@ def add_policy_violation(result: ValidationResult, message: str, severity: str) 
         result.errors.append(message)
     else:
         result.warnings.append(message)
+
+
+def event_label(events: list[Any], index: int) -> str:
+    event = events[index] if isinstance(events[index], dict) else {}
+    return f"events[{index}] step={event.get('step')} action={event.get('action')}"
 
 
 def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]]:
@@ -53,16 +59,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
 
     seen_stop = False
     previous_step: int | None = None
-    # Each graph object may be claimed as added by exactly one event; repeated claims
-    # would let a trace decorate later records with work done earlier.
-    claimed_by_event: dict[tuple[str, str], int] = {}
-
-    def claim_added(kind: str, object_id: str, index: int, label: str) -> None:
-        previous = claimed_by_event.get((kind, object_id))
-        if previous is not None:
-            errors.append(f"{label}: {kind} {object_id} was already added by events[{previous}]")
-            return
-        claimed_by_event[(kind, object_id)] = index
 
     policy_result = ValidationResult(errors=errors, warnings=warnings)
     severity = stop_policy_severity(state)
@@ -73,7 +69,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
             errors.append(f"events[{index}] must be object")
             continue
         event = raw_event
-        label = f"events[{index}] step={event.get('step')} action={event.get('action')}"
+        label = event_label(events, index)
 
         step = event.get("step")
         if not isinstance(step, int):
@@ -97,19 +93,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
         if action == "record":
             if not str(event.get("reason") or "").strip():
                 errors.append(f"{label}: record requires a non-empty reason")
-            for node_id in as_string_list(event.get("add_nodes"), f"{label}.add_nodes", errors):
-                if node_id not in nodes:
-                    errors.append(f"{label}: add_nodes references missing node {node_id}")
-                else:
-                    claim_added("node", node_id, index, label)
-            for edge_id in as_string_list(event.get("add_edges"), f"{label}.add_edges", errors):
-                if edge_id not in edge_ids:
-                    errors.append(f"{label}: add_edges references missing edge id {edge_id}")
-                else:
-                    claim_added("edge", edge_id, index, label)
-            for factor_id in as_string_list(event.get("update_factors"), f"{label}.update_factors", errors):
-                if factor_id not in factor_ids:
-                    errors.append(f"{label}: update_factors references missing factor id {factor_id}")
+            for add_field, remove_field in RECORD_CLAIM_FIELDS.values():
+                as_string_list(event.get(add_field), f"{label}.{add_field}", errors)
+                as_string_list(event.get(remove_field), f"{label}.{remove_field}", errors)
             stats["records"] += 1
             continue
 
@@ -183,6 +169,17 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                     for message in confidence_stop_messages(state):
                         add_policy_violation(policy_result, f"{label}: {outcome} stop needs a grounded, confident answer; {message}", severity)
             seen_stop = True
+
+    # Each object may be added by one event while the trace holds it (a repeat would let a later
+    # record claim earlier work), and whatever the trace still holds must exist in the graph.
+    def repeated_add(kind: str, object_id: str, index: int, previous: int) -> None:
+        errors.append(f"{event_label(events, index)}: {kind} {object_id} was already added by events[{previous}]")
+
+    existing_ids = {"node": set(nodes), "edge": edge_ids, "factor": factor_ids}
+    for (kind, object_id), index in live_record_claims(events, repeated_add).items():
+        if object_id not in existing_ids[kind]:
+            add_field = RECORD_CLAIM_FIELDS[kind][0]
+            errors.append(f"{event_label(events, index)}: {add_field} references missing {kind} {object_id}, and no later record removed it")
 
     if not seen_stop:
         errors.append("audit requires a stop event")

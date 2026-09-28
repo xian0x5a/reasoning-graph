@@ -23,38 +23,28 @@
     "update_nodes": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "set"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1
+        "allOf": [
+          {
+            "$ref": "#/$defs/fieldUpdate"
           },
-          "set": {
-            "type": "object",
-            "minProperties": 1,
-            "additionalProperties": true,
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "id"
-                  ]
-                },
-                {
+          {
+            "properties": {
+              "set": {
+                "not": {
                   "required": [
                     "belief"
                   ]
                 }
-              ]
+              }
             }
           }
-        }
+        ],
+        "description": "belief is computed and written by the CLI, never authored."
       }
+    },
+    "remove_nodes": {
+      "$ref": "#/$defs/idList",
+      "description": "also removes every edge touching a removed node"
     },
     "edges": {
       "type": "array",
@@ -62,10 +52,83 @@
         "$ref": "state.schema.json#/$defs/edge"
       }
     },
+    "update_edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fieldUpdate"
+      }
+    },
+    "remove_edges": {
+      "$ref": "#/$defs/idList"
+    },
     "factors": {
       "type": "array",
       "items": {
         "$ref": "state.schema.json#/$defs/factor"
+      }
+    },
+    "remove_factors": {
+      "$ref": "#/$defs/idList"
+    }
+  },
+  "$defs": {
+    "fieldUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "set": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": true,
+          "not": {
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "unset": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/idList"
+            },
+            {
+              "not": {
+                "contains": {
+                  "const": "id"
+                }
+              }
+            }
+          ],
+          "description": "field names to remove"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "set"
+          ]
+        },
+        {
+          "required": [
+            "unset"
+          ]
+        }
+      ]
+    },
+    "idList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
       }
     }
   }
