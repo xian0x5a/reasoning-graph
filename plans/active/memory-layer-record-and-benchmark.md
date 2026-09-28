@@ -55,9 +55,8 @@ Milestones 1 to 3 need no change to the package. Milestone 4 is independent of t
 - The scorer is one model call with structured output. The letter is graded by exact match. For each key point the scorer quotes the sentence of the submit that covers it, and the point counts as `covered` only when that quote is found in the submit. It never writes a hint.
 - Pass: gold letter and every key point covered. On a fail the driver sends "wrong" plus the pre-written hint for the first failed point.
 - Cap per item: key points plus one submits.
-- Context reset between submits: the driver ends the session and starts a fresh one. Before the reset the agent writes a handoff summary, which is what a compaction produces, and the driver passes it into the next session. See Surprises & Discoveries for why this replaces a real compaction.
-- Every arm gets the handoff summary, as it would in real use. The arms differ in what else survives on disk.
-- Arms: `compaction-only` keeps nothing else. `notes-file` also keeps `notes.md`, which the agent is told to maintain and reread.
+- Context reset between submits: the driver ends the session and starts a fresh one, as after a killed session. Nothing is handed over. The arms differ in what survives on disk.
+- Arms: `no-memory` keeps nothing and is the lower bound. `notes-file` keeps `notes.md`, which the agent is told to maintain and reread.
 - Validate the scorer on the #34 answers before running any arm.
 
 ### 4. Record changes in the package
@@ -77,7 +76,7 @@ Modules touched, from a field-usage grep: `costs.py`, `validation.py`, `policy.p
 
 ### 5. Graph arm and result
 
-- Run the `graph` arm through the same driver. It gets the handoff summary and keeps `state.json` plus the index.
+- Run the `graph` arm through the same driver. It keeps `state.json` plus the index.
 - Score all three arms and post the result on #37.
 
 ## Validation
@@ -106,18 +105,18 @@ Benchmark metrics:
 |---|---|
 | First-submit accuracy, exact match | Does the skill hurt accuracy? |
 | Submits until pass | Does the record help recovery? |
-| Repeated rejected answers | Did memory survive compaction? |
-| Hints kept after compaction | Same, for facts |
+| Repeated rejected answers | Did memory survive the reset? |
+| Hinted key point covered in the next submit | Same, for facts |
 | Cost per run | Is a checkpoint cheap enough? |
 
-Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right exceeds skill-only-right with McNemar p < 0.10. This is the `score_ab.py` rule read in reverse. The `compaction-only` arm's first submit is the no-skill answer, so the guard needs no fourth arm.
+Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right exceeds skill-only-right with McNemar p < 0.10. This is the `score_ab.py` rule read in reverse. The `no-memory` arm's first submit is the no-skill answer, so the guard needs no fourth arm.
 
 ## Progress
 
 - [x] Decisions recorded on #37
 - [x] 1. Pilot on Sonnet 5.5: 97 of 120 runs correct, 15 of 60 items kept, 8 of them wrong in both runs. Cost $13.54.
-- [ ] 2. Rubrics: 15 drafted, hand check pending
-- [ ] 3. Loop harness and baseline arms: scorer and driver work on one item; the arms wait on the rubric check and the handoff decision
+- [x] 2. Rubrics: 14 items, rewritten by hand from the drafts. `the-diamond-necklace` is left out because its decisive clue appears only in the solution.
+- [ ] 3. Loop harness and baseline arms: driver and scorer work; both baseline arms are running as `s55-loop-r1`
 - [ ] 4. Record changes
 - [ ] 5. Graph arm and result
 
@@ -132,6 +131,10 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - The loop works end to end. `the-golden-ruse` on the `notes-file` arm: wrong, right letter with a gap, pass. Three submits, $0.83.
 - In that run the handoff summary held the hint word for word, the rejected answer, and the facts of the story. It was 1.8 KB against 0.5 KB of notes. With a handoff this complete the arms have nothing left to differ on.
 - Scorer check on the 30 pilot answers of the kept items, three gradings each: no wrong letter passed, 25 submits got the same verdicts every time, 5 did not. Grading each key point three times and taking the majority left 4 of those 5 unstable, so it was dropped. The unstable key points hold two conclusions, such as clearing two suspects at once, and a submit that covers one of them is a coin flip.
+- The handoff was dropped for that reason. A reset now hands nothing over.
+- Two more changes steadied the scorer. Each key point now holds one suspect, one conclusion and its clue, and the scorer counts a point only when the submit reaches the conclusion from that same clue. Key points whose verdict changed between gradings fell from 6 of 90 to 3 of 90, two of them in the item that was then left out.
+- A fresh session can pass by chance. In a `no-memory` trial the second round covered every key point without knowing the hint. The lower bound arm measures how often that happens.
+- Session transcripts of earlier rounds stay under `~/.claude/projects/`. No run read them, and no memory directory was created there.
 - None of the 7 right-letter pilot answers covered every key point, so a right first answer still goes to a second round.
 - The rubric drafter fills its maximum: 4 key points each when allowed 4, 3 each when allowed 3. In the first draft six hints named the gold suspect; the drafter now redrafts such a rubric.
 - Risk: the items are small. A handoff summary may carry every hint and rejected answer, and then the three arms tie. A tie is a real result: on tasks this size the memory layer adds nothing over compaction.
@@ -154,7 +157,8 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 | Index file refreshed by `record` | Cheap reread, the resume entry point, and the subagents' read view |
 | Checkpoint timing left to the agent | No enforced budget |
 | True Detective with a scorer loop | A long-horizon task costs too much for now; the loop stretches the run and hints add information only the conversation holds |
-| Three arms | A notes file is the honest rival of a graph |
+| Three arms: no memory, notes file, graph | A notes file is the honest rival of a graph, and no memory is the lower bound |
+| No handoff summary at a reset | On items this small the summary carried everything |
 
 Proposed scale table, to confirm in step 4.3. The edge values are the ratios agents already wrote most.
 
