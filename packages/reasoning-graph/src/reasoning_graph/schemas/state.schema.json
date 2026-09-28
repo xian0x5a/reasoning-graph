@@ -499,7 +499,6 @@
         "outcome": {
           "enum": [
             "solved",
-            "candidate_threshold_met",
             "candidate_count_met",
             "budget_exhausted",
             "blocked",

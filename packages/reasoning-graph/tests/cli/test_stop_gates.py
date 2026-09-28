@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
 
 class GroundedPathTests(unittest.TestCase):
-    """Solved and threshold stops need a candidate whose belief is earned from observations,
+    """A solved stop needs a candidate whose belief is earned from observations,
     not carried by hand-set priors on the claims it rests on."""
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
@@ -280,7 +280,7 @@ class GroundedPathTests(unittest.TestCase):
         self.ok(run_cli("record", str(state_path), "--patch", str(write_json(Path(tmp_dir) / "record.json", patch))))
         return state_path
 
-    def stop(self, state_path: Path, outcome: str = "candidate_threshold_met") -> subprocess.CompletedProcess[str]:
+    def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
         return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
 
     @staticmethod
@@ -294,22 +294,34 @@ class GroundedPathTests(unittest.TestCase):
     def edge(source: str, target: str, edge_type: str, **extra: float) -> dict:
         return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, "reasoning": "Test edge.", **extra}
 
-    def test_prior_only_hypothesis_blocks_threshold_and_solved_stops(self) -> None:
+    def test_prior_only_hypothesis_blocks_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
 
-            for outcome in ("candidate_threshold_met", "solved"):
-                stopped = self.stop(state_path, outcome)
-                self.assertEqual(stopped.returncode, 1, stopped.stdout)
-                self.assertIn("H1", stopped.stderr)
-                self.assertIn("grounded", stopped.stderr)
+            stopped = self.stop(state_path)
+            self.assertEqual(stopped.returncode, 1, stopped.stdout)
+            self.assertIn("H1", stopped.stderr)
+            self.assertIn("grounded", stopped.stderr)
+
+    def test_threshold_outcome_was_removed_with_the_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.recorded_state(
+                tmp_dir,
+                [self.hypothesis("H1", 0.6)],
+                [self.edge("O1", "H1", "supports", likelihood_ratio=6), self.edge("H1", "CS1", "leads_to")],
+            )
+
+            stopped = self.stop(state_path, "candidate_threshold_met")
+            self.assertNotEqual(stopped.returncode, 0, stopped.stdout)
+            self.assertIn("candidate_threshold_met", stopped.stderr)
+            self.ok(self.stop(state_path, "solved"))
 
     def test_prior_only_path_may_stop_as_budget_exhausted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
             self.ok(self.stop(state_path, "budget_exhausted"))
 
-    def test_prior_only_candidate_blocks_threshold_stop(self) -> None:
+    def test_prior_only_candidate_blocks_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [], [], candidate_prior=0.9)
 

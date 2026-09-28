@@ -95,13 +95,13 @@ The patch is applied atomically: if the merged graph fails validation (missing b
 
 `record`, `refresh`, and `stop` events also carry `graph_digest`.
 
-Stop outcomes: `solved`, `candidate_threshold_met`, `candidate_count_met`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`.
+Stop outcomes: `solved`, `candidate_count_met`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`.
 
 `stop` checks every gate before writing anything:
 
-- candidate-bearing outcomes (`solved`, `candidate_threshold_met`, `candidate_count_met`) need every accepted, non-optional goal answered (`docs/schema/goals.md`) and any `min_viable_candidates`
+- candidate-bearing outcomes (`solved`, `candidate_count_met`) need every accepted, non-optional goal answered (`docs/schema/goals.md`) and any `min_viable_candidates`
 - they also need the reported answer to be the graph's: `summary.answer`, `report.answer`, and the `--draft` file each name the best candidate of every accepted goal by id or exact text. An empty answer is not checked
-- `solved` and `candidate_threshold_met` also need the grounding gates in `../SKILL.md`: grounded best candidate and test results
+- `solved` also needs the grounding gates in `../SKILL.md`: grounded best candidate and test results
 
 A failed gate names what is missing. Non-candidate outcomes only write the stop event. Nothing may be appended after `stop`.
 

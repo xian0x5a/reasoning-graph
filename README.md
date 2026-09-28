@@ -70,7 +70,7 @@ $rg mermaid state.stopped.json > graph.mmd
 $rg html state.stopped.json -o graph.html
 ```
 
-A `solved` or `candidate_threshold_met` stop needs every test to have a result `observation` linked by `leads_to`; record a failed or skipped check as a result too.
+A `solved` stop needs every test to have a result `observation` linked by `leads_to`; record a failed or skipped check as a result too.
 
 ## Schemas
 

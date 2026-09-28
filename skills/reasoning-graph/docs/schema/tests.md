@@ -98,7 +98,7 @@ A `record` patch adds the result node and connects it to the existing test node.
 
 ## Result rule
 
-A `solved` or `candidate_threshold_met` stop is rejected while any `test` node lacks both a result `observation` linked by `test --leads_to--> observation` and a `not_run` reason; `audit` reports the same gap on a stopped trace.
+A `solved` stop is rejected while any `test` node lacks both a result `observation` linked by `test --leads_to--> observation` and a `not_run` reason; `audit` reports the same gap on a stopped trace.
 
 A check that ran but did not settle anything (inconclusive, blocked, failed, or skipped midway) is recorded as a result observation describing what happened (see the inconclusive example above); `not_run` is only for a check that cannot be performed here at all. A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
 

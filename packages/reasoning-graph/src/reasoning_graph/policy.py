@@ -344,7 +344,7 @@ def candidate_stop_messages(state: dict[str, Any]) -> list[str]:
 
 
 def grounded_stop_messages(state: dict[str, Any]) -> list[str]:
-    """Everything a solved/candidate_threshold_met stop must satisfy beyond answering each goal."""
+    """Everything a solved stop must satisfy beyond answering each goal."""
 
     return ungrounded_goal_answer_messages(state) + unrecorded_test_messages(state)
 

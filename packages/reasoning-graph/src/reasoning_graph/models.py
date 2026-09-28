@@ -53,7 +53,6 @@ AUDIT_EVENT_ACTIONS = {
 
 STOP_OUTCOMES = {
     "solved",
-    "candidate_threshold_met",
     "candidate_count_met",
     "budget_exhausted",
     "blocked",
@@ -64,15 +63,11 @@ STOP_OUTCOMES = {
 
 CANDIDATE_STOP_OUTCOMES = {
     "solved",
-    "candidate_threshold_met",
     "candidate_count_met",
 }
 
-# These outcomes claim the answer holds, so it must rest on observations; candidate_count_met measures breadth.
-EVIDENCE_GROUNDED_STOP_OUTCOMES = {
-    "solved",
-    "candidate_threshold_met",
-}
+# This outcome claims the answer holds, so it must rest on observations; candidate_count_met measures breadth.
+EVIDENCE_GROUNDED_STOP_OUTCOMES = {"solved"}
 
 
 # A test result is what was observed; a conclusion drawn from it is a separate hypothesis

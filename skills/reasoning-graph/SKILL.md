@@ -83,7 +83,7 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 
 ## Stop gates
 
-A `solved` or `candidate_threshold_met` stop is accepted only when:
+A `solved` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
 - `summary.answer`, `report.answer`, and the `--draft` file name the best candidate of each accepted goal, by id or exact text
