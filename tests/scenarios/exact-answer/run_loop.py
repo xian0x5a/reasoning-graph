@@ -106,7 +106,7 @@ def feedback_prompt(score: dict, rubric: dict) -> tuple[str, str | None]:
     if score["letter"] is None:
         letter_feedback = "No valid final answer line was found."
     elif score["letter_correct"]:
-        letter_feedback = f"Answer {score['letter']} is correct, but the reasoning has a gap."
+        letter_feedback = f"Answer {score['letter']} is correct, but the explanation has a gap."
     else:
         letter_feedback = f"Answer {score['letter']} is wrong."
     hint = next((key_point["hint"] for key_point in rubric["key_points"]

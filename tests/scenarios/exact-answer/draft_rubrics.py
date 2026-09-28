@@ -16,13 +16,19 @@ rubric.json is a spoiler, like gold.json: keep it out of git and out of agent wo
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from model_call import structured_call
 
 DEFAULT_MODEL = "claude-opus-5-5"
-MIN_KEY_POINTS = 2
-MAX_KEY_POINTS = 4
+# With room for four, every drafted rubric came back with four: the drafter pads.
+MIN_KEY_POINTS = 1
+MAX_KEY_POINTS = 3
+MAX_DRAFT_ATTEMPTS = 3
+# Words of an answer option that many suspects share, so they do not give the answer away.
+SHARED_OPTION_WORDS = {"The", "Mr", "Mrs", "Ms", "Miss", "Dr", "Private", "First", "Class", "Specialist",
+                       "Fourth", "Fifth", "Sergeant", "Officer", "Captain", "Professor"}
 
 RUBRIC_SCHEMA = {
     "type": "object",
@@ -60,8 +66,8 @@ Key points ({min_points} to {max_points}):
 Hints (one per key point):
 - A hint tells the solver where to look again. It names a statement, an object, a time, or a
   detail of the puzzle to re-examine.
-- A hint never names the correct suspect, never gives the answer letter, and never states the
-  conclusion of its key point.
+- A hint never gives the answer letter and never states the conclusion of its key point.
+- A hint never names the correct answer. No hint may contain any of these words: {banned_words}.
 
 # Puzzle
 
@@ -69,7 +75,7 @@ Hints (one per key point):
 
 # Correct answer
 
-{answer}
+({answer}) {answer_option}
 
 # Author's solution
 
@@ -77,14 +83,33 @@ Hints (one per key point):
 """
 
 
+def answer_option(problem: str, letter: str) -> str:
+    """The text of one answer option, e.g. "Private Joe Locke" for letter b."""
+    return re.search(rf"^- \({letter}\) (.+)$", problem, re.MULTILINE).group(1).strip()
+
+
+def hints_naming_answer(key_points: list[dict], banned_words: list[str]) -> list[str]:
+    # Case matters: the option "April Key" must not ban every hint about a keyboard key.
+    return [key_point["hint"] for key_point in key_points
+            if any(re.search(rf"\b{re.escape(word)}\b", key_point["hint"]) for word in banned_words)]
+
+
 def draft_rubric(item_dir: Path, model: str) -> dict:
     gold = json.loads((item_dir / "gold.json").read_text(encoding="utf-8"))
+    problem = (item_dir / "problem.md").read_text(encoding="utf-8")
+    option = answer_option(problem, gold["answer"])
+    banned_words = [word for word in re.findall(r"[A-Za-z]+", option) if word not in SHARED_OPTION_WORDS]
     prompt = DRAFT_PROMPT.format(
-        min_points=MIN_KEY_POINTS, max_points=MAX_KEY_POINTS,
-        problem=(item_dir / "problem.md").read_text(encoding="utf-8"),
-        answer=gold["answer"], solution=gold["solution"],
+        min_points=MIN_KEY_POINTS, max_points=MAX_KEY_POINTS, problem=problem,
+        answer=gold["answer"], answer_option=option, banned_words=", ".join(banned_words),
+        solution=gold["solution"],
     )
-    drafted = structured_call(prompt, RUBRIC_SCHEMA, model)
+    for _ in range(MAX_DRAFT_ATTEMPTS):
+        drafted = structured_call(prompt, RUBRIC_SCHEMA, model)
+        if not hints_naming_answer(drafted["key_points"], banned_words):
+            break
+    else:
+        raise ValueError(f"{item_dir.name}: every draft had a hint naming the answer ({option})")
     key_points = [{"id": f"K{index}", **key_point}
                   for index, key_point in enumerate(drafted["key_points"], start=1)]
     return {"answer": gold["answer"], "key_points": key_points}
