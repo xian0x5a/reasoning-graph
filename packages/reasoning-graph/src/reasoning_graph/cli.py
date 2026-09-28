@@ -192,24 +192,6 @@ def _hand_edit_event(state: dict[str, Any]) -> dict[str, Any] | None:
     return {"action": "refresh", **_objects_removed_outside_record(state), "graph_digest": digest}
 
 
-def _take_in_hand_edit(state: dict[str, Any], state_path: str) -> bool:
-    """Validate the graph, recheck every quote, rewrite beliefs, and log any hand edit as a refresh event.
-
-    Prints why the graph fails a check and returns False.
-    """
-    hand_edit = _hand_edit_event(state)
-    if not refresh_beliefs(state):
-        return False
-    quote_errors = _quote_errors(state, state_path)
-    if quote_errors:
-        for message in quote_errors:
-            print(f"error: {message}", file=sys.stderr)
-        return False
-    if hand_edit:
-        state.setdefault("events", []).append({"step": next_event_step(state), **hand_edit})
-    return True
-
-
 def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
     source_base_dir = Path(state_path).parent if state_path != "-" else Path.cwd()
     return [message for node in state.get("nodes", []) for message in quote_mismatch_messages(node, source_base_dir)]
@@ -354,17 +336,23 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if is_stopped(state):
         print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
         return 1
-    events_before = len(state.get("events") or [])
-    if not _take_in_hand_edit(state, args.state):
+    hand_edit = _hand_edit_event(state)
+    if not refresh_beliefs(state):
         return 1
-    logged = (state.get("events") or [])[events_before:]
-    if not logged:
+    quote_errors = _quote_errors(state, args.state)
+    if quote_errors:
+        for message in quote_errors:
+            print(f"error: {message}", file=sys.stderr)
+        return 1
+    if hand_edit is None:
         print("ok: no edits outside the CLI; beliefs rewritten")
-    for event in logged:
-        print(f"ok: logged the hand edit as refresh step {event['step']}")
+    else:
+        step = next_event_step(state)
+        state.setdefault("events", []).append({"step": step, **hand_edit})
+        print(f"ok: logged the hand edit as refresh step {step}")
         for _, remove_field in RECORD_CLAIM_FIELDS.values():
-            if event.get(remove_field):
-                print(f"{remove_field}: {', '.join(event[remove_field])}")
+            if hand_edit.get(remove_field):
+                print(f"{remove_field}: {', '.join(hand_edit[remove_field])}")
     dump_state(state, args.output, default_in_place_source(args))
     write_live_view(state, args)
     return 0
@@ -686,14 +674,21 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    # The gate judges beliefs it computes itself; stored ones are overwritten, never trusted.
-    # A hand edit passes the same checks as a patch and makes an older review stale.
-    if _take_in_hand_edit(state, args.state) is False:
+    hand_edit = _hand_edit_event(state)
+    # The gates need a valid graph and judge beliefs computed here; stored ones are overwritten, never trusted.
+    if not refresh_beliefs(state):
         return 1
+    # Quote and gate failures are independent, so report both in one run instead of one per retry.
+    quote_errors = _quote_errors(state, args.state)
+    for message in quote_errors:
+        print(f"error: {message}", file=sys.stderr)
     # Preflight all terminal invariants before candidate auto-ranking can append
     # a rank event.
-    if _stop_preflight(state, args.reason, args.outcome) != 0:
+    if _stop_preflight(state, args.reason, args.outcome) != 0 or quote_errors:
         return 1
+    # Logged only once every check passes, and before rank and stop, since nothing may follow stop.
+    if hand_edit:
+        state.setdefault("events", []).append({"step": next_event_step(state), **hand_edit})
     if args.outcome in CANDIDATE_STOP_OUTCOMES:
         if append_rank_event(state, top=args.top) != 0:
             return 1

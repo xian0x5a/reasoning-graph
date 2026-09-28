@@ -149,6 +149,14 @@ class HandEditTests(unittest.TestCase):
             self.fails(self.stop(state_path, "inconclusive"), "O1", "problem.md")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
+    def test_stop_reports_quote_and_gate_failures_together(self) -> None:
+        # Fixing a quote only to learn of an unmet gate on the next stop cost the agent a turn.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
+
+            self.fails(self.stop(state_path), "O1", "problem.md", "no review recorded")
+
     def test_stop_needs_a_new_review_after_a_hand_edit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)

@@ -86,7 +86,7 @@ The patch is applied atomically: if the merged graph fails validation (missing b
 - The `refresh` event lists as removals any object an earlier event added that the state no longer has, so `audit` stays consistent. Objects added by hand stay untraced, like the goal `init` writes.
 - `refresh` also rewrites beliefs and `state.html`; with no hand edit it logs nothing.
 - A review is stale when its digest differs from the current graph's.
-- `stop` validates the graph and computes every belief itself before the gates; stored beliefs are overwritten, never read. The stop event's digest lets `audit` detect an edit made after `stop`.
+- `stop` validates the graph and computes every belief itself before the gates; stored beliefs are overwritten, never read. It then reports quote failures and gate failures together, so one run lists everything to fix. The stop event's digest lets `audit` detect an edit made after `stop`.
 
 ## Events
 
