@@ -24,16 +24,16 @@ Requirements: the helper CLI, installed separately (if `reasoning-graph --help` 
 ## Workflow
 
 1. **Frame the goal** with `init`. Add epistemic/blocker goals only when the user or task wording accepts them.
-2. **Work and record as you go.** After each meaningful step (reading a source, forming or dropping a hypothesis, running a test, reaching a candidate answer) record what it produced. The graph is your memory only if it is written before you need it; filling it in after solving leaves a story, not a record.
+2. **Record at checkpoints.** A checkpoint is where the work turns: sources read, a candidate answer formed, a test result in, a review's findings fixed. Put everything since the last checkpoint in one patch, and write it before moving on; a graph filled in after solving leaves a story, not a record.
 3. **Draft the answer** in `answer.md` once a candidate looks ready.
-4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record the fixes and review again; any `record` after a review makes it stale.
+4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record all the fixes in one patch and review again; any `record` after a review makes it stale.
 5. **Stop** when a gate below holds, run the final checks, and give the answer.
 
 Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
-# repeat as work progresses; refreshes state.html
+# once per checkpoint; refreshes state.html
 reasoning-graph record state.json --patch - <<'JSON'
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
@@ -63,7 +63,13 @@ Record patch:
 }
 ```
 
-`reason` says what the step did and becomes the progress log. A patch may also carry `update_nodes` and `factors`.
+`reason` says what the checkpoint did and becomes the progress log. One patch carries every kind of change:
+
+- **Add:** `nodes`, `edges`, `factors` (a factor whose `id` exists replaces it).
+- **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["posterior"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
+- **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
+
+Make every change through a patch. After editing `state.json` by hand, run `record` with a patch holding only `reason` (what you edited): it rechecks every quote, recomputes beliefs, logs removed objects, and makes an earlier review stale.
 
 ## Recording
 
@@ -95,7 +101,7 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 ## Beliefs
 
-`prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. `record` writes each claim's current `belief` into the state: read it there, never set it. After editing the state by hand, run `reasoning-graph beliefs state.json --write`. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
+`prior` is local input, `belief` is computed output, `posterior` is an explicit override that bypasses the node's inputs until removed. `record` writes each claim's current `belief` into the state: read it there, never set it. Claims need a prior, a posterior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
 
 Use coarse numbers.
 
@@ -107,7 +113,7 @@ Before stopping, start an independent reviewer subagent. Give it the state path,
 2. **Answer against graph:** every factual claim in the answer traces to an observation; the answer adds nothing the graph lacks.
 3. **Evidence against the answer:** anything in the sources that cuts against it is recorded, and the answer addresses it.
 
-The reviewer does not edit the graph. It records its own verdict with `review`, naming itself and listing what it checked and found. On `fail`, fix the graph with `record` and the draft, then start a fresh review.
+The reviewer does not edit the graph. It records its own verdict with `review`, naming itself and listing what it checked and found. On `fail`, fix the graph with one `record` and the draft, then start a fresh review.
 
 After `stop`, run `validate`, `audit`, and `stop-review --draft answer.md`, and fix every required fix.
 

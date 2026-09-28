@@ -4,7 +4,7 @@ State shape, commands, events, audit checks, and semantic stop review. The workf
 
 ## Commands
 
-Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. Bookkeeping that records no new reasoning (fixing a typo, adding an obvious `source`, formatting JSON) can be edited directly; if the edit touches scores or edges, run `beliefs --write` to refresh the stored beliefs.
+Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. After any hand edit of the state, run `record` with a patch holding only `reason` before using the state again (see Record patch).
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
@@ -12,7 +12,7 @@ reasoning-graph record state.json --patch - <<'JSON'   # append progress with a 
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
-reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows; --write refreshes stored beliefs after a hand edit)
+reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows)
 reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
 reasoning-graph validate state.json                # schema/reference/belief sanity checks
 reasoning-graph stop state.json --reason "CS1 is grounded above threshold and review passed" --outcome solved -o state.stopped.json
@@ -66,21 +66,24 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 
 ## Record patch
 
-`record` applies `reason` plus any of `nodes`, `update_nodes`, `edges`, `factors`:
+`record` applies `reason` plus any of these operations, in this order: removals, then updates, then additions.
 
-- `nodes` is insert-only; duplicate ids are rejected.
-- `update_nodes` replaces top-level fields on existing nodes, e.g. `{"id": "H1", "set": {"posterior": 0.72}}`; `id` and `type` are immutable. Use it to keep one node per claim as evidence arrives.
+- `remove_nodes`, `remove_edges`, `remove_factors` take id lists; each id must exist. Removing a node also removes every edge touching it, and the event lists those edges. Factors are never removed implicitly: a factor left pointing at a removed node or edge fails validation, so remove or replace it in the same patch.
+- `update_nodes` and `update_edges` take items `{"id": ..., "set": {...}, "unset": [...]}` with at least one of `set` or `unset`. `set` replaces top-level fields; `unset` deletes fields the item has. A node's `id` and `type` and an edge's `id`, `from`, and `to` are immutable. Use `update_nodes` to keep one node per claim as evidence arrives.
+- `nodes` and `edges` are insert-only; an id that exists after the removals is rejected. An id removed earlier in the same patch may be added again.
 - `factors` adds or replaces factors by id.
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
-- An added or updated observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked.
+- Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` rechecks every quote on each call, not only the patched ones.
 
-The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference), nothing is written.
+The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference) or a quote check, nothing is written.
+
+A patch holding only `reason` re-syncs a hand-edited state. `record` logs in its event, as removals, any object an earlier record added that the state no longer has, and prints a `note:` naming them. Objects added by hand stay untraced, like the goal `init` writes. Then it rechecks quotes, recomputes beliefs, refreshes `state.html`, and makes an earlier review stale, as every `record` does.
 
 ## Events
 
 | action | written by | fields |
 | --- | --- | --- |
-| `record` | `record` | `reason`, `add_nodes`, `add_edges`, `update_factors`, and `updated_nodes` (ids with changed field names) when nodes were updated |
+| `record` | `record` | `reason`, `add_nodes`, `add_edges`, `update_factors`; when non-empty, `updated_nodes` and `updated_edges` (ids with changed field names) and `remove_nodes`, `remove_edges`, `remove_factors` |
 | `review` | `review` | `reviewer`, `verdict` (`pass`/`fail`), `findings` |
 | `rank` | `stop`, for candidate-bearing outcomes | `best`, `belief`, `candidates` rows derived from the graph |
 | `stop` | `stop` | `reason`, `outcome` |
@@ -100,7 +103,7 @@ A failed gate names what is missing. Non-candidate outcomes only write the stop 
 
 - `validate` fails on a stored `belief` that differs from the recomputed one
 - steps strictly increase; actions are `record`, `review`, `rank`, `stop`; the trace ends with exactly one `stop`
-- each record has a reason and names nodes/edges/factors that exist; no node or edge is claimed as added by two events
+- each record has a reason. Replaying records in order (each one's removals, then its additions), no node or edge is added while the trace still holds it, and every object the trace still holds exists in the graph
 - each review names a reviewer, a verdict, and findings
 - `rank.best`, `rank.belief`, and `rank.candidates` rows match the values derived from the graph
 - the stop outcome meets the gates above; under `severity: error` a violation fails the audit
