@@ -115,9 +115,9 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 ## Progress
 
 - [x] Decisions recorded on #37
-- [ ] 1. Pilot on Sonnet 5.5
-- [ ] 2. Rubrics
-- [ ] 3. Loop harness and baseline arms
+- [x] 1. Pilot on Sonnet 5.5: 97 of 120 runs correct, 15 of 60 items kept, 8 of them wrong in both runs. Cost $13.54.
+- [ ] 2. Rubrics: 15 drafted, hand check pending
+- [ ] 3. Loop harness and baseline arms: scorer and driver written; the driver has not completed a run
 - [ ] 4. Record changes
 - [ ] 5. Graph arm and result
 
@@ -128,6 +128,8 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - Sessions can continue across `claude -p` calls with `--resume <session-id>`, but not with `--no-session-persistence`. The emulated reset does not need this.
 - The first scorer failed its stability check. On Sonnet 5.5 the same submit passed three times and failed twice. Two changes fixed it on the probe item: a key point counts as covered only when the scorer quotes the covering sentence and that quote is found in the submit, and the scorer runs on `claude-opus-5-5`. Five repeats then agreed on a right and on a wrong answer. This is one item; the check is repeated on every kept item before an arm runs.
 - The verdict is covered or missing. `contradicted` is dropped, since the driver treats both failures the same.
+- The first loop run was stopped by Sonnet 5.5's safeguards, category `reasoning_extraction`, before the agent did any work. The flagged message was the new arm prompt, which asks for the reasoning above the answer and says it is graded. The pilot prompt, which asks to "explain why leading alternatives lose", ran 121 times without a flag. No reworded prompt was tried; the arm prompt wording is an open decision.
+- The rubric drafter fills its maximum: all 15 rubrics have 4 key points. Six hints in five rubrics name the gold suspect, against the drafting rule.
 - Risk: the items are small. A handoff summary may carry every hint and rejected answer, and then the three arms tie. A tie is a real result: on tasks this size the memory layer adds nothing over compaction.
 - ADR 0001 and 0002 are already superseded. Only 0003, 0004 and 0007 are live and affected.
 - Agents already write tiers. Across 262 graphs in `test-results/`, 93% of observation priors sit in 0.80–0.95, and edge ratios cluster on 1.2, 1.3, 1.5, 2 and 3.
