@@ -11,6 +11,12 @@ Metrics, all by exact match against gold:
 - accuracy per arm, and McNemar's exact test on the pairs where the arms disagree
 - precision of `solved` stops: how often the skill arm is right when it stops confident
 - honest abstention: the skill arm stops without `solved` where no-skill answers wrong
+
+Verdict rule, agreed before any A/B run (the sample is small, hence p < 0.10):
+- adds value: skill-only-right > no-skill-only-right and McNemar p < 0.10
+- no gain: skill-only-right <= no-skill-only-right
+- inconclusive: anything else; report it as such and claim no gain
+Solved-stop precision (target >= 90%) and honest abstention are reported, not gated.
 """
 
 import argparse
@@ -25,6 +31,7 @@ SKILL_ARM = "reasoning-graph"
 NO_SKILL_ARM = "no-skill"
 NETWORK_TOOLS = {"WebSearch", "WebFetch"}
 NETWORK_COMMAND_PATTERN = re.compile(r"\b(curl|wget|https?://)")
+VALUE_P_THRESHOLD = 0.10
 
 
 def transcript_events(run_dir: Path) -> list[dict]:
@@ -64,6 +71,14 @@ def mcnemar_exact_p(skill_only_right: int, no_skill_only_right: int) -> float:
     tail = min(skill_only_right, no_skill_only_right)
     one_tail = sum(math.comb(disagreements, k) for k in range(tail + 1)) / 2 ** disagreements
     return min(1.0, 2 * one_tail)
+
+
+def verdict(skill_only_right: int, no_skill_only_right: int) -> str:
+    if skill_only_right <= no_skill_only_right:
+        return "no gain"
+    if mcnemar_exact_p(skill_only_right, no_skill_only_right) < VALUE_P_THRESHOLD:
+        return "adds value"
+    return "inconclusive"
 
 
 def score_item(item_dir: Path, run_id: str) -> dict:
@@ -116,6 +131,7 @@ def main() -> None:
               f"cost ${sum(result['cost'][arm] for result in results):.2f}")
     print(f"disagreements: skill-only right {skill_only_right}, no-skill-only right {no_skill_only_right}, "
           f"McNemar exact p = {mcnemar_exact_p(skill_only_right, no_skill_only_right):.3f}")
+    print(f"VERDICT: {verdict(skill_only_right, no_skill_only_right)}")
     print(f"solved-stop precision: {sum(r['correct'][SKILL_ARM] for r in solved)}/{len(solved)}")
     print(f"honest abstention: skill stopped without solved on "
           f"{sum(r['skill_stop'] != 'solved' for r in no_skill_wrong)}/{len(no_skill_wrong)} items no-skill got wrong")
