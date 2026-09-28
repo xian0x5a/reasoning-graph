@@ -22,7 +22,7 @@ from model_call import structured_call
 
 DEFAULT_MODEL = "claude-opus-5-5"
 MIN_KEY_POINTS = 2
-MAX_KEY_POINTS = 5
+MAX_KEY_POINTS = 4
 
 RUBRIC_SCHEMA = {
     "type": "object",
@@ -48,12 +48,13 @@ DRAFT_PROMPT = """Below are a detective puzzle, its answer options, the correct 
 Write a rubric for grading a solver's written reasoning.
 
 Key points ({min_points} to {max_points}):
-- Each key point is one fact or inference that the correct solution depends on.
+- Each key point is a conclusion the correct solution cannot do without. Leave out a point a
+  solver could skip and still solve the puzzle soundly.
+- Each holds exactly one conclusion, in one short sentence. Do not chain a conclusion to its
+  supporting details: a grader has to answer "does the solver conclude this?" with yes or no.
 - Each must be derivable from the puzzle text alone. Leave out anything that appears only in the
   solution, such as a confession.
-- State each as a full sentence that a grader can check a solver's reasoning against.
-- Include why the correct suspect is the answer, and why the main rival suspects are cleared
-  when the solution gives a reason.
+- Clearing a rival suspect is a key point only when the solution gives a decisive reason for it.
 - Order them from the least revealing to the decisive one.
 
 Hints (one per key point):

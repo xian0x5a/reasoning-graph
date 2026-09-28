@@ -52,7 +52,7 @@ Milestones 1 to 3 need no change to the package. Milestone 4 is independent of t
 
 - A driver that runs one item as a multi-turn session: submit, score, hint, compact, retry.
 - The agent submits an answer letter plus its reasoning in `answer.md`.
-- The scorer is one model call with structured output. It marks each key point `covered`, `missing` or `contradicted`. It never writes a hint.
+- The scorer is one model call with structured output. The letter is graded by exact match. For each key point the scorer quotes the sentence of the submit that covers it, and the point counts as `covered` only when that quote is found in the submit. It never writes a hint.
 - Pass: gold letter and every key point covered. On a fail the driver sends "wrong" plus the pre-written hint for the first failed point.
 - Cap per item: key points plus one submits.
 - Context reset between submits: the driver ends the session and starts a fresh one. Before the reset the agent writes a handoff summary, which is what a compaction produces, and the driver passes it into the next session. See Surprises & Discoveries for why this replaces a real compaction.
@@ -126,6 +126,8 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - `run.sh` passes `--no-session-persistence`, and every run is a single turn. The loop needs a session that continues across submits, so the driver cannot reuse `run_claude` as it is.
 - Headless `claude -p` has no documented way to force a compaction. `/compact` is not listed as available in print mode, no flag or setting lowers the auto-compact threshold, and the stream-json docs name no compaction event, so a run could not prove one happened. Sources: `https://code.claude.com/docs/en/headless.md`, `https://code.claude.com/docs/en/sessions.md`. The driver therefore emulates compaction with a handoff summary and a fresh session, which also works on any harness.
 - Sessions can continue across `claude -p` calls with `--resume <session-id>`, but not with `--no-session-persistence`. The emulated reset does not need this.
+- The first scorer failed its stability check. On Sonnet 5.5 the same submit passed three times and failed twice. Two changes fixed it on the probe item: a key point counts as covered only when the scorer quotes the covering sentence and that quote is found in the submit, and the scorer runs on `claude-opus-5-5`. Five repeats then agreed on a right and on a wrong answer. This is one item; the check is repeated on every kept item before an arm runs.
+- The verdict is covered or missing. `contradicted` is dropped, since the driver treats both failures the same.
 - Risk: the items are small. A handoff summary may carry every hint and rejected answer, and then the three arms tie. A tie is a real result: on tasks this size the memory layer adds nothing over compaction.
 - ADR 0001 and 0002 are already superseded. Only 0003, 0004 and 0007 are live and affected.
 - Agents already write tiers. Across 262 graphs in `test-results/`, 93% of observation priors sit in 0.80–0.95, and edge ratios cluster on 1.2, 1.3, 1.5, 2 and 3.
