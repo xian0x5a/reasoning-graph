@@ -140,7 +140,6 @@
   ],
   "stop_policy": {
     "min_viable_candidates": 3,
-    "belief_threshold": 0.8,
     "severity": "error"
   },
   "factors": [],
@@ -166,7 +165,7 @@
         "A2-T2"
       ],
       "update_factors": [],
-      "graph_digest": "4c855e135ebfb87a"
+      "graph_digest": "5925ae12e3a5014b"
     },
     {
       "step": 2,
@@ -179,7 +178,7 @@
         "T2-E4"
       ],
       "update_factors": [],
-      "graph_digest": "4c855e135ebfb87a"
+      "graph_digest": "5925ae12e3a5014b"
     },
     {
       "step": 3,
@@ -199,7 +198,7 @@
       "action": "stop",
       "reason": "systematically solved stage by stage",
       "outcome": "solved",
-      "graph_digest": "4c855e135ebfb87a"
+      "graph_digest": "5925ae12e3a5014b"
     }
   ]
 }

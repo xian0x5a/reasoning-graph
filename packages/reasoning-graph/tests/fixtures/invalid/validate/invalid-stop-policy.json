@@ -2,8 +2,7 @@
   "nodes": [],
   "edges": [],
   "stop_policy": {
-    "min_viable_candidates": "y",
-    "require_review": "yes"
+    "min_viable_candidates": "y"
   },
   "events": [
     {
@@ -11,7 +10,7 @@
       "action": "stop",
       "reason": "manual stop",
       "outcome": "user_stopped",
-      "graph_digest": "0b4e342fe16a53f4"
+      "graph_digest": "af3b7ea96391c99d"
     }
   ]
 }

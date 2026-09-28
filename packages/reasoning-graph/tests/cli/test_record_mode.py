@@ -56,11 +56,8 @@ class RecordModeTests(unittest.TestCase):
             "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers")],
         }))
 
-    def review(self, state_path: Path, verdict: str = "pass", findings: str = "Observations match their quotes.") -> subprocess.CompletedProcess[str]:
-        return run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", verdict, "--findings", findings)
-
     def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded and confident", "--outcome", outcome)
+        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome)
 
     def test_record_logs_progress_and_renders_live_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -99,7 +96,6 @@ class RecordModeTests(unittest.TestCase):
             self.ok(working)
             self.assertIn("audit skipped (not stopped)", working.stdout)
 
-            self.ok(self.review(state_path))
             self.ok(self.stop(state_path))
             stopped = run_cli("doctor", str(state_path))
             self.ok(stopped)
@@ -131,7 +127,7 @@ class RecordModeTests(unittest.TestCase):
                 self.assertIn("belief", rejected.stderr)
 
     def test_record_checks_quotes_against_a_local_source_file(self) -> None:
-        # Issue #35: stitched or trimmed quotes passed the reviewer, so the CLI checks them verbatim.
+        # Issue #35: stitched or trimmed quotes went unnoticed, so the CLI checks them verbatim.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             Path(tmp_dir, "case.md").write_text(
@@ -209,11 +205,10 @@ class RecordModeTests(unittest.TestCase):
             self.assertEqual(with_frontier.returncode, 1)
             self.assertIn("frontier", with_frontier.stderr)
 
-    def test_grounded_confident_answer_stops_and_audits_without_queue_warnings(self) -> None:
+    def test_grounded_answer_stops_and_audits_without_queue_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 0.95)
-            self.ok(self.review(state_path))
 
             self.ok(self.stop(state_path))
             audit = run_cli("audit", str(state_path))
@@ -221,16 +216,15 @@ class RecordModeTests(unittest.TestCase):
             self.assertEqual(audit.returncode, 0, audit.stderr)
             self.assertNotIn("warning", audit.stdout + audit.stderr)
 
-    def test_solved_stop_needs_the_belief_threshold(self) -> None:
+    def test_solved_stop_needs_no_belief_level_and_no_review(self) -> None:
+        # Issue #37: belief never separated right answers from wrong ones, and a same-model
+        # reviewer shared the misreading, so neither gates a stop.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 0.6)
 
-            stopped = self.stop(state_path)
-
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("belief_threshold", stopped.stderr)
-            self.ok(self.stop(state_path, "inconclusive"))
+            self.ok(self.stop(state_path))
+            self.ok(run_cli("audit", str(state_path)))
 
     def test_solved_stop_needs_every_test_result_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -251,7 +245,6 @@ class RecordModeTests(unittest.TestCase):
             self.ok(self.record(state_path, {"reason": "Noted a decisive check nobody can run here", "nodes": [
                 {"id": "T2", "type": "test", "text": "Compare dental records", "not_run": "The case file has no dental records"},
             ]}))
-            self.ok(self.review(state_path))
 
             self.ok(self.stop(state_path))
             view = state_path.with_suffix(".html").read_text(encoding="utf-8")
@@ -271,40 +264,45 @@ class RecordModeTests(unittest.TestCase):
                 self.assertEqual(rejected.returncode, 1, rejected.stdout)
                 self.assertIn("not_run", rejected.stderr)
 
-    def test_strict_profile_gates_on_confidence_and_review(self) -> None:
+    def test_strict_profile_turns_stop_gate_violations_into_audit_errors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(self.start(tmp_dir).read_text(encoding="utf-8"))
 
-            self.assertEqual(state["stop_policy"], {"belief_threshold": 0.8, "require_review": True, "severity": "error"})
+            self.assertEqual(state["stop_policy"], {"severity": "error"})
 
-    def test_solved_stop_needs_a_passing_review_of_the_final_graph(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+    def test_removed_review_and_threshold_fields_fail_validation(self) -> None:
+        def with_stop_policy(key: str, value: object):
+            return lambda state: state["stop_policy"].update({key: value})
 
-            unreviewed = self.stop(state_path)
-            self.ok(self.review(state_path, "fail", "O1 overstates its quote"))
-            failed_review = self.stop(state_path)
-            self.ok(self.review(state_path))
-            self.ok(self.record(state_path, {"reason": "Late addition", "nodes": [{"id": "O2", "type": "observation", "text": "Late log", "source": "probe.log", "prior": 0.9}]}))
-            stale_review = self.stop(state_path)
+        def with_review_event(state: dict) -> None:
+            state["events"].append({"step": 99, "action": "review", "reviewer": "r", "verdict": "pass", "findings": "ok", "graph_digest": "x"})
 
-            for stopped in (unreviewed, failed_review, stale_review):
-                self.assertEqual(stopped.returncode, 1, stopped.stdout)
-                self.assertIn("review", stopped.stderr)
-            self.ok(self.review(state_path))
-            self.ok(self.stop(state_path))
+        cases = {
+            "stop_policy.require_review": with_stop_policy("require_review", True),
+            "stop_policy.belief_threshold": with_stop_policy("belief_threshold", 0.8),
+            "review event": with_review_event,
+        }
+        for removed, edit in cases.items():
+            with self.subTest(removed=removed), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = self.start(tmp_dir)
+                self.solved_trail(state_path, 0.95)
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                edit(state)
+                state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    def test_review_needs_reviewer_and_findings(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+                for command in ("validate", "stop"):
+                    arguments = ("--reason", "r", "--outcome", "solved") if command == "stop" else ()
+                    rejected = run_cli(command, str(state_path), *arguments)
+                    self.assertEqual(rejected.returncode, 1, rejected.stdout)
+                    self.assertIn(removed, rejected.stderr)
+                    self.assertIn("removed", rejected.stderr)
 
-            no_findings = run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "fail", "--findings", " ")
-            no_reviewer = run_cli("review", str(state_path), "--reviewer", " ", "--verdict", "pass", "--findings", "ok")
-
-            self.assertEqual(no_findings.returncode, 1)
-            self.assertEqual(no_reviewer.returncode, 1)
+    def test_review_commands_are_gone(self) -> None:
+        for command in ("review", "stop-review"):
+            with self.subTest(command=command):
+                result = run_cli(command, "state.json")
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("invalid choice", result.stderr)
 
 
 if __name__ == "__main__":

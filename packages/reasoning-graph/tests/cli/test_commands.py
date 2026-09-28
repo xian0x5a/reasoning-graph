@@ -46,7 +46,7 @@ def unstopped_fixture_state() -> dict[str, Any]:
 def stamp_graph_digest(state: dict) -> dict:
     """Give a hand-built state the digests the CLI writes, so a test reaches the check it targets."""
     for event in state.get("events", []):
-        if event.get("action") in {"record", "refresh", "review", "stop"}:
+        if event.get("action") in {"record", "refresh", "stop"}:
             event["graph_digest"] = graph_digest(state)
     return state
 
@@ -95,7 +95,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
-        self.assertEqual(set(event_actions), {"record", "refresh", "review", "rank", "stop"})
+        self.assertEqual(set(event_actions), {"record", "refresh", "rank", "stop"})
         self.assertNotIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("reason", patch_schema["properties"])
@@ -166,18 +166,15 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
     def test_output_path_overrides_default_in_place(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path, _, original = self.write_unstopped_fixture(tmp_dir)
-            output_path = Path(tmp_dir) / "reviewed.json"
+            state_path, patch_path, original = self.write_unstopped_fixture(tmp_dir)
+            output_path = Path(tmp_dir) / "recorded.json"
 
-            result = self.run_cli(
-                "review", str(state_path), "--reviewer", "checker", "--verdict", "pass", "--findings", "chain holds",
-                "-o", str(output_path),
-            )
+            result = self.run_cli("record", str(state_path), "--patch", str(patch_path), "-o", str(output_path))
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
-            reviewed = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(reviewed["events"][-1]["action"], "review")
+            recorded = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(recorded["events"][-1]["action"], "record")
 
     def test_output_dash_emits_stdout_without_mutating_input(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -346,35 +343,16 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_stop_review_passes_fixture_and_fails_missing_viable_candidate(self) -> None:
-        ok = self.run_cli("stop-review", str(FIXTURE))
-        self.assertEqual(ok.returncode, 0, ok.stderr)
-        self.assertIn("verdict: pass", ok.stdout)
-        self.assertIn("best candidate answers an accepted goal", ok.stdout)
-
+    def test_audit_fails_a_candidate_stop_without_a_viable_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "missing-candidate.json"
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["edges"] = [edge for edge in state["edges"] if edge.get("type") != "answers"]
-            state_path.write_text(json.dumps(state), encoding="utf-8")
+            state["stop_policy"] = {"severity": "error"}
+            state_path.write_text(json.dumps(stamp_graph_digest(state)), encoding="utf-8")
 
-            missing = self.run_cli("stop-review", str(state_path))
+            missing = self.run_cli("audit", str(state_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
-            self.assertIn("verdict: fail", missing.stdout)
-            self.assertIn("requires a viable candidate_solution", missing.stdout)
-
-    def test_stop_review_compares_optional_draft(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            draft_path = Path(tmp_dir) / "answer.md"
-            draft_path.write_text("Candidate from A1 is the answer.", encoding="utf-8")
-            ok = self.run_cli("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
-            self.assertEqual(ok.returncode, 0, ok.stderr)
-            self.assertIn("verdict: pass", ok.stdout)
-
-            draft_path.write_text("Unrelated answer.", encoding="utf-8")
-            missing = self.run_cli("stop-review", str(FIXTURE), "--draft", str(draft_path), "--strict-warnings")
-            self.assertNotEqual(missing.returncode, 0, missing.stdout)
-            self.assertIn("draft does not mention best candidate", missing.stdout)
 
     def test_doctor_reports_validation_and_audit_health(self) -> None:
         ok = self.run_cli("doctor", str(FIXTURE))
@@ -398,7 +376,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         audit = self.run_cli("audit", str(FIXTURE))
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
-        self.assertIn("events=3 records=1 reviews=0 rankings=1", audit.stdout)
+        self.assertIn("events=3 records=1 rankings=1", audit.stdout)
 
     def test_audit_reports_validation_errors_without_deeper_audit_crash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -406,7 +384,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state = {
                 "nodes": [],
                 "edges": [],
-                "stop_policy": {"belief_threshold": "x", "min_viable_candidates": "y"},
+                "stop_policy": {"severity": "x", "min_viable_candidates": "y"},
                 "events": [
                     {"step": 1, "action": "stop", "reason": "manual stop", "outcome": "user_stopped"},
                 ],
@@ -416,7 +394,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             audit = self.run_cli("audit", str(state_path))
 
             self.assertNotEqual(audit.returncode, 0, audit.stdout)
-            self.assertIn("stop_policy.belief_threshold must be in (0, 1]", audit.stderr)
+            self.assertIn("stop_policy.severity must be 'warning' or 'error' when present", audit.stderr)
             self.assertIn("stop_policy.min_viable_candidates must be a non-negative integer", audit.stderr)
             self.assertNotIn("invalid literal for int()", audit.stderr)
             self.assertNotIn("could not convert", audit.stderr)

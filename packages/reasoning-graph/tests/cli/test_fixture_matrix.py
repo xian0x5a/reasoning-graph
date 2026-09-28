@@ -20,7 +20,7 @@ VALIDATE_INVALID_FIXTURES = {
     "bad-node-type.json": "invalid type 'fact'",
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
-    "invalid-stop-policy.json": "stop_policy.require_review must be boolean when present",
+    "invalid-stop-policy.json": "stop_policy.min_viable_candidates must be a non-negative integer",
     "overlapping-factors.json": "supports factors for target 'A1' overlap",
 }
 AUDIT_INVALID_FIXTURES = {
@@ -163,7 +163,6 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         commands = {
             "init-strict.json": ("init", "--goal", "Solve the problem", "--strict"),
             "doctor-strict-driver.txt": ("doctor", str(FIXTURES / "valid" / "strict-driver-state.json")),
-            "stop-review-pass.txt": ("stop-review", str(FIXTURES / "valid" / "stopped-reviewed-state.json")),
         }
         for golden_name, args in commands.items():
             with self.subTest(golden=golden_name):

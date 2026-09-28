@@ -5,8 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, probability_from_value, truth_inputs
-from .events import graph_digest
+from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -306,28 +305,6 @@ def ungrounded_goal_answer_messages(state: dict[str, Any]) -> list[str]:
     ]
 
 
-def strongest_grounded_candidate_belief(state: dict[str, Any]) -> float:
-    ranked = ranked_viable_candidates(state)
-    ungrounded = ungrounded_claims_by_candidate(state, {str(candidate["node"]) for candidate in ranked})
-    beliefs = [finite_float(candidate.get("belief")) for candidate in ranked if candidate["node"] not in ungrounded]
-    return max((belief for belief in beliefs if belief is not None), default=0.0)
-
-
-
-
-def below_threshold_messages(state: dict[str, Any]) -> list[str]:
-    """Explain a confidence stop whose strongest grounded candidate misses stop_policy.belief_threshold."""
-
-    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
-    threshold = probability_from_value(policy.get("belief_threshold"))
-    if threshold is None:
-        return []
-    strongest = strongest_grounded_candidate_belief(state)
-    if strongest >= threshold:
-        return []
-    return [f"strongest grounded candidate belief {strongest:.3g} < stop_policy.belief_threshold {threshold:.3g}"]
-
-
 def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
     """Name tests with no result observation; a failed or inconclusive probe still records one, a not_run test states why none exists."""
 
@@ -349,24 +326,6 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
     return [f"test(s) without a recorded result observation: {', '.join(missing)}"]
 
 
-def missing_review_messages(state: dict[str, Any]) -> list[str]:
-    """Require a passing review recorded after the last graph change when stop_policy.require_review is set."""
-
-    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
-    if policy.get("require_review") is not True:
-        return []
-    reviews = [event for event in state.get("events") or [] if isinstance(event, dict) and event.get("action") == "review"]
-    if not reviews:
-        return ["no review recorded; have an independent reviewer check the graph and record its verdict with review"]
-    latest = reviews[-1]
-    # Compare fingerprints, not event order, so a hand edit made after the review also makes it stale.
-    if latest.get("graph_digest") != graph_digest(state):
-        return ["the graph changed after the latest review; review it again"]
-    if latest.get("verdict") != "pass":
-        return [f"latest review by {latest.get('reviewer')} failed: {latest.get('findings')}; fix and review again"]
-    return []
-
-
 def too_few_candidates_messages(state: dict[str, Any]) -> list[str]:
     """Opt-in breadth gate for when the user asked for alternatives; strict init never sets it."""
 
@@ -386,12 +345,34 @@ def candidate_stop_messages(state: dict[str, Any]) -> list[str]:
     return unanswered_goal_messages(state) + too_few_candidates_messages(state)
 
 
-def confidence_stop_messages(state: dict[str, Any]) -> list[str]:
+def grounded_stop_messages(state: dict[str, Any]) -> list[str]:
     """Everything a solved/candidate_threshold_met stop must satisfy beyond answering each goal."""
 
-    return (
-        ungrounded_goal_answer_messages(state)
-        + below_threshold_messages(state)
-        + unrecorded_test_messages(state)
-        + missing_review_messages(state)
-    )
+    return ungrounded_goal_answer_messages(state) + unrecorded_test_messages(state)
+
+
+def unnamed_best_candidate_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
+    """Name each answer text that leaves out the best candidate of an accepted goal.
+
+    The reported answer must be the graph's answer: `summary.answer`, `report.answer`, and the
+    draft each name the candidate by id or exact text. An empty answer is not checked.
+    """
+
+    nodes = by_id(state.get("nodes", []), "node")
+    answer_texts = {
+        f"{section}.answer": str(state[section].get("answer") or "").strip()
+        for section in ("summary", "report")
+        if isinstance(state.get(section), dict)
+    }
+    if draft is not None:
+        answer_texts["draft"] = draft
+    messages = []
+    for goal_id, candidate_id in sorted(goal_best_candidates(state).items()):
+        candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
+        for field, text in answer_texts.items():
+            if not text or candidate_id in text or (candidate_text and candidate_text in text):
+                continue
+            verb = "mention" if field == "draft" else "name"
+            quoted = "" if field == "draft" else f"; answer: {text!r}"
+            messages.append(f"{field} does not {verb} best candidate {candidate_id} ({candidate_text!r}) for goal {goal_id}{quoted}")
+    return messages

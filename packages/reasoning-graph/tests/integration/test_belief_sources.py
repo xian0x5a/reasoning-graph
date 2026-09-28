@@ -10,7 +10,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
-from reasoning_graph.policy import below_threshold_messages, ranked_viable_candidates
+from reasoning_graph.policy import ranked_viable_candidates
 from reasoning_graph.validation import validate_state
 
 
@@ -148,7 +148,7 @@ def test_local_inference_prior_matches_an_explicit_validity_assumption():
     assert belief(state) == pytest.approx(0.72)
 
 
-def test_candidate_ranking_and_stopping_use_inherited_belief():
+def test_candidate_ranking_uses_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
         {"id": "O1", "type": "observation", "text": "Observed clue", "prior": 1.0},
@@ -156,20 +156,16 @@ def test_candidate_ranking_and_stopping_use_inherited_belief():
         {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
          "answer_kind": "exact_answer", "prior": 0.55},
     ])
-    # O1 grounds the premise chain; the threshold only credits evidence-grounded candidates.
     state["edges"].extend([edge("O1", "A1"), edge("A1", "N1"), edge("CS2", "G1", "answers")])
-    state["stop_policy"] = {"belief_threshold": 0.6, "severity": "error"}
     assert validate_state(state).ok
     ranked = ranked_viable_candidates(state)
     assert [(item["node"], item["belief"]) for item in ranked] == [("N1", 0.6), ("CS2", 0.55)]
-    assert below_threshold_messages(state) == []
 
-    # Removing the only absolute belief sources must not pass the threshold.
+    # Without its only absolute belief sources the chain is invalid and falls back to neutral belief.
     del next(node for node in state["nodes"] if node["id"] == "A1")["prior"]
     state["edges"] = [item for item in state["edges"] if item["from"] != "O1"]
     assert not validate_state(state).ok
     assert belief(state) == pytest.approx(0.5)
-    assert below_threshold_messages(state)
 
 
 def test_computed_belief_recalculates_without_writing_node_scores():
@@ -259,16 +255,14 @@ def test_observation_evidence_is_not_scaled_by_its_prior():
     assert belief(state) == pytest.approx(0.9)
 
 
-def test_ungrounded_support_cannot_lift_a_grounded_candidate_past_the_threshold():
+def test_ungrounded_support_does_not_raise_a_grounded_candidate():
     state = claim_state()
     state["nodes"].extend([
         {"id": "O1", "type": "observation", "text": "Clue", "prior": 0.6},
         {"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9},
     ])
     state["edges"].extend([edge("O1", "N1"), edge("H2", "N1", "supports", likelihood_ratio=9)])
-    state["stop_policy"] = {"belief_threshold": 0.8, "severity": "error"}
     assert belief(state) == pytest.approx(0.6)
-    assert below_threshold_messages(state)
 
 
 def test_evidence_cycle_between_hypotheses_is_invalid():

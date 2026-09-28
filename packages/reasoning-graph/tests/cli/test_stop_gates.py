@@ -125,12 +125,11 @@ class UnansweredGoalTests(SpookyManorFlow):
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
 
-            self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered; G2 optional", "--outcome", "solved", "-o", str(Path(tmp_dir) / "stopped.json"))
 
             self.ok(stopped)
 
-    def test_stop_review_and_audit_name_the_unanswered_goal(self) -> None:
+    def test_audit_names_the_unanswered_goal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
             self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
@@ -144,13 +143,9 @@ class UnansweredGoalTests(SpookyManorFlow):
             write_json(state_path, state)
 
             audit = run_cli("audit", str(state_path))
-            review = run_cli("stop-review", str(state_path))
 
             self.assertEqual(audit.returncode, 1, audit.stdout)
             self.assertIn("accepted goal G2", audit.stderr)
-            self.assertEqual(review.returncode, 1, review.stderr)
-            self.assertIn("verdict: fail", review.stdout)
-            self.assertIn("accepted goal G2", review.stdout)
 
     def test_goal_to_goal_edges_must_be_requires(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -167,41 +162,52 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
     def stopped_state(self) -> dict:
         return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    def review(self, tmp_dir: str, state: dict, *extra: str) -> subprocess.CompletedProcess[str]:
-        return run_cli("stop-review", str(write_json(Path(tmp_dir) / "state.json", state)), *extra)
+    def unstopped_state(self) -> dict:
+        state = self.stopped_state()
+        state["events"] = [event for event in state["events"] if event["action"] not in {"rank", "stop"}]
+        return state
+
+    def stop(self, tmp_dir: str, state: dict, *extra: str) -> subprocess.CompletedProcess[str]:
+        state_path = write_json(Path(tmp_dir) / "state.json", state)
+        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", "solved", *extra)
 
     def test_answer_fields_must_name_the_best_candidate_for_each_accepted_goal(self) -> None:
         for field in ("summary", "report"):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp_dir:
-                state = self.stopped_state()
-                state[field] = {**state.get(field, {}), "answer": "The trail ends at Photophone."}
+            for command, state in (("stop", self.unstopped_state()), ("audit", self.stopped_state())):
+                with self.subTest(field=field, command=command), tempfile.TemporaryDirectory() as tmp_dir:
+                    state[field] = {**state.get(field, {}), "answer": "The trail ends at Photophone."}
 
-                result = self.review(tmp_dir, state)
+                    if command == "stop":
+                        result = self.stop(tmp_dir, state)
+                    else:
+                        result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
-                self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn("verdict: fail", result.stdout)
-                self.assertIn(f"{field}.answer does not name best candidate CS1", result.stdout)
-                self.assertIn("The trail ends at Photophone.", result.stdout)
+                    self.assertEqual(result.returncode, 1, result.stdout)
+                    self.assertIn(f"{field}.answer does not name best candidate CS1", result.stderr)
+                    self.assertIn("The trail ends at Photophone.", result.stderr)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = self.stopped_state()
             state["summary"] = {"answer": "Candidate from A1 wins."}
             state["report"] = {"answer": "CS1 wins."}
-            result = self.review(tmp_dir, state)
-            self.assertEqual(result.returncode, 0, result.stdout)
+            result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_draft_must_name_the_best_candidate_for_the_resolved_goal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.stopped_state()
+            state = self.unstopped_state()
             state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "prior": 0.1})
             state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "A weaker answer to the same goal."})
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
 
-            result = self.review(tmp_dir, state, "--draft", str(draft_path))
+            rejected = self.stop(tmp_dir, state, "--draft", str(draft_path))
 
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn("draft does not mention best candidate CS1", result.stdout)
+            self.assertEqual(rejected.returncode, 1, rejected.stdout)
+            self.assertIn("draft does not mention best candidate CS1", rejected.stderr)
+
+            draft_path.write_text("Final answer: Candidate from A1.", encoding="utf-8")
+            self.assertEqual(self.stop(tmp_dir, state, "--draft", str(draft_path)).returncode, 0)
 
     def test_report_rows_and_winning_path_must_resolve_to_graph_nodes(self) -> None:
         cases = {
@@ -235,7 +241,6 @@ class StrictTestResultTests(SpookyManorFlow):
                     {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
                 ],
             }))
-            self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
 
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
 
@@ -248,7 +253,7 @@ if __name__ == "__main__":
 
 
 class GroundedPathTests(unittest.TestCase):
-    """High-confidence stops need a candidate whose belief is earned from observations,
+    """Solved and threshold stops need a candidate whose belief is earned from observations,
     not carried by hand-set priors on the claims it rests on."""
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
@@ -276,9 +281,7 @@ class GroundedPathTests(unittest.TestCase):
         return state_path
 
     def stop(self, state_path: Path, outcome: str = "candidate_threshold_met") -> subprocess.CompletedProcess[str]:
-        # The strict profile also requires a review; pass it so these tests isolate grounding.
-        self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
-        return run_cli("stop", str(state_path), "--reason", "CS1 crosses the belief threshold", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
+        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
 
     @staticmethod
     def hypothesis(node_id: str, prior: float | None = None) -> dict:

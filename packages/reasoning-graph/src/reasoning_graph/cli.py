@@ -9,13 +9,13 @@ from typing import Any
 
 from .audit import audit_state
 from .costs import claim_beliefs
-from .events import GRAPH_CHANGE_ACTIONS, RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
+from .events import RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
 from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
-from .policy import best_candidate_ids, candidate_stop_messages, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
+from .policy import candidate_stop_messages, grounded_stop_messages, ranked_viable_candidates, unnamed_best_candidate_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
-from .state import by_id, dump_state, load_state, strict_json_dumps, write_output_text
+from .state import dump_state, load_state, strict_json_dumps, write_output_text
 from .validation import validate_state
 
 
@@ -63,17 +63,16 @@ def cmd_audit(args: argparse.Namespace) -> int:
     if result.ok:
         print("ok")
         print(
-            "events={events} records={records} reviews={reviews} rankings={rankings}".format(**stats)
+            "events={events} records={records} rankings={rankings}".format(**stats)
         )
         return 0
     return 1
 
 
-# Confidence plus an independent review gate a solved stop: minimum-candidate and empty-frontier
-# gates pushed agents into seeding rivals they never needed (countdown-island benchmark).
+# Strict makes audit report an unmet stop gate as an error instead of a warning. It sets no
+# minimum-candidate gate: that pushed agents into seeding rivals they never needed
+# (countdown-island benchmark).
 STRICT_STOP_POLICY = {
-    "belief_threshold": 0.8,
-    "require_review": True,
     "severity": "error",
 }
 
@@ -183,7 +182,7 @@ def _hand_edit_event(state: dict[str, Any]) -> dict[str, Any] | None:
     """Describe edits made outside the CLI since the last record or refresh as refresh event fields.
 
     Callers append the event only after the edited graph passes the checks a patch would, so the
-    trace records the edit and any review of the older graph goes stale.
+    trace records the edit.
     """
     last_change = last_graph_change(state)
     digest = graph_digest(state)
@@ -260,35 +259,6 @@ def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
     if live_view_path.is_file() and live_view_path.read_text(encoding="utf-8") == document:
         return
     write_output_text(document, str(live_view_path))
-
-
-REVIEW_VERDICTS = ("pass", "fail")
-
-
-def cmd_review(args: argparse.Namespace) -> int:
-    """Append a reviewer's verdict on the current graph; a later record makes it stale."""
-    state = load_state(args.state)
-    if is_stopped(state):
-        print("error: search already has a stop event; review cannot append", file=sys.stderr)
-        return 1
-    events = state.get("events")
-    if not isinstance(events, list) or not any(isinstance(event, dict) and event.get("action") in GRAPH_CHANGE_ACTIONS for event in events):
-        print("error: nothing to review; record the graph first", file=sys.stderr)
-        return 1
-    reviewer = args.reviewer.strip()
-    findings = args.findings.strip()
-    if not reviewer:
-        print("error: --reviewer must name the reviewing agent", file=sys.stderr)
-        return 1
-    if not findings:
-        print("error: --findings must say what was checked and what was found", file=sys.stderr)
-        return 1
-    events.append({
-        "step": next_event_step(state), "action": "review", "reviewer": reviewer, "verdict": args.verdict, "findings": findings,
-        "graph_digest": graph_digest(state),
-    })
-    dump_state(state, args.output, default_in_place_source(args))
-    return 0
 
 
 def cmd_record(args: argparse.Namespace) -> int:
@@ -400,121 +370,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     for error in audit_result.errors:
         print(f"error: {error}", file=sys.stderr)
     print(
-        "doctor: audit events={events} records={records} reviews={reviews} rankings={rankings}".format(**stats)
+        "doctor: audit events={events} records={records} rankings={rankings}".format(**stats)
     )
     if not audit_result.ok:
         print("doctor: audit failed")
         return 1
     print("doctor: audit ok")
     return 0
-
-
-def _print_yaml_list(name: str, values: list[str]) -> None:
-    print(f"{name}:")
-    if not values:
-        print("  []")
-        return
-    for value in values:
-        print(f"  - {strict_json_dumps(value, ensure_ascii=False)}")
-
-
-def _stop_events(state: dict[str, Any]) -> list[dict[str, Any]]:
-    events = state.get("events")
-    if not isinstance(events, list):
-        return []
-    return [event for event in events if isinstance(event, dict) and event.get("action") == "stop"]
-
-
-def cmd_stop_review(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
-    required_fixes: list[str] = []
-    notes: list[str] = []
-    checks = [
-        "validation passed before semantic review",
-        "audit passed when driver events exist",
-        "stop event exists and includes structured outcome",
-        "best viable candidate is derived for solved/candidate-threshold stops",
-        "best candidate answers an accepted goal",
-        "every accepted goal is answered for solved/candidate-threshold stops",
-        "summary/report answer names the best candidate for each accepted goal",
-        "draft names the best candidate for each accepted goal when draft is supplied",
-    ]
-
-    validation_result = validate_state(state)
-    required_fixes.extend(f"validation error: {error}" for error in validation_result.errors)
-    validation_warnings = [f"validation warning: {warning}" for warning in validation_result.warnings]
-    if args.strict_warnings:
-        required_fixes.extend(validation_warnings)
-    else:
-        notes.extend(validation_warnings)
-    if not isinstance(state, dict):
-        # Nothing below can be evaluated on a non-object document; report the schema failure alone.
-        return _print_stop_review("fail", required_fixes, checks, notes)
-
-    events = state.get("events")
-    if not isinstance(events, list) or not events:
-        required_fixes.append("state has no driver events; stop-review expects a stopped driver state")
-    else:
-        audit_result, _ = audit_state(state)
-        required_fixes.extend(f"audit error: {error}" for error in audit_result.errors)
-        audit_warnings = [f"audit warning: {warning}" for warning in audit_result.warnings]
-        if args.strict_warnings:
-            required_fixes.extend(audit_warnings)
-        else:
-            notes.extend(audit_warnings)
-
-    stops = _stop_events(state)
-    if not stops:
-        required_fixes.append("missing stop event")
-        stop_outcome = ""
-    else:
-        stop_outcome = str(stops[-1].get("outcome") or "")
-        if not stop_outcome:
-            required_fixes.append("latest stop event missing outcome")
-
-    try:
-        best_ids = best_candidate_ids(state)
-    except ValueError as exc:
-        # Malformed scores were already reported by validation; keep the review report structured.
-        required_fixes.append(f"cannot derive best candidate: {exc}")
-        best_ids = set()
-    needs_best_candidate = stop_outcome in CANDIDATE_STOP_OUTCOMES
-    if needs_best_candidate and not best_ids:
-        required_fixes.append(f"stop outcome {stop_outcome!r} requires a viable candidate_solution")
-
-    if needs_best_candidate:
-        required_fixes.extend(f"stop outcome {stop_outcome!r} leaves an accepted goal open; {message}" for message in unanswered_goal_messages(state))
-        # The reported answer must be the graph's answer: every answer-bearing text names
-        # the best candidate of each accepted goal, by id or exact candidate text.
-        nodes = by_id(state.get("nodes", []), "node")
-        answer_texts = {
-            f"{section}.answer": str(state[section].get("answer") or "").strip()
-            for section in ("summary", "report")
-            if isinstance(state.get(section), dict)
-        }
-        if args.draft:
-            answer_texts["draft"] = Path(args.draft).read_text(encoding="utf-8")
-        for goal_id, candidate_id in sorted(goal_best_candidates(state).items()):
-            candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
-            for field, text in answer_texts.items():
-                if not text:
-                    continue
-                if candidate_id in text or (candidate_text and candidate_text in text):
-                    continue
-                verb = "mention" if field == "draft" else "name"
-                quoted = "" if field == "draft" else f"; answer: {text!r}"
-                required_fixes.append(f"{field} does not {verb} best candidate {candidate_id} ({candidate_text!r}) for goal {goal_id}{quoted}")
-
-    verdict = "fail" if required_fixes else "pass"
-    return _print_stop_review(verdict, required_fixes, checks, notes)
-
-
-def _print_stop_review(verdict: str, required_fixes: list[str], checks: list[str], notes: list[str]) -> int:
-    print(f"verdict: {verdict}")
-    _print_yaml_list("required_fixes", required_fixes)
-    _print_yaml_list("semantic_tricks_checked", checks)
-    _print_yaml_list("notes", notes)
-    return 0 if verdict == "pass" else 1
 
 
 def _object_list(value: Any, field: str) -> list[dict[str, Any]]:
@@ -604,7 +466,7 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
 
 
 def append_rank_event(state: dict[str, Any], top: int = 10) -> int:
-    """Pin the best candidate at stop time so audit and stop-review check the answer against it."""
+    """Pin the best candidate at stop time so audit checks the answer against it."""
     ranked = ranked_viable_candidates(state)
     if not ranked:
         print("error: no viable candidate_solution answers an accepted goal", file=sys.stderr)
@@ -626,8 +488,8 @@ def append_rank_event(state: dict[str, Any], top: int = 10) -> int:
     return 0
 
 
-def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
-    """Reject a stop whose outcome the recorded graph does not support."""
+def _stop_preflight(state: dict[str, Any], reason: str, outcome: str, draft: str | None = None) -> int:
+    """Reject a stop whose outcome the recorded graph does not support, or whose answer is not the graph's."""
     reason = reason.strip()
     if not reason:
         print("error: stop reason must be non-empty", file=sys.stderr)
@@ -654,22 +516,27 @@ def _stop_preflight(state: dict[str, Any], reason: str, outcome: str) -> int:
                 file=sys.stderr,
             )
             return 1
+        unnamed = unnamed_best_candidate_messages(state, draft)
+        for message in unnamed:
+            print(f"error: stop outcome {outcome!r} reports another answer than the graph's; {message}", file=sys.stderr)
+        if unnamed:
+            return 1
     if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
-        unmet = confidence_stop_messages(state)
+        unmet = grounded_stop_messages(state)
         for message in unmet:
-            print(f"error: stop outcome {outcome!r} requires a grounded, confident answer; {message}", file=sys.stderr)
+            print(f"error: stop outcome {outcome!r} requires a grounded answer; {message}", file=sys.stderr)
         if unmet:
             print(
                 "error: record the missing results or supporting observations, "
-                "or stop with a non-confidence outcome such as inconclusive or budget_exhausted and report the open hypotheses",
+                "or stop with an outcome such as inconclusive or budget_exhausted and report the open hypotheses",
                 file=sys.stderr,
             )
             return 1
     return 0
 
 
-def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
-    if _stop_preflight(state, reason, outcome) != 0:
+def append_stop_event(state: dict[str, Any], reason: str, outcome: str, draft: str | None = None) -> int:
+    if _stop_preflight(state, reason, outcome, draft) != 0:
         return 1
     events = state.setdefault("events", [])
     events.append({"step": next_event_step(state), "action": "stop", "reason": reason.strip(), "outcome": outcome, "graph_digest": graph_digest(state)})
@@ -686,9 +553,10 @@ def cmd_stop(args: argparse.Namespace) -> int:
     quote_errors = _quote_errors(state, args.state)
     for message in quote_errors:
         print(f"error: {message}", file=sys.stderr)
+    draft = Path(args.draft).read_text(encoding="utf-8") if args.draft else None
     # Preflight all terminal invariants before candidate auto-ranking can append
     # a rank event.
-    if _stop_preflight(state, args.reason, args.outcome) != 0 or quote_errors:
+    if _stop_preflight(state, args.reason, args.outcome, draft) != 0 or quote_errors:
         return 1
     # Logged only once every check passes, and before rank and stop, since nothing may follow stop.
     if hand_edit:
@@ -696,7 +564,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     if args.outcome in CANDIDATE_STOP_OUTCOMES:
         if append_rank_event(state, top=args.top) != 0:
             return 1
-    if append_stop_event(state, args.reason, args.outcome) != 0:
+    if append_stop_event(state, args.reason, args.outcome, draft) != 0:
         return 1
     dump_state(state, args.output, default_in_place_source(args))
     return 0
@@ -748,15 +616,6 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("-o", "--output", help="write updated state to path")
     refresh.set_defaults(func=cmd_refresh)
 
-    review = sub.add_parser("review", help="record an independent reviewer's verdict on the current graph")
-    review.add_argument("state", help="state JSON path, or - for stdin")
-    review.add_argument("--reviewer", required=True, help="id of the reviewing agent")
-    review.add_argument("--verdict", required=True, choices=REVIEW_VERDICTS, help="pass, or fail with findings to fix")
-    review.add_argument("--findings", required=True, help="what was checked and what was found")
-    review.add_argument("-o", "--output", help="write updated state to path")
-    review.set_defaults(func=cmd_review)
-
-
     validate = sub.add_parser("validate", help="validate graph state")
     validate.add_argument("state", help="state JSON path, or - for stdin")
     validate.set_defaults(func=cmd_validate)
@@ -770,12 +629,6 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("state", help="state JSON path, or - for stdin")
     doctor.set_defaults(func=cmd_doctor)
 
-    stop_review = sub.add_parser("stop-review", help="run semantic stop-review checklist for a stopped state")
-    stop_review.add_argument("state", help="state JSON path, or - for stdin")
-    stop_review.add_argument("--draft", help="optional final answer draft to compare against the derived best candidate")
-    stop_review.add_argument("--strict-warnings", action="store_true", help="treat validation/audit warnings as required fixes")
-    stop_review.set_defaults(func=cmd_stop_review)
-
     beliefs = sub.add_parser("beliefs", help="print each claim's computed belief")
     beliefs.add_argument("state", help="state JSON path, or - for stdin")
     beliefs.add_argument("--json", action="store_true", help="print JSON instead of compact text")
@@ -785,21 +638,15 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("state", help="state JSON path, or - for stdin")
     audit.set_defaults(func=cmd_audit)
 
-
-
-
-
-
-
     stop = sub.add_parser("stop", help="check stop gates, rank candidate-bearing outcomes, then append a stop event")
     stop.add_argument("state", help="state JSON path, or - for stdin")
     stop.add_argument("--reason", required=True, help="why search is stopping")
     stop.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
     stop.add_argument("--top", type=int, default=10, help="number of ranked candidates to include for candidate-bearing outcomes")
+    stop.add_argument("--draft", help="final answer draft; a candidate-bearing stop needs it to name the best candidate of each accepted goal")
     stop.add_argument("-o", "--output", help="write mutated state to path")
     stop.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     stop.set_defaults(func=cmd_stop)
-
 
     mermaid = sub.add_parser("mermaid", help="render Mermaid source")
     mermaid.add_argument("state", help="state JSON path, or - for stdin")

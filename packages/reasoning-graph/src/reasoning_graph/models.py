@@ -46,7 +46,6 @@ FACTOR_AGGREGATION_KINDS = {
 AUDIT_EVENT_ACTIONS = {
     "record",
     "refresh",
-    "review",
     "rank",
     "stop",
 }
@@ -69,7 +68,7 @@ CANDIDATE_STOP_OUTCOMES = {
     "candidate_count_met",
 }
 
-# Confidence claims need observation-backed belief; candidate_count_met measures breadth, not confidence.
+# These outcomes claim the answer holds, so it must rest on observations; candidate_count_met measures breadth.
 EVIDENCE_GROUNDED_STOP_OUTCOMES = {
     "solved",
     "candidate_threshold_met",

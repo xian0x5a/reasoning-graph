@@ -140,7 +140,7 @@
         },
         "quote": {
           "type": "string",
-          "description": "Verbatim excerpt from the source backing an observation, hedges included, so review can compare the claim with what the source says."
+          "description": "Verbatim excerpt from the source backing an observation, hedges included, so a reader can compare the claim with what the source says."
         },
         "not_run": {
           "type": "string",
@@ -460,7 +460,6 @@
           "enum": [
             "record",
             "refresh",
-            "review",
             "rank",
             "stop"
           ]
@@ -611,26 +610,6 @@
           "if": {
             "properties": {
               "action": {
-                "const": "review"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "reviewer",
-              "verdict",
-              "findings",
-              "graph_digest"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
                 "enum": [
                   "rank"
                 ]
@@ -753,13 +732,6 @@
         "min_viable_candidates": {
           "type": "integer",
           "minimum": 0
-        },
-        "belief_threshold": {
-          "$ref": "#/$defs/probability"
-        },
-        "require_review": {
-          "type": "boolean",
-          "description": "Confidence stops need a passing review event recorded after the last record event."
         },
         "severity": {
           "enum": [

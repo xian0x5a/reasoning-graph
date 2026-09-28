@@ -13,7 +13,6 @@ from .costs import (
     likelihood_ratio_from_value,
     nodes_with_belief_sources,
     probability_cost,
-    probability_from_value,
 )
 from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
@@ -23,6 +22,9 @@ from .utils import as_string_list
 
 # Stored beliefs are rounded to 6 places when written.
 BELIEF_TOLERANCE = 1e-6
+# Belief did not separate right answers from wrong ones and a same-model reviewer shared the
+# author's misreading (issue #37), so neither gates a stop. A state that still asks for them fails.
+REMOVED_STOP_POLICY_KEYS = ("belief_threshold", "require_review")
 
 
 def edge_id_set(state: dict[str, Any]) -> set[str]:
@@ -143,14 +145,15 @@ def validate_state(state: Any) -> ValidationResult:
             value = stop_policy.get("min_viable_candidates")
             if not isinstance(value, int) or value < 0:
                 errors.append("stop_policy.min_viable_candidates must be a non-negative integer")
-        if "belief_threshold" in stop_policy:
-            probability = probability_from_value(stop_policy.get("belief_threshold"))
-            if probability is None or probability <= 0:
-                errors.append("stop_policy.belief_threshold must be in (0, 1]")
-        if "require_review" in stop_policy and not isinstance(stop_policy.get("require_review"), bool):
-            errors.append("stop_policy.require_review must be boolean when present")
+        for removed_key in REMOVED_STOP_POLICY_KEYS:
+            if removed_key in stop_policy:
+                errors.append(f"stop_policy.{removed_key} was removed: no belief level or review gates a stop; delete the key")
         if "severity" in stop_policy and stop_policy.get("severity") not in {"warning", "error"}:
             errors.append("stop_policy.severity must be 'warning' or 'error' when present")
+    events = state.get("events")
+    for i, event in enumerate(events if isinstance(events, list) else []):
+        if isinstance(event, dict) and event.get("action") == "review":
+            errors.append(f"events[{i}] is a review event, which was removed: no review gates a stop; delete the event")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}

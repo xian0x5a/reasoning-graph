@@ -1,8 +1,8 @@
 """A hand-edited state passes the checks a patch would before anything builds on it, and the stop
 gate computes what it checks itself.
 
-Agents edited state.json with Python in 15 of 22 #34 runs. A hand edit after a passing review
-left the review current, and stored beliefs were trusted until something validated them."""
+Agents edited state.json with Python in 15 of 22 #34 runs. A hand edit went unlogged and
+unchecked, and stored beliefs were trusted until something validated them."""
 
 import json
 import subprocess
@@ -34,7 +34,7 @@ def observation(node_id: str, quote: str) -> dict:
 
 
 def story_patch(hypothesis_prior: float) -> dict:
-    """A graph whose candidate clears the 0.8 threshold only when the hypothesis prior is high."""
+    """A graph whose candidate's belief follows the hypothesis prior."""
     return {
         "reason": "Read the story",
         "nodes": [
@@ -74,11 +74,8 @@ class HandEditTests(unittest.TestCase):
         patch_path.write_text(json.dumps(patch), encoding="utf-8")
         return run_cli("record", str(state_path), "--patch", str(patch_path))
 
-    def review(self, state_path: Path) -> subprocess.CompletedProcess[str]:
-        return run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Quotes match.")
-
     def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded and reviewed", "--outcome", outcome)
+        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome)
 
     def load(self, state_path: Path) -> dict:
         return json.loads(state_path.read_text(encoding="utf-8"))
@@ -153,39 +150,35 @@ class HandEditTests(unittest.TestCase):
         # Fixing a quote only to learn of an unmet gate on the next stop cost the agent a turn.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
+            self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
             self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
 
-            self.fails(self.stop(state_path), "O1", "problem.md", "no review recorded")
+            self.fails(self.stop(state_path), "O1", "problem.md", "without a recorded result observation: T1")
 
-    def test_stop_needs_a_new_review_after_a_hand_edit(self) -> None:
+    def test_stop_logs_a_hand_edit_before_it_stops(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.ok(self.review(state_path))
             self.hand_edit(state_path, lambda state: self.node(state, "H1").update({"prior": 0.95}))
 
-            self.fails(self.stop(state_path), "changed after the latest review")
-            self.ok(self.review(state_path))
             self.ok(self.stop(state_path))
-            self.assertIn("refresh", [event["action"] for event in self.load(state_path)["events"]])
+            self.assertEqual([event["action"] for event in self.load(state_path)["events"]][-3:], ["refresh", "rank", "stop"])
             self.ok(run_cli("audit", str(state_path)))
 
     def test_stop_recomputes_beliefs_instead_of_trusting_stored_ones(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, hypothesis_prior=0.3)
-            self.ok(self.review(state_path))
             self.hand_edit(state_path, lambda state: self.node(state, "CS1").update({"belief": 0.99}))
 
-            self.fails(self.stop(state_path), "belief_threshold")
-            self.ok(self.stop(state_path, "inconclusive"))
+            self.ok(self.stop(state_path))
 
             stopped = self.load(state_path)
             self.assertLess(self.node(stopped, "CS1")["belief"], 0.8)
+            self.assertEqual(stopped["events"][-2]["belief"], self.node(stopped, "CS1")["belief"])
             self.ok(run_cli("audit", str(state_path)))
 
     def test_audit_catches_an_edit_after_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.ok(self.review(state_path))
             self.ok(self.stop(state_path))
             self.hand_edit(state_path, lambda state: self.node(state, "CS1").update({"text": "The butler"}))
 

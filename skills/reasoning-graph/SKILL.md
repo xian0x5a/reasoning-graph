@@ -14,20 +14,19 @@ Use this skill when a messy task is worth keeping what you have seen, suspected,
 The graph does three jobs:
 
 - **Memory:** `state.json` holds observations, hypotheses, tests, and candidate answers, so progress survives long runs and lost context. Read it to recall where you are.
-- **Stop gate:** `stop` accepts a confident answer only when it rests on recorded observations and an independent reviewer has passed the graph.
+- **Stop gate:** `stop` accepts a `solved` answer only when it rests on recorded observations and every test has a result.
 - **Progress view:** every `record` refreshes `state.html` beside the state for a human to follow.
 
 The graph does not choose your next step. Work the problem however you judge best; the graph keeps the record.
 
-Requirements: the helper CLI, installed separately (if `reasoning-graph --help` is unavailable, see `docs/install.md`), and a subagent backend for the reviewer. Without a subagent backend, do not use this skill.
+Requirements: the helper CLI, installed separately (if `reasoning-graph --help` is unavailable, see `docs/install.md`).
 
 ## Workflow
 
 1. **Frame the goal** with `init`. Add epistemic/blocker goals only when the user or task wording accepts them.
-2. **Record at checkpoints.** A checkpoint is where the work turns: sources read, a candidate answer formed, a test result in, a review's findings fixed. Put everything since the last checkpoint in one patch, and write it before moving on; a graph filled in after solving leaves a story, not a record.
+2. **Record at checkpoints.** A checkpoint is where the work turns: sources read, a candidate answer formed, a test result in. Put everything since the last checkpoint in one patch, and write it before moving on; a graph filled in after solving leaves a story, not a record.
 3. **Draft the answer** in `answer.md` once a candidate looks ready.
-4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record all the fixes in one patch and review again; any graph change after a review makes it stale.
-5. **Stop** when a gate below holds, run the final checks, and give the answer.
+4. **Stop** when a gate below holds, run the final checks, and give the answer.
 
 Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
 
@@ -37,11 +36,9 @@ reasoning-graph init --goal "<goal>" --strict -o state.json
 reasoning-graph record state.json --patch - <<'JSON'
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
-# the reviewer subagent runs: reasoning-graph review state.json --reviewer <its agent id> --verdict pass|fail --findings "<what it checked and found>"
-reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" -o state.stopped.json \
+reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" --draft answer.md -o state.stopped.json \
   && reasoning-graph validate state.stopped.json \
-  && reasoning-graph audit state.stopped.json \
-  && reasoning-graph stop-review state.stopped.json --draft answer.md
+  && reasoning-graph audit state.stopped.json
 ```
 
 Pass each patch on stdin as above rather than writing a patch file first: one tool call per record. Chain the final checks with `&&` so the first failure stops the chain.
@@ -82,19 +79,18 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 
 ## Subagents
 
-The reviewer is required (see Review). Other delegation is optional: bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent owns the graph: it reviews each child's report and records accepted results itself. Ask children for observations with source refs and quotes, and for every interpretation they tried, failures included.
+Delegation is optional: bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent owns the graph: it reviews each child's report and records accepted results itself. Ask children for observations with source refs and quotes, and for every interpretation they tried, failures included.
 
 ## Stop gates
 
-`init --strict` sets `stop_policy.belief_threshold: 0.8`. A `solved` or `candidate_threshold_met` stop is accepted only when:
+A `solved` or `candidate_threshold_met` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
+- `summary.answer`, `report.answer`, and the `--draft` file name the best candidate of each accepted goal, by id or exact text
 - the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and priors or posteriors never ground a claim
-- its belief reaches `belief_threshold`
 - every `test` node has a result observation or a `not_run` reason
-- the latest review passed and the graph has not changed since (`require_review`)
 
-`stop` computes every belief itself and ignores stored ones; a hand edit after the latest review makes that review stale.
+No belief level gates a stop. `stop` computes every belief itself and ignores stored ones.
 
 Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report the open hypotheses. The stop reason names the gate that fired.
 
@@ -107,17 +103,9 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 Use coarse numbers.
 
-## Review
+## Final checks
 
-Before stopping, start an independent reviewer subagent. Give it the state path, the draft answer, and the sources; not your reasoning. It checks:
-
-1. **Observations against sources:** each observation the answer relies on says no more than its `quote` and `source`; no hedge dropped out. Text that reports an action, test, or finding its quote does not describe is a fail.
-2. **Answer against graph:** every factual claim in the answer traces to an observation; the answer adds nothing the graph lacks.
-3. **Evidence against the answer:** anything in the sources that cuts against it is recorded, and the answer addresses it.
-
-The reviewer does not edit the graph. It records its own verdict with `review`, naming itself and listing what it checked and found. On `fail`, fix the graph with one `record` and the draft, then start a fresh review.
-
-After `stop`, run `validate`, `audit`, and `stop-review --draft answer.md`, and fix every required fix.
+After `stop`, run `validate` and `audit` on the stopped state and fix everything they report. The CLI checks the record, not your reading of the sources: before stopping, reread each observation the answer relies on against its `quote`, and look for evidence in the sources that cuts against the answer.
 
 ## Schema quick reference
 
@@ -149,7 +137,7 @@ Goals and candidates (`docs/schema/goals.md`):
 - "Not solved", "cannot establish", or "missing dependency" is a stop outcome or hypothesis blocker, not a candidate, unless the user accepted an epistemic/negative goal.
 - Use multiple `goal` nodes only when the user accepts multiple outcomes. Chained sub-goals are `goal` nodes linked `parent --requires--> child`; a goal is answered only when a candidate answers it and every required sub-goal is answered.
 
-Report (`docs/schema/reporting.md`): `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact text; an answer matching no candidate fails `stop-review`. Keep ranking words like `Best` or `rejected` out of node text.
+Report (`docs/schema/reporting.md`): `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact text; an answer matching no candidate fails `stop`. Keep ranking words like `Best` or `rejected` out of node text.
 
 ## Output
 
@@ -162,6 +150,6 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/factors.md` — `factors` examples and validation rules
 - `docs/schema/reporting.md` — report and presentation metadata
 - `docs/cost-model.md` — belief math and likelihoods
-- `docs/driver.md` — CLI commands, state JSON, events, audit, and stop-review mechanics
+- `docs/driver.md` — CLI commands, state JSON, events, and audit
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install

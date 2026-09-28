@@ -33,8 +33,7 @@ The graph is the agent's working memory and the gate on its final answer, not a 
 1. `init` frames the goal.
 2. The agent works the problem its own way and `record`s what each step produced: observations (with `source` and verbatim `quote`), hypotheses, tests and their results, candidate answers. Every `record` refreshes `state.html` so a human can follow along.
 3. Belief is computed from the graph: observation priors, `leads_to` premises, and likelihood updates.
-4. An independent reviewer subagent checks the graph against the sources and records its verdict with `review`.
-5. `stop` accepts a confident answer only when it is grounded in observations, above the belief threshold, every test has a recorded result, and the latest review passed.
+4. `stop` accepts a `solved` answer only when it is grounded in observations, every test has a recorded result, and the reported answer names the graph's best candidate.
 
 ## Helper commands
 
@@ -60,14 +59,11 @@ $rg record state.json --patch step.json      # appends a record event, refreshes
 $rg beliefs state.json                        # computed belief per claim
 $rg doctor state.json
 
-# the reviewer subagent records its verdict
-$rg review state.json --reviewer reviewer-1 --verdict pass --findings "O1 matches its quote"
 $rg stop state.json --reason "Smoke run stopped by user request" --outcome user_stopped -o state.stopped.json
 
 # final checks on the stopped state
 $rg validate state.stopped.json
 $rg audit state.stopped.json
-$rg stop-review state.stopped.json
 
 # render artifacts
 $rg mermaid state.stopped.json > graph.mmd

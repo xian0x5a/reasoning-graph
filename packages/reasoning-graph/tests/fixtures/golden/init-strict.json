@@ -12,8 +12,6 @@
   ],
   "edges": [],
   "stop_policy": {
-    "belief_threshold": 0.8,
-    "require_review": true,
     "severity": "error"
   }
 }

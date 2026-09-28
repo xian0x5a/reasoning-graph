@@ -48,19 +48,6 @@ class MalformedStateInputTests(unittest.TestCase):
                 self.assertNotIn("AttributeError", result.stderr)
                 self.assertNotIn("has no attribute", result.stderr)
 
-    def test_stop_review_fails_cleanly_for_malformed_documents(self) -> None:
-        for label, (document, expected) in self.MALFORMED_DOCUMENTS.items():
-            with self.subTest(document=label), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = Path(tmp_dir) / "state.json"
-                state_path.write_text(document, encoding="utf-8")
-
-                result = run_cli("stop-review", str(state_path))
-
-                self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn("verdict: fail", result.stdout)
-                self.assertIn(expected, result.stdout)
-                self.assertNotIn("has no attribute", result.stderr)
-
     def test_audit_and_doctor_fail_cleanly_for_non_object_documents(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"

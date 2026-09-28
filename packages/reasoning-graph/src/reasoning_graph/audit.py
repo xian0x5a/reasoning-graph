@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES, ValidationResult
-from .policy import candidate_stop_messages, confidence_stop_messages, ranked_viable_candidates
+from .policy import candidate_stop_messages, grounded_stop_messages, ranked_viable_candidates, unnamed_best_candidate_messages
 from .costs import probability_from_value
 from .events import RECORD_CLAIM_FIELDS, graph_digest, live_record_claims
 from .state import by_id
@@ -43,7 +43,7 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
     base = validate_state(state)
     errors = list(base.errors)
     warnings = list(base.warnings)
-    stats = {"events": 0, "records": 0, "reviews": 0, "rankings": 0}
+    stats = {"events": 0, "records": 0, "rankings": 0}
     if errors:
         return ValidationResult(errors=errors, warnings=warnings), stats
 
@@ -98,16 +98,6 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 as_string_list(event.get(remove_field), f"{label}.{remove_field}", errors)
             if action == "record":
                 stats["records"] += 1
-            continue
-
-        if action == "review":
-            if not str(event.get("reviewer") or "").strip():
-                errors.append(f"{label}: review requires a reviewer")
-            if event.get("verdict") not in ("pass", "fail"):
-                errors.append(f"{label}: review verdict must be pass or fail")
-            if not str(event.get("findings") or "").strip():
-                errors.append(f"{label}: review requires findings")
-            stats["reviews"] += 1
             continue
 
         if action == "rank":
@@ -166,9 +156,11 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if outcome in CANDIDATE_STOP_OUTCOMES:
                     for message in candidate_stop_messages(state):
                         add_policy_violation(policy_result, f"{label}: {outcome} stop is not met; {message}", severity)
+                    # The answer texts sit outside the graph digest, so an edit after stop shows only here.
+                    errors.extend(f"{label}: {message}" for message in unnamed_best_candidate_messages(state))
                 if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
-                    for message in confidence_stop_messages(state):
-                        add_policy_violation(policy_result, f"{label}: {outcome} stop needs a grounded, confident answer; {message}", severity)
+                    for message in grounded_stop_messages(state):
+                        add_policy_violation(policy_result, f"{label}: {outcome} stop needs a grounded answer; {message}", severity)
             # stop fingerprints the graph it judged; any later edit breaks the match.
             if event.get("graph_digest") != graph_digest(state):
                 errors.append(f"{label}: the graph changed after stop")

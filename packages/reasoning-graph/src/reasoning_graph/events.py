@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any, Callable
 
-# Events that change the graph; a review or stop judges the graph the latest of them left.
+# Events that change the graph; a stop judges the graph the latest of them left.
 GRAPH_CHANGE_ACTIONS = ("record", "refresh")
 # Top-level state fields the stop gates read besides nodes, edges, and factors.
 DIGEST_POLICY_FIELDS = ("stop_policy", "goal_policy", "goal_groups")

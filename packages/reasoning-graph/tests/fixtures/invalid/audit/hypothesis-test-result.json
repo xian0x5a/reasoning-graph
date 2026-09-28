@@ -53,7 +53,6 @@
   ],
   "stop_policy": {
     "min_viable_candidates": 3,
-    "belief_threshold": 0.8,
     "severity": "error"
   },
   "factors": [],
@@ -70,14 +69,14 @@
         "H2-H1"
       ],
       "update_factors": [],
-      "graph_digest": "80bb082dab772d83"
+      "graph_digest": "d46e7988b5cb67ae"
     },
     {
       "step": 2,
       "action": "stop",
       "reason": "The keypad settled it",
       "outcome": "solved",
-      "graph_digest": "80bb082dab772d83"
+      "graph_digest": "d46e7988b5cb67ae"
     }
   ]
 }
