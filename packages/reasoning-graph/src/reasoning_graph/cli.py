@@ -194,7 +194,21 @@ def _hand_edit_event(state: dict[str, Any]) -> dict[str, Any] | None:
 
 def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
     source_base_dir = Path(state_path).parent if state_path != "-" else Path.cwd()
-    return [message for node in state.get("nodes", []) for message in quote_mismatch_messages(node, source_base_dir)]
+    # Malformed nodes are validation's to report.
+    nodes = [node for node in state.get("nodes", []) if isinstance(node, dict)]
+    return [message for node in nodes for message in quote_mismatch_messages(node, source_base_dir)]
+
+
+def _passes_quote_and_graph_checks(state: dict[str, Any], state_path: str) -> bool:
+    """Recheck every quote and validate the graph, rewriting beliefs; print every failure and return False on any.
+
+    The two checks are independent, so one run lists everything to fix instead of one kind per retry.
+    """
+    quote_errors = _quote_errors(state, state_path)
+    for message in quote_errors:
+        print(f"error: {message}", file=sys.stderr)
+    graph_valid = refresh_beliefs(state)
+    return graph_valid and not quote_errors
 
 
 def _objects_removed_outside_record(state: dict[str, Any]) -> dict[str, list[str]]:
@@ -303,11 +317,6 @@ def cmd_record(args: argparse.Namespace) -> int:
     # Validation and quote checks below judge the patched graph, so a patch may repair a hand edit.
     hand_edit = _hand_edit_event(state)
     patch_trace = _apply_graph_patch(state, patch)
-    quote_errors = _quote_errors(state, args.state)
-    if quote_errors:
-        for message in quote_errors:
-            print(f"error: {message}", file=sys.stderr)
-        return 1
     events = state.setdefault("events", [])
     if not isinstance(events, list):
         raise ValueError("events must be a list before record can append")
@@ -323,7 +332,7 @@ def cmd_record(args: argparse.Namespace) -> int:
         }
     )
 
-    if not refresh_beliefs(state):
+    if not _passes_quote_and_graph_checks(state, args.state):
         return 1
     dump_state(state, args.output, default_in_place_source(args))
     write_live_view(state, args)
@@ -337,12 +346,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
         return 1
     hand_edit = _hand_edit_event(state)
-    if not refresh_beliefs(state):
-        return 1
-    quote_errors = _quote_errors(state, args.state)
-    if quote_errors:
-        for message in quote_errors:
-            print(f"error: {message}", file=sys.stderr)
+    if not _passes_quote_and_graph_checks(state, args.state):
         return 1
     if hand_edit is None:
         print("ok: no edits outside the CLI; beliefs rewritten")

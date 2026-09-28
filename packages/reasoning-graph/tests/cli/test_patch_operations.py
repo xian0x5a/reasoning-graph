@@ -155,5 +155,23 @@ class PatchOperationTests(unittest.TestCase):
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
 
+    def test_record_reports_quote_and_validation_failures_together(self) -> None:
+        # A bad quote used to hide validation errors until the next record.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            before = state_path.read_text(encoding="utf-8")
+
+            result = self.record(state_path, {
+                "reason": "r",
+                "nodes": [observation("O3", "The butler left at ten")],
+                "edges": [edge("O3", "H9", "supports")],
+            })
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            for text in ("O3", "problem.md", "H9"):
+                self.assertIn(text, result.stderr)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -76,7 +76,7 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
 - Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.
 
-The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference) or a quote check, nothing is written.
+The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference) or a quote check, nothing is written. Quote and validation failures are reported together, so one run lists everything to fix.
 
 ## Hand edits and the graph digest
 
