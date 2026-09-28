@@ -14,7 +14,9 @@ the rejected answer and the facts of the story, which left the arms nothing to d
 
 An item gets one more round than its rubric has key points: after the last hint there is
 nothing new to tell the agent. Results land in <item-dir>/<arm>/<run-id>/, with loop.json as
-the summary; an item whose result dir exists is skipped.
+the summary. An item that has its loop.json is skipped, so a rerun only fills gaps. A run that
+stopped before its loop.json, say on a usage limit, is set aside as <run-id>.incomplete-<time>
+and run again from round 1.
 """
 
 import argparse
@@ -22,6 +24,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -42,6 +46,8 @@ PROBLEM_FILES = ["problem.md", "assets"]
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCH = REPO_ROOT / "tests/scenarios/bench.sh"
 PROBLEMS_DIR = REPO_ROOT / "test-results"
+# bench.sh prepares workspaces under this root.
+WORKSPACE_ROOT = Path(os.environ.get("RG_BENCH_WORKSPACE_ROOT", "/tmp/rg-bench"))
 
 FEEDBACK_PROMPT = """Your submit was graded and is not accepted.
 
@@ -61,6 +67,13 @@ def run_session(workspace: Path, prompt: str, model: str, transcript: Path, resu
         subprocess.run(command, cwd=workspace, stdout=output, stderr=subprocess.PIPE, text=True,
                        timeout=SESSION_TIMEOUT_SECONDS, check=True)
     return next(event["session_id"] for event in transcript_events(transcript) if "session_id" in event)
+
+
+def error_text(error: BaseException) -> str:
+    """A failed command's own message when it left one, since its argv is a whole prompt."""
+    if isinstance(error, subprocess.CalledProcessError):
+        return f"exit {error.returncode}: {(error.stderr or error.stdout or '').strip()[-300:]}"
+    return f"{type(error).__name__}: {error}"
 
 
 def transcript_events(transcript: Path) -> list[dict]:
@@ -94,6 +107,14 @@ def reset_workspace(workspace: Path, arm: str, round_dir: Path) -> None:
             shutil.move(entry, leftovers / entry.name)
 
 
+def set_aside_incomplete_run(results: Path, workspace: Path) -> None:
+    """Move what a stopped run left behind out of the way: bench.sh refuses a workspace that exists."""
+    suffix = f".incomplete-{time.strftime('%Y%m%d-%H%M%S')}"
+    for leftover in (results, workspace):
+        if leftover.exists():
+            leftover.rename(leftover.with_name(leftover.name + suffix))
+
+
 def feedback_prompt(score: dict, rubric: dict) -> tuple[str, str | None]:
     if score["letter"] is None:
         letter_feedback = "No valid final answer line was found."
@@ -111,8 +132,9 @@ def run_item(item_dir: Path, model: str, arm: str, run_id: str) -> str:
     item_dir = item_dir.resolve()
     scenario = str(item_dir.relative_to(PROBLEMS_DIR))
     results = item_dir / arm / run_id
-    if results.exists():
-        return f"skip  {scenario} ({arm}/{run_id} exists)"
+    if (results / "loop.json").exists():
+        return f"skip  {scenario} ({arm}/{run_id} is complete)"
+    set_aside_incomplete_run(results, WORKSPACE_ROOT / scenario / arm / run_id)
 
     rubric = json.loads((item_dir / "rubric.json").read_text(encoding="utf-8"))
     max_rounds = len(rubric["key_points"]) + 1
@@ -164,11 +186,20 @@ def main() -> None:
     parser.add_argument("item_dirs", nargs="+", type=Path)
     args = parser.parse_args()
 
+    failed_items = []
     with ThreadPoolExecutor(max_workers=PARALLEL_RUNS) as pool:
-        runs = [pool.submit(run_item, item_dir, args.model, args.arm, args.run_id) for item_dir in args.item_dirs]
-        # result() re-raises a failed item's error after the other items have finished.
-        for run in runs:
-            print(run.result())
+        runs = {item_dir: pool.submit(run_item, item_dir, args.model, args.arm, args.run_id)
+                for item_dir in args.item_dirs}
+        for item_dir, run in runs.items():
+            # One item's failure must not hide the outcome of the others.
+            error = run.exception()
+            if error:
+                failed_items.append(item_dir)
+                print(f"FAIL  {item_dir}: {error_text(error)}")
+            else:
+                print(run.result())
+    if failed_items:
+        sys.exit(f"{len(failed_items)} of {len(runs)} items failed; rerun to retry them")
 
 
 if __name__ == "__main__":
