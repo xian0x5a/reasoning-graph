@@ -3,7 +3,7 @@ status: accepted
 amends: 0007-state-stores-computed-belief.md
 ---
 
-# One record patch carries every graph edit
+# One record patch carries every graph edit, and stop checks what it judges
 
 ## Context
 
@@ -15,20 +15,24 @@ A patch could only add nodes, edges, and factors, and set node fields. Agents ha
 - left no event, so a passed review stayed current over a graph the reviewer never saw;
 - made a later `audit` fail when they removed an edge an earlier event had added.
 
-`beliefs --write` recomputed beliefs after a hand-edit but fixed none of these.
+`beliefs --write` recomputed beliefs after a hand-edit but fixed none of these. `stop` also never validated the graph, and it kept whatever beliefs were stored.
 
 ## Decision
 
 - A patch can remove (`remove_nodes`, `remove_edges`, `remove_factors`), change (`update_nodes` and `update_edges` with `set` and `unset`), and add. It applies removals, then updates, then additions.
 - Identity fields are fixed: a node's `id` and `type`, and an edge's `id`, `from`, and `to`. Changing one means removing the object and adding a new one.
 - Removing a node removes its edges. Factors are never removed implicitly, because a factor's calibrated aggregation has to be re-authored rather than silently dropped.
-- Every `record` rechecks every quote and logs as removals any traced object the state no longer holds. A patch holding only `reason` is therefore how a hand-edit is re-synced. It replaces `beliefs --write`, which is removed.
+- `record`, `refresh`, `review`, and `stop` events store a `graph_digest`: a hash of nodes (without `belief`), edges, factors, and the gate policies.
+- `reasoning-graph refresh` is the one command to run after a hand-edit. It validates, rechecks every quote, rewrites beliefs and the view, and appends a `refresh` event that lists removed objects. It replaces `beliefs --write`, which is removed.
+- `record` and `stop` refuse a state whose digest differs from the last `record` or `refresh` event.
+- A review is stale when its digest differs from the current graph's, whether the change came from a patch or a hand-edit.
+- `stop` validates the graph and computes every belief itself; stored beliefs are overwritten. `audit` fails when the graph changed after `stop`.
 - `audit` replays each record's removals, then its additions, so an object can be removed and later added again.
 - The skill asks for one patch per checkpoint (sources read, candidate formed, test result in, review findings fixed), not one per step.
 
 ## Consequences
 
 - A review round, or a belief fix that used to need several records or a Python edit, is one `record`.
-- A hand-edit that is followed by a `record` gets the same checks as a patch.
-- A hand-edit with no `record` after it can still slip past a review. The follow-up is to store a graph digest in review events.
+- A hand-edit can't reach a stop unchecked: it needs `refresh`, which runs the same checks as a patch, and then a fresh review.
+- The digest makes accidental and casual tampering visible, but the trace is still a file the agent can write. It doesn't stop a deliberate forgery that recomputes digests.
 - Objects added by hand stay untraced, like the goal `init` writes.

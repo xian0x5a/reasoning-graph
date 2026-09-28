@@ -4,13 +4,14 @@ State shape, commands, events, audit checks, and semantic stop review. The workf
 
 ## Commands
 
-Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. After any hand edit of the state, run `record` with a patch holding only `reason` before using the state again (see Record patch).
+Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout. After a hand edit of the state, run `refresh` before anything else: `record` and `stop` refuse a graph that differs from the one the last `record` or `refresh` wrote.
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
 reasoning-graph record state.json --patch - <<'JSON'   # append progress with a reason; refreshes state.html
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
+reasoning-graph refresh state.json                 # after a hand edit: validate, recheck quotes, recompute beliefs, log the edit
 reasoning-graph review state.json --reviewer <id> --verdict pass|fail --findings "<text>"   # reviewer's verdict
 reasoning-graph beliefs state.json                 # computed belief per claim (--json for rows)
 reasoning-graph doctor state.json                  # validate, compute beliefs, audit once stopped
@@ -60,7 +61,7 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 `stop_policy` fields:
 
 - `belief_threshold` — a `solved` or `candidate_threshold_met` stop needs a grounded best candidate at or above it
-- `require_review` — such a stop also needs the latest review to pass with no `record` after it
+- `require_review` — such a stop also needs the latest review to pass, on a graph whose digest matches the current one
 - `min_viable_candidates` — opt-in, for when the user asks for alternatives: a candidate-bearing stop needs this many viable candidates. `init --strict` never sets it
 - `severity` — `error` makes `audit` fail on stop-policy violations; `warning` reports them
 
@@ -73,20 +74,30 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 - `nodes` and `edges` are insert-only; an id that exists after the removals is rejected. An id removed earlier in the same patch may be added again.
 - `factors` adds or replaces factors by id.
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
-- Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` rechecks every quote on each call, not only the patched ones.
+- Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.
 
 The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference) or a quote check, nothing is written.
 
-A patch holding only `reason` re-syncs a hand-edited state. `record` logs in its event, as removals, any object an earlier record added that the state no longer has, and prints a `note:` naming them. Objects added by hand stay untraced, like the goal `init` writes. Then it rechecks quotes, recomputes beliefs, refreshes `state.html`, and makes an earlier review stale, as every `record` does.
+## Hand edits and the graph digest
+
+`record`, `refresh`, `review`, and `stop` events store `graph_digest`: a short sha256 over nodes (without `belief`), edges, and factors, each sorted by id, plus `stop_policy`, `goal_policy`, and `goal_groups`. It is how the CLI notices an edit it did not make.
+
+- `record` and `stop` refuse a state whose digest differs from the latest `record` or `refresh` event, and name `refresh`.
+- `refresh` validates the state, rechecks every quote, rewrites beliefs and `state.html`, and appends a `refresh` event when the digest changed. The event lists as removals any object an earlier event added that the state no longer has, so `audit` stays consistent. Objects added by hand stay untraced, like the goal `init` writes.
+- A review is stale when its digest differs from the current graph's.
+- `stop` validates the graph and computes every belief itself before the gates; stored beliefs are overwritten, never read. The stop event's digest lets `audit` detect an edit made after `stop`.
 
 ## Events
 
 | action | written by | fields |
 | --- | --- | --- |
 | `record` | `record` | `reason`, `add_nodes`, `add_edges`, `update_factors`; when non-empty, `updated_nodes` and `updated_edges` (ids with changed field names) and `remove_nodes`, `remove_edges`, `remove_factors` |
+| `refresh` | `refresh`, when the graph changed | `remove_nodes`, `remove_edges`, `remove_factors` when non-empty |
 | `review` | `review` | `reviewer`, `verdict` (`pass`/`fail`), `findings` |
 | `rank` | `stop`, for candidate-bearing outcomes | `best`, `belief`, `candidates` rows derived from the graph |
 | `stop` | `stop` | `reason`, `outcome` |
+
+`record`, `refresh`, `review`, and `stop` events also carry `graph_digest`.
 
 Stop outcomes: `solved`, `candidate_threshold_met`, `candidate_count_met`, `budget_exhausted`, `blocked`, `user_stopped`, `inconclusive`.
 
@@ -102,8 +113,8 @@ A failed gate names what is missing. Non-candidate outcomes only write the stop 
 `audit` validates the state, then checks the trace:
 
 - `validate` fails on a stored `belief` that differs from the recomputed one
-- steps strictly increase; actions are `record`, `review`, `rank`, `stop`; the trace ends with exactly one `stop`
-- each record has a reason. Replaying records in order (each one's removals, then its additions), no node or edge is added while the trace still holds it, and every object the trace still holds exists in the graph
+- steps strictly increase; actions are `record`, `refresh`, `review`, `rank`, `stop`; the trace ends with exactly one `stop`, whose `graph_digest` matches the final graph
+- each record has a reason. Replaying `record` and `refresh` events in order (each one's removals, then its additions), no node or edge is added while the trace still holds it, and every object the trace still holds exists in the graph
 - each review names a reviewer, a verdict, and findings
 - `rank.best`, `rank.belief`, and `rank.candidates` rows match the values derived from the graph
 - the stop outcome meets the gates above; under `severity: error` a violation fails the audit

@@ -26,7 +26,7 @@ Requirements: the helper CLI, installed separately (if `reasoning-graph --help` 
 1. **Frame the goal** with `init`. Add epistemic/blocker goals only when the user or task wording accepts them.
 2. **Record at checkpoints.** A checkpoint is where the work turns: sources read, a candidate answer formed, a test result in, a review's findings fixed. Put everything since the last checkpoint in one patch, and write it before moving on; a graph filled in after solving leaves a story, not a record.
 3. **Draft the answer** in `answer.md` once a candidate looks ready.
-4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record all the fixes in one patch and review again; any `record` after a review makes it stale.
+4. **Get it reviewed.** Start a reviewer subagent (below). On `fail`, record all the fixes in one patch and review again; any graph change after a review makes it stale.
 5. **Stop** when a gate below holds, run the final checks, and give the answer.
 
 Mutating commands rewrite the input state file by default; use `-o <path>` for a separate output file or `-o -` for stdout.
@@ -69,7 +69,7 @@ Record patch:
 - **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["posterior"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
-Make every change through a patch. After editing `state.json` by hand, run `record` with a patch holding only `reason` (what you edited): it rechecks every quote, recomputes beliefs, logs removed objects, and makes an earlier review stale.
+Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand, then run `reasoning-graph refresh state.json`: it validates, rechecks every quote, recomputes beliefs, and logs the edit. `record` and `stop` refuse a hand-edited state until `refresh` has run.
 
 ## Recording
 
@@ -92,7 +92,9 @@ The reviewer is required (see Review). Other delegation is optional: bounded pro
 - the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and priors or posteriors never ground a claim
 - its belief reaches `belief_threshold`
 - every `test` node has a result observation or a `not_run` reason
-- the latest review passed and no `record` came after it (`require_review`)
+- the latest review passed and the graph has not changed since (`require_review`)
+
+`stop` computes every belief itself and ignores stored ones, and it refuses a graph edited outside the CLI.
 
 Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report the open hypotheses. The stop reason names the gate that fired.
 

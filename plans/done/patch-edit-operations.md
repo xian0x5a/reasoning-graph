@@ -69,3 +69,7 @@ Analysis: issue #36 comment 5861985148. Target: about 3 graph writes per run (th
 - Suite: 322 passed. End-to-end smoke on the reinstalled tool covered, in order: one patch with an unset, a set, an edge update, and a node removal (cascading its edge); a Python removal of an edge, re-synced by a reason-only `record`; re-adding that edge; then `review`, `stop --outcome solved`, `validate`, `audit`, and `stop-review --draft`. Every step passed.
 - The smoke run also showed the gate working: the hand-edit removed H1's only support, so `stop --outcome solved` refused until the evidence came back.
 - Not yet measured: whether agents actually make fewer graph writes. The next benchmark run should count `record` calls and hand-edits per run.
+
+## Superseded in part
+
+The reason-only `record` re-sync was replaced by `reasoning-graph refresh` and the graph digest (`plans/done/refresh-command-and-graph-digest.md`).

@@ -55,4 +55,15 @@ Gaps in `stop` today:
 
 - [x] 1. Tests
 - [x] 2. CLI
-- [ ] 3. Docs
+- [x] 3. Docs
+
+## Outcomes & Retrospective
+
+- CLI: `75f68e4`; docs in the next commit. Suite: 326 passed.
+- Smoke on the reinstalled tool, in order:
+  1. A Python prior bump after a passing review was refused by `stop`, which named `refresh`.
+  2. After `refresh`, `stop` was refused because the graph changed after the latest review.
+  3. After a new review, `stop`, `audit`, and `stop-review` all passed.
+  4. Editing the stopped state made `audit` fail with "the graph changed after stop".
+- Surprise: 11 existing tests hand-built or hand-edited states and then called `stop` or `audit`. They now go through `refresh`, or stamp digests on forged events, the same path agents take.
+- Surprise: `stop` never validated the graph before. It now does, so an invalid graph fails with the validation error instead of a gate message.
