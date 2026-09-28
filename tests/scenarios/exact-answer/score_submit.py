@@ -43,14 +43,16 @@ VERDICT_SCHEMA = {
 
 SCORE_PROMPT = """Grade a solver's written reasoning about a detective puzzle against the key points below.
 
-For every key point, find the one sentence or bullet of the reasoning that states the point's
-conclusion, and copy it character for character into `quote`. Leave `quote` empty when:
-- no sentence states that conclusion, or
-- the reasoning states it only as a doubt, or argues against it.
+A key point holds a conclusion and the clue it rests on. For every key point, find the one
+sentence or bullet of the reasoning that reaches the same conclusion from the same clue, and
+copy it character for character into `quote`. Leave `quote` empty when the reasoning:
+- reaches the conclusion by another route, without that clue,
+- mentions the clue without drawing the conclusion from it,
+- states the conclusion only as a doubt, or argues against it, or
+- says nothing on the point.
 
-The solver's wording and supporting details may differ from the key point. Only the
-conclusion has to match. A right final answer earns no credit for a point the reasoning
-leaves out.
+The solver's wording may differ from the key point. A right final answer earns no credit for
+a point the reasoning leaves out.
 
 # Puzzle
 

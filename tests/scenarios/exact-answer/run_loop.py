@@ -7,10 +7,10 @@
 
 A round is one fresh session: the agent writes answer.md and score_submit.py grades it.
 A rejected submit is answered in that same session with "wrong" plus the rubric hint of the
-first key point it failed, so the feedback exists only in the conversation. The agent then
-writes handoff.md, which stands in for a compaction summary: headless Claude Code cannot be
-made to compact. The next round is a new session that gets the handoff text, in a workspace
-that keeps only the problem and the files the arm may keep.
+first key point it failed, so the feedback exists only in the conversation. The next round is
+a new session in a workspace that keeps only the problem and the files the arm may keep, as
+after a killed session. No summary is handed over: in a trial run the summary carried the hint,
+the rejected answer and the facts of the story, which left the arms nothing to differ on.
 
 An item gets one more round than its rubric has key points: after the last hint there is
 nothing new to tell the agent. Results land in <item-dir>/<arm>/<run-id>/, with loop.json as
@@ -32,9 +32,9 @@ THINKING_LEVEL = "high"
 SESSION_TIMEOUT_SECONDS = 30 * 60
 PARALLEL_RUNS = int(os.environ.get("RG_BENCH_PARALLEL", "6"))
 
-# What survives a context reset besides the handoff text, per arm.
+# What survives a context reset, per arm.
 ARM_KEPT_FILES = {
-    "compaction-only": [],
+    "no-memory": [],
     "notes-file": ["notes.md"],
 }
 PROBLEM_FILES = ["problem.md", "assets"]
@@ -47,15 +47,7 @@ FEEDBACK_PROMPT = """Your submit was graded and is not accepted.
 
 {letter_feedback}
 {hint_line}
-Your context is reset after this turn. Do not continue solving now. Write `handoff.md`: a summary of everything you need to continue this task in a fresh context.
-"""
-
-CONTINUE_PROMPT = """{arm_prompt}
-You are continuing this task after a context reset. This summary was written before the reset:
-
-<handoff>
-{handoff}
-</handoff>
+Your context is reset after this turn, and only the files your rules let you keep survive. Do not continue solving now.
 """
 
 
@@ -130,11 +122,10 @@ def run_item(item_dir: Path, model: str, arm: str, run_id: str) -> str:
     arm_prompt = (workspace / "prompt.md").read_text(encoding="utf-8")
 
     rounds = []
-    prompt = arm_prompt
     for round_number in range(1, max_rounds + 1):
         round_dir = results / "rounds" / str(round_number)
         round_dir.mkdir(parents=True)
-        session_id = run_session(workspace, prompt, model, round_dir / "transcript.jsonl")
+        session_id = run_session(workspace, arm_prompt, model, round_dir / "transcript.jsonl")
         answer_text = take_file(workspace, "answer.md", round_dir)
         score = score_submit(item_dir, answer_text, SCORER_MODEL)
         round_record = {"round": round_number, **score, "cost": session_cost(round_dir / "transcript.jsonl")}
@@ -145,11 +136,9 @@ def run_item(item_dir: Path, model: str, arm: str, run_id: str) -> str:
 
         feedback, hint = feedback_prompt(score, rubric)
         run_session(workspace, feedback, model, round_dir / "feedback-transcript.jsonl", resume=session_id)
-        handoff = take_file(workspace, "handoff.md", round_dir)
-        round_record |= {"hint": hint, "handoff_written": bool(handoff),
+        round_record |= {"hint": hint,
                          "cost": round_record["cost"] + session_cost(round_dir / "feedback-transcript.jsonl")}
         reset_workspace(workspace, arm, round_dir)
-        prompt = CONTINUE_PROMPT.format(arm_prompt=arm_prompt, handoff=handoff)
 
     rejected_letters = [entry["letter"] for entry in rounds[:-1]]
     summary = {

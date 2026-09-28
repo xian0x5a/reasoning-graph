@@ -1,4 +1,4 @@
-# Resume Loop Prompt: Compaction Only
+# Resume Loop Prompt: No Memory
 
 Read `{{PROBLEM_FILE}}` and answer the problem questions.
 
