@@ -1,8 +1,8 @@
-"""One record patch carries any graph edit, and a reason-only record re-syncs a hand-edited state.
+"""One record patch carries any graph edit.
 
-In the #34 A/B, skill runs averaged 5.5 record calls and 1.5 Python hand-edits of state.json. A patch
-could not change or remove an edge, remove a node or factor, or drop a field. A hand edit skipped the
-quote check and left no event (issue #36 comment 5861985148)."""
+In the #34 A/B, skill runs averaged 5.5 record calls and 1.5 Python hand-edits of state.json, because a
+patch could not change or remove an edge, remove a node or factor, or drop a field (issue #36 comment
+5861985148)."""
 
 import json
 import subprocess
@@ -70,11 +70,6 @@ class PatchOperationTests(unittest.TestCase):
 
     def load(self, state_path: Path) -> dict:
         return json.loads(state_path.read_text(encoding="utf-8"))
-
-    def hand_edit(self, state_path: Path, edit) -> None:
-        state = self.load(state_path)
-        edit(state)
-        state_path.write_text(json.dumps(state), encoding="utf-8")
 
     def stop_and_audit(self, state_path: Path) -> subprocess.CompletedProcess[str]:
         self.ok(run_cli("stop", str(state_path), "--reason", "Test ends here", "--outcome", "inconclusive"))
@@ -158,37 +153,6 @@ class PatchOperationTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1, result.stdout)
                     self.assertIn(field, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
-
-    def test_reason_only_record_resyncs_a_hand_edited_state(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Quotes match."))
-
-            def drop_edge_and_lower_prior(state: dict) -> None:
-                state["edges"] = [item for item in state["edges"] if item["id"] != "O1-H2"]
-                next(node for node in state["nodes"] if node["id"] == "O2")["prior"] = 0.6
-
-            self.hand_edit(state_path, drop_edge_and_lower_prior)
-            self.ok(self.record(state_path, {"reason": "Hand edit: dropped O1-H2, lowered O2's prior"}))
-
-            state = self.load(state_path)
-            self.assertEqual(state["events"][-1]["remove_edges"], ["O1-H2"])
-            self.assertEqual(next(node for node in state["nodes"] if node["id"] == "O2")["belief"], 0.6)
-            stale_review = run_cli("stop", str(state_path), "--reason", "r", "--outcome", "solved")
-            self.assertEqual(stale_review.returncode, 1, stale_review.stdout)
-            self.assertIn("changed after the latest review", stale_review.stderr)
-            self.ok(self.stop_and_audit(state_path))
-
-    def test_record_rejects_a_hand_edited_quote_that_is_not_verbatim(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.hand_edit(state_path, lambda state: next(node for node in state["nodes"] if node["id"] == "O1").update({"quote": "The butler left at ten"}))
-
-            result = self.record(state_path, {"reason": "Hand edit: reworded O1"})
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("O1", result.stderr)
-            self.assertIn("problem.md", result.stderr)
 
 
 if __name__ == "__main__":

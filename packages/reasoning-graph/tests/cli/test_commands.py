@@ -21,6 +21,7 @@ sys.path.insert(0, str(PACKAGE_SRC_ROOT))
 
 from reasoning_graph.cli import append_stop_event
 from reasoning_graph.costs import node_effective_truth_costs
+from reasoning_graph.events import graph_digest
 
 
 FIXTURE = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "reasoning-graph-strict-good.json"
@@ -39,6 +40,14 @@ def unstopped_fixture_state() -> dict[str, Any]:
     """Fixture graph before its terminal rank/stop events, so mutating commands can append."""
     state = json.loads(FIXTURE.read_text(encoding="utf-8"))
     state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+    return state
+
+
+def stamp_graph_digest(state: dict) -> dict:
+    """Give a hand-built state the digests the CLI writes, so a test reaches the check it targets."""
+    for event in state.get("events", []):
+        if event.get("action") in {"record", "refresh", "review", "stop"}:
+            event["graph_digest"] = graph_digest(state)
     return state
 
 
@@ -86,7 +95,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
-        self.assertEqual(set(event_actions), {"record", "review", "rank", "stop"})
+        self.assertEqual(set(event_actions), {"record", "refresh", "review", "rank", "stop"})
         self.assertNotIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("reason", patch_schema["properties"])
@@ -779,7 +788,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"step": 2, "action": "stop", "reason": "done", "outcome": "user_stopped"},
                 ],
             }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
+            state_path.write_text(json.dumps(stamp_graph_digest(state)), encoding="utf-8")
 
             result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -950,7 +959,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             state = unstopped_fixture_state()
             state["edges"] = [edge for edge in state["edges"] if edge.get("type") != "answers"]
-            original = json.dumps(state)
+            original = json.dumps(stamp_graph_digest(state))
             state_path.write_text(original, encoding="utf-8")
 
             stopped = self.run_cli(
@@ -964,7 +973,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             )
 
             self.assertNotEqual(stopped.returncode, 0)
-            self.assertIn("stop outcome 'solved' is not met", stopped.stderr)
+            # stop validates the graph before its gates, so the missing answers edge is caught there.
+            self.assertIn("must connect to a goal with an answers edge", stopped.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             persisted = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertNotIn("rank", [event["action"] for event in persisted["events"]])
@@ -992,7 +1002,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         for name, (state, reason, expected_error) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = Path(tmp_dir) / "state.json"
-                original = json.dumps(state)
+                original = json.dumps(stamp_graph_digest(state))
                 state_path.write_text(original, encoding="utf-8")
                 stopped = self.run_cli("stop", str(state_path), "--reason", reason, "--outcome", "user_stopped", "-i")
 
@@ -1040,7 +1050,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         for name, (state, expected_error) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = Path(tmp_dir) / "state.json"
-                state_path.write_text(json.dumps(state), encoding="utf-8")
+                state_path.write_text(json.dumps(stamp_graph_digest(state)), encoding="utf-8")
                 audit = self.run_cli("audit", str(state_path))
 
                 self.assertNotEqual(audit.returncode, 0)

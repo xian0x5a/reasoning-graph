@@ -9,7 +9,7 @@ from typing import Any
 
 from .audit import audit_state
 from .costs import claim_beliefs
-from .events import RECORD_CLAIM_FIELDS, is_stopped, live_record_claims, next_event_step
+from .events import GRAPH_CHANGE_ACTIONS, RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
 from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
 from .policy import best_candidate_ids, candidate_stop_messages, confidence_stop_messages, goal_best_candidates, ranked_viable_candidates, unanswered_goal_messages
 from .render import html_document, presentation_node_ids, to_mermaid
@@ -179,6 +179,19 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str
     }
 
 
+def _edited_outside_cli_message(state: dict[str, Any]) -> str | None:
+    """Explain how to re-sync when the graph differs from the one the last record or refresh wrote."""
+    last_change = last_graph_change(state)
+    if last_change is None or last_change.get("graph_digest") == graph_digest(state):
+        return None
+    return f"the graph was edited outside the CLI after step {last_change.get('step')}; run `reasoning-graph refresh <state>`"
+
+
+def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
+    source_base_dir = Path(state_path).parent if state_path != "-" else Path.cwd()
+    return [message for node in state.get("nodes", []) for message in quote_mismatch_messages(node, source_base_dir)]
+
+
 def _objects_removed_outside_record(state: dict[str, Any]) -> dict[str, list[str]]:
     """Name, by event removal field, objects an earlier record added that the state no longer holds.
 
@@ -240,7 +253,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         print("error: search already has a stop event; review cannot append", file=sys.stderr)
         return 1
     events = state.get("events")
-    if not isinstance(events, list) or not any(isinstance(event, dict) and event.get("action") == "record" for event in events):
+    if not isinstance(events, list) or not any(isinstance(event, dict) and event.get("action") in GRAPH_CHANGE_ACTIONS for event in events):
         print("error: nothing to review; record the graph first", file=sys.stderr)
         return 1
     reviewer = args.reviewer.strip()
@@ -251,7 +264,10 @@ def cmd_review(args: argparse.Namespace) -> int:
     if not findings:
         print("error: --findings must say what was checked and what was found", file=sys.stderr)
         return 1
-    events.append({"step": next_event_step(state), "action": "review", "reviewer": reviewer, "verdict": args.verdict, "findings": findings})
+    events.append({
+        "step": next_event_step(state), "action": "review", "reviewer": reviewer, "verdict": args.verdict, "findings": findings,
+        "graph_digest": graph_digest(state),
+    })
     dump_state(state, args.output, default_in_place_source(args))
     return 0
 
@@ -279,14 +295,12 @@ def cmd_record(args: argparse.Namespace) -> int:
         print("error: record patch requires reason: what this step did", file=sys.stderr)
         return 1
 
-    removed_outside_record = _objects_removed_outside_record(state)
+    unsynced = _edited_outside_cli_message(state)
+    if unsynced:
+        print(f"error: {unsynced}", file=sys.stderr)
+        return 1
     patch_trace = _apply_graph_patch(state, patch)
-    for field, object_ids in removed_outside_record.items():
-        patch_trace[field] = [*patch_trace.get(field, []), *object_ids]
-        print(f"note: logged {field} {', '.join(object_ids)}, removed outside record", file=sys.stderr)
-    # Every quote is rechecked, not just the patched ones, because a hand edit can reword any of them.
-    source_base_dir = Path(args.state).parent if args.state != "-" else Path.cwd()
-    quote_errors = [message for node in state["nodes"] for message in quote_mismatch_messages(node, source_base_dir)]
+    quote_errors = _quote_errors(state, args.state)
     if quote_errors:
         for message in quote_errors:
             print(f"error: {message}", file=sys.stderr)
@@ -300,11 +314,41 @@ def cmd_record(args: argparse.Namespace) -> int:
             "action": "record",
             "reason": reason,
             **patch_trace,
+            "graph_digest": graph_digest(state),
         }
     )
 
     if not refresh_beliefs(state):
         return 1
+    dump_state(state, args.output, default_in_place_source(args))
+    write_live_view(state, args)
+    return 0
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    """Re-sync a hand-edited state: validate it, recheck every quote, log removed objects, rewrite beliefs and the view."""
+    state = load_state(args.state)
+    if is_stopped(state):
+        print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
+        return 1
+    removed = _objects_removed_outside_record(state)
+    if not refresh_beliefs(state):
+        return 1
+    quote_errors = _quote_errors(state, args.state)
+    if quote_errors:
+        for message in quote_errors:
+            print(f"error: {message}", file=sys.stderr)
+        return 1
+    digest = graph_digest(state)
+    last_change = last_graph_change(state)
+    if last_change is not None and last_change.get("graph_digest") == digest:
+        print(f"ok: graph unchanged since step {last_change.get('step')}; beliefs rewritten")
+    else:
+        step = next_event_step(state)
+        state.setdefault("events", []).append({"step": step, "action": "refresh", **removed, "graph_digest": digest})
+        print(f"ok: logged the hand edit as refresh step {step}")
+        for field, object_ids in removed.items():
+            print(f"{field}: {', '.join(object_ids)}")
     dump_state(state, args.output, default_in_place_source(args))
     write_live_view(state, args)
     return 0
@@ -620,12 +664,19 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str) -> int:
     if _stop_preflight(state, reason, outcome) != 0:
         return 1
     events = state.setdefault("events", [])
-    events.append({"step": next_event_step(state), "action": "stop", "reason": reason.strip(), "outcome": outcome})
+    events.append({"step": next_event_step(state), "action": "stop", "reason": reason.strip(), "outcome": outcome, "graph_digest": graph_digest(state)})
     return 0
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
+    unsynced = _edited_outside_cli_message(state)
+    if unsynced:
+        print(f"error: {unsynced}, then get it reviewed again", file=sys.stderr)
+        return 1
+    # The gate judges beliefs it computes itself; stored ones are overwritten, never trusted.
+    if not refresh_beliefs(state):
+        return 1
     # Preflight all terminal invariants before candidate auto-ranking can append
     # a rank event.
     if _stop_preflight(state, args.reason, args.outcome) != 0:
@@ -676,9 +727,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     record = sub.add_parser("record", help="append graph progress and refresh <state>.html")
     record.add_argument("state", help="state JSON path, or - for stdin")
-    record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: reason plus any add, update, or remove operations; reason alone re-syncs a hand-edited state")
+    record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: reason plus any add, update, or remove operations")
     record.add_argument("-o", "--output", help="write updated state to path")
     record.set_defaults(func=cmd_record)
+
+    refresh = sub.add_parser("refresh", help="after a hand edit: validate, recheck quotes, recompute beliefs, and log the edit")
+    refresh.add_argument("state", help="state JSON path")
+    refresh.add_argument("-o", "--output", help="write updated state to path")
+    refresh.set_defaults(func=cmd_refresh)
 
     review = sub.add_parser("review", help="record an independent reviewer's verdict on the current graph")
     review.add_argument("state", help="state JSON path, or - for stdin")

@@ -8,7 +8,7 @@ from typing import Any
 from .models import AUDIT_EVENT_ACTIONS, CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES, ValidationResult
 from .policy import candidate_stop_messages, confidence_stop_messages, ranked_viable_candidates
 from .costs import probability_from_value
-from .events import RECORD_CLAIM_FIELDS, live_record_claims
+from .events import RECORD_CLAIM_FIELDS, graph_digest, live_record_claims
 from .state import by_id
 from .utils import as_string_list
 from .validation import validate_state
@@ -90,13 +90,14 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 errors.append(f"{label}: no events allowed after stop")
             continue
 
-        if action == "record":
-            if not str(event.get("reason") or "").strip():
+        if action in ("record", "refresh"):
+            if action == "record" and not str(event.get("reason") or "").strip():
                 errors.append(f"{label}: record requires a non-empty reason")
             for add_field, remove_field in RECORD_CLAIM_FIELDS.values():
                 as_string_list(event.get(add_field), f"{label}.{add_field}", errors)
                 as_string_list(event.get(remove_field), f"{label}.{remove_field}", errors)
-            stats["records"] += 1
+            if action == "record":
+                stats["records"] += 1
             continue
 
         if action == "review":
@@ -168,6 +169,9 @@ def audit_state(state: dict[str, Any]) -> tuple[ValidationResult, dict[str, int]
                 if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
                     for message in confidence_stop_messages(state):
                         add_policy_violation(policy_result, f"{label}: {outcome} stop needs a grounded, confident answer; {message}", severity)
+            # stop fingerprints the graph it judged; any later edit breaks the match.
+            if event.get("graph_digest") != graph_digest(state):
+                errors.append(f"{label}: the graph changed after stop")
             seen_stop = True
 
     # Each object may be added by one event while the trace holds it (a repeat would let a later

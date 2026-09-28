@@ -69,13 +69,15 @@
         "T1-H2",
         "H2-H1"
       ],
-      "update_factors": []
+      "update_factors": [],
+      "graph_digest": "80bb082dab772d83"
     },
     {
       "step": 2,
       "action": "stop",
       "reason": "The keypad settled it",
-      "outcome": "solved"
+      "outcome": "solved",
+      "graph_digest": "80bb082dab772d83"
     }
   ]
 }

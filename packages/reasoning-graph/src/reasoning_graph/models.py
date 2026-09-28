@@ -45,6 +45,7 @@ FACTOR_AGGREGATION_KINDS = {
 
 AUDIT_EVENT_ACTIONS = {
     "record",
+    "refresh",
     "review",
     "rank",
     "stop",

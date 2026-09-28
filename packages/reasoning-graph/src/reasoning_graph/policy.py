@@ -6,6 +6,7 @@ import math
 from typing import Any
 
 from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, probability_from_value, truth_inputs
+from .events import graph_digest
 from .models import EPISTEMIC_GOAL_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -354,13 +355,12 @@ def missing_review_messages(state: dict[str, Any]) -> list[str]:
     policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
     if policy.get("require_review") is not True:
         return []
-    events = [event for event in state.get("events") or [] if isinstance(event, dict)]
-    last_record = max((index for index, event in enumerate(events) if event.get("action") == "record"), default=-1)
-    reviews = [(index, event) for index, event in enumerate(events) if event.get("action") == "review"]
+    reviews = [event for event in state.get("events") or [] if isinstance(event, dict) and event.get("action") == "review"]
     if not reviews:
         return ["no review recorded; have an independent reviewer check the graph and record its verdict with review"]
-    index, latest = reviews[-1]
-    if index < last_record:
+    latest = reviews[-1]
+    # Compare fingerprints, not event order, so a hand edit made after the review also makes it stale.
+    if latest.get("graph_digest") != graph_digest(state):
         return ["the graph changed after the latest review; review it again"]
     if latest.get("verdict") != "pass":
         return [f"latest review by {latest.get('reviewer')} failed: {latest.get('findings')}; fix and review again"]

@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from reasoning_graph.events import graph_digest
+
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parents[1]
@@ -108,6 +110,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"accepted_goals": ["G1"]}
             write_json(state_path, state)
+            self.ok(run_cli("refresh", str(state_path)))
 
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
 
@@ -122,6 +125,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
+            self.ok(run_cli("refresh", str(state_path)))
 
             self.ok(run_cli("review", str(state_path), "--reviewer", "reviewer-1", "--verdict", "pass", "--findings", "Graph checked."))
             stopped = run_cli("stop", str(state_path), "--reason", "G1 answered; G2 optional", "--outcome", "solved", "-o", str(Path(tmp_dir) / "stopped.json"))
@@ -137,7 +141,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             step = state["events"][-1]["step"]
             state["events"].extend([
                 {"step": step + 1, "action": "rank", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
-                {"step": step + 2, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved"},
+                {"step": step + 2, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved", "graph_digest": graph_digest(state)},
             ])
             write_json(state_path, state)
 
@@ -225,6 +229,7 @@ class StrictTestResultTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
+            self.ok(run_cli("refresh", str(state_path)))
             self.ok(self.record(tmp_dir, state_path, "conclusion", {
                 "reason": "Concluded from the decode attempt",
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "prior": 0.9}],

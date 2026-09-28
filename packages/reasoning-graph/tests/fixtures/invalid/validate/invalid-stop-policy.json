@@ -10,7 +10,8 @@
       "step": 1,
       "action": "stop",
       "reason": "manual stop",
-      "outcome": "user_stopped"
+      "outcome": "user_stopped",
+      "graph_digest": "0b4e342fe16a53f4"
     }
   ]
 }

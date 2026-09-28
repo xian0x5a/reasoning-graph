@@ -71,7 +71,8 @@
         "E1",
         "E2"
       ],
-      "update_factors": []
+      "update_factors": [],
+      "graph_digest": "87c0dba51a9222f4"
     },
     {
       "step": 2,
@@ -90,7 +91,8 @@
       "step": 3,
       "action": "stop",
       "reason": "CS1 answers G1 and its premise chain is recorded",
-      "outcome": "solved"
+      "outcome": "solved",
+      "graph_digest": "87c0dba51a9222f4"
     }
   ]
 }

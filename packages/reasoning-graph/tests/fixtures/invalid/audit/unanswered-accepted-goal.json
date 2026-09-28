@@ -165,7 +165,8 @@
         "E3-A2",
         "A2-T2"
       ],
-      "update_factors": []
+      "update_factors": [],
+      "graph_digest": "4c855e135ebfb87a"
     },
     {
       "step": 2,
@@ -177,7 +178,8 @@
       "add_edges": [
         "T2-E4"
       ],
-      "update_factors": []
+      "update_factors": [],
+      "graph_digest": "4c855e135ebfb87a"
     },
     {
       "step": 3,
@@ -196,7 +198,8 @@
       "step": 4,
       "action": "stop",
       "reason": "systematically solved stage by stage",
-      "outcome": "solved"
+      "outcome": "solved",
+      "graph_digest": "4c855e135ebfb87a"
     }
   ]
 }

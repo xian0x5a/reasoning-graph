@@ -459,6 +459,7 @@
         "action": {
           "enum": [
             "record",
+            "refresh",
             "review",
             "rank",
             "stop"
@@ -578,6 +579,11 @@
               }
             ]
           }
+        },
+        "graph_digest": {
+          "type": "string",
+          "minLength": 1,
+          "description": "fingerprint of the graph the event left or judged"
         }
       },
       "allOf": [
@@ -596,7 +602,8 @@
             "required": [
               "reason",
               "add_nodes",
-              "add_edges"
+              "add_edges",
+              "graph_digest"
             ]
           }
         },
@@ -615,7 +622,8 @@
             "required": [
               "reviewer",
               "verdict",
-              "findings"
+              "findings",
+              "graph_digest"
             ]
           }
         },
@@ -654,7 +662,25 @@
           "then": {
             "required": [
               "reason",
-              "outcome"
+              "outcome",
+              "graph_digest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "refresh"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "required": [
+              "graph_digest"
             ]
           }
         }

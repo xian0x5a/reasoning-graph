@@ -4,12 +4,22 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from reasoning_graph.events import graph_digest
+
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parents[1]
 FIXTURES = PACKAGE_ROOT / "tests" / "fixtures"
 STRICT_FIXTURE = FIXTURES / "valid" / "reasoning-graph-strict-good.json"
 DUPLICATE_FIXTURE = FIXTURES / "invalid" / "audit" / "duplicate-report-candidate.json"
+
+
+def stamp_graph_digest(state: dict) -> dict:
+    """Give a hand-built state the digests the CLI writes, so a test reaches the check it targets."""
+    for event in state.get("events", []):
+        if event.get("action") in {"record", "refresh", "review", "stop"}:
+            event["graph_digest"] = graph_digest(state)
+    return state
 
 
 class DistinctCandidateCliTests(unittest.TestCase):
@@ -46,7 +56,7 @@ class DistinctCandidateCliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "distinct-candidates.json"
-            state_path.write_text(json.dumps(state), encoding="utf-8")
+            state_path.write_text(json.dumps(stamp_graph_digest(state)), encoding="utf-8")
             result = self.run_cli("audit", str(state_path))
 
         self.assertEqual(result.returncode, 0, result.stderr)
