@@ -9,7 +9,7 @@ A round is one fresh session: the agent writes answer.md and score_submit.py gra
 A rejected submit is answered in that same session with "wrong" plus the rubric hint of the
 first key point it failed, so the feedback exists only in the conversation. The next round is
 a new session in a workspace that keeps only the problem and the files the arm may keep, as
-after a killed session. No summary is handed over: in a trial run the summary carried the hint,
+after a killed session. The `graph` arm keeps the graph state and its index. No summary is handed over: in a trial run the summary carried the hint,
 the rejected answer and the facts of the story, which left the arms nothing to differ on.
 
 An item gets one more round than its rubric has key points: after the last hint there is
@@ -40,11 +40,15 @@ PARALLEL_RUNS = int(os.environ.get("RG_BENCH_PARALLEL", "6"))
 ARM_KEPT_FILES = {
     "no-memory": [],
     "notes-file": ["notes.md"],
+    "graph": ["state.json", "state.index.md"],
 }
 PROBLEM_FILES = ["problem.md", "assets"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCH = REPO_ROOT / "tests/scenarios/bench.sh"
+# The installed `reasoning-graph` is a copy from some earlier commit. The skill docs an agent
+# reads come from this working tree, so its CLI must come from here too.
+PACKAGE_BIN = REPO_ROOT / "packages/reasoning-graph/.venv/bin"
 PROBLEMS_DIR = REPO_ROOT / "test-results"
 # bench.sh prepares workspaces under this root.
 WORKSPACE_ROOT = Path(os.environ.get("RG_BENCH_WORKSPACE_ROOT", "/tmp/rg-bench"))
@@ -65,7 +69,8 @@ def run_session(workspace: Path, prompt: str, model: str, transcript: Path, resu
         command += ["--resume", resume]
     with transcript.open("w", encoding="utf-8") as output:
         subprocess.run(command, cwd=workspace, stdout=output, stderr=subprocess.PIPE, text=True,
-                       timeout=SESSION_TIMEOUT_SECONDS, check=True)
+                       timeout=SESSION_TIMEOUT_SECONDS, check=True,
+                       env={**os.environ, "PATH": f"{PACKAGE_BIN}{os.pathsep}{os.environ['PATH']}"})
     return next(event["session_id"] for event in transcript_events(transcript) if "session_id" in event)
 
 
