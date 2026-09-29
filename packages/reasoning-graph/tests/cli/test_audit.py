@@ -4,7 +4,9 @@
 cost 38 refused writes and 23 hand edits, and the certificate guarded an accuracy gate that no
 longer exists. The claim is now `summary.answer`, and its status is computed on demand."""
 
+import html
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -177,6 +179,37 @@ class AuditStatusTests(AuditCase):
 
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
             self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["patch.json", "problem.md", "state.json"])
+
+
+class ViewShowsTheStatusTests(AuditCase):
+    """The reader sees the status `audit` prints, computed when the view is rendered."""
+
+    def view_status(self, view: Path) -> str:
+        return html.unescape(re.search(r'<p class="status"><strong>Status:</strong> (.*?)</p>', view.read_text(encoding="utf-8")).group(1))
+
+    def test_live_view_follows_the_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+            view = state_path.with_suffix(".html")
+            self.assertEqual(self.view_status(view), "no answer claimed")
+
+            self.ok(self.record(state_path, {"answer": "CS1"}))
+            self.assertEqual(self.view_status(view), "answer CS1: checks pass")
+
+            self.ok(self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
+            self.assertEqual(self.view_status(view), "answer CS1: 1 check fails")
+
+    def test_html_command_shows_the_status_audit_prints(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir, answer="CS2")
+            self.edit(state_path, lambda state: state["nodes"][1].update({"quote": "The gardener signed in at ten"}))
+            view = Path(tmp_dir) / "report.html"
+
+            self.ok(run_cli("html", str(state_path), "--offline", "-o", str(view)))
+
+            audit = run_cli("audit", str(state_path))
+            self.assertEqual(self.status(audit), "answer CS2: 2 checks fail")
+            self.assertEqual(self.view_status(view), self.status(audit))
 
 
 class AnswerIsSetByThePatchTests(AuditCase):

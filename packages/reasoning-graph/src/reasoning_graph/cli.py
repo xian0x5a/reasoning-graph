@@ -338,7 +338,7 @@ def cmd_html(args: argparse.Namespace) -> int:
         return 1
     source = to_mermaid(state, group_by_type=True)
     render_mode = "offline" if args.offline else "mermaid"
-    document = html_document(state, source, args.spacing, render_mode)
+    document = html_document(state, source, args.spacing, render_mode, _quote_errors(state, args.state))
     write_output_text(document, args.output)
     return 0
 

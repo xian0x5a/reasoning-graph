@@ -7,6 +7,7 @@ import json
 import math
 from typing import Any
 
+from .audit import audit_state
 from .costs import (
     node_belief_label,
     node_effective_truth_costs,
@@ -649,8 +650,11 @@ def html_document(
     mermaid_source: str,
     spacing: str = "default",
     render_mode: str = "mermaid",
+    quote_errors: list[str] | None = None,
 ) -> str:
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
+    # Computed here, not read from the state, so the reader never sees a stale status.
+    status = html.escape(audit_state(state, quote_errors).status)
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
     title = html.escape(str(summary.get("title") or report.get("title") or "Reasoning Graph"))
     answer = html.escape(str(summary.get("answer") or report.get("answer") or "See report sections."))
@@ -721,6 +725,7 @@ def html_document(
     .hero, section {{ background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06); scroll-margin-top: 5rem; }}
     .hero {{ padding: 1.4rem 1.6rem; margin-bottom: 1rem; }}
     .answer {{ padding: 1rem; background: #eff6ff; border-left: 4px solid var(--brand); border-radius: 12px; }}
+    .status {{ padding: 0.75rem 1rem; background: #f8fafc; border-left: 4px solid var(--line); border-radius: 12px; }}
     .answer-rank-note {{ padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }}
     section {{ padding: 1.2rem; margin: 1rem 0; }}
     .two-col {{ display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }}
@@ -861,6 +866,7 @@ def html_document(
   <header class="hero">
     <h1>{title}</h1>
     <p class="answer"><strong>Answer:</strong> {answer}</p>
+    <p class="status"><strong>Status:</strong> {status}</p>
     {answer_rank_notes(state)}
   </header>
 
