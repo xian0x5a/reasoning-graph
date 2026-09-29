@@ -227,3 +227,10 @@ def test_focus_option_and_detail_card_say_which_candidate_is_the_answer():
     assert "ANSWER" in detail_card(document, "CS2")
     assert "ANSWER" not in detail_card(document, "CS1")
 
+
+def test_mermaid_styles_only_the_groups_it_draws():
+    # A style line for a subgraph that is not drawn makes Mermaid draw a node of that name.
+    source = to_mermaid(ranked_state(""))
+    assert "style cluster_candidates" in source
+    for absent in ("cluster_hypotheses", "cluster_factors", "cluster_other"):
+        assert absent not in source

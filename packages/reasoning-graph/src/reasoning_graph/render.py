@@ -71,6 +71,16 @@ GRAPH_GROUPS = (
 )
 
 
+GROUP_STYLES = {
+    "cluster_goal": "fill:#fffbeb,stroke:#fde68a,stroke-width:1px",
+    "cluster_observations": "fill:#f8fafc,stroke:#bae6fd,stroke-width:1px",
+    "cluster_hypotheses": "fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px",
+    "cluster_candidates": "fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px",
+    "cluster_factors": "fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3",
+    "cluster_other": "fill:#fafafa,stroke:#e5e7eb,stroke-width:1px",
+}
+
+
 def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
     label = escape_mermaid_label(compact_node_label(node, effective_truth_cost, answer_label))
     return f'{mid}["{label}"]'
@@ -130,10 +140,12 @@ def to_mermaid(
 
     groups = grouped_nodes(selected_nodes)
     labels = answer_labels(state)
+    drawn_groups: list[str] = []
     for group_id, title, _ in (*GRAPH_GROUPS, ("cluster_other", "Other", set())):
         group_nodes = groups.get(group_id, [])
         if not group_nodes:
             continue
+        drawn_groups.append(group_id)
         lines.append(f"  subgraph {group_id}[{title}]")
         for node in group_nodes:
             raw_id = str(node.get("id"))
@@ -141,6 +153,7 @@ def to_mermaid(
         lines.append("  end")
 
     if selected_factors:
+        drawn_groups.append("cluster_factors")
         lines.append("  subgraph cluster_factors[Factors]")
         for factor, raw_factor_id in selected_factors:
             lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
@@ -193,15 +206,11 @@ def to_mermaid(
             "  classDef bad fill:#fee2e2,stroke:#dc2626,stroke-width:2px;",
             "  classDef factor fill:#f1f5f9,stroke:#475569,stroke-dasharray: 3 3;",
             "",
-            "  style cluster_goal fill:#fffbeb,stroke:#fde68a,stroke-width:1px;",
-            "  style cluster_observations fill:#f8fafc,stroke:#bae6fd,stroke-width:1px;",
-            "  style cluster_hypotheses fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
-            "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
-            "  style cluster_factors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3;",
-            "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
-            "",
         ]
     )
+    # Mermaid draws a node for a styled group that does not exist, so only drawn groups are styled.
+    lines.extend(f"  style {group_id} {GROUP_STYLES[group_id]};" for group_id in drawn_groups)
+    lines.append("")
 
     for edge_index in styled_edge_indexes:
         lines.append(f"  linkStyle {edge_index} stroke:#d97706,stroke-dasharray:5 5;")
