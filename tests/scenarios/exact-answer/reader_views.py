@@ -10,6 +10,10 @@ For each item, from the last round of run `s55-loop-r1`, into <item-dir>/reader/
     graph-answer.md  the answer the page and the transcript explain
     notes-answer.md  the answer the notes explain
 
+When <item-dir>/reader/plants.json exists (draft_plants.py), the same three views with the
+plant applied go into views/planted/. The page's plant edits the state, so the page is
+rendered again and its beliefs move with the plant.
+
 The page drops what a text reader cannot use: scripts, styles, the graph drawing and its
 Mermaid source. The transcript drops the skill text the harness injects and the grader's
 feedback turns, which neither memory view shows as such.
@@ -162,22 +166,54 @@ def transcript_text(item_dir: Path) -> str:
     return "\n\n".join(sections) + "\n"
 
 
+def apply_edits(text: str, edits: list[dict[str, str]], view: str) -> str:
+    for edit in edits:
+        if edit["find"] not in text:
+            raise ValueError(f"{view} plant: text to replace not found: {edit['find'][:80]!r}")
+        text = text.replace(edit["find"], edit["replace"])
+    return text
+
+
+def planted_state(state: dict[str, Any], plant: dict[str, Any]) -> dict[str, Any]:
+    nodes = {node["id"]: node for node in state["nodes"]}
+    if "node" in plant:
+        if plant["node"] not in nodes:
+            raise ValueError(f"page plant: no node {plant['node']}")
+        return {**state, "nodes": [{**node, "text": plant["text"]} if node["id"] == plant["node"] else node for node in state["nodes"]]}
+    edge = plant["edge"]
+    if edge["from"] not in nodes or edge["to"] not in nodes:
+        raise ValueError(f"page plant: edge {edge['from']}->{edge['to']} has an unknown end")
+    # A planted edge replaces any edge the agent drew between the same two nodes.
+    kept = [old for old in state["edges"] if (old["from"], old["to"]) != (edge["from"], edge["to"])]
+    return {**state, "edges": [*kept, edge]}
+
+
 def item_views(item_dir: Path) -> dict[str, str]:
-    """Each view's text, and the answer each one explains."""
+    """Each view's text, the answer each one explains, and the planted views once there is a plant."""
     graph_round, notes_round = last_round(item_dir, "graph"), last_round(item_dir, "notes-file")
-    return {
-        "page.txt": page_text(claimed_state(item_dir)),
+    state = claimed_state(item_dir)
+    views = {
+        "page.txt": page_text(state),
         "transcript.txt": transcript_text(item_dir),
         "notes.txt": (notes_round / "notes.md").read_text(encoding="utf-8"),
         "graph-answer.md": (graph_round / "answer.md").read_text(encoding="utf-8"),
         "notes-answer.md": (notes_round / "answer.md").read_text(encoding="utf-8"),
     }
+    plants_path = item_dir / "reader" / "plants.json"
+    if plants_path.exists():
+        plant = json.loads(plants_path.read_text(encoding="utf-8"))["views"]
+        views |= {
+            "planted/page.txt": page_text(planted_state(state, plant["page"])),
+            "planted/transcript.txt": apply_edits(views["transcript.txt"], plant["transcript"]["edits"], "transcript"),
+            "planted/notes.txt": apply_edits(views["notes.txt"], plant["notes"]["edits"], "notes"),
+        }
+    return views
 
 
 def write_views(item_dir: Path) -> None:
     views_dir = item_dir / "reader" / "views"
-    views_dir.mkdir(parents=True, exist_ok=True)
     for name, text in item_views(item_dir).items():
+        (views_dir / name).parent.mkdir(parents=True, exist_ok=True)
         (views_dir / name).write_text(text, encoding="utf-8")
 
 
