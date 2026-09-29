@@ -4,71 +4,32 @@ from __future__ import annotations
 
 import html
 import json
-import math
 from typing import Any
 
 from .audit import audit_state
 from .costs import (
-    node_belief_label,
     node_effective_truth_costs,
     probability_from_cost,
 )
-from .identities import RenderIdentityMap, render_identity_map
-from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
+from .graph_view import GRAPH_GROUPS, NODE_COLORS, OTHER_GROUP, ViewEdge, graph_view
+from .identities import RenderIdentityMap, html_anchor, render_identity_map
+from .models import BELIEF_NODE_TYPES, node_type_label
 from .offline_render import offline_graph_svg
-from .policy import accepted_goal_ids, answer_candidates, answer_labels, goal_best_candidates, preferred_goal_ids, ranked_candidates
+from .policy import (
+    accepted_goal_ids,
+    answer_candidates,
+    answer_labels,
+    goal_best_candidates,
+    preferred_goal_ids,
+    ranked_candidates,
+)
 from .state import by_id
-from .utils import finite_float
-from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
 
-def escape_mermaid_label(text: str) -> str:
+def mermaid_label(text: str) -> str:
     # Mermaid node labels are HTML-ish; keep labels compact and safe.
     escaped = html.escape(text, quote=True)
     return escaped.replace("\n", "<br/>")
-
-
-def clip_text(text: str, limit: int = 72) -> str:
-    compact = " ".join(str(text).split())
-    if len(compact) <= limit:
-        return compact
-    return compact[: max(0, limit - 1)].rstrip() + "…"
-
-
-
-def html_anchor(raw: str, prefix: str = "details") -> str:
-    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in str(raw))
-    cleaned = cleaned.strip("-") or "node"
-    return f"{prefix}-{cleaned}"
-
-
-def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
-    # Keep graph labels stable and tiny. Full text lives in modal/detail cards;
-    # long Mermaid labels are hard to navigate and can expose HTML entity noise.
-    node_id = str(node.get("id") or "node")
-    # The answer is labelled, not highlighted: the focus control lights a path when the reader asks.
-    id_line = f"{node_id} · {answer_label}" if answer_label else node_id
-    parts = (id_line, node_type_label(node), node_belief_label(node, effective_truth_cost))
-    return "\n".join(part for part in parts if part)
-
-
-def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
-    classes: dict[str, set[str]] = {}
-    for node in state.get("nodes", []):
-        if not isinstance(node, dict):
-            continue
-        cls = node_render_class(node)
-        node_id = str(node.get("id"))
-        classes.setdefault(cls, set()).add(node_id)
-    return classes
-
-
-GRAPH_GROUPS = (
-    ("cluster_goal", "Goal", {"goal"}),
-    ("cluster_observations", "Observations", {"observation", "constraint"}),
-    ("cluster_hypotheses", "Hypotheses", {"hypothesis", "test"}),
-    ("cluster_candidates", "Candidates", {"candidate_solution"}),
-)
 
 
 GROUP_STYLES = {
@@ -80,29 +41,19 @@ GROUP_STYLES = {
     "cluster_other": "fill:#fafafa,stroke:#e5e7eb,stroke-width:1px",
 }
 
-
-def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
-    label = escape_mermaid_label(compact_node_label(node, effective_truth_cost, answer_label))
-    return f'{mid}["{label}"]'
-
-
-def mermaid_factor_definition(mid: str, factor: VisualFactor) -> str:
-    label = escape_mermaid_label(compact_factor_label(factor))
-    return f'{mid}{{{{"{label}"}}}}'
+# Mermaid-only touches on top of the shared colours.
+CLASS_EXTRAS = {
+    "goal": ",stroke-width:2px",
+    "not_run": ",stroke-dasharray:5 4,color:#64748b",
+    "candidate": ",stroke-width:2px",
+    "factor": ",stroke-dasharray: 3 3",
+}
 
 
-def grouped_nodes(nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    groups: dict[str, list[dict[str, Any]]] = {group_id: [] for group_id, _, _ in GRAPH_GROUPS}
-    groups["cluster_other"] = []
-    for node in nodes:
-        node_type = str(node.get("type", ""))
-        for group_id, _, types in GRAPH_GROUPS:
-            if node_type in types:
-                groups[group_id].append(node)
-                break
-        else:
-            groups["cluster_other"].append(node)
-    return groups
+def mermaid_edge(edge: ViewEdge) -> str:
+    if edge.dashed:
+        return f"  {edge.source} -. {edge.label} .-> {edge.target}"
+    return f"  {edge.source} -- {edge.label} --> {edge.target}"
 
 
 def to_mermaid(
@@ -111,124 +62,52 @@ def to_mermaid(
     direction: str = "TD",
     identities: RenderIdentityMap | None = None,
 ) -> str:
-    node_truth_costs = node_effective_truth_costs(state)
+    view = graph_view(state, identities)
     safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
     lines = [f"flowchart {safe_direction}"]
-    identities = identities or render_identity_map(state)
-    node_id_map: dict[str, str] = {}
-    factor_id_map: dict[str, str] = {}
-    selected_nodes: list[dict[str, Any]] = []
-    for node in state.get("nodes", []):
-        if not isinstance(node, dict):
-            continue
-        raw_id = str(node.get("id"))
-        mid = identities.node(raw_id)
-        if mid is None:
-            continue
-        node_id_map[raw_id] = mid
-        selected_nodes.append(node)
 
-    factor_selection = select_visual_factors(state, node_id_map)
-    factor_member_edges = factor_selection.member_edges
-    selected_factors: list[tuple[VisualFactor, str]] = []
-    for factor in factor_selection.factors:
-        factor_mid = identities.factor(factor.raw_id)
-        if factor_mid is None:
-            continue
-        factor_id_map[factor.raw_id] = factor_mid
-        selected_factors.append((factor, factor.raw_id))
-
-    groups = grouped_nodes(selected_nodes)
-    labels = answer_labels(state)
     drawn_groups: list[str] = []
-    for group_id, title, _ in (*GRAPH_GROUPS, ("cluster_other", "Other", set())):
-        group_nodes = groups.get(group_id, [])
+    for group_id, title in (*((group_id, title) for group_id, title, _ in GRAPH_GROUPS), OTHER_GROUP):
+        group_nodes = [node for node in view.nodes if node.group == group_id]
         if not group_nodes:
             continue
         drawn_groups.append(group_id)
         lines.append(f"  subgraph {group_id}[{title}]")
-        for node in group_nodes:
-            raw_id = str(node.get("id"))
-            lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id], labels.get(raw_id, ''))}")
+        lines.extend(f'    {node.render_id}["{mermaid_label(node.label)}"]' for node in group_nodes)
         lines.append("  end")
 
-    if selected_factors:
+    if view.factors:
         drawn_groups.append("cluster_factors")
         lines.append("  subgraph cluster_factors[Factors]")
-        for factor, raw_factor_id in selected_factors:
-            lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
+        lines.extend(f'    {factor.render_id}{{{{"{mermaid_label(factor.label)}"}}}}' for factor in view.factors)
         lines.append("  end")
 
-    styled_edge_indexes: list[int] = []
-    rendered_edge_index = 0
-    for edge in state.get("edges", []):
-        if not isinstance(edge, dict):
-            continue
-        src_raw = str(edge.get("from"))
-        dst_raw = str(edge.get("to"))
-        src = node_id_map.get(src_raw)
-        dst = node_id_map.get(dst_raw)
-        if not src or not dst:
-            continue
-        edge_type = str(edge.get("type") or edge.get("label") or "leads_to")
-        if (src_raw, dst_raw, edge_type) in factor_member_edges:
-            continue
-        if edge_type in {"contradicts", "prompts", "tested_by", "tests"}:
-            lines.append(f"  {src} -. {edge_type} .-> {dst}")
-        else:
-            lines.append(f"  {src} -- {edge_type} --> {dst}")
-        if edge_type in {"prompts", "tested_by", "tests"}:
-            styled_edge_indexes.append(rendered_edge_index)
-        rendered_edge_index += 1
+    drawn_edges = view.drawn_edges()
+    lines.extend(mermaid_edge(edge) for edge in drawn_edges)
 
-    for factor, raw_factor_id in selected_factors:
-        factor_mid = factor_id_map[raw_factor_id]
-        for input_id in factor.inputs:
-            input_mid = node_id_map.get(input_id)
-            if input_mid:
-                lines.append(f"  {input_mid} -. grouped {factor.relation} .-> {factor_mid}")
-                rendered_edge_index += 1
-        target_mid = node_id_map.get(factor.target)
-        if target_mid:
-            lines.append(f"  {factor_mid} -- {factor.relation} factor --> {target_mid}")
-            rendered_edge_index += 1
-
+    lines.append("")
     lines.extend(
-        [
-            "",
-            "  classDef goal fill:#fef3c7,stroke:#d97706,stroke-width:2px;",
-            "  classDef observation fill:#ecfeff,stroke:#0891b2;",
-            "  classDef constraint fill:#fff7ed,stroke:#ea580c;",
-            "  classDef hypothesis fill:#f5f3ff,stroke:#7c3aed;",
-            "  classDef test fill:#e0f2fe,stroke:#0284c7;",
-            "  classDef not_run fill:#f8fafc,stroke:#94a3b8,stroke-dasharray:5 4,color:#64748b;",
-            "  classDef candidate fill:#dbeafe,stroke:#2563eb,stroke-width:2px;",
-            "  classDef bad fill:#fee2e2,stroke:#dc2626,stroke-width:2px;",
-            "  classDef factor fill:#f1f5f9,stroke:#475569,stroke-dasharray: 3 3;",
-            "",
-        ]
+        f"  classDef {cls} fill:{fill},stroke:{stroke}{CLASS_EXTRAS.get(cls, '')};" for cls, (fill, stroke) in NODE_COLORS.items()
     )
+    lines.append("")
     # Mermaid draws a node for a styled group that does not exist, so only drawn groups are styled.
     lines.extend(f"  style {group_id} {GROUP_STYLES[group_id]};" for group_id in drawn_groups)
     lines.append("")
 
-    for edge_index in styled_edge_indexes:
-        lines.append(f"  linkStyle {edge_index} stroke:#d97706,stroke-dasharray:5 5;")
+    lines.extend(
+        f"  linkStyle {index} stroke:#d97706,stroke-dasharray:5 5;" for index, edge in enumerate(drawn_edges) if edge.follow_up
+    )
 
-    factor_mids = [factor_id_map[raw_factor_id] for _, raw_factor_id in selected_factors]
-    if factor_mids:
-        lines.append(f"  class {','.join(factor_mids)} factor;")
+    if view.factors:
+        lines.append(f"  class {','.join(factor.render_id for factor in view.factors)} factor;")
 
-    classes = class_assignments(state)
-    for cls, ids in sorted(classes.items()):
-        mids = [node_id_map[node_id] for node_id in sorted(ids) if node_id in node_id_map]
-        if mids:
-            lines.append(f"  class {','.join(mids)} {cls};")
+    for cls in sorted({node.render_class for node in view.nodes}):
+        members = sorted((node for node in view.nodes if node.render_class == cls), key=lambda node: node.raw_id)
+        lines.append(f"  class {','.join(node.render_id for node in members)} {cls};")
 
-    for raw_id, mid in sorted(node_id_map.items()):
-        anchor = identities.node_anchor(raw_id)
-        tooltip = escape_mermaid_label(f"Open details for {raw_id}")
-        lines.append(f'  click {mid} "#{anchor}" "{tooltip}"')
+    for node in sorted(view.nodes, key=lambda node: node.raw_id):
+        tooltip = mermaid_label(f"Open details for {node.raw_id}")
+        lines.append(f'  click {node.render_id} "#{node.anchor}" "{tooltip}"')
     return "\n".join(lines) + "\n"
 
 

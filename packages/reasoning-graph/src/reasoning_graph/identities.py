@@ -85,3 +85,10 @@ def render_identity_map(state: dict[str, Any]) -> RenderIdentityMap:
         node_ids={raw_id: allocated[("node", raw_id)] for raw_id in node_raw_ids},
         factor_ids={raw_id: allocated[("factor", raw_id)] for raw_id in factor_raw_ids},
     )
+
+
+def html_anchor(raw: str, prefix: str = "details") -> str:
+    """An HTML id for page parts that are not graph records, such as a section or an svg marker."""
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in str(raw))
+    cleaned = cleaned.strip("-") or "node"
+    return f"{prefix}-{cleaned}"

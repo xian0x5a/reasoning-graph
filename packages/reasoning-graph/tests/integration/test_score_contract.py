@@ -16,7 +16,8 @@ from reasoning_graph.cli import starter_state
 from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
 from reasoning_graph.models import EDGE_TYPES, NODE_TYPES
 from reasoning_graph.offline_render import offline_graph_svg
-from reasoning_graph.render import compact_node_label, to_mermaid
+from reasoning_graph.graph_view import compact_node_label
+from reasoning_graph.render import to_mermaid
 from reasoning_graph.schema_validation import patch_schema_errors, standalone_schema, state_schema_errors
 from reasoning_graph.validation import validate_state
 
