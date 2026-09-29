@@ -54,10 +54,13 @@ Constraints:
 
 ## Progress
 
-- [ ] 1. State prune
-- [ ] 2. Page
+- [x] 1. State prune (`55047bd`, docs and ADR 0013 in `971a17e`)
+- [x] 2. Page (`3b02ec5`, `cac3706`, `9d2176a`)
 
 ## Surprises & Discoveries
+
+- **Node filtering had no caller left.** `include_nodes` and `group_by_type` of both renderers served only the presentation view, so they went with it.
+- **Mermaid drew empty group boxes.** `cluster_factors` and `cluster_other` appeared beside the graph of a state without factors. Older than this plan, found in the screenshot, fixed in `9d2176a`.
 
 ## Decisions
 
@@ -73,3 +76,19 @@ Constraints:
    | Graph only, no header | 2 | 5 | 5 | 26 |
 
 ## Outcomes & Retrospective
+
+Both parts are done. The package check passes: 367 tests, 73 subtests. The change removes 750 lines and adds 291 over 23 files.
+
+- **State:** a state that carries `report`, `presentation` or `view` fails validation, and the message says where the content goes.
+- **Commands:** `mermaid` lost `--view` and `--grouped`. It always renders the full graph, grouped by type.
+- **Page:** the header reads `Answer: CS3, <candidate text>`, then the status. The page then shows the graph and the node details. The candidate table, the insight cards and "Best next verification" are gone.
+- **Answer label:** the node reads `CS3 · ANSWER`, or `CS1 · ANSWER to G1` with several goals. The detail card reads `candidate_solution · ANSWER`, and the focus option `CS3 (ANSWER)`. Nothing is highlighted until the reader picks a focus.
+
+Checked on a real state of `s55-loop-r3` (26 nodes) in both render modes, by screenshot.
+
+Seen in the screenshots and left alone, both older than this plan and both for #39:
+
+1. Mermaid fits a wide graph to the width of the canvas. The nodes are small and most of the canvas is empty until the reader zooms.
+2. The offline SVG puts all observations in one long column, and edge labels overlap where many edges meet.
+
+Not measured: whether a reader finds the answer or an error faster. That is the eval of #39.
