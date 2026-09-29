@@ -12,7 +12,7 @@ In the resume loop of #37 the graph arm passed as many items as a notes file but
 
 ## Scope & Constraints
 
-In scope: the ten decisions under Decisions, the docs and ADRs that describe them, and one rerun of the graph arm.
+In scope: the eleven decisions under Decisions, the docs and ADRs that describe them, and one rerun of the graph arm.
 
 Out of scope, each a later plan:
 
@@ -74,6 +74,11 @@ The HTML shows the status line of `audit`, computed when it renders. Nothing els
 ### 7. Docs and ADRs
 
 - `skills/reasoning-graph/SKILL.md`, `docs/driver.md`, `docs/schema/*.md`, `README.md`, `docs/test-scenarios.md`.
+- A new section in `SKILL.md` for a rejected answer, about five lines. One patch carries all of it:
+  - what the user said, as an observation with `source: "user"`
+  - a `contradicts` edge from it to the rejected candidate
+  - a `test` node for each check the guidance asks for, so it shows under `Open` in the index
+  - `"answer": ""`, unless the answer stands and only its explanation was rejected
 - A new ADR: status is computed, not stored. It amends 0008, 0010 and 0011.
 - Package version goes to 0.3.0.
 
@@ -90,6 +95,8 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
   - no hand edit of `state.json` strips or repairs anything the CLI wrote
   - no record fails on `G1`
   - passed items stay at 12 of 14, within run-to-run noise
+  - hints used in the next submit stay at 25 of 25, within noise. The `Last record` line often carried the hint, so a drop points at its removal
+  - no rejected answer is repeated
   - tool calls and cost are reported against the notes file ($6.86, 115 calls)
 
 ## Progress
@@ -124,6 +131,7 @@ Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 
 9. `stop_policy` is removed whole: `severity`, `min_viable_candidates`, and with them `init --strict` and `init --profile`. They configured the stop gate, and there is no stop gate. A state that carries `stop_policy` fails validation.
 10. There is no outcome. `solved`, `inconclusive`, `blocked`, `budget_exhausted`, `candidate_count_met` and `user_stopped` are all removed. `inconclusive` and `blocked` changed no check, and the reason for giving up is a hypothesis node and a line in the final response. The file alone does not tell "gave up" from "still working".
+11. A rejected answer is handled by a convention in `SKILL.md`, with no new field or command. The resume loop is this workflow, so the rerun measures it.
 
 `goal_policy` stays. It says which goals need an answer, which the answer checks read.
 
