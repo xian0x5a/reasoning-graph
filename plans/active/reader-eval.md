@@ -27,7 +27,7 @@ In scope:
 
 - Three views of each item, each given to the reader together with the answer it explains:
   - **page:** the case-first page of the graph run, as visible text. Scripts, styles, the SVG and the Mermaid source are dropped. This measures the page's content and order, not its visuals.
-  - **transcript:** the graph run's session transcripts as plain text: user and assistant turns, and tool results. It holds the same reasoning as the page, so page against transcript isolates the presentation.
+  - **transcript:** the graph run's sessions as plain text: the agent's text, its tool calls and their results. It holds the same reasoning as the page, so page against transcript isolates the presentation. The skill text the harness injects and the grader's feedback turns are dropped; what the agent wrote down from the feedback stays, as it does in the other two views.
   - **notes:** `notes.md` of the notes-file run, with that run's answer.
 - The 11 items where both the graph run and the notes-file run of `s55-loop-r1` passed, at each run's last round. Excluded: the-anonymous-bank-robber, the-card-shark, the-golden-ruse.
 - A model reader for the runs; an optional check by the user at the end.
@@ -40,7 +40,7 @@ Out of scope:
 Constraints:
 
 - True Detective texts, views, plants and reader outputs stay out of git, under `test-results/exact-answer/true-detective/<item>/reader/`. Scripts go under `tests/scenarios/exact-answer/`.
-- The reader gets no tools and no story: one structured call per task with the answer and one view, through `model_call.structured_call`. The transcript view still holds the story. That is its real advantage, and it is reported, not removed.
+- The reader gets no tools and no story: one structured call per task with the answer and one view, through `model_call.model_call`. The transcript view still holds the story. That is its real advantage, and it is reported, not removed.
 - The reader is `claude-opus-5-5`, not the `claude-sonnet-5-5` that wrote the records, so it does not share the author's misreadings of a clue (#36 traced most wrong answers to a misread clue). The judge is `claude-opus-5-5` too; it only matches reader output against known keys.
 - Pilot before the full run: 3 items end to end, then 11.
 
@@ -48,23 +48,23 @@ Constraints:
 
 | Task | Reader is asked | Scored by |
 | --- | --- | --- |
-| Trace | For each point the answer rests on: the claim, and the verbatim story passage the view shows for it, or "not shown". | A quote counts when it is a normalised substring of the story (mechanical). A rubric key point counts as traced when the judge maps a claim with a verbatim quote to it. Hit rate is traced key points ÷ key points. |
-| Catch | Where does the reasoning claim more than its source supports, or lean on evidence that does not bear on the answer? Name the place (node id, or the quoted line) and say why; or say none. | The judge sorts each finding: the planted flaw, a real flaw already in the record, or spurious. Real flaws are checked by hand before they count. Hit rate is planted flaws caught; false alarms are spurious findings, clean records included. |
+| Trace | For each rubric key point: the story passage the view shows for it, copied exactly, or nothing. | The passage must be in the view and in the story, by normalised substring (mechanical). A judge holding the story then says whether it is the point's clue. Hit rate is traced key points ÷ key points. |
+| Catch | Up to five overclaims or wrong weights, most serious first: the place (node id, or an excerpt) and why; or none. | The judge sorts each finding: the planted flaw, a real flaw already in the record, or spurious. Real flaws are checked by hand before they count. Hit rate is planted flaws caught; false alarms are spurious findings, clean records included. |
 
-Reading cost is the view's size in tokens, from the call's usage. For a single model call that is the whole of "time"; timing a reader in minutes is left to the human check.
+Reading cost is the view's size in characters. A call's token count does not measure it: the harness adds about 7k tokens of its own to every call. For a single model call, size is the whole of "time"; timing a reader in minutes is left to the human check.
 
 ## Plants
 
 One plant per item and view, alternating between two kinds by item:
 
-| Kind | page (edit the state, re-render) | transcript (edit an assistant turn) | notes (edit a line) |
+| Kind | page (edit the state, re-render) | transcript (exact text edits) | notes (exact text edits) |
 | --- | --- | --- | --- |
-| overclaim | an observation of the why-tree says more than its quote; the quote is unchanged | the agent states the same stronger fact | the note states the same stronger fact |
-| wrong weight | an observation that does not bear on the answer `supports` it at score 5 | the agent calls that clue strong support | the note calls that clue strong support |
+| overclaim | an observation of the why-tree says more than its quote; the quote is unchanged | the node's text, wherever it appears, says the same | the note states the same stronger fact |
+| wrong weight | an observation that does not bear on the answer `supports` it, or a why-tree hypothesis, at score 5 | a sentence in the agent's last session calls that clue strong support | a line calls that clue strong support |
 
 - The same fact is planted in every view that holds it. When the notes lack it, the notes get the same kind of plant on a fact they do hold, and the plant file records the swap.
 - Each item-view is also read clean, as the control.
-- A model drafts the plants from the story, the state and the notes (`draft_plants.py`). I check each by hand: the flaw is real against the story, and it is the only change.
+- A model drafts the plants from the story and the three views (`draft_plants.py`). I check each by hand: the flaw is real against the story, and it is the only change.
 - Planted states are re-rendered, so beliefs and weak spots move with the plant, as they would for a real flaw.
 
 ## Work Plan
@@ -93,7 +93,7 @@ Catch's two plant kinds give a first read on the open question of #39, whether t
 
 - The pilot's reader outputs are read by hand before the full run. A task the reader misunderstands shows there first.
 - Every plant is checked by hand against the story before any Catch run.
-- The verbatim check is tested on the graph quotes: 139 of 144 must pass, matching the count above.
+- The verbatim check is tested on the graph quotes: 141 of 144 pass. It also reads an ellipsis as a gap and ignores end punctuation, which accounts for the gain on the count above; the three misses quote the grader, not the story.
 
 ## Risks
 
