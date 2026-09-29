@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -298,7 +299,9 @@ def catch_read(item_dir: Path, view: str, condition: str) -> dict:
     if findings:
         plant = plant_of(item_dir)
         plant_section = PLANT_SECTION.format(flaw=plant["views"][view]["flaw"]) if condition == "planted" else NO_PLANT_SECTION
-        listing = "\n\n".join(f"{number}. Where: {finding['where']}\n   Why: {finding['why']}" for number, finding in enumerate(findings, 1))
+        listing = "\n\n".join(
+            f"{number}. Where: {finding['where']}\n   Why: {finding['why']}" for number, finding in enumerate(findings, 1)
+        )
         judgement = model_call(
             CATCH_JUDGE_PROMPT.format(plant_section=plant_section, story=story_of(item_dir), record=record, findings=listing),
             CATCH_JUDGE_SCHEMA, JUDGE_MODEL, JUDGE_SYSTEM_PROMPT,
@@ -338,7 +341,12 @@ def run_job(task: str, job: tuple[Path, str, str | None, int]) -> str:
     path = result_path(task, item_dir, view, condition, repeat)
     if path.exists():
         return f"skip  {path.relative_to(item_dir.parent)}"
-    result = trace_read(item_dir, view) if task == "trace" else catch_read(item_dir, view, condition)
+    # The safety classifier refuses a call now and then, some of them on every try, so one
+    # failed read is reported and the rest still run; a rerun retries what is missing.
+    try:
+        result = trace_read(item_dir, view) if task == "trace" else catch_read(item_dir, view, condition)
+    except (subprocess.TimeoutExpired, RuntimeError) as error:
+        return f"FAIL  {path.relative_to(item_dir.parent)}: {str(error)[:200]}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return f"done  {path.relative_to(item_dir.parent)}"
@@ -351,9 +359,13 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=1)
     args = parser.parse_args()
     jobs = read_jobs(args.task, [item_dir.resolve() for item_dir in args.item_dirs], args.repeats)
+    failed = 0
     with ThreadPoolExecutor(PARALLEL_READS) as pool:
         for line in pool.map(lambda job: run_job(args.task, job), jobs):
             print(line, flush=True)
+            failed += line.startswith("FAIL")
+    if failed:
+        raise SystemExit(f"{failed} reads failed; run again to retry them")
 
 
 if __name__ == "__main__":

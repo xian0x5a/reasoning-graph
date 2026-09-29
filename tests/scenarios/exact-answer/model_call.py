@@ -16,11 +16,14 @@ def model_call(prompt: str, schema: dict, model: str, system_prompt: str = SYSTE
         ["claude", "-p", prompt, "--model", model, "--output-format", "json",
          "--no-session-persistence", "--tools", "", "--system-prompt", system_prompt,
          "--json-schema", json.dumps(schema)],
-        capture_output=True, text=True, timeout=CALL_TIMEOUT_SECONDS, check=True,
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=CALL_TIMEOUT_SECONDS, check=False,
     )
+    if completed.returncode and not completed.stdout.strip():
+        raise RuntimeError(f"model call failed (exit {completed.returncode}): {completed.stderr.strip()[:300]}")
     result = json.loads(completed.stdout)
-    if result["is_error"]:
-        raise RuntimeError(f"model call failed: {result['result']}")
+    # A refusal by the safety classifier exits 1 with a normal result; its stop reason says why.
+    if completed.returncode or result["is_error"]:
+        raise RuntimeError(f"model call failed ({result.get('stop_reason')}): {str(result.get('result'))[:300]}")
     return result
 
 
