@@ -272,6 +272,21 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("audit", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
+    def test_init_names_the_goal_it_created(self) -> None:
+        # All 12 duplicate-id failures of the #37 loop were a first patch adding G1 again:
+        # init created it and said nothing (issue #38).
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+
+            init = self.run_cli("init", "--goal", " Diagnose outage ", "-o", str(state_path))
+
+            self.assertEqual(init.returncode, 0, init.stderr)
+            self.assertEqual(init.stdout, f"created {state_path} with goal G1: Diagnose outage\n")
+
+        to_stdout = self.run_cli("init", "--goal", "Diagnose outage")
+        self.assertEqual(json.loads(to_stdout.stdout)["nodes"], [{"id": "G1", "type": "goal", "text": "Diagnose outage"}])
+        self.assertEqual(to_stdout.stderr, "")
+
     def test_record_enables_fresh_init_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"

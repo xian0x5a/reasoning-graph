@@ -64,6 +64,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
     state = starter_state(goal)
     dump_state(state, args.output)
+    if args.output and args.output != "-":
+        # Said aloud so the first patch does not add the goal again.
+        goal_node = state["nodes"][0]
+        print(f"created {args.output} with goal {goal_node['id']}: {goal_node['text']}")
     return 0
 
 
