@@ -155,23 +155,6 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
             result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_draft_must_name_the_answer_candidate_among_several(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.fixture_state()
-            state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
-            state["edges"].append({"from": "CS2", "to": "G1", "type": "answers"})
-            state_path = write_json(Path(tmp_dir) / "state.json", state)
-            draft_path = Path(tmp_dir) / "answer.md"
-            draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
-
-            rejected = run_cli("audit", str(state_path), "--draft", str(draft_path))
-
-            self.assertEqual(rejected.returncode, 1, rejected.stdout)
-            self.assertIn("draft does not mention candidate CS1", rejected.stderr)
-
-            draft_path.write_text("Final answer: Candidate from A1.", encoding="utf-8")
-            self.assertEqual(run_cli("audit", str(state_path), "--draft", str(draft_path)).returncode, 0)
-
     def test_report_rows_and_winning_path_must_resolve_to_graph_nodes(self) -> None:
         cases = {
             "unknown-candidate-row": ({"candidates": [{"id": "CS9", "name": "Ghost"}]}, "report.candidates[0].id references missing candidate_solution 'CS9'"),

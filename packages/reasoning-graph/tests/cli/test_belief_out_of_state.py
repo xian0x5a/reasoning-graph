@@ -145,10 +145,8 @@ class AnswerNamesACandidateTests(StateCase):
     def test_answer_may_name_a_grounded_candidate_that_is_not_top_ranked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, answer="The butler did it.")
-            draft = Path(tmp_dir) / "answer.md"
-            draft.write_text("Final answer: The butler. The gardener signed in at nine, which clears him.", encoding="utf-8")
 
-            self.ok(self.audit(state_path, "--draft", str(draft)))
+            self.ok(self.audit(state_path))
 
     def test_grounding_check_judges_the_named_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

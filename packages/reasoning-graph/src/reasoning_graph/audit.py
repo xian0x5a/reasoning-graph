@@ -26,18 +26,18 @@ class AuditReport:
         return not self.errors
 
 
-def answer_check_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
+def answer_check_messages(state: dict[str, Any]) -> list[str]:
     """Everything a claimed answer must satisfy; the graph must be valid."""
 
     return (
         unanswered_goal_messages(state)
-        + unnamed_answer_messages(state, draft)
+        + unnamed_answer_messages(state)
         + ungrounded_answer_messages(state)
         + unrecorded_test_messages(state)
     )
 
 
-def audit_state(state: dict[str, Any], quote_errors: list[str] | None = None, draft: str | None = None) -> AuditReport:
+def audit_state(state: dict[str, Any], quote_errors: list[str] | None = None) -> AuditReport:
     """Check the graph and the quotes, and the answer checks once an answer is claimed.
 
     `quote_errors` come from the caller, which knows where the source files are.
@@ -51,6 +51,6 @@ def audit_state(state: dict[str, Any], quote_errors: list[str] | None = None, dr
         needs = unanswered_goal_messages(state) + unrecorded_test_messages(state) if validation.ok else []
         return AuditReport(status="no answer claimed", errors=errors, warnings=validation.warnings, needs=needs)
     # The answer checks read the graph, so they wait for a valid one.
-    errors += answer_check_messages(state, draft) if validation.ok else []
+    errors += answer_check_messages(state) if validation.ok else []
     outcome = "checks pass" if not errors else "1 check fails" if len(errors) == 1 else f"{len(errors)} checks fail"
     return AuditReport(status=f"answer {answer}: {outcome}", errors=errors, warnings=validation.warnings, needs=[])

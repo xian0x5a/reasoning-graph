@@ -146,16 +146,17 @@ class AuditStatusTests(AuditCase):
 
             self.fails(run_cli("audit", str(state_path)), "report.answer is set while summary.answer is empty")
 
-    def test_draft_must_mention_the_answer_candidate(self) -> None:
+    def test_audit_takes_no_draft(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, answer="CS1")
             draft = Path(tmp_dir) / "answer.md"
-            draft.write_text("Final answer: The butler.", encoding="utf-8")
+            draft.write_text("Final answer: The gardener.", encoding="utf-8")
 
-            self.fails(run_cli("audit", str(state_path), "--draft", str(draft)), "draft does not mention candidate CS1 ('The gardener') for goal G1")
+            rejected = run_cli("audit", str(state_path), "--draft", str(draft))
 
-            draft.write_text("Final answer: The gardener. The butler only had the key.", encoding="utf-8")
-            self.ok(run_cli("audit", str(state_path), "--draft", str(draft)))
+            # argparse exits with 2 on an argument it does not know.
+            self.assertEqual(rejected.returncode, 2, rejected.stdout)
+            self.assertIn("unrecognized arguments: --draft", rejected.stderr)
 
     def test_malformed_graph_and_failed_quote_fail_without_an_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

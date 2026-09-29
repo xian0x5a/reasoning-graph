@@ -12,7 +12,7 @@ reasoning-graph record state.json --patch - <<'JSON'   # apply a patch; refreshe
 {"nodes": [...], "edges": [...], "answer": "CS1"}
 JSON
 reasoning-graph refresh state.json                 # after a hand edit: validate, recheck quotes, rewrite the views
-reasoning-graph audit state.json --draft answer.md # read-only: graph, quotes, and the claimed answer
+reasoning-graph audit state.json                   # read-only: graph, quotes, and the claimed answer
 reasoning-graph mermaid state.json                 # emit Mermaid source
 reasoning-graph html state.json -o graph.html      # render a report; record already keeps state.html current
 reasoning-graph schema state                       # packaged JSON Schema (also: schema patch)
@@ -110,7 +110,7 @@ A hand edit is checked, not logged. `refresh` validates the graph, rechecks ever
 
 ## Audit
 
-`audit <state> [--draft <file>]` reads the state and writes nothing. Its first output line is the status. Failed checks go to stderr as `error:` lines.
+`audit <state>` reads the state and writes nothing. Its first output line is the status. Failed checks go to stderr as `error:` lines.
 
 | State | Checks | Status line | Exit code |
 | --- | --- | --- | --- |
@@ -123,7 +123,7 @@ Answer checks:
 
 - every accepted, non-optional goal is answered (`docs/schema/goals.md`)
 - `summary.answer` names exactly one candidate for each of those goals, by id as a whole word or by exact text. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
-- `report.answer`, when set, and the `--draft` file name the same candidate. The draft may mention rivals
+- `report.answer`, when set, names the same candidate
 - the answer candidate is evidence-grounded, and every test has a result or `not_run` (`../SKILL.md`)
 
 `report.answer` without `summary.answer` fails validation: the view would show an answer nothing checked.

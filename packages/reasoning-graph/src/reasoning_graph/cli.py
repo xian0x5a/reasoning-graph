@@ -26,9 +26,8 @@ def cmd_schema(args: argparse.Namespace) -> int:
 def cmd_audit(args: argparse.Namespace) -> int:
     """Read-only: report the status first, then what failed or what an answer still needs."""
     state = load_state(args.state)
-    draft = Path(args.draft).read_text(encoding="utf-8") if args.draft else None
     quote_errors = _quote_errors(state, args.state) if isinstance(state, dict) else []
-    report = audit_state(state, quote_errors, draft)
+    report = audit_state(state, quote_errors)
     print(report.status)
     for need in report.needs:
         print(f"needs: {need}")
@@ -369,7 +368,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     audit = sub.add_parser("audit", help="read-only check of the graph, the quotes, and the claimed answer")
     audit.add_argument("state", help="state JSON path, or - for stdin")
-    audit.add_argument("--draft", help="final answer draft; it must mention the answer candidate of each goal")
     audit.set_defaults(func=cmd_audit)
 
     mermaid = sub.add_parser("mermaid", help="render Mermaid source")

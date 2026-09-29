@@ -320,17 +320,17 @@ def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
     return answers
 
 
-def unnamed_answer_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
+def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:
     """Name each answer text that does not stand for one candidate of each required goal.
 
     `summary.answer` names the answer candidate by id or exact text; any candidate may be the
-    answer. `report.answer` and the draft, when given, name the same candidate.
+    answer. `report.answer`, when set, names the same candidate.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
     claim = claimed_answer(state)
     report = state.get("report") if isinstance(state.get("report"), dict) else {}
-    other_texts = {"report.answer": str(report.get("answer") or "").strip(), "draft": draft or ""}
+    report_answer = str(report.get("answer") or "").strip()
     answers = answer_candidates(state)
     messages = []
     for goal_id, candidates in sorted(goal_candidates(state).items()):
@@ -344,8 +344,6 @@ def unnamed_answer_messages(state: dict[str, Any], draft: str | None = None) -> 
             else:
                 messages.append(f"summary.answer names no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}")
             continue
-        for field, text in other_texts.items():
-            if text and not _names(text, answer, _candidate_text(nodes, answer)):
-                verb, quoted = ("mention", "") if field == "draft" else ("name", f"; answer: {text!r}")
-                messages.append(f"{field} does not {verb} candidate {answer} ({_candidate_text(nodes, answer)!r}) for goal {goal_id}{quoted}")
+        if report_answer and not _names(report_answer, answer, _candidate_text(nodes, answer)):
+            messages.append(f"report.answer does not name candidate {answer} ({_candidate_text(nodes, answer)!r}) for goal {goal_id}; answer: {report_answer!r}")
     return messages

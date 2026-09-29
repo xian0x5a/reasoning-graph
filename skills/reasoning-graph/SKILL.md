@@ -25,8 +25,7 @@ Requirements: the helper CLI, installed separately (if `reasoning-graph --help` 
 
 1. **Frame the goal** with `init`. It creates the goal node `G1`; do not add it again. Add epistemic/blocker goals only when the user or task wording accepts them.
 2. **Record at checkpoints.** A checkpoint is where the work turns: sources read, a candidate answer formed, a test result in. Put everything since the last checkpoint in one patch, and write it before moving on; a graph filled in after solving leaves a story, not a record.
-3. **Draft the answer** in `answer.md` once a candidate looks ready.
-4. **Claim the answer** with `"answer"` in a patch, run `audit`, and fix what it reports. Then give the answer.
+3. **Claim the answer** with `"answer"` in a patch, run `audit`, and fix what it reports. Then give the answer.
 
 ```bash
 reasoning-graph init --goal "<goal>" -o state.json
@@ -35,7 +34,7 @@ reasoning-graph record state.json --patch - <<'JSON'
 {"nodes": [...], "edges": [...]}
 JSON
 # the last patch names the answer; audit writes nothing
-reasoning-graph record state.json --patch - <<'JSON' && reasoning-graph audit state.json --draft answer.md
+reasoning-graph record state.json --patch - <<'JSON' && reasoning-graph audit state.json
 {"nodes": [...], "edges": [...], "answer": "CS1"}
 JSON
 ```
@@ -87,7 +86,7 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 `audit` is read-only and prints the status on its first line: `no answer claimed`, `answer CS1: checks pass`, or `answer CS1: 2 checks fail`. It always checks that the graph is well-formed and every quote is verbatim. Once an answer is claimed it also checks that:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
-- `answer` names exactly one candidate per goal, by id or exact text, and the `--draft` file names the same one. A goal's only candidate is not the answer until you name it
+- `answer` names exactly one candidate per goal, by id or exact text. A goal's only candidate is not the answer until you name it
 - the answer candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it on balance, counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a score never grounds a claim
 - every `test` node has a result observation or a `not_run` reason
 
