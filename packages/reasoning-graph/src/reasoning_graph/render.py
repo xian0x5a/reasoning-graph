@@ -392,15 +392,13 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
             extras.append(f"<span>Effective belief: {belief}</span>")
             if "score" in node:
                 extras.append(f"<span>Score: {html.escape(str(node['score']))}</span>")
-        edge_reasons = []
+        edge_notes = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):
                 relationship = f"{edge.get('from')} → {edge.get('to')} ({edge.get('type')})"
-                edge_reasons.append(
-                    f"<li><strong>{html.escape(relationship)}</strong>: "
-                    f"{html.escape(str(edge.get('reasoning', '')))}</li>"
-                )
-        reasoning_html = ('<div class="edge-block"><ul>' + "".join(edge_reasons) + "</ul></div>") if edge_reasons else ""
+                note = f": {html.escape(str(edge['note']))}" if edge.get("note") else ""
+                edge_notes.append(f"<li><strong>{html.escape(relationship)}</strong>{note}</li>")
+        edges_html = ('<div class="edge-block"><ul>' + "".join(edge_notes) + "</ul></div>") if edge_notes else ""
         type_class = html.escape(raw_type)
         cards.append(
             f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}">'
@@ -411,7 +409,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
             f'{"<p class=\"note\">Not run: " + html.escape(str(node["not_run"])) + "</p>" if node.get("not_run") else ""}'
             f'{"<p class=\"note\">Note: " + html.escape(str(node["note"])) + "</p>" if node.get("note") else ""}'
             f'{"<p class=\"extras\">" + " ".join(extras) + "</p>" if extras else ""}'
-            f'{reasoning_html}'
+            f'{edges_html}'
             '</article>'
         )
     return "".join(cards) or '<p class="empty">No node details recorded.</p>'

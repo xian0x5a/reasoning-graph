@@ -38,9 +38,9 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
     {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer", "belief": 0.9}
   ],
   "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "leads_to", "reasoning": "An expired token right after issue points to skew."},
-    {"id": "H1-CS1", "from": "H1", "to": "CS1", "type": "leads_to", "reasoning": "The fix follows from the cause."},
-    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This candidate supplies the requested answer."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "leads_to", "note": "An expired token right after issue points to skew."},
+    {"id": "H1-CS1", "from": "H1", "to": "CS1", "type": "leads_to"},
+    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"}
   ],
   "stop_policy": {"severity": "error"},
   "events": [

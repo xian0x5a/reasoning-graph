@@ -32,7 +32,7 @@ PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.
 FIXTURE_RECORD_PATCH = {
     "reason": "Recorded a second symptom report",
     "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "score": 5}],
-    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "score": 3, "reasoning": "The observed signal is more likely when the target claim is true."}],
+    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "score": 3}],
 }
 
 
@@ -128,7 +128,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"score": 3, "id": "A1", "type": "hypothesis", "text": "First"},
                 {"score": 3, "id": "A2", "type": "hypothesis", "text": "Second"},
             ],
-            "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
+            "edges": [{"id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
             "factors": [{"id": "F1", "edges": ["E1", "E2"], "score": 3, "note": "Both rest on one reading."}],
         }
 
@@ -207,7 +207,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             "reason": "Added a third cause",
             "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "score": 1}],
             "update_nodes": [{"id": "A1", "set": {"score": 4}}],
-            "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
+            "edges": [{"id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
         }
 
         state_validator = jsonschema.Draft202012Validator(state_schema)
@@ -313,8 +313,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "T1", "type": "test", "text": "Check database latency metrics"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
-                    {"reasoning": "This claim motivates the follow-up check.", "id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
+                    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
+                    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
                 ],
             }
             patch_path.write_text(json.dumps({**patch, "reason": "   "}), encoding="utf-8")
@@ -405,9 +405,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts"},
-                    {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"id": "CS1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "CS1", "to": "G1", "type": "answers"},
+                    {"id": "E1-A1-contradicts", "from": "E1", "to": "A1", "type": "contradicts"},
+                    {"id": "A1-CS1-leads_to", "from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"id": "CS1-G1-answers", "from": "CS1", "to": "G1", "type": "answers"},
                 ],
             }
             legacy_state = {
@@ -440,9 +440,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"id": "CS1-G1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "CS1", "to": "G1", "type": "leads_to"},
-                    {"id": "A1-G1-answers", "reasoning": "This candidate supplies the answer requested by the goal.", "from": "A1", "to": "G1", "type": "answers"},
+                    {"id": "A1-CS1-leads_to", "from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"id": "CS1-G1-leads_to", "from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"id": "A1-G1-answers", "from": "A1", "to": "G1", "type": "answers"},
                 ],
             }
             invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
@@ -460,7 +460,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
                     {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
-                "edges": [{"id": "A1-T1-prompts", "reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
+                "edges": [{"id": "A1-T1-prompts", "from": "A1", "to": "T1", "type": "prompts"}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -478,8 +478,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E2", "type": "observation", "text": "Negative signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "score": 4},
-                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts"},
+                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "score": 4},
+                    {"id": "E2-A1-contradicts", "from": "E2", "to": "A1", "type": "contradicts"},
                 ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -499,8 +499,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
             ],
             "edges": [
-                {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                {"id": "E1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "E1", "to": "D1", "type": "leads_to"},
+                {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
+                {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to"},
             ],
         }
 
@@ -519,9 +519,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E3", "type": "observation", "text": "Independent signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
-                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
-                    {"id": "E3-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports"},
+                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E3-A1-supports", "from": "E3", "to": "A1", "type": "supports"},
                 ],
                 "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 are correlated, so they count once."}],
             }
@@ -544,9 +544,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
-                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"id": "C1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "C1", "to": "D1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "B1-D1-leads_to", "from": "B1", "to": "D1", "type": "leads_to"},
+                    {"id": "C1-D1-leads_to", "from": "C1", "to": "D1", "type": "leads_to"},
                 ],
                 "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A1 and B1 share a latent source."}],
             }
@@ -583,9 +583,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
                 ],
                 "edges": [
-                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"id": "D1-A1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "D1", "to": "A1", "type": "leads_to"},
+                    {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
+                    {"id": "B1-D1-leads_to", "from": "B1", "to": "D1", "type": "leads_to"},
+                    {"id": "D1-A1-leads_to", "from": "D1", "to": "A1", "type": "leads_to"},
                 ],
                 "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A group must not hide the raw cycle."}],
             }
@@ -606,11 +606,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
                     {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
-                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports"}],
+                "edges": [{"id": "E1A", "from": "E1", "to": "A1", "type": "supports"}],
             }
             patch = {
                 "reason": "E2 shares E1's source, so their evidence is grouped.",
-                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
+                "edges": [{"id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
                 "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -634,8 +634,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports"},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E1A", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2A", "from": "E2", "to": "A1", "type": "supports"},
                 ],
                 "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
                 "events": [
@@ -663,7 +663,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause"},
                     {"id": "E1", "type": "observation", "text": "Negative signal"},
                 ],
-                "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
+                "edges": [{"id": "E1-A1-contradicts", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -864,8 +864,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
-                {"id": "A-B-A B-answers", "from": "A-B", "to": "A B", "type": "answers", "reasoning": "The hyphenated candidate answers the goal."},
-                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers", "reasoning": "The underscored candidate answers the goal."},
+                {"id": "A-B-A B-answers", "from": "A-B", "to": "A B", "type": "answers"},
+                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers"},
             ],
             "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
         }
@@ -900,8 +900,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
-                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports"},
                 ],
                 "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 share source."}],
             }

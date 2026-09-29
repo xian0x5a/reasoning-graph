@@ -37,7 +37,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"}
   ],
   "edges": [
-    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "This claim motivates the follow-up check."}
+    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts"}
   ]
 }
 ```
@@ -51,8 +51,8 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy"}
   ],
   "edges": [
-    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The test produced this observation."},
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to"},
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 4, "note": "The config predates the deploy, so the service cannot have read the new one."}
   ]
 }
 ```
@@ -66,7 +66,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "O2", "type": "observation", "text": "Replay was inconclusive because fixture token expired"}
   ],
   "edges": [
-    {"id": "T2-O2", "from": "T2", "to": "O2", "type": "leads_to", "reasoning": "The test produced this observation."}
+    {"id": "T2-O2", "from": "T2", "to": "O2", "type": "leads_to"}
   ]
 }
 ```
@@ -90,8 +90,8 @@ A `record` patch adds the result node and connects it to the existing test node.
     {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy"}
   ],
   "edges": [
-    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The test produced this observation."},
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 4, "reasoning": "The observed signal is more likely when the target claim is true."}
+    {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to"},
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 4, "note": "The config predates the deploy, so the service cannot have read the new one."}
   ]
 }
 ```

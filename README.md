@@ -51,7 +51,7 @@ cat > step.json <<'JSON'
     {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
   "edges": [
-    {"id": "O1-T1", "from": "O1", "to": "T1", "type": "prompts", "reasoning": "Restarts just before an outage suggest a timing check."}
+    {"id": "O1-T1", "from": "O1", "to": "T1", "type": "prompts"}
   ]
 }
 JSON

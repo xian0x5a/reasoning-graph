@@ -33,10 +33,8 @@ def valid_patch() -> dict:
             {"id": "E2", "type": "observation", "text": "Reading", "score": 5},
         ],
         "edges": [
-            {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to",
-             "reasoning": "The conclusion rests on this premise."},
-            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
-             "reasoning": "The conclusion rests on this reading."},
+            {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to"},
+            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to"},
         ],
         "reason": "Derive the conclusion",
     }
@@ -44,25 +42,22 @@ def valid_patch() -> dict:
 
 def patch_for(invalid_part: str) -> dict:
     patch = valid_patch()
-    if invalid_part.startswith("removed_"):
+    if invalid_part.startswith("removed_") and invalid_part != "removed_edge_reasoning":
         patch["nodes"][0][invalid_part.removeprefix("removed_")] = 0.9
     elif invalid_part == "computed_belief":
         patch["nodes"][0]["belief"] = 0.9
     elif invalid_part.startswith("update_"):
         patch["update_nodes"] = [{"id": "E0", "set": {invalid_part.removeprefix("update_"): 0.9}}]
     elif invalid_part == "removed-edge-likelihood_ratio":
-        patch["edges"].append({"id": "E2-A2", "from": "E2", "to": "A2", "type": "supports", "likelihood_ratio": 2,
-                               "reasoning": "The reading favors the branch."})
+        patch["edges"].append({"id": "E2-A2", "from": "E2", "to": "A2", "type": "supports", "likelihood_ratio": 2})
     elif invalid_part == "score_off_the_scale":
         patch["nodes"][0]["score"] = 6
     elif invalid_part == "score_on_a_premise_edge":
         patch["edges"][0]["score"] = 3
     elif invalid_part == "score_on_a_goal":
         patch["update_nodes"] = [{"id": "G1", "set": {"score": 3}}]
-    elif invalid_part == "missing_reasoning":
-        del patch["edges"][0]["reasoning"]
-    else:  # blank_reasoning
-        patch["edges"][0]["reasoning"] = " \n\t"
+    else:  # removed_edge_reasoning
+        patch["edges"][0]["reasoning"] = "The conclusion rests on this premise."
     return patch
 
 
@@ -79,8 +74,7 @@ INVALID_PARTS = {
     "score_off_the_scale": "score must be an integer from 1 to 5",
     "score_on_a_premise_edge": "score is only valid on supports/contradicts edges",
     "score_on_a_goal": "score is only valid on observation, hypothesis, and candidate_solution nodes",
-    "missing_reasoning": "schema",
-    "blank_reasoning": "schema",
+    "removed_edge_reasoning": "reasoning was removed; use the optional note",
 }
 
 
@@ -116,10 +110,10 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
     patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
     patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
     patch["edges"].extend([
-        {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
-        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
+        {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to"},
+        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
     ])
-    patch["edges"][0]["reasoning"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2. " * 2
+    patch["edges"][0]["note"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2."
     patch_path.write_text(json.dumps(patch), encoding="utf-8")
     result = run("record", str(state_path), "--patch", str(patch_path))
     assert result.returncode == 0, result.stderr

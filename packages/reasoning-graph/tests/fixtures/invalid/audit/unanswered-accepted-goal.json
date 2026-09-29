@@ -74,65 +74,56 @@
       "from": "E1",
       "to": "A1",
       "type": "supports",
-      "score": 3,
-      "reasoning": "Two-by-three panes match Braille cells."
+      "score": 3
     },
     {
       "id": "A1-T1",
       "from": "A1",
       "to": "T1",
-      "type": "prompts",
-      "reasoning": "The Braille reading motivates a decode probe."
+      "type": "prompts"
     },
     {
       "id": "T1-E2",
       "from": "T1",
       "to": "E2",
-      "type": "leads_to",
-      "reasoning": "The probe produced this observation."
+      "type": "leads_to"
     },
     {
       "id": "E2-CS1",
       "from": "E2",
       "to": "CS1",
-      "type": "leads_to",
-      "reasoning": "The confirmed URL is the answer."
+      "type": "leads_to"
     },
     {
       "id": "CS1-G1",
       "from": "CS1",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "TwoSigns is the room 1 path."
+      "type": "answers"
     },
     {
       "id": "G1-G2",
       "from": "G1",
       "to": "G2",
-      "type": "requires",
-      "reasoning": "The trail continues into room 2."
+      "type": "requires"
     },
     {
       "id": "E3-A2",
       "from": "E3",
       "to": "A2",
       "type": "supports",
-      "score": 2,
-      "reasoning": "Square waves suggest bit tracks."
+      "score": 2
     },
     {
       "id": "A2-T2",
       "from": "A2",
       "to": "T2",
-      "type": "prompts",
-      "reasoning": "The 5-bit reading motivates a decode probe."
+      "type": "prompts"
     },
     {
       "id": "T2-E4",
       "from": "T2",
       "to": "E4",
-      "type": "leads_to",
-      "reasoning": "The probe produced this profile."
+      "type": "leads_to"
     }
   ],
   "stop_policy": {
@@ -162,7 +153,7 @@
         "A2-T2"
       ],
       "update_factors": [],
-      "graph_digest": "be00d0cc94e2eff1"
+      "graph_digest": "e6689d6f8d6292a3"
     },
     {
       "step": 2,
@@ -175,7 +166,7 @@
         "T2-E4"
       ],
       "update_factors": [],
-      "graph_digest": "be00d0cc94e2eff1"
+      "graph_digest": "e6689d6f8d6292a3"
     },
     {
       "step": 3,
@@ -195,7 +186,7 @@
       "action": "stop",
       "reason": "systematically solved stage by stage",
       "outcome": "solved",
-      "graph_digest": "be00d0cc94e2eff1"
+      "graph_digest": "e6689d6f8d6292a3"
     }
   ]
 }

@@ -32,9 +32,9 @@ def report_state(*, support=False):
             {"id": "T1", "type": "test", "text": "Check the premise"},
         ],
         "edges": [
-            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "This observation is required for the conclusion."},
-            {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate restates the conclusion."},
-            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "This supplies the requested answer."},
+            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to"},
+            {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to"},
+            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
         ],
         "report": {"candidates": [{"id": "CS1", "name": "Answer", "belief": 0.123}]},
         "presentation": {"include_nodes": ["D1", "CS1", "G1"]},
@@ -42,8 +42,7 @@ def report_state(*, support=False):
     if support:
         state["edges"].append({
             "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "score": 3,
-            "reasoning": "The signal is twice as likely when the conclusion is true.",
-        })
+            })
     assert validate_state(state).ok
     return state
 
@@ -98,8 +97,7 @@ def test_filtered_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
         "id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
-        "reasoning": "Both observations are needed and their uncertainty overlaps.",
-    })
+        })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
     assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.45"

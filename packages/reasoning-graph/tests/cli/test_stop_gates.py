@@ -36,8 +36,8 @@ ROOM_SEED = {
         {"id": "T1", "type": "test", "text": "Decode the panes as Braille and probe the URL"},
     ],
     "edges": [
-        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3, "reasoning": "Two-by-three panes match Braille cells."},
-        {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "The Braille reading motivates a decode probe."},
+        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
+        {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
     ],
     "reason": "Read room 1",
 }
@@ -52,12 +52,12 @@ ROOM_ONE_SOLVED = {
         {"id": "T2", "type": "test", "text": "Decode the waveform and probe the URL"},
     ],
     "edges": [
-        {"id": "T1-E2", "from": "T1", "to": "E2", "type": "leads_to", "reasoning": "The probe produced this observation."},
-        {"id": "E2-CS1", "from": "E2", "to": "CS1", "type": "leads_to", "reasoning": "The confirmed URL is the answer."},
-        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "TwoSigns is the room 1 path."},
-        {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires", "reasoning": "The trail continues into room 2."},
-        {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "score": 2, "reasoning": "Square waves suggest bit tracks."},
-        {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts", "reasoning": "The 5-bit reading motivates a decode probe."},
+        {"id": "T1-E2", "from": "T1", "to": "E2", "type": "leads_to"},
+        {"id": "E2-CS1", "from": "E2", "to": "CS1", "type": "leads_to"},
+        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+        {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires"},
+        {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "score": 2},
+        {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts"},
     ],
     "reason": "Solved room 1 and read room 2",
 }
@@ -83,7 +83,7 @@ class SpookyManorFlow(unittest.TestCase):
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
         "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft"}],
-        "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
+        "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to"}],
         "reason": "Profiled the room 2 waveform",
     }
 
@@ -151,7 +151,7 @@ class UnansweredGoalTests(SpookyManorFlow):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["nodes"].append({"id": "G2", "type": "goal", "text": "Sub goal"})
-            state["edges"].append({"id": "G1-G2", "from": "G1", "to": "G2", "type": "leads_to", "reasoning": "wrong relation"})
+            state["edges"].append({"id": "G1-G2", "from": "G1", "to": "G2", "type": "leads_to"})
             result = run_cli("validate", str(write_json(Path(tmp_dir) / "state.json", state)))
 
             self.assertEqual(result.returncode, 1, result.stdout)
@@ -197,7 +197,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = self.unstopped_state()
             state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
-            state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "A weaker answer to the same goal."})
+            state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"})
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
 
@@ -237,8 +237,8 @@ class StrictTestResultTests(SpookyManorFlow):
                 "reason": "Concluded from the decode attempt",
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "score": 5}],
                 "edges": [
-                    {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to", "reasoning": "The probe suggests this conclusion."},
-                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "score": 4, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
+                    {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to"},
+                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "score": 4},
                 ],
             }))
 
@@ -272,8 +272,8 @@ class GroundedPathTests(unittest.TestCase):
                 *nodes,
             ],
             "edges": [
-                {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to", "reasoning": "The probe produced this output."},
-                {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "The candidate explains the failure."},
+                {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to"},
+                {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
                 *edges,
             ],
         }
@@ -292,7 +292,7 @@ class GroundedPathTests(unittest.TestCase):
 
     @staticmethod
     def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-        return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, "reasoning": "Test edge.", **extra}
+        return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
 
     def test_score_only_hypothesis_blocks_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

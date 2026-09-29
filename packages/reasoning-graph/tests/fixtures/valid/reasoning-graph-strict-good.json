@@ -39,22 +39,19 @@
       "id": "E0",
       "from": "O1",
       "to": "A1",
-      "type": "leads_to",
-      "reasoning": "The observed symptom is the premise for the likely cause."
+      "type": "leads_to"
     },
     {
       "id": "E1",
       "from": "A1",
       "to": "CS1",
-      "type": "leads_to",
-      "reasoning": "The target conclusion depends on this premise."
+      "type": "leads_to"
     },
     {
       "id": "E2",
       "from": "CS1",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "This candidate supplies the answer requested by the goal."
+      "type": "answers"
     }
   ],
   "events": [
@@ -70,7 +67,7 @@
         "E2"
       ],
       "update_factors": [],
-      "graph_digest": "54759c733bffe7d4"
+      "graph_digest": "aa8f3cca14e5374f"
     },
     {
       "step": 2,
@@ -90,7 +87,7 @@
       "action": "stop",
       "reason": "CS1 answers G1 and its premise chain is recorded",
       "outcome": "solved",
-      "graph_digest": "54759c733bffe7d4"
+      "graph_digest": "aa8f3cca14e5374f"
     }
   ]
 }

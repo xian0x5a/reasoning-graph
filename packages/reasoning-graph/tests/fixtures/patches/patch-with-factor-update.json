@@ -19,15 +19,13 @@
       "id": "E3A1",
       "from": "E3",
       "to": "A1",
-      "type": "supports",
-      "reasoning": "The observed signal is more likely when the target claim is true."
+      "type": "supports"
     },
     {
       "id": "E4A1",
       "from": "E4",
       "to": "A1",
-      "type": "supports",
-      "reasoning": "The observed signal is more likely when the target claim is true."
+      "type": "supports"
     }
   ],
   "factors": [

@@ -32,29 +32,25 @@
       "id": "E1A1",
       "from": "E1",
       "to": "A1",
-      "type": "supports",
-      "reasoning": "This timing is more likely under a deployment-related cause."
+      "type": "supports"
     },
     {
       "id": "A1D1",
       "from": "A1",
       "to": "D1",
-      "type": "leads_to",
-      "reasoning": "A deployment-caused outage necessarily has a deployment-related cause."
+      "type": "leads_to"
     },
     {
       "id": "D1CS1",
       "from": "D1",
       "to": "CS1",
-      "type": "leads_to",
-      "reasoning": "The candidate restates the derived conclusion without adding another uncertain inference."
+      "type": "leads_to"
     },
     {
       "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "The candidate identifies a cause for the outage as requested by the goal."
+      "type": "answers"
     }
   ]
 }

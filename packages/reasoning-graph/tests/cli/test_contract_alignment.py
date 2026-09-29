@@ -31,8 +31,8 @@ def base_state() -> dict:
             {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "score": 3},
         ],
         "edges": [
-            {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate depends on the likely route."},
-            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "The candidate supplies the requested answer."},
+            {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to"},
+            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
         ],
     }
 
@@ -61,7 +61,7 @@ class ContractAlignmentTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("schema $.edges[0]: 'id' is a required property", result.stderr)
 
-        patched = self.record({"edges": [{"from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
+        patched = self.record({"edges": [{"from": "A1", "to": "A2", "type": "supports"}]})
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("$.edges[0]: 'id' is a required property", patched.stderr)
 
@@ -72,7 +72,7 @@ class ContractAlignmentTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("duplicate edge id A1-CS1", result.stderr)
 
-        patched = self.record({"edges": [{"id": "A1-CS1", "from": "A1", "to": "A2", "type": "supports", "reasoning": "Routes overlap."}]})
+        patched = self.record({"edges": [{"id": "A1-CS1", "from": "A1", "to": "A2", "type": "supports"}]})
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("edges id A1-CS1 already exists", patched.stderr)
 
@@ -89,7 +89,7 @@ class ContractAlignmentTests(unittest.TestCase):
 
         patched = self.record({
             "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "score": 2}],
-            "edges": [{"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "Second candidate answers the goal."}],
+            "edges": [{"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"}],
         })
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("answer_kind", patched.stderr)

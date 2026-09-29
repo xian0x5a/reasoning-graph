@@ -50,12 +50,12 @@ class SchemaResolverTests(unittest.TestCase):
             self.assertEqual(state_schema_errors(state), [])
 
     def test_patch_schema_still_resolves_state_definitions(self) -> None:
-        bad_patch = {"nodes": [{"id": "A1", "type": "not-a-type"}], "edges": [{"from": "A1", "to": "A1", "type": "supports"}]}
+        bad_patch = {"nodes": [{"id": "A1", "type": "not-a-type"}], "edges": [{"from": "A1", "to": "A1", "type": "supports", "note": 7}]}
 
         errors = patch_schema_errors(bad_patch)
 
         self.assertTrue(any("$.nodes[0].type" in error for error in errors), errors)
-        self.assertTrue(any("reasoning" in error for error in errors), errors)
+        self.assertTrue(any("$.edges[0].note" in error for error in errors), errors)
 
 
 if __name__ == "__main__":

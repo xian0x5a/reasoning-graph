@@ -240,8 +240,7 @@
         "id",
         "from",
         "to",
-        "type",
-        "reasoning"
+        "type"
       ],
       "properties": {
         "id": {
@@ -269,15 +268,18 @@
           "$ref": "#/$defs/score",
           "description": "supports/contradicts only: optional 1-5 tier for how strongly the source bears on the target. Omit it to take the default 3."
         },
-        "reasoning": {
+        "note": {
           "type": "string",
-          "minLength": 1,
-          "pattern": "\\S",
-          "description": "Explain why this directed relationship holds. Nonblank reasoning is required; one to five sentences is guidance, not a validation limit."
+          "description": "Optional: why the link holds when the two texts do not make it obvious, or why its score departs from the default."
         }
       },
       "not": {
         "anyOf": [
+          {
+            "required": [
+              "reasoning"
+            ]
+          },
           {
             "required": [
               "likelihood"

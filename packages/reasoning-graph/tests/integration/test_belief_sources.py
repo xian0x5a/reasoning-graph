@@ -21,7 +21,7 @@ RATIO_TABLE = {1: 1.2, 2: 1.5, 3: 2, 4: 3, 5: 5}
 
 def edge(source, target, relation="leads_to", **extra):
     return {"id": f"{source}-{target}-{relation}", "from": source, "to": target, "type": relation,
-            "reasoning": "The source supplies the stated relationship to the target.", **extra}
+            **extra}
 
 
 def claim_state(node_type="candidate_solution", **score):

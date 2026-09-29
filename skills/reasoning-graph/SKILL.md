@@ -54,8 +54,8 @@ Record patch:
     {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
   "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "reasoning": "Restarts just before an outage are more likely if they caused it."},
-    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "The claim suggests a timing check."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports"},
+    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts"}
   ]
 }
 ```
@@ -74,7 +74,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 - **Checks you cannot run are marked, not answered.** Add a `test` node for each check that would settle a claim, even one nobody can run here (a lab exam, an interview, forensics on a case file). Set `not_run` on it to the reason; it then needs no result, cannot have one, and shows as "not run" in the view. Never write a result for a check that did not happen.
 - **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from a result is a separate `hypothesis` linked by `leads_to` from the observation. Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no gate counts them.
-- **Notes are your memory.** Any node may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state.
+- **Notes are your memory.** Any node or edge may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state. Write one on an edge when its score departs from the default or the link is not obvious from the two texts.
 - **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
 
 ## Subagents
@@ -128,7 +128,7 @@ Node types:
 - `test` — action/check/procedure; carries no score until its result `observation` is recorded
 - `candidate_solution` — possible answer; requires `answer_kind` and a `candidate_solution -> goal` `answers` edge
 
-Edge types (every edge needs nonblank `reasoning`, one to five sentences):
+Edge types (any edge may carry a `note`):
 
 - `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
 - `supports` — positive belief update, at its `score` or the default

@@ -14,7 +14,7 @@ from reasoning_graph.validation import validate_state
 
 
 def edge(source, target, relation, **extra):
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": relation, "reasoning": "Test edge.", **extra}
+    return {"id": f"{source}-{target}", "from": source, "to": target, "type": relation, **extra}
 
 
 def grouped_state(relation="supports", **group):

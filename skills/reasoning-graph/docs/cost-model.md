@@ -33,15 +33,15 @@ A `contradicts` edge uses the reciprocal of its ratio.
 
 Mutually exclusive sibling hypotheses do not have to sum to anything; the scale is too coarse for that. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node.
 
-### Required edge reasoning
+### Notes on edges
 
-Every edge requires nonblank `reasoning` explaining the directed relationship, including `requires`, `prompts`, `answers`, and grouped edges. Aim for one to five sentences. Repeating the edge type is not an explanation, and a group's `note` does not replace member-edge reasoning.
+An edge takes an optional `note`, the same field nodes have. Nothing forces one: most links are plain from the two node texts. Write a note when the score departs from the default, so a reader can check the weight, or when the link is not obvious.
 
 ```json
-{"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
+{"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 5, "note": "Only the token server writes this log line."}
 ```
 
-State and patch schemas enforce nonblank text with standard string constraints; no custom format checker is needed. Sentence count is guidance, not a rejection rule: abbreviations and punctuation are not reliable sentence boundaries. Explain the relationship meaningfully; validation cannot judge prose quality.
+The removed `reasoning` field is rejected.
 
 ### Belief computation
 

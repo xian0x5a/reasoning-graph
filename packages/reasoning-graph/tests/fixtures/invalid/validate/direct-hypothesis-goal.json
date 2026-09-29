@@ -22,15 +22,13 @@
       "id": "O1H1",
       "from": "O1",
       "to": "H1",
-      "type": "leads_to",
-      "reasoning": "The observation establishes the step."
+      "type": "leads_to"
     },
     {
       "id": "H1G1",
       "from": "H1",
       "to": "G1",
-      "type": "leads_to",
-      "reasoning": "The step is taken as the answer."
+      "type": "leads_to"
     }
   ]
 }

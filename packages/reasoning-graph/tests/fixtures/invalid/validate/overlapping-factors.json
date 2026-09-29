@@ -39,29 +39,25 @@
       "id": "E1A1",
       "from": "E1",
       "to": "A1",
-      "type": "supports",
-      "reasoning": "The observed signal is more likely when the target claim is true."
+      "type": "supports"
     },
     {
       "id": "E2A1",
       "from": "E2",
       "to": "A1",
-      "type": "supports",
-      "reasoning": "The observed signal is more likely when the target claim is true."
+      "type": "supports"
     },
     {
       "id": "A1CS1",
       "from": "A1",
       "to": "CS1",
-      "type": "leads_to",
-      "reasoning": "The target conclusion depends on this premise."
+      "type": "leads_to"
     },
     {
       "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "This candidate supplies the answer requested by the goal."
+      "type": "answers"
     }
   ],
   "factors": [

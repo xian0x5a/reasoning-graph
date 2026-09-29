@@ -33,15 +33,13 @@
       "id": "E1",
       "from": "A1",
       "to": "CS1",
-      "type": "leads_to",
-      "reasoning": "The target conclusion depends on this premise."
+      "type": "leads_to"
     },
     {
       "id": "E2",
       "from": "CS1",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "This candidate supplies the answer requested by the goal."
+      "type": "answers"
     }
   ],
   "events": [
@@ -57,7 +55,7 @@
         "E2"
       ],
       "update_factors": [],
-      "graph_digest": "a47bb4146e6183c4"
+      "graph_digest": "3ad967dc5d4e1461"
     },
     {
       "step": 2,
@@ -77,7 +75,7 @@
       "action": "stop",
       "reason": "CS1 answers G1 and its premise chain is recorded",
       "outcome": "solved",
-      "graph_digest": "a47bb4146e6183c4"
+      "graph_digest": "3ad967dc5d4e1461"
     }
   ]
 }

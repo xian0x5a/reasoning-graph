@@ -38,7 +38,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         state = self.base_state()
         first = truth_cost(state)
         state["edges"].append(
-            {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4, "reasoning": "The signal is less likely when A1 holds."}
+            {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4}
         )
         state = json.loads(json.dumps(state))
 
@@ -51,7 +51,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         baseline = truth_cost(self.base_state())
         supported = truth_cost(
             self.base_state(
-                edges=[{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "score": 4}],
+                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "score": 4}],
             )
         )
 
@@ -62,7 +62,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         baseline = truth_cost(self.base_state())
         contradicted = truth_cost(
             self.base_state(
-                edges=[{"reasoning": "The observed signal is less likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4}],
+                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4}],
             )
         )
 
@@ -71,8 +71,8 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
     def test_support_group_replaces_member_updates(self) -> None:
         edges = [
-            {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports"},
-            {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A1", "from": "E2", "to": "A1", "type": "supports"},
+            {"id": "E1A1", "from": "E1", "to": "A1", "type": "supports"},
+            {"id": "E2A1", "from": "E2", "to": "A1", "type": "supports"},
         ]
         factor = {"id": "F1", "edges": ["E1A1", "E2A1"], "score": 4, "note": "Correlated evidence counts once, at ratio 3."}
 

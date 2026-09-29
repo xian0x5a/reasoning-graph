@@ -26,7 +26,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, "reasoning": "Test edge.", **extra}
+    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
 
 
 def observation(node_id: str, quote: str) -> dict:

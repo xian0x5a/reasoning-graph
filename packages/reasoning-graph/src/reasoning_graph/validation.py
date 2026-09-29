@@ -35,8 +35,8 @@ def edge_id_set(state: dict[str, Any]) -> set[str]:
     return ids
 
 
-def score_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
-    """Reject the decimals `score` replaced, and scores off the scale or on objects that take none.
+def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
+    """Reject removed fields, and scores off the scale or on objects that take none.
 
     `record` runs this on a patch's additions too, so a removed field names its replacement
     there instead of failing with the schema's generic message.
@@ -61,6 +61,9 @@ def score_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
             continue
         owner = f"edge {edge.get('id') or index}"
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_EDGE_SCORE_FIELDS if field in edge)
+        if "reasoning" in edge:
+            # `reasoning` was 45% of edge bytes and mostly restated the two node texts (issue #37).
+            errors.append(f"{owner}: reasoning was removed; use the optional note, or leave the link unexplained when the two texts make it obvious")
         if "score" not in edge:
             continue
         if edge.get("type") not in EVIDENCE_EDGE_TYPES:
@@ -102,7 +105,7 @@ def validate_state(state: Any) -> ValidationResult:
     if "premise_groups" in state:
         errors.append("premise_groups is not supported; use factors, which group leads_to edges by id")
 
-    errors.extend(score_field_errors(nodes_raw, edges_raw))
+    errors.extend(authored_field_errors(nodes_raw, edges_raw))
 
     node_ids: set[str] = set()
     for i, node in enumerate(nodes_raw):

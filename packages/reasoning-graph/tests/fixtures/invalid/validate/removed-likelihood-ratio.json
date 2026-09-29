@@ -17,8 +17,7 @@
       "from": "E1",
       "to": "A1",
       "type": "supports",
-      "likelihood_ratio": 2,
-      "reasoning": "The observed signal is more likely when the target claim is true."
+      "likelihood_ratio": 2
     }
   ]
 }

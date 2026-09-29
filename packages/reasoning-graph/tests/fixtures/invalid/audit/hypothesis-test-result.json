@@ -32,23 +32,20 @@
       "id": "H1-T1",
       "from": "H1",
       "to": "T1",
-      "type": "prompts",
-      "reasoning": "The reading motivates a keypad probe."
+      "type": "prompts"
     },
     {
       "id": "T1-H2",
       "from": "T1",
       "to": "H2",
-      "type": "leads_to",
-      "reasoning": "The probe suggests this conclusion."
+      "type": "leads_to"
     },
     {
       "id": "H2-H1",
       "from": "H2",
       "to": "H1",
       "type": "contradicts",
-      "score": 5,
-      "reasoning": "A rejection undercuts the room-number reading."
+      "score": 5
     }
   ],
   "stop_policy": {
@@ -69,14 +66,14 @@
         "H2-H1"
       ],
       "update_factors": [],
-      "graph_digest": "a0c60b536b016a7c"
+      "graph_digest": "109b4f36aa47891a"
     },
     {
       "step": 2,
       "action": "stop",
       "reason": "The keypad settled it",
       "outcome": "solved",
-      "graph_digest": "a0c60b536b016a7c"
+      "graph_digest": "109b4f36aa47891a"
     }
   ]
 }

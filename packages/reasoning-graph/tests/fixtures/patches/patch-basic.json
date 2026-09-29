@@ -13,15 +13,13 @@
       "id": "A1CS2",
       "from": "A1",
       "to": "CS2",
-      "type": "leads_to",
-      "reasoning": "The target conclusion depends on this premise."
+      "type": "leads_to"
     },
     {
       "id": "CS2G1",
       "from": "CS2",
       "to": "G1",
-      "type": "answers",
-      "reasoning": "This candidate supplies the answer requested by the goal."
+      "type": "answers"
     }
   ]
 }
