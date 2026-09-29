@@ -7,6 +7,7 @@ Reads what run_reader.py wrote. Per view:
 trace  key points traced to a verbatim, relevant story passage, out of all key points read
 catch  plants caught, on planted views; findings filed as real or spurious, on planted and
        clean views; and how long the view is
+kinds  per view and plant kind, plants caught, caught as the first finding, and their mean rank
 """
 
 from __future__ import annotations
@@ -63,6 +64,23 @@ def catch_rows(results: list[dict]) -> list[str]:
     return rows
 
 
+def kind_rows(results: list[dict], plant_kinds: dict[str, str]) -> list[str]:
+    """Readers list five findings nearly always, so where the plant ranks tells more than whether it is caught."""
+    rows = [f"{'kinds':<12}{'kind':<14}{'caught':>8}{'first':>7}{'rank':>6}"]
+    for view in VIEWS:
+        for kind in sorted(set(plant_kinds.values())):
+            planted = [read for read in results if read["view"] == view and read["condition"] == "planted"
+                       and plant_kinds[read["item"]] == kind]
+            if not planted:
+                continue
+            ranks = [read["caught_rank"] for read in planted if read["caught"]]
+            rows.append(
+                f"{view:<12}{kind:<14}{f'{len(ranks)}/{len(planted)}':>8}{f'{ranks.count(1)}':>7}"
+                f"{(mean(ranks) if ranks else 0):>6.1f}"
+            )
+    return rows
+
+
 def by_item_rows(trace: list[dict], catch: list[dict]) -> list[str]:
     """Per item and view: key points traced, and plants caught, summed over repeats."""
     cells: dict[str, dict[str, str]] = defaultdict(dict)
@@ -84,7 +102,11 @@ def main() -> None:
     args = parser.parse_args()
     trace = [read for item_dir in args.item_dirs for read in reads(item_dir, "trace")]
     catch = [read for item_dir in args.item_dirs for read in reads(item_dir, "catch")]
-    lines = trace_rows(trace) + [""] + catch_rows(catch)
+    plant_kinds = {
+        item_dir.name: json.loads(plants.read_text(encoding="utf-8"))["kind"]
+        for item_dir in args.item_dirs if (plants := item_dir / "reader" / "plants.json").exists()
+    }
+    lines = trace_rows(trace) + [""] + catch_rows(catch) + [""] + kind_rows(catch, plant_kinds)
     if args.by_item:
         lines += [""] + by_item_rows(trace, catch)
     print("\n".join(lines))
