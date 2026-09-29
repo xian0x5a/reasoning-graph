@@ -12,7 +12,7 @@ In the resume loop of #37 the graph arm passed as many items as a notes file but
 
 ## Scope & Constraints
 
-In scope: the eight decisions under Decisions, the docs and ADRs that describe them, and one rerun of the graph arm.
+In scope: the ten decisions under Decisions, the docs and ADRs that describe them, and one rerun of the graph arm.
 
 Out of scope, each a later plan:
 
@@ -42,10 +42,12 @@ Extend `tests/scenarios/exact-answer/loop_usage.py` to print tool calls per kind
   |---|---|---|
   | none | graph, quotes; lists what a `solved` claim still needs | 0 |
   | `solved` | the above, plus: every accepted goal is answered, the answer and the draft name one candidate per goal, that candidate rests on observations, every test has a result or `not_run` | non-zero if any fails |
-  | any other outcome | graph, quotes | 0 |
+  | `inconclusive`, `blocked` | graph, quotes | 0 |
 
 - The first output line is the status: `in progress`, `solved: checks pass`, `solved: <n> checks fail`, or the other outcome by name.
 - Removed: the commands `stop`, `validate`, `doctor`; the stop event; the refusal of writes after a stop.
+- Removed with them: `stop_policy`, `init --strict`, `init --profile`, and the outcomes `budget_exhausted`, `candidate_count_met`, `user_stopped`. `init` takes `--goal` and `-o`.
+- A failed check of a `solved` claim is always an error. There is no warning level.
 
 ### 3. The trace is removed
 
@@ -120,10 +122,10 @@ Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 7. An edge is identified by `from-to`. Checked on 61 states: no pair is used twice and no node id has a hyphen.
 8. `init` says what it created. An error naming the next free id was dropped: it would have offered `G2`.
 
-Open, to settle before step 2:
+9. `stop_policy` is removed whole: `severity`, `min_viable_candidates`, and with them `init --strict` and `init --profile`. They configured the stop gate, and there is no stop gate. A state that carries `stop_policy` fails validation.
+10. The outcomes are `solved`, `inconclusive` and `blocked`. `budget_exhausted`, `candidate_count_met` and `user_stopped` are removed: the skill imposes no budget and counts no candidates. They came from the work queue that ADR 0006 removed.
 
-- **`stop_policy`.** It is named after a removed command. `severity` chose between a warning and an error for an unmet stop gate; under decision 3 a failed `solved` claim is always an error. Proposal: remove `severity` and `init --strict`, and move `min_viable_candidates` to `goal_policy`.
-- **Outcomes.** `candidate_count_met` and `user_stopped` exist today. Proposal: keep `solved`, `inconclusive`, `blocked`, `budget_exhausted`; remove the other two unless a use is named.
+`goal_policy` stays. It says which goals need an answer, which the checks of a `solved` claim read.
 
 ## Outcomes & Retrospective
 
