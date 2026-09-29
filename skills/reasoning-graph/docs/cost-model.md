@@ -58,7 +58,7 @@ belief = exp(-effective_truth_cost)
 
 Belief accumulates through the claim graph: `leads_to` premises multiply into the target node's belief, so premises `0.7` and `0.9` give `0.63`.
 
-Graph labels and candidate tables show effective belief; node details show the authored score beside it. See [belief display](rendering.md#belief-display).
+Graph labels show effective belief; node details show the authored score beside it. See [belief display](rendering.md#belief-display).
 
 ### Evidence edges
 

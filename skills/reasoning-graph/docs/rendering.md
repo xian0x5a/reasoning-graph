@@ -53,13 +53,12 @@ The full reasoning state is always the source of truth. An explanation view can 
 
 Create an HTML artifact as a report, not a fixed template. Choose the layout that best explains the case/problem. It must include:
 
-- compact answer summary at top
+- the answer at the top: id and text of the answer candidate, resolved from the graph
 - readable observation and constraint node details with labels/sources, either in a filterable detail list or modal cards
-- candidate ordering table when candidates exist
 - a concise explanation view; this may be a curated graph or the full graph when it is already small/readable
 - a full audit graph in a pan/zoom canvas when the graph is large or debugging transparency matters
 - click-to-details for graph nodes, ideally without forcing the user away from the canvas
-- winning path highlighted or listed
+- the answer candidate labelled on its node; a path is highlighted only when the reader asks for it
 - candidate solutions connect to the goal with `answers`
 - contradicted/heavily penalized branches dimmed or red
 - next verification/action when available
@@ -85,19 +84,38 @@ Recommended graph/HTML flow:
 1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
 2. Build/update the state with `record` as work progresses (`../SKILL.md`); each `record` refreshes `<state>.html` as a live view.
 3. Run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
-4. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with explanation/audit graph views, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
+4. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with explanation/audit graph views, node-detail popup modals, filterable detail cards, and a candidate focus dropdown. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
 5. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph/HTML output was requested.
 6. For separate graph sources, run `reasoning-graph mermaid state.json > <slug>.mmd`.
 7. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
 10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.
 
+### What the helper page shows
+
+Everything on the page comes from the graph and the claim `summary.answer`. Top to bottom:
+
+| Part | Content |
+| --- | --- |
+| Answer | one line per answered goal, `Answer: CS1, <candidate text>`; with several goals, `Answer to G2: CS3, <candidate text>`. No line while no answer is claimed |
+| Status | the line `audit` prints, such as `answer CS1: checks pass`, computed when the page renders |
+| Rank note | only when another candidate of the same goal outranks the answer |
+| Goal policy | only when the state has `goal_policy` or `goal_groups` |
+| Graph | the full graph, grouped by node type, in a pan/zoom canvas |
+| Node details | one card per node: text, source, quote, note, belief, edges |
+
+The answer is labelled, not highlighted:
+
+- its node reads `CS1 · ANSWER` on the first label line, or `CS1 · ANSWER to G2` with several goals, in Mermaid and in the offline SVG
+- its detail card and popup carry the same label beside the node type
+- the focus dropdown lists it as `CS1 (ANSWER)`. Picking a candidate there highlights its derivation; nothing is focused by default
+
+There is no candidate table. The belief of each claim is on its node.
+
 ### Belief display
 
 Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into the state.
-
-Under the answer the report shows the status `audit` prints, such as `answer CS1: checks pass`, computed when the report renders.
+Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; beliefs in the details are rounded to six decimal places. Rendering never writes these computed values into the state.
 
 When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 
@@ -112,7 +130,7 @@ Canvas rules:
 - Prefer click-to-details anchors over huge node labels.
 - Mermaid supports node click links with tooltips, e.g. `click E15 "#details-E15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
 - If using Mermaid click links/callbacks, initialize with `securityLevel: "loose"` when needed.
-- Do not expose only a dense full graph. For nontrivial graphs, include a readable explanation view such as a curated graph, winning-path list, or candidate-focused summary.
+- Do not expose only a dense full graph in a bespoke report. For nontrivial graphs, include a readable explanation view such as a curated graph or a candidate-focused summary.
 - Avoid forcing scroll for normal node inspection. Prefer popup/modal detail cards.
 
 Mermaid styling pattern:
@@ -135,7 +153,7 @@ flowchart TD
 HTML report design guidance:
 
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
-- Put the answer/candidate ranking before the graph so users know what they are looking at.
+- Put the answer before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.
 - Keep graph labels compact using the belief display above; route observation text to filterable detail cards and modal popups.
 - Do not add a separate observations/constraints section if the node details list already covers observations and constraints with sources.
