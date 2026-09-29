@@ -13,6 +13,7 @@ from .case import Case, CaseLink, CaseNode, CaseRival, CaseTest, WeakSpot, answe
 from .graph_view import NODE_COLORS
 from .identities import RenderIdentityMap
 from .models import node_render_class
+from .source_links import SourceLink, source_html
 
 WEAK_SPOT_TEXT = {
     "no_input": "rests on no premise or support",
@@ -31,9 +32,10 @@ def case_id_styles() -> str:
 
 
 class _CaseMarkup:
-    def __init__(self, state: dict[str, Any], identities: RenderIdentityMap) -> None:
+    def __init__(self, state: dict[str, Any], identities: RenderIdentityMap, linked_sources: dict[str, SourceLink]) -> None:
         self.nodes = {str(node.get("id")): node for node in state.get("nodes", []) if isinstance(node, dict)}
         self.identities = identities
+        self.linked_sources = linked_sources
 
     def node_link(self, node_id: str) -> str:
         render_class = node_render_class(self.nodes[node_id])
@@ -47,7 +49,7 @@ class _CaseMarkup:
         belief = f' <span class="case-belief">belief {node.belief:.3g}</span>' if node.belief is not None and node.type != "observation" else ""
         quote = ""
         if node.quote:
-            source = f" <cite>{html.escape(node.source)}</cite>" if node.source else ""
+            source = f" <cite>{source_html(node.source, self.linked_sources)}</cite>" if node.source else ""
             quote = f'<blockquote class="case-quote">{html.escape(node.quote)}{source}</blockquote>'
         return f'{belief} <span class="case-text">{html.escape(node.text)}</span>{quote}'
 
@@ -110,10 +112,10 @@ class _CaseMarkup:
         )
 
 
-def case_section_html(state: dict[str, Any], identities: RenderIdentityMap) -> str:
+def case_section_html(state: dict[str, Any], identities: RenderIdentityMap, linked_sources: dict[str, SourceLink]) -> str:
     """The case section, or nothing while no answer is claimed."""
     cases = answer_cases(state)
     if not cases:
         return ""
-    markup = _CaseMarkup(state, identities)
+    markup = _CaseMarkup(state, identities, linked_sources)
     return '<section id="case-section" class="case-section">' + "".join(markup.case(case, len(cases) > 1) for case in cases) + "</section>"

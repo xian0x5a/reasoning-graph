@@ -104,6 +104,8 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 | Goal policy | only when the state has `goal_policy` or `goal_groups` |
 | Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
 
+A source whose first word names a local file, resolved beside the state as the quote check does, links to that file wherever it shows: in the node details and in the case's quotes. The reader opens it to see the context around a quote. The link is relative when the file sits in the page's directory or below it, since the two then move together, and an absolute `file://` URL otherwise, including a page written to stdout. A file missing when the page renders, and any other source, stays plain text.
+
 ### The case
 
 The case lets a reader check the answer without reading the graph first. It lists nodes and edges only, no written summary. Each id is a chip in its node's colour, and clicking it opens that node's popup.

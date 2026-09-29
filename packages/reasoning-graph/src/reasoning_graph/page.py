@@ -24,6 +24,7 @@ from .policy import (
     preferred_goal_ids,
     ranked_candidates,
 )
+from .source_links import SourceLink, node_sources, source_html
 from .state import by_id
 
 
@@ -32,7 +33,11 @@ def page_asset(name: str) -> str:
     return (files(__package__) / "page_assets" / name).read_text(encoding="utf-8")
 
 
-def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
+def node_detail_cards(
+    state: dict[str, Any],
+    identities: RenderIdentityMap | None = None,
+    linked_sources: dict[str, SourceLink] | None = None,
+) -> str:
     node_truth_costs = node_effective_truth_costs(state)
     identities = identities or render_identity_map(state)
     labels = answer_labels(state)
@@ -46,8 +51,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
         if raw_id in labels:
             pill_text = f"{pill_text} · {labels[raw_id]}"
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
-        source = node.get("source") or node.get("sources") or ""
-        source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
+        source_text = ", ".join(source_html(source, linked_sources or {}) for source in node_sources(node))
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
             belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
@@ -66,7 +70,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
             f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}">'
             f'<header><code>{html.escape(raw_id)}</code><span class="pill">{html.escape(pill_text)}</span></header>'
             f'<p>{text}</p>'
-            f'{"<p class=\"source\">Source: " + html.escape(source_text) + "</p>" if source_text else ""}'
+            f'{"<p class=\"source\">Source: " + source_text + "</p>" if source_text else ""}'
             f'{"<p class=\"quote\">Quote: “" + html.escape(str(node["quote"])) + "”</p>" if node.get("quote") else ""}'
             f'{"<p class=\"note\">Not run: " + html.escape(str(node["not_run"])) + "</p>" if node.get("not_run") else ""}'
             f'{"<p class=\"note\">Note: " + html.escape(str(node["note"])) + "</p>" if node.get("note") else ""}'
@@ -310,6 +314,7 @@ def html_document(
     spacing: str = "default",
     render_mode: str = "mermaid",
     quote_errors: list[str] | None = None,
+    linked_sources: dict[str, SourceLink] | None = None,
 ) -> str:
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
     # Computed here, not read from the state, so the reader never sees a stale status.
@@ -321,9 +326,9 @@ def html_document(
     focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
 
-    case_html = case_section_html(state, identities)
+    case_html = case_section_html(state, identities, linked_sources or {})
     case_nav = '<a href="#case-section">Case</a>' if case_html else ""
-    details_html = node_detail_cards(state, identities)
+    details_html = node_detail_cards(state, identities, linked_sources)
     filters_html = detail_filter_buttons()
     page_data = {
         "graphEdgeMaps": {"audit-graph": graph_edge_connections(state, identities=identities)},

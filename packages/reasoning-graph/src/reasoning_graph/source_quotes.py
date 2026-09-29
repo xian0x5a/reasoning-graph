@@ -27,15 +27,22 @@ def _normalize(text: str) -> str:
     return WHITESPACE.sub(" ", text).strip().lower()
 
 
-def _local_source_text(source: Any, base_dir: Path) -> tuple[str, str] | None:
-    """Return (file name, text) when the source's first token names a readable local text file."""
+def local_source_file(source: Any, base_dir: Path) -> tuple[str, Path] | None:
+    """Return (file name, path) when the source's first token names a local file."""
     tokens = str(source or "").split()
     if not tokens:
         return None
     file_name = tokens[0].rstrip(",;:")
     path = base_dir / file_name
-    if not path.is_file():
+    return (file_name, path) if path.is_file() else None
+
+
+def _local_source_text(source: Any, base_dir: Path) -> tuple[str, str] | None:
+    """Return (file name, text) when the source's first token names a readable local text file."""
+    local_file = local_source_file(source, base_dir)
+    if local_file is None:
         return None
+    file_name, path = local_file
     try:
         return file_name, path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
