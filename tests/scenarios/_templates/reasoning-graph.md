@@ -1,6 +1,6 @@
 # Reasoning-Graph A/B Prompt
 
-Read `{{PROBLEM_FILE}}`, then use the `reasoning-graph` skill in strict mode with graph output if available.
+Read `{{PROBLEM_FILE}}`, then use the `reasoning-graph` skill with graph output if available.
 
 Rules:
 
