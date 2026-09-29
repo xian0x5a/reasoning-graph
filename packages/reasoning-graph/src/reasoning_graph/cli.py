@@ -147,8 +147,8 @@ def _source_base_dir(state_path: str) -> Path:
     return Path(state_path).parent if state_path != "-" else Path.cwd()
 
 
-def _linked_sources(state: dict[str, Any], state_path: str, page_path: str | None) -> dict[str, SourceLink]:
-    page_dir = Path(page_path).parent if page_path and page_path != "-" else None
+def _linked_sources(state: dict[str, Any], state_path: str, page_dir: Path | None) -> dict[str, SourceLink]:
+    """Links to the state's source files from a page in `page_dir`, or from one written to stdout (None)."""
     return source_links(state, _source_base_dir(state_path), page_dir)
 
 
@@ -189,7 +189,7 @@ def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
     target = getattr(args, "output", None) or args.state
     if target == "-":
         return
-    linked_sources = _linked_sources(state, args.state, str(Path(target).with_suffix(".html")))
+    linked_sources = _linked_sources(state, args.state, Path(target).parent)
     views = {
         ".html": html_document(state, to_mermaid(state), "default", "mermaid", linked_sources=linked_sources),
         ".index.md": index_document(state),
@@ -350,7 +350,7 @@ def cmd_html(args: argparse.Namespace) -> int:
     render_mode = "offline" if args.offline else "mermaid"
     document = html_document(
         state, source, args.spacing, render_mode, _quote_errors(state, args.state),
-        _linked_sources(state, args.state, args.output),
+        _linked_sources(state, args.state, Path(args.output).parent if args.output and args.output != "-" else None),
     )
     write_output_text(document, args.output)
     return 0

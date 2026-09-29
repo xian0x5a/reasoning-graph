@@ -104,7 +104,7 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 | Goal policy | only when the state has `goal_policy` or `goal_groups` |
 | Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
 
-A source whose first word names a local file, resolved beside the state as the quote check does, links to that file wherever it shows: in the node details and in the case's quotes. The reader opens it to see the context around a quote. The link is relative when the file sits in the page's directory or below it, since the two then move together, and an absolute `file://` URL otherwise, including a page written to stdout. A file missing when the page renders, and any other source, stays plain text.
+A source whose first word names a local file, resolved beside the state as the quote check does, links to that file wherever it shows: in the node details and in the case's quotes. The reader opens it to see the context around a quote. The link is relative when the file sits in the page's directory or below it, since the two then move together, and an absolute `file://` URL otherwise, including a page written to stdout. A file missing when the page renders, and any other source, stays plain text. A symlinked file links to its target, so it is absolute unless the target also sits under the page.
 
 ### The case
 

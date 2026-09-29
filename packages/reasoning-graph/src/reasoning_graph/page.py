@@ -38,6 +38,7 @@ def node_detail_cards(
     identities: RenderIdentityMap | None = None,
     linked_sources: dict[str, SourceLink] | None = None,
 ) -> str:
+    linked_sources = linked_sources or {}
     node_truth_costs = node_effective_truth_costs(state)
     identities = identities or render_identity_map(state)
     labels = answer_labels(state)
@@ -51,7 +52,7 @@ def node_detail_cards(
         if raw_id in labels:
             pill_text = f"{pill_text} · {labels[raw_id]}"
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
-        source_text = ", ".join(source_html(source, linked_sources or {}) for source in node_sources(node))
+        source_text = ", ".join(source_html(source, linked_sources) for source in node_sources(node))
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
             belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
@@ -316,6 +317,7 @@ def html_document(
     quote_errors: list[str] | None = None,
     linked_sources: dict[str, SourceLink] | None = None,
 ) -> str:
+    linked_sources = linked_sources or {}
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
     # Computed here, not read from the state, so the reader never sees a stale status.
     status = html.escape(audit_state(state, quote_errors).status)
@@ -326,7 +328,7 @@ def html_document(
     focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
 
-    case_html = case_section_html(state, identities, linked_sources or {})
+    case_html = case_section_html(state, identities, linked_sources)
     case_nav = '<a href="#case-section">Case</a>' if case_html else ""
     details_html = node_detail_cards(state, identities, linked_sources)
     filters_html = detail_filter_buttons()

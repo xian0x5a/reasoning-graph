@@ -63,6 +63,14 @@ class SourceLinkTests(unittest.TestCase):
             page = self.render(state_path, run_dir / "state.html")
         self.assertIn('href="sources/notes.md"', page)
 
+    def test_relative_link_is_url_quoted(self) -> None:
+        # Unquoted, "#" would start a fragment and link to a file named "n".
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            run_dir = Path(tmp_dir)
+            self.write_source(run_dir / "n#1.md")
+            page = self.render(self.write_state(run_dir, "n#1.md"), run_dir / "state.html")
+        self.assertIn('href="n%231.md">n#1.md</a>', page)
+
     def test_source_outside_the_page_directory_links_absolutely(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             run_dir = Path(tmp_dir) / "run"
@@ -108,6 +116,22 @@ class SourceLinkTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             page = state_path.with_suffix(".html").read_text(encoding="utf-8")
         self.assertIn('href="notes.md"', page)
+
+    def test_record_written_elsewhere_links_from_the_new_page(self) -> None:
+        # Sources resolve beside the state read; the link starts from the page written with --output.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            run_dir = Path(tmp_dir) / "run"
+            self.write_source(run_dir / "notes.md")
+            state_path = self.write_state(run_dir, "notes.md")
+            patch_path = run_dir / "patch.json"
+            patch_path.write_text(json.dumps({"nodes": [{"id": "O2", "type": "observation", "text": "Another report"}]}), encoding="utf-8")
+            output_path = Path(tmp_dir) / "copy" / "state.json"
+            output_path.parent.mkdir()
+            result = run_cli("record", str(state_path), "--patch", str(patch_path), "-o", str(output_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            page = output_path.with_suffix(".html").read_text(encoding="utf-8")
+            expected = (run_dir / "notes.md").resolve().as_uri()
+        self.assertIn(f'href="{expected}"', page)
 
 
 if __name__ == "__main__":
