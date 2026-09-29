@@ -109,6 +109,7 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 - [x] 6. HTML status line (`3d4d95b`)
 - [x] 7. Docs and ADRs, version 0.3.0 (`2312798`, `85dc677`, `920eee8`, `dc7b700`)
 - [x] 8. Rerun `s55-loop-r2` and result on #38
+- [x] 9. Draft check removed after the repeat (`90113f0`). Not measured: no run on the CLI without it
 
 ## Surprises & Discoveries
 
@@ -135,6 +136,7 @@ Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 9. `stop_policy` is removed whole: `severity`, `min_viable_candidates`, and with them `init --strict` and `init --profile`. They configured the stop gate, and there is no stop gate. A state that carries `stop_policy` fails validation.
 10. There is no outcome. `solved`, `inconclusive`, `blocked`, `budget_exhausted`, `candidate_count_met` and `user_stopped` are all removed. `inconclusive` and `blocked` changed no check, and the reason for giving up is a hypothesis node and a line in the final response. The file alone does not tell "gave up" from "still working".
 11. A rejected answer is handled by a convention in `SKILL.md`, with no new field or command. The resume loop is this workflow, so the rerun measures it.
+12. `audit` takes no draft. Decided after the repeat, and it replaces the `--draft` of step 2. The answer is already named in the state, and a match by id or exact text fails on a paraphrase as it does on a mismatch. The loss: nothing checks that the final response argues for the candidate the state names.
 
 Settled during the implementation:
 
@@ -234,7 +236,7 @@ The same code and items as `s55-loop-r2`, run once more to separate noise from a
 
 Follow-ups, each its own plan:
 
-1. Decide on the draft check: remove `--draft`, or keep it and make it cheap. The answer is already named in the state.
+1. ~~Decide on the draft check.~~ Removed, decision 12.
 2. A second run of the old CLI, only if the hint-use question has to be settled.
 3. Cut `score_ab.py` down to what still applies.
 4. The presentation eval (#39).
