@@ -102,12 +102,12 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 ## Progress
 
 - [x] 1. Calls per command. Baseline saved outside git at `test-results/exact-answer/true-detective/loop-usage-s55-loop-r1.txt`
-- [ ] 2. `audit` replaces `stop`, `validate`, `doctor`
-- [ ] 3. Trace removed
-- [ ] 4. Edge ids derived
-- [ ] 5. `init` output
-- [ ] 6. HTML status line
-- [ ] 7. Docs and ADRs
+- [x] 2. `audit` replaces `stop`, `validate`, `doctor` (`b15325b`)
+- [x] 3. Trace removed (`085981a`)
+- [x] 4. Edge ids derived (`4778ec5`)
+- [x] 5. `init` output (`21055d7`)
+- [x] 6. HTML status line (`3d4d95b`)
+- [x] 7. Docs and ADRs, version 0.3.0 (`2312798`, `85dc677`, `920eee8`, `dc7b700`)
 - [ ] 8. Rerun and result on #38
 
 ## Surprises & Discoveries
@@ -117,6 +117,8 @@ Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 - **The duplicate-id failures were not a memory problem.** All 12 are `nodes id G1 already exists` in round 1. `init` creates the goal and prints nothing, and the first patch adds it again. 9 cost one extra call, 3 cost three.
 - **The 1.3 times target of #38 is probably out of reach by removing friction alone.** Counting the feedback turn, a round of the notes-file arm takes 3.5 tool calls in round 1 and 2.6 later. A round of the graph arm takes 8.1 and 5.3. One of them loads the skill, and at least two are `record` and the final check. Agents already chain the final checks: 41 of the 42 calls that ran `stop` also ran `validate` and `audit`, and 28 of them ran `record` too. So folding the three checks into one saves output tokens more than calls.
 - **50 CLI calls failed** in the graph arm, out of about 150. 34 were refused writes after a stop and 12 were `G1`.
+- **The package lost about 1000 lines net**: 1429 added, 2444 removed across 75 files. Package checks: 374 passed, 83 subtests.
+- **`record` writes `"factors": []`** into a state without groups. It predates this plan and is left alone.
 - **`score_ab.py` measures the precision of `solved` stops**, the target #37 dropped. With no stop it prints `no-stop` for every new run. It still scores the old runs, and `score_loop.py` imports its McNemar test. Left alone here; a follow-up can cut it down.
 
 ## Decisions
@@ -133,6 +135,17 @@ Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 9. `stop_policy` is removed whole: `severity`, `min_viable_candidates`, and with them `init --strict` and `init --profile`. They configured the stop gate, and there is no stop gate. A state that carries `stop_policy` fails validation.
 10. There is no outcome. `solved`, `inconclusive`, `blocked`, `budget_exhausted`, `candidate_count_met` and `user_stopped` are all removed. `inconclusive` and `blocked` changed no check, and the reason for giving up is a hypothesis node and a line in the final response. The file alone does not tell "gave up" from "still working".
 11. A rejected answer is handled by a convention in `SKILL.md`, with no new field or command. The resume loop is this workflow, so the rerun measures it.
+
+Settled during the implementation:
+
+- One failed check reads `1 check fails`.
+- `report.answer` without `summary.answer` fails validation: the HTML would show an answer nothing checked.
+- The answer need not name a candidate for an optional goal.
+- While no answer is claimed, `audit` prints `needs:` lines for unanswered goals and tests without a result. Grounding is not listed, since it is judged on a named candidate.
+- The status counts every error, graph and quote errors included. The answer checks wait for a valid graph.
+- An empty patch is refused.
+- `refresh` no longer writes the state and lost `-o`. It checks, prints `ok`, and rewrites the two views.
+- The schema enforces the hyphen rule too.
 
 `goal_policy` stays. It says which goals need an answer, which the answer checks read.
 
