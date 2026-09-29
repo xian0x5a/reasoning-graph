@@ -203,7 +203,7 @@ What the 37 failed CLI calls were:
 | 10 | `audit --draft answer.md` before `answer.md` exists | friction: the example in `SKILL.md` chains `record` and `audit --draft` |
 | 7 | the draft does not name the candidate | the check doing its job |
 | 5 | a node id or an edge that already exists | friction |
-| 5 | other | mixed |
+| 8 | other: a quote that is not verbatim, a schema error, an update of a missing node | mixed |
 
 The counts add to more than 37 because one call can fail on two checks.
 
