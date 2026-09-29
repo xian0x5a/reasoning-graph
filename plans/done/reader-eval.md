@@ -109,7 +109,7 @@ Catch's two plant kinds give a first read on the open question of #39, whether t
 - [x] 3. Plants (e6baa8d; 11 drafted, all checked by hand, one written by hand)
 - [x] 4. Catch (pilot on 3 items, read by hand; then 97e89ae, dffbaf2 for refusals)
 - [x] 5. Full run (11 items × 3 repeats: 99 trace reads, 198 catch reads)
-- [ ] 6. Human check
+- [ ] 6. Human check: moved to the source-link work. Links to the story are what a human reader gains over the model reader, so the check waits for them.
 
 ## Surprises & Discoveries
 
