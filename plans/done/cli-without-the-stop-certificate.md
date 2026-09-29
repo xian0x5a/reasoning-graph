@@ -238,5 +238,5 @@ Follow-ups, each its own plan:
 
 1. ~~Decide on the draft check.~~ Removed, decision 12.
 2. A second run of the old CLI, only if the hint-use question has to be settled. Not run: the plan was closed without it, so whether the old 25 of 25 was luck stays open.
-3. Cut `score_ab.py` down to what still applies.
+3. ~~Cut `score_ab.py` down to what still applies.~~ Done: the `solved`-stop precision and honest abstention are removed; accuracy, McNemar and cost stay.
 4. The presentation eval (#39).
