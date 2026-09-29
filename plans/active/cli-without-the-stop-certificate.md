@@ -108,7 +108,7 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 - [x] 5. `init` output (`21055d7`)
 - [x] 6. HTML status line (`3d4d95b`)
 - [x] 7. Docs and ADRs, version 0.3.0 (`2312798`, `85dc677`, `920eee8`, `dc7b700`)
-- [ ] 8. Rerun and result on #38
+- [x] 8. Rerun `s55-loop-r2` and result on #38
 
 ## Surprises & Discoveries
 
@@ -151,4 +151,65 @@ Settled during the implementation:
 
 ## Outcomes & Retrospective
 
-Not started.
+Graph arm, the same 14 items, `claude-sonnet-5-5` at high effort, one run per column. The notes file is the run of #37.
+
+| Measure | Notes file | Graph, old CLI (`s55-loop-r1`) | Graph, new CLI (`s55-loop-r2`) |
+|---|---|---|---|
+| First submit right | 7 | 8 | 6 |
+| Passed | 12 | 12 | 10 |
+| Submits used | 39 | 39 | 41 |
+| Repeated a rejected answer | 0 | 0 | 0 |
+| Hints used in the next submit | 20 of 25 | 25 of 25 | 19 of 27 |
+| Cost | $6.86 | $12.25 | $11.57 |
+| Cost of round 1, mean | $0.27 | $0.49 | $0.36 |
+| Cost of a later round, mean | $0.12 | $0.22 | $0.24 |
+| Tool calls per round, round 1 | 3.5 | 8.1 | 5.4 |
+| Tool calls per round, later | 2.6 | 5.3 | 5.4 |
+| CLI calls that failed | | 50 | 37 |
+| Writes refused after a stop | | 34 | 0 |
+| Hand edits of the state | | 23 | 0 |
+| Memory file at the end, median | 2.6 KB | 3.4 KB index, 8.9 KB state | 5.1 KB index, 9.9 KB state |
+
+Reproduce:
+
+    uv run tests/scenarios/exact-answer/score_loop.py test-results/exact-answer/true-detective s55-loop-r2 graph
+    uv run tests/scenarios/exact-answer/loop_usage.py test-results/exact-answer/true-detective s55-loop-r2 graph
+
+Against the validation list:
+
+| Check | Result |
+|---|---|
+| No write refused because of a stop | met: 0 |
+| No hand edit of the state | met: 0 |
+| No record fails on `G1` | met: 0 |
+| No rejected answer is repeated | met: 0 |
+| Passed stays at 12 of 14, within noise | 10. Three items passed only before, one only now; McNemar exact p = 0.625. Within noise, but the direction is down |
+| Hints used stay at 25 of 25, within noise | not met: 19 of 27, Fisher exact p = 0.004 against the old run |
+| Cost against the notes file | 1.7 times, from 1.8 |
+
+What the result says:
+
+- **The friction this plan aimed at is gone.** Round 1 costs 27% less and takes a third fewer calls.
+- **Later rounds did not get cheaper.** The total fell by 6%, and this run had two more rounds.
+- **The hints were not lost.** In all 8 cases of an unused hint, the hint text is in a node of the graph, and in 5 of them the next answer takes up the subject of the hint. In `dead-mans-island` the hint sat at the top of the index as a test, and the agent drew the opposite conclusion from it.
+- **Why fewer hints turned into a covered key point is not known.** Three candidates, which one run per arm cannot tell apart: run-to-run noise (the notes-file arm had 20 of 25 with the hint in its notes), the rejected-answer convention, and the missing `Last record` line. The line is the weakest suspect: the hint sat in the top part of the index about as often in both runs.
+- **The 1.3 times target of #38 was not reached**, as the call counts had predicted.
+
+What the 37 failed CLI calls were:
+
+| Count | Error | Kind |
+|---|---|---|
+| 14 | an answer claimed while a test has no result | the check doing its job; the convention adds a test per check the guidance asks for |
+| 10 | `audit --draft answer.md` before `answer.md` exists | friction: the example in `SKILL.md` chains `record` and `audit --draft` |
+| 7 | the draft does not name the candidate | the check doing its job |
+| 5 | a node id or an edge that already exists | friction |
+| 5 | other | mixed |
+
+The counts add to more than 37 because one call can fail on two checks.
+
+Follow-ups, each its own plan:
+
+1. Repeat the rerun once to separate noise from a real drop in hint use and passes.
+2. `audit` without `--draft` when no draft exists yet, and an error message for a missing draft file.
+3. Cut `score_ab.py` down to what still applies.
+4. The presentation eval (#39).
