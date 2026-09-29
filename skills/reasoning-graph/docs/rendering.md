@@ -83,13 +83,12 @@ Read state.json. Generate polished self-contained HTML report. Do not solve agai
 Recommended graph/HTML flow:
 
 1. Persist the graph/search state as JSON in the requested output path or durable artifact location; use `/tmp` only as an ad hoc fallback.
-2. Build/update the state with `record` as work progresses (`../SKILL.md`); each `record` refreshes `<state>.html` as a live view, then `stop` when a gate holds.
-3. Run `reasoning-graph validate state.json` and fix errors.
-4. After `stop`, run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
-5. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with explanation/audit graph views, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
-6. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph/HTML output was requested.
-7. For separate graph sources, run `reasoning-graph mermaid state.json > <slug>.mmd`.
-9. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
+2. Build/update the state with `record` as work progresses (`../SKILL.md`); each `record` refreshes `<state>.html` as a live view.
+3. Run `reasoning-graph audit state.json` and fix errors or explain remaining warnings.
+4. Generate the requested graph HTML path with `reasoning-graph html state.json -o <requested-output>.html`. The helper emits the baseline canvas report with explanation/audit graph views, node-detail popup modals, filterable detail cards, candidate focus dropdowns, and candidate table. Use `--spacing relaxed|wide|compact|default` to compare Mermaid/offline spacing presets. Add `--offline` only when network/CDN use is disallowed.
+5. If you also want a custom/polished summary page, save it separately as `<slug>-custom.html` or similar. Never use a custom summary page as the only artifact when graph/HTML output was requested.
+6. For separate graph sources, run `reasoning-graph mermaid state.json > <slug>.mmd`.
+7. For polished presentation output, hand off `state.json`, optional `.mmd` files, optional style reference, and an extra output path to a low-thinking rendering agent. The renderer may design freely, but it must preserve the source-of-truth state and must not invent reasoning.
 10. If network/external dependencies are disallowed, produce self-contained HTML/SVG or provide the `.mmd` plus a plain Markdown fallback.
 
 ### Belief display
@@ -98,7 +97,9 @@ Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nod
 
 Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into the state.
 
-When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; the stop gate accepts any grounded candidate as the answer.
+Under the answer the report shows the status `audit` prints, such as `answer CS1: checks pass`, computed when the report renders.
+
+When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 
 Canvas rules:
 

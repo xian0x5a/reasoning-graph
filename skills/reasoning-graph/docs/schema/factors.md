@@ -9,7 +9,7 @@
 ```
 
 - `id` — unique group id.
-- `edges` — two or more edge ids. All share one type (`leads_to`, `supports`, or `contradicts`) and one target.
+- `edges` — two or more edges, each named by its ends as `from-to`. All share one type (`leads_to`, `supports`, or `contradicts`) and one target.
 - `score` — required, 1 to 5: the combined weight of the grouped edges, read from the same tables as an ungrouped score (`../cost-model.md`).
   - `supports` / `contradicts`: the evidence ratio of the whole group.
   - `leads_to`: the joint probability that all grouped premises hold.
@@ -23,10 +23,9 @@ Two log lines of one failed request support `H1`. Ungrouped, two default edges w
 
 ```json
 {
-  "reason": "Both log lines come from one request",
   "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "note": "A timeout at the gateway is more likely if the pool is exhausted."},
-    {"id": "O2-H1", "from": "O2", "to": "H1", "type": "supports", "note": "The retry of that request timing out is the same signal again."}
+    {"from": "O1", "to": "H1", "type": "supports", "note": "A timeout at the gateway is more likely if the pool is exhausted."},
+    {"from": "O2", "to": "H1", "type": "supports", "note": "The retry of that request timing out is the same signal again."}
   ],
   "factors": [
     {"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4, "note": "One request, logged twice."}

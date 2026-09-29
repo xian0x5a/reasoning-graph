@@ -38,7 +38,7 @@ Mutually exclusive sibling hypotheses do not have to sum to anything; the scale 
 An edge takes an optional `note`, the same field nodes have. Nothing forces one: most links are plain from the two node texts. Write a note when the score departs from the default, so a reader can check the weight, or when the link is not obvious.
 
 ```json
-{"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "score": 5, "note": "Only the token server writes this log line."}
+{"from": "O1", "to": "H1", "type": "supports", "score": 5, "note": "Only the token server writes this log line."}
 ```
 
 The removed `reasoning` field is rejected.

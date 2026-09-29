@@ -24,7 +24,7 @@ The number is still useful to a person. In a large graph it shows why one answer
 - The renders compute belief when they run: `html`, `mermaid`, and the live `<state>.html`.
 - The HTML marks an answer that is not the top-ranked candidate. The agent gets no warning.
 - `stop` checks that the answer names a candidate that answers the goal, any candidate. The grounding gate applies to the named candidate.
-- A goal's only candidate is its answer. Among several, the answer names exactly one; `stop --answer` sets it, so it costs no hand edit.
+- A goal's only candidate is its answer. Among several, the answer names exactly one; `stop --answer` sets it, so it costs no hand edit. ([ADR 0012](0012-status-is-computed-not-stored.md) moved these checks to `audit`, made the patch key `answer` the way to set the answer, and requires the answer to be named even for a goal's only candidate.)
 
 ## Consequences
 

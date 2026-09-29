@@ -1,6 +1,6 @@
 # reasoning-graph
 
-Python library and CLI for building, validating, auditing, and rendering reasoning graphs.
+Python library and CLI for building, auditing, and rendering reasoning graphs.
 
 ## Install
 
@@ -19,7 +19,8 @@ If the command is unavailable, ensure the uv tool bin directory is on `PATH`.
 ## Common commands
 
 ```bash
-reasoning-graph validate state.json
+reasoning-graph init --goal "Diagnose outage" -o state.json
+reasoning-graph record state.json --patch patch.json
 reasoning-graph audit state.json
 reasoning-graph html state.json -o graph.html
 reasoning-graph schema state

@@ -38,7 +38,7 @@ Share prompt templates in `_templates/`; do not duplicate solver-mode instructio
 Current templates:
 
 - `_templates/no-skill.md` — baseline run without the skill.
-- `_templates/reasoning-graph.md` — skill run using strict/graph mode.
+- `_templates/reasoning-graph.md` — skill run using the graph.
 
 Templates use `{{PROBLEM_FILE}}` as the problem path placeholder.
 
@@ -75,11 +75,10 @@ Score every run on the same sheet, whichever arm produced it:
 - clue-cluster coverage and fabricated-evidence count (claims in the final answer with no source in the transcript)
 - tokens, peak context, wall time, tool calls
 
-For reasoning-graph runs, also record from the stopped state:
+For reasoning-graph runs, also record from the final state:
 
-- `reasoning-graph audit` stats: `events` and `records`
-- number of `contradicts` edges, and which stop gate the `stop` event names
-- `validate` / `audit` verdicts
+- the status line of `reasoning-graph audit` and the checks it fails
+- number of nodes, edges, and `contradicts` edges
 
 ## Assets
 

@@ -24,7 +24,7 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
 A candidate answers a goal through an `answers` edge:
 
 ```json
-{"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"}
+{"from": "CS1", "to": "G1", "type": "answers"}
 ```
 
 ## `answer_kind` values
@@ -55,7 +55,7 @@ Fields:
 
 - `accepted_goals` — goal ids that candidates may validly answer. If absent, all goal nodes are accepted.
 - `preferred_goals` — goal ids preferred in presentation or priority discussion; does not change validity.
-- `optional_goals` — goal ids that may remain unanswered at a `solved`/candidate-count/threshold stop; also exempt as required sub-goals.
+- `optional_goals` — goal ids a claimed answer may leave unanswered; also exempt as required sub-goals, and the answer need not name a candidate for them.
 - `goal_groups[].exclusive` — marks mutually incompatible outcomes in that group.
 
 ## Sub-goals
@@ -69,7 +69,7 @@ Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. 
     {"id": "G2", "type": "goal", "text": "Find the next URL path under /TwoSigns/"}
   ],
   "edges": [
-    {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires"}
+    {"from": "G1", "to": "G2", "type": "requires"}
   ]
 }
 ```
@@ -92,7 +92,6 @@ A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it c
 
 ```json
 {
-  "reason": "Suspect a divisibility lemma",
   "nodes": [
     {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3"}
   ]
@@ -103,12 +102,11 @@ Once proved, a later `record` adds its `leads_to` premises to the same node. Bel
 
 ```json
 {
-  "reason": "Proved H3 from the row generator",
   "nodes": [
     {"id": "O4", "type": "observation", "text": "Row generator appends only multiples of 3 (src/rows.py:12-30)", "source": "src/rows.py"}
   ],
   "edges": [
-    {"id": "O4-H3", "from": "O4", "to": "H3", "type": "leads_to", "note": "If every appended term is a multiple of 3, each row sum is too."}
+    {"from": "O4", "to": "H3", "type": "leads_to", "note": "If every appended term is a multiple of 3, each row sum is too."}
   ]
 }
 ```
@@ -124,7 +122,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node. Bel
     {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer"}
   ],
   "edges": [
-    {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"}
+    {"from": "CS1", "to": "G1", "type": "answers"}
   ]
 }
 ```
@@ -141,7 +139,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node. Bel
     {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker"}
   ],
   "edges": [
-    {"id": "CS2-G2", "from": "CS2", "to": "G2", "type": "answers"}
+    {"from": "CS2", "to": "G2", "type": "answers"}
   ]
 }
 ```
@@ -156,7 +154,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node. Bel
     {"id": "T1", "type": "test", "text": "Try columnar transposition keys"}
   ],
   "edges": [
-    {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts"}
+    {"from": "H1", "to": "T1", "type": "prompts"}
   ]
 }
 ```

@@ -20,9 +20,9 @@ A patch could only add nodes, edges, and factors, and set node fields. Agents ha
 ## Decision
 
 - A patch can remove (`remove_nodes`, `remove_edges`, `remove_factors`), change (`update_nodes` and `update_edges` with `set` and `unset`), and add. It applies removals, then updates, then additions.
-- Identity fields are fixed: a node's `id` and `type`, and an edge's `id`, `from`, and `to`. Changing one means removing the object and adding a new one.
+- Identity fields are fixed: a node's `id` and `type`, and an edge's `id`, `from`, and `to`. Changing one means removing the object and adding a new one. ([ADR 0012](0012-status-is-computed-not-stored.md) removed the edge `id`: an edge is named by its ends.)
 - Removing a node removes its edges. Factors are never removed implicitly, because a factor's calibrated aggregation has to be re-authored rather than silently dropped.
-- `record`, `refresh`, `review`, and `stop` events store a `graph_digest`: a hash of nodes (without `belief`), edges, factors, and the gate policies.
+- `record`, `refresh`, `review`, and `stop` events store a `graph_digest`: a hash of nodes (without `belief`), edges, factors, and the gate policies. ([ADR 0012](0012-status-is-computed-not-stored.md) removed the events, the digest, and `stop`: a hand edit is checked by the next command and no longer logged, and `audit` is the read-only check.)
 - A digest that differs from the last `record` or `refresh` event marks a hand-edit. `refresh`, `record`, and `stop` all take one in: the graph must validate and every quote must match, then a `refresh` event lists the removed objects. `refresh` does only that, plus rewriting beliefs and the view. It replaces `beliefs --write`, which is removed.
 - `record` and `stop` take the edit in themselves rather than refusing and sending the agent to `refresh`: refusing only cost a turn, because the review gate already catches a hand-edit after a review.
 - A review is stale when its digest differs from the current graph's, whether the change came from a patch or a hand-edit.

@@ -18,8 +18,8 @@ What the skill does reliably is keep a record. Issue #37 repositions it: a memor
 ## Decision
 
 - The reviewer is removed: the `review` and `stop-review` commands, `require_review`, the stale-review check and the `review` event. An agent that wants a second opinion records it as a `test` node like any other check.
-- `stop` keeps the checks a machine can make: quotes are verbatim, every test has a result or is marked `not_run`, every accepted goal is answered, the answer names a candidate, and that candidate rests on observations.
-- `candidate_threshold_met` is removed as an outcome. Without a threshold it equals `solved`.
+- `stop` keeps the checks a machine can make: quotes are verbatim, every test has a result or is marked `not_run`, every accepted goal is answered, the answer names a candidate, and that candidate rests on observations. ([ADR 0012](0012-status-is-computed-not-stored.md) keeps the checks and removes `stop`: `audit` runs them read-only, and nothing locks the state.)
+- `candidate_threshold_met` is removed as an outcome. Without a threshold it equals `solved`. ([ADR 0012](0012-status-is-computed-not-stored.md) removed every outcome.)
 - `record` refreshes `<state>.index.md` beside the state: goals, then what is open, then one line per node and edge. It holds no quotes and no belief. It is what an agent reads first on resume.
 - The main agent is the only writer. `record` rewrites the whole state, so two writers lose updates. Subagents read the index and return findings; a delegated check is a `test` node marked `not_run` until its result is in.
 - When to record and how much stays the agent's call. No budget is enforced.

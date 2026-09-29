@@ -1,13 +1,13 @@
 # Report and Presentation Metadata
 
-Use this page as the shape and example reference for optional human-facing metadata. Source of truth remains `nodes`, `edges`, `factors`, and `events`.
+Use this page as the shape and example reference for optional human-facing metadata. Source of truth remains `nodes`, `edges`, `factors`, and `summary.answer`.
 
 ## `report` shape
 
 ```json
 "report": {
   "title": "Why candidate 1 wins",
-  "answer": "Short final answer for the report",
+  "answer": "CS1: short final answer for the report",
   "candidates": [
     {
       "id": "CS1",
@@ -21,6 +21,8 @@ Use this page as the shape and example reference for optional human-facing metad
   "next_verification": "Run the decisive verification"
 }
 ```
+
+`report.answer` is optional. The claim `audit` checks is `summary.answer`; when `report.answer` is set it names the same candidate, by id or exact text, and it cannot stand without `summary.answer`.
 
 `report.candidates[].path_nodes` lists node ids highlighted when a viewer focuses that candidate. If omitted, viewers should focus the candidate and directly connected support where possible.
 
@@ -59,7 +61,7 @@ A report row never carries them. `belief`, `truth_cost`, `effective_truth_cost`,
 {
   "report": {
     "title": "Cache staleness is most likely",
-    "answer": "Most observations point to stale config loaded at startup.",
+    "answer": "CS1: most observations point to stale config loaded at startup.",
     "candidates": [
       {
         "id": "CS1",
