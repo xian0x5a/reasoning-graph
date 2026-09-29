@@ -35,8 +35,8 @@ ROOM_SEED = {
         {"id": "T1", "type": "test", "text": "Decode the panes as Braille and probe the URL"},
     ],
     "edges": [
-        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
-        {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
+        {"from": "E1", "to": "A1", "type": "supports", "score": 3},
+        {"from": "A1", "to": "T1", "type": "prompts"},
     ],
 }
 
@@ -50,12 +50,12 @@ ROOM_ONE_SOLVED = {
         {"id": "T2", "type": "test", "text": "Decode the waveform and probe the URL"},
     ],
     "edges": [
-        {"id": "T1-E2", "from": "T1", "to": "E2", "type": "leads_to"},
-        {"id": "E2-CS1", "from": "E2", "to": "CS1", "type": "leads_to"},
-        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
-        {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires"},
-        {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "score": 2},
-        {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts"},
+        {"from": "T1", "to": "E2", "type": "leads_to"},
+        {"from": "E2", "to": "CS1", "type": "leads_to"},
+        {"from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "G1", "to": "G2", "type": "requires"},
+        {"from": "E3", "to": "A2", "type": "supports", "score": 2},
+        {"from": "A2", "to": "T2", "type": "prompts"},
     ],
     "answer": "TwoSigns",
 }
@@ -81,7 +81,7 @@ class SpookyManorFlow(unittest.TestCase):
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
         "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft"}],
-        "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to"}],
+        "edges": [{"from": "T2", "to": "E4", "type": "leads_to"}],
     }
 
     def test_answer_fails_while_an_accepted_goal_is_unanswered(self) -> None:
@@ -126,7 +126,7 @@ class UnansweredGoalTests(SpookyManorFlow):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["nodes"].append({"id": "G2", "type": "goal", "text": "Sub goal"})
-            state["edges"].append({"id": "G1-G2", "from": "G1", "to": "G2", "type": "leads_to"})
+            state["edges"].append({"from": "G1", "to": "G2", "type": "leads_to"})
             result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
             self.assertEqual(result.returncode, 1, result.stdout)
@@ -159,7 +159,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = self.fixture_state()
             state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
-            state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"})
+            state["edges"].append({"from": "CS2", "to": "G1", "type": "answers"})
             state_path = write_json(Path(tmp_dir) / "state.json", state)
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
@@ -199,8 +199,8 @@ class StrictTestResultTests(SpookyManorFlow):
             self.ok(self.record(tmp_dir, state_path, "conclusion", {
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "score": 5}],
                 "edges": [
-                    {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to"},
-                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "score": 4},
+                    {"from": "T2", "to": "H1", "type": "leads_to"},
+                    {"from": "H1", "to": "A2", "type": "contradicts", "score": 4},
                 ],
             }))
 
@@ -230,8 +230,8 @@ class GroundedPathTests(unittest.TestCase):
                 *nodes,
             ],
             "edges": [
-                {"id": "T1-O1", "from": "T1", "to": "O1", "type": "leads_to"},
-                {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+                {"from": "T1", "to": "O1", "type": "leads_to"},
+                {"from": "CS1", "to": "G1", "type": "answers"},
                 *edges,
             ],
         }
@@ -250,7 +250,7 @@ class GroundedPathTests(unittest.TestCase):
 
     @staticmethod
     def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-        return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
+        return {"from": source, "to": target, "type": edge_type, **extra}
 
     def test_score_only_hypothesis_fails_the_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

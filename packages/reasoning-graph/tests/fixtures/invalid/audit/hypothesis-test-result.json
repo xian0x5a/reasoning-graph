@@ -41,32 +41,27 @@
   ],
   "edges": [
     {
-      "id": "H1-T1",
       "from": "H1",
       "to": "T1",
       "type": "prompts"
     },
     {
-      "id": "T1-H2",
       "from": "T1",
       "to": "H2",
       "type": "leads_to"
     },
     {
-      "id": "H2-H1",
       "from": "H2",
       "to": "H1",
       "type": "contradicts",
       "score": 5
     },
     {
-      "id": "O1-CS1",
       "from": "O1",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "CS1-G1",
       "from": "CS1",
       "to": "G1",
       "type": "answers"

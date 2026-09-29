@@ -53,19 +53,16 @@
   },
   "edges": [
     {
-      "id": "O1A1",
       "from": "O1",
       "to": "A1",
       "type": "leads_to"
     },
     {
-      "id": "A1CS1",
       "from": "A1",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
       "type": "answers"

@@ -53,7 +53,7 @@ def evidence_state(edge_type: str = "supports", **extra: object) -> dict:
             {"id": "O1", "type": "observation", "text": "Signal"},
             {"id": "H1", "type": "hypothesis", "text": "Target"},
         ],
-        "edges": [{"id": "O1-H1", "from": "O1", "to": "H1", "type": edge_type, **extra}],
+        "edges": [{"from": "O1", "to": "H1", "type": edge_type, **extra}],
     }
 
 
@@ -148,8 +148,8 @@ def derived_state(**derived: object) -> dict:
             {"id": "D1", "type": "hypothesis", "text": "Conclusion", **derived},
         ],
         "edges": [
-            {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to"},
-            {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
+            {"from": "E1", "to": "D1", "type": "leads_to"},
+            {"from": "A1", "to": "D1", "type": "leads_to"},
         ],
     }
 
@@ -191,8 +191,8 @@ def test_derived_belief_updates_from_evidence_on_uncertain_premises():
             {"id": "D1", "type": "hypothesis", "text": "Deterministic conclusion"},
         ],
         "edges": [
-            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to"},
-            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "contradicts", "score": 5},
+            {"from": "E1", "to": "D1", "type": "leads_to"},
+            {"from": "E2", "to": "D1", "type": "contradicts", "score": 5},
         ],
     }
     assert validate_state(state).ok

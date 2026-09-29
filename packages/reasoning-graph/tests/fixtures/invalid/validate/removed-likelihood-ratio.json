@@ -13,7 +13,6 @@
   ],
   "edges": [
     {
-      "id": "E1A1",
       "from": "E1",
       "to": "A1",
       "type": "supports",

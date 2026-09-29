@@ -20,7 +20,7 @@ RATIO_TABLE = {1: 1.2, 2: 1.5, 3: 2, 4: 3, 5: 5}
 
 
 def edge(source, target, relation="leads_to", **extra):
-    return {"id": f"{source}-{target}-{relation}", "from": source, "to": target, "type": relation,
+    return {"from": source, "to": target, "type": relation,
             **extra}
 
 
@@ -111,7 +111,7 @@ def test_premise_group_replaces_the_default():
         {"id": "S2", "type": "constraint", "text": "Second condition"},
     ])
     state["edges"].extend([edge("S1", "N1"), edge("S2", "N1")])
-    state["factors"] = [{"id": "F1", "edges": ["S1-N1-leads_to", "S2-N1-leads_to"], "score": 4}]
+    state["factors"] = [{"id": "F1", "edges": ["S1-N1", "S2-N1"], "score": 4}]
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.7)

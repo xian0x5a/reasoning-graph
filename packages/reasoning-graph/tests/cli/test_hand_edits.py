@@ -25,7 +25,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
+    return {"from": source, "to": target, "type": edge_type, **extra}
 
 
 def observation(node_id: str, quote: str) -> dict:
@@ -89,7 +89,7 @@ class HandEditTests(unittest.TestCase):
             state_path = self.start(tmp_dir)
 
             def drop_edge_and_lower_score(state: dict) -> None:
-                state["edges"] = [item for item in state["edges"] if item["id"] != "O1-H2"]
+                state["edges"] = [item for item in state["edges"] if (item["from"], item["to"]) != ("O1", "H2")]
                 self.node(state, "O2")["score"] = 3
 
             self.hand_edit(state_path, drop_edge_and_lower_score)

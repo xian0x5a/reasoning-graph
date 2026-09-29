@@ -26,7 +26,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
+    return {"from": source, "to": target, "type": edge_type, **extra}
 
 
 def observation(node_id: str, quote: str) -> dict:
@@ -82,7 +82,7 @@ class PatchOperationTests(unittest.TestCase):
 
             state = self.load(state_path)
             nodes = {node["id"]: node for node in state["nodes"]}
-            edges = {item["id"]: item for item in state["edges"]}
+            edges = {f"{item['from']}-{item['to']}": item for item in state["edges"]}
             self.assertNotIn("score", nodes["CS1"])
             self.assertEqual(nodes["H1"]["note"], "Only his word")
             self.assertNotIn("H2", nodes)
@@ -120,7 +120,7 @@ class PatchOperationTests(unittest.TestCase):
             self.ok(self.record(state_path, {"remove_nodes": ["O3"], "remove_factors": ["F1"]}))
             state = self.load(state_path)
             self.assertEqual(state["factors"], [])
-            self.assertNotIn("O3-H1", {item["id"] for item in state["edges"]})
+            self.assertNotIn(("O3", "H1"), {(item["from"], item["to"]) for item in state["edges"]})
 
     def test_patch_cannot_change_identity_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

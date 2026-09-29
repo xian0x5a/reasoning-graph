@@ -25,7 +25,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
+    return {"from": source, "to": target, "type": edge_type, **extra}
 
 
 def hypothesis(node_id: str) -> dict:

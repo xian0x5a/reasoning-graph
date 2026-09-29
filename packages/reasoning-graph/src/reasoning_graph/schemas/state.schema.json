@@ -53,6 +53,12 @@
       "type": "string",
       "minLength": 1
     },
+    "nodeId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^-]+$",
+      "description": "No hyphen: an edge is named from-to."
+    },
     "probability": {
       "type": "number",
       "exclusiveMinimum": 0,
@@ -100,7 +106,7 @@
       ],
       "properties": {
         "id": {
-          "$ref": "#/$defs/id"
+          "$ref": "#/$defs/nodeId"
         },
         "type": {
           "enum": [
@@ -225,22 +231,19 @@
     },
     "edge": {
       "type": "object",
+      "description": "Identified by its ends, written from-to: one edge per ordered pair.",
       "additionalProperties": true,
       "required": [
-        "id",
         "from",
         "to",
         "type"
       ],
       "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
         "from": {
-          "$ref": "#/$defs/id"
+          "$ref": "#/$defs/nodeId"
         },
         "to": {
-          "$ref": "#/$defs/id"
+          "$ref": "#/$defs/nodeId"
         },
         "type": {
           "enum": [
@@ -265,6 +268,11 @@
       },
       "not": {
         "anyOf": [
+          {
+            "required": [
+              "id"
+            ]
+          },
           {
             "required": [
               "reasoning"
@@ -349,7 +357,7 @@
             "$ref": "#/$defs/id"
           },
           "uniqueItems": true,
-          "description": "Ids of leads_to, supports, or contradicts edges of one type into one target. A grouped edge carries no score of its own."
+          "description": "leads_to, supports, or contradicts edges of one type into one target, each named from-to. A grouped edge carries no score of its own."
         },
         "score": {
           "$ref": "#/$defs/score",

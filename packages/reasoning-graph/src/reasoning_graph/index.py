@@ -37,9 +37,7 @@ def _node_line(node: dict[str, Any], state_of_test: str = "") -> str:
 def _edge_line(edge: dict[str, Any]) -> str:
     source, target = edge.get("from"), edge.get("to")
     score = f"({edge['score']})" if "score" in edge and edge["score"] != DEFAULT_EVIDENCE_SCORE else ""
-    # Patches and groups refer to an edge by id, so an id that is not from-to is given.
-    edge_id = "" if edge.get("id") == f"{source}-{target}" else f" [{edge.get('id')}]"
-    return f"- {source} -{edge.get('type')}{score}-> {target}{edge_id}{_note(edge)}"
+    return f"- {source} -{edge.get('type')}{score}-> {target}{_note(edge)}"
 
 
 def _group_line(group: dict[str, Any]) -> str:

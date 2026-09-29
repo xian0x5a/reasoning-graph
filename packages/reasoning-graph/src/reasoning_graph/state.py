@@ -56,6 +56,11 @@ def _replace_file_atomically(target: Path, text: str) -> None:
         raise
 
 
+def edge_id(edge: dict[str, Any]) -> str:
+    """An edge is identified by its ends: one edge per ordered pair, and no hyphen in a node id."""
+    return f"{edge.get('from')}-{edge.get('to')}"
+
+
 def by_id(items: Iterable[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for i, item in enumerate(items):

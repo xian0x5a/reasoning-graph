@@ -70,57 +70,48 @@
   ],
   "edges": [
     {
-      "id": "E1-A1",
       "from": "E1",
       "to": "A1",
       "type": "supports",
       "score": 3
     },
     {
-      "id": "A1-T1",
       "from": "A1",
       "to": "T1",
       "type": "prompts"
     },
     {
-      "id": "T1-E2",
       "from": "T1",
       "to": "E2",
       "type": "leads_to"
     },
     {
-      "id": "E2-CS1",
       "from": "E2",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "CS1-G1",
       "from": "CS1",
       "to": "G1",
       "type": "answers"
     },
     {
-      "id": "G1-G2",
       "from": "G1",
       "to": "G2",
       "type": "requires"
     },
     {
-      "id": "E3-A2",
       "from": "E3",
       "to": "A2",
       "type": "supports",
       "score": 2
     },
     {
-      "id": "A2-T2",
       "from": "A2",
       "to": "T2",
       "type": "prompts"
     },
     {
-      "id": "T2-E4",
       "from": "T2",
       "to": "E4",
       "type": "leads_to"

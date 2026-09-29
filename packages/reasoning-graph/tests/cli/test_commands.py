@@ -29,7 +29,7 @@ PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.
 # A valid record patch against the fixture: one new observation supporting A1.
 FIXTURE_RECORD_PATCH = {
     "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "score": 5}],
-    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "score": 3}],
+    "edges": [{"from": "O2", "to": "A1", "type": "supports", "score": 3}],
 }
 
 
@@ -109,8 +109,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"score": 3, "id": "A1", "type": "hypothesis", "text": "First"},
                 {"score": 3, "id": "A2", "type": "hypothesis", "text": "Second"},
             ],
-            "edges": [{"id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
-            "factors": [{"id": "F1", "edges": ["E1", "E2"], "score": 3, "note": "Both rest on one reading."}],
+            "edges": [{"from": "A1", "to": "A2", "type": "supports"}],
+            "factors": [{"id": "F1", "edges": ["A1-A2", "E2"], "score": 3, "note": "Both rest on one reading."}],
         }
 
         jsonschema.Draft202012Validator(emitted_schema).validate(patch)
@@ -186,7 +186,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch = {
             "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "score": 1}],
             "update_nodes": [{"id": "A1", "set": {"score": 4}}],
-            "edges": [{"id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
+            "edges": [{"from": "A3", "to": "CS1", "type": "supports"}],
         }
 
         state_validator = jsonschema.Draft202012Validator(state_schema)
@@ -286,8 +286,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "T1", "type": "test", "text": "Check database latency metrics"},
                 ],
                 "edges": [
-                    {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
-                    {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
+                    {"from": "E1", "to": "A1", "type": "supports", "score": 3},
+                    {"from": "A1", "to": "T1", "type": "prompts"},
                 ],
             }
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
@@ -317,9 +317,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-contradicts", "from": "E1", "to": "A1", "type": "contradicts"},
-                    {"id": "A1-CS1-leads_to", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"id": "CS1-G1-answers", "from": "CS1", "to": "G1", "type": "answers"},
+                    {"from": "E1", "to": "A1", "type": "contradicts"},
+                    {"from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"from": "CS1", "to": "G1", "type": "answers"},
                 ],
             }
             legacy_state = {
@@ -352,9 +352,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"id": "A1-CS1-leads_to", "from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"id": "CS1-G1-leads_to", "from": "CS1", "to": "G1", "type": "leads_to"},
-                    {"id": "A1-G1-answers", "from": "A1", "to": "G1", "type": "answers"},
+                    {"from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"from": "A1", "to": "G1", "type": "answers"},
                 ],
             }
             invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
@@ -372,7 +372,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
                     {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
-                "edges": [{"id": "A1-T1-prompts", "from": "A1", "to": "T1", "type": "prompts"}],
+                "edges": [{"from": "A1", "to": "T1", "type": "prompts"}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -390,8 +390,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E2", "type": "observation", "text": "Negative signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "score": 4},
-                    {"id": "E2-A1-contradicts", "from": "E2", "to": "A1", "type": "contradicts"},
+                    {"from": "E1", "to": "A1", "type": "supports", "score": 4},
+                    {"from": "E2", "to": "A1", "type": "contradicts"},
                 ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -408,8 +408,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
             ],
             "edges": [
-                {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
-                {"id": "E1-D1-leads_to", "from": "E1", "to": "D1", "type": "leads_to"},
+                {"from": "A1", "to": "D1", "type": "leads_to"},
+                {"from": "E1", "to": "D1", "type": "leads_to"},
             ],
         }
 
@@ -428,11 +428,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E3", "type": "observation", "text": "Independent signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports"},
-                    {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports"},
-                    {"id": "E3-A1-supports", "from": "E3", "to": "A1", "type": "supports"},
+                    {"from": "E1", "to": "A1", "type": "supports"},
+                    {"from": "E2", "to": "A1", "type": "supports"},
+                    {"from": "E3", "to": "A1", "type": "supports"},
                 ],
-                "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 are correlated, so they count once."}],
+                "factors": [{"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4, "note": "E1 and E2 are correlated, so they count once."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -453,11 +453,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
-                    {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "B1-D1-leads_to", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"id": "C1-D1-leads_to", "from": "C1", "to": "D1", "type": "leads_to"},
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                    {"from": "C1", "to": "D1", "type": "leads_to"},
                 ],
-                "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A1 and B1 share a latent source."}],
+                "factors": [{"id": "F1", "edges": ["A1-D1", "B1-D1"], "score": 2, "note": "A1 and B1 share a latent source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -477,11 +477,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
                 ],
                 "edges": [
-                    {"id": "A1-D1-leads_to", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "B1-D1-leads_to", "from": "B1", "to": "D1", "type": "leads_to"},
-                    {"id": "D1-A1-leads_to", "from": "D1", "to": "A1", "type": "leads_to"},
+                    {"from": "A1", "to": "D1", "type": "leads_to"},
+                    {"from": "B1", "to": "D1", "type": "leads_to"},
+                    {"from": "D1", "to": "A1", "type": "leads_to"},
                 ],
-                "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A group must not hide the raw cycle."}],
+                "factors": [{"id": "F1", "edges": ["A1-D1", "B1-D1"], "score": 2, "note": "A group must not hide the raw cycle."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -500,11 +500,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
                     {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
-                "edges": [{"id": "E1A", "from": "E1", "to": "A1", "type": "supports"}],
+                "edges": [{"from": "E1", "to": "A1", "type": "supports"}],
             }
             patch = {
-                "edges": [{"id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
-                "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
+                "edges": [{"from": "E2", "to": "A1", "type": "supports"}],
+                "factors": [{"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4, "note": "E1 and E2 share source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
@@ -524,7 +524,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause"},
                     {"id": "E1", "type": "observation", "text": "Negative signal"},
                 ],
-                "edges": [{"id": "E1-A1-contradicts", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
+                "edges": [{"from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -561,15 +561,15 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_offline_html_uses_collision_safe_render_identities(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "score": 3},
+                {"id": "A.B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "score": 3},
                 {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer", "score": 2},
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
-                {"id": "A-B-A B-answers", "from": "A-B", "to": "A B", "type": "answers"},
-                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A.B", "to": "A B", "type": "answers"},
+                {"from": "A_B", "to": "A B", "type": "answers"},
             ],
-            "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
+            "report": {"candidates": [{"id": "A.B"}, {"id": "A_B"}]},
         }
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
@@ -580,13 +580,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             output = html_path.read_text(encoding="utf-8")
-            for raw_id, render_id in (("A B", "A_B"), ("A-B", "A_B_2"), ("A_B", "A_B_3")):
+            for raw_id, render_id in (("A B", "A_B"), ("A.B", "A_B_2"), ("A_B", "A_B_3")):
                 self.assertIn(f'id="{render_id}" class="node" data-node-id="{raw_id}"', output)
                 self.assertIn(f'href="#details-{render_id}"', output)
                 self.assertIn(f'id="details-{render_id}"', output)
             self.assertIn('"from": "A_B_2", "to": "A_B"', output)
             self.assertIn('"from": "A_B_3", "to": "A_B"', output)
-            self.assertIn('<option value="A_B_2">A-B</option>', output)
+            self.assertIn('<option value="A_B_2">A.B</option>', output)
             self.assertIn('<option value="A_B_3">A_B</option>', output)
             self.assertIn('"A_B_2": ["A_B_2"]', output)
             self.assertIn('"A_B_3": ["A_B_3"]', output)
@@ -602,10 +602,10 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports"},
-                    {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports"},
+                    {"from": "E1", "to": "A1", "type": "supports"},
+                    {"from": "E2", "to": "A1", "type": "supports"},
                 ],
-                "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 share source."}],
+                "factors": [{"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4, "note": "E1 and E2 share source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 

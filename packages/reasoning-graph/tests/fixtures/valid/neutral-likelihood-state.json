@@ -29,25 +29,21 @@
   ],
   "edges": [
     {
-      "id": "E1A1",
       "from": "E1",
       "to": "A1",
       "type": "supports"
     },
     {
-      "id": "A1D1",
       "from": "A1",
       "to": "D1",
       "type": "leads_to"
     },
     {
-      "id": "D1CS1",
       "from": "D1",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
       "type": "answers"

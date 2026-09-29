@@ -37,7 +37,7 @@ class NodeVocabularyTests(unittest.TestCase):
                 {"id": "G1", "type": "goal", "text": "Find answer"},
                 {"id": "H1", "type": "hypothesis", "text": "Direct answer", "score": 3},
             ],
-            "edges": [{"id": "H1G1", "from": "H1", "to": "G1", "type": "supports", "score": 3}],
+            "edges": [{"from": "H1", "to": "G1", "type": "supports", "score": 3}],
             "frontier": [{"id": "Q1", "node": "H1", "cost_components": {"truth": "auto"}}],
         }
         premise_backed = {
@@ -47,8 +47,8 @@ class NodeVocabularyTests(unittest.TestCase):
                 {"id": "H1", "type": "hypothesis", "text": "Established step"},
             ],
             "edges": [
-                {"id": "O1H1", "from": "O1", "to": "H1", "type": "leads_to"},
-                {"id": "H1G1", "from": "H1", "to": "G1", "type": "leads_to"},
+                {"from": "O1", "to": "H1", "type": "leads_to"},
+                {"from": "H1", "to": "G1", "type": "leads_to"},
             ],
         }
         for label, state in {"score-backed": score_backed, "premise-backed": premise_backed}.items():

@@ -20,7 +20,6 @@
   ],
   "edges": [
     {
-      "id": "A1CS1",
       "from": "A1",
       "to": "CS1",
       "type": "leads_to"

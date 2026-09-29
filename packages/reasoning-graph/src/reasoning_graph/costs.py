@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS
-from .state import by_id
+from .state import by_id, edge_id
 from .utils import require_finite_float, require_non_negative_float
 
 
@@ -66,7 +66,7 @@ def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
     """Ratio of an evidence edge: its score, or the default, through the table."""
     for field in REMOVED_EDGE_SCORE_FIELDS:
         if field in edge:
-            raise ValueError(removed_score_field_message(f"edge {edge.get('id')}", field))
+            raise ValueError(removed_score_field_message(f"edge {edge_id(edge)}", field))
     return evidence_ratio(edge.get("score", DEFAULT_EVIDENCE_SCORE), str(edge.get("type")))
 
 
@@ -88,11 +88,7 @@ def resolve_edge_groups(state: dict[str, Any]) -> tuple[list[EdgeGroup], list[st
     factors = state.get("factors") or []
     if not isinstance(factors, list):
         return [], ["factors must be a list when present"]
-    edges = {
-        edge["id"]: edge
-        for edge in state.get("edges", [])
-        if isinstance(edge, dict) and isinstance(edge.get("id"), str)
-    }
+    edges = {edge_id(edge): edge for edge in state.get("edges", []) if isinstance(edge, dict)}
     groups: list[EdgeGroup] = []
     errors: list[str] = []
     grouped_by: dict[str, str] = {}
@@ -124,7 +120,7 @@ def resolve_edge_groups(state: dict[str, Any]) -> tuple[list[EdgeGroup], list[st
         if len(targets) > 1:
             found.append(f"{label}.edges must share one target, got {', '.join(targets)}")
         for member in members:
-            member_id = member["id"]
+            member_id = edge_id(member)
             if member_id in grouped_by:
                 found.append(f"{label}: edge {member_id} is already grouped by {grouped_by[member_id]}")
             grouped_by.setdefault(member_id, name)
@@ -298,7 +294,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         dst = edge.get("to")
         if not isinstance(src, str) or not isinstance(dst, str) or src not in nodes or dst not in nodes:
             continue
-        grouped = edge.get("id") in grouped_edge_ids
+        grouped = edge_id(edge) in grouped_edge_ids
         if edge_type == "leads_to":
             premise_sources[dst].append(src)
             truth_dependencies[dst].append(src)

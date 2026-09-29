@@ -16,7 +16,7 @@ from reasoning_graph.render import html_document, to_mermaid
 class RenderIdentityTests(unittest.TestCase):
     def state(self, reverse: bool = False) -> dict:
         nodes = [
-            {"id": "A-B", "type": "observation", "text": "hyphen", "score": 3},
+            {"id": "A.B", "type": "observation", "text": "hyphen", "score": 3},
             {"id": "A_B", "type": "hypothesis", "text": "underscore", "score": 2},
             {"id": "A B", "type": "goal", "text": "space"},
         ]
@@ -25,8 +25,8 @@ class RenderIdentityTests(unittest.TestCase):
         return {
             "nodes": nodes,
             "edges": [
-                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "score": 3},
-                {"id": "A B>A-B", "from": "A B", "to": "A-B", "type": "leads_to"},
+                {"from": "A.B", "to": "A_B", "type": "supports", "score": 3},
+                {"from": "A B", "to": "A.B", "type": "leads_to"},
             ],
         }
 
@@ -42,7 +42,7 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertEqual(len(set(first.node_ids.values())), 3)
         self.assertEqual(len(set(first.factor_ids.values())), 2)
         self.assertEqual(first.node_ids["A B"], "A_B")
-        self.assertEqual(first.node_ids["A-B"], "A_B_2")
+        self.assertEqual(first.node_ids["A.B"], "A_B_2")
         self.assertEqual(first.node_ids["A_B"], "A_B_3")
         self.assertNotEqual(first.factor_ids["F-1"], first.factor_ids["F_1"])
 
@@ -70,20 +70,20 @@ class RenderIdentityTests(unittest.TestCase):
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "score": 3, "answer_kind": "exact_answer"},
+                {"id": "A.B", "type": "candidate_solution", "text": "hyphen", "score": 3, "answer_kind": "exact_answer"},
                 {"id": "A_B", "type": "candidate_solution", "text": "underscore", "score": 2, "answer_kind": "exact_answer"},
                 {"id": "A B", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"id": "A-B>A B", "from": "A-B", "to": "A B", "type": "answers"},
-                {"id": "A_B-A B-answers", "from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A.B", "to": "A B", "type": "answers"},
+                {"from": "A_B", "to": "A B", "type": "answers"},
             ],
-            "report": {"candidates": [{"id": "A-B"}, {"id": "A_B"}]},
+            "report": {"candidates": [{"id": "A.B"}, {"id": "A_B"}]},
         }
         identities = render_identity_map(state)
         document = html_document(state, to_mermaid(state, identities=identities), render_mode="offline")
 
-        for raw_id in ("A-B", "A_B"):
+        for raw_id in ("A.B", "A_B"):
             render_id = identities.node_ids[raw_id]
             self.assertIn(f'option value="{render_id}">{raw_id}</option>', document)
             self.assertIn(f'"{render_id}": ["{render_id}"]', document)
@@ -94,7 +94,7 @@ class RenderIdentityTests(unittest.TestCase):
         at the first observation, while leaving rival and contradicting branches dim."""
 
         def edge(source: str, edge_type: str, target: str) -> dict:
-            return {"id": f"{source}>{target}", "from": source, "to": target, "type": edge_type}
+            return {"from": source, "to": target, "type": edge_type}
 
         state = {
             "nodes": [
@@ -143,8 +143,8 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "G1", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"id": "CS1>G1", "from": "CS1", "to": "G1", "type": "answers"},
-                {"id": "CS2>G1", "from": "CS2", "to": "G1", "type": "answers"},
+                {"from": "CS1", "to": "G1", "type": "answers"},
+                {"from": "CS2", "to": "G1", "type": "answers"},
             ],
         }
         identities = render_identity_map(state)
@@ -158,9 +158,9 @@ class RenderIdentityTests(unittest.TestCase):
     def test_filtered_mermaid_view_keeps_full_graph_identities(self) -> None:
         state = self.state()
         identities = render_identity_map(state)
-        source = to_mermaid(state, {"A-B", "A B"}, identities=identities)
+        source = to_mermaid(state, {"A.B", "A B"}, identities=identities)
 
-        self.assertIn(f'click {identities.node_ids["A-B"]} "#details-{identities.node_ids["A-B"]}"', source)
+        self.assertIn(f'click {identities.node_ids["A.B"]} "#details-{identities.node_ids["A.B"]}"', source)
         self.assertIn(f'click {identities.node_ids["A B"]} "#details-{identities.node_ids["A B"]}"', source)
         self.assertNotIn(f'click {identities.node_ids["A_B"]} ', source)
 
@@ -182,17 +182,17 @@ class RenderIdentityTests(unittest.TestCase):
         state = {
             "nodes": [
                 {"id": "I_1", "type": "observation", "score": 5},
-                {"id": "I-1", "type": "observation", "score": 5},
+                {"id": "I.1", "type": "observation", "score": 5},
                 {"id": "TZ", "type": "hypothesis", "score": 3},
                 {"id": "TA", "type": "hypothesis", "score": 3},
             ],
             "edges": [
-                {"id": f"{source}-{target}", "from": source, "to": target, "type": "supports"}
-                for target in ("TZ", "TA") for source in ("I_1", "I-1")
+                {"from": source, "to": target, "type": "supports"}
+                for target in ("TZ", "TA") for source in ("I_1", "I.1")
             ],
             "factors": [
-                {"id": "Z", "edges": ["I_1-TZ", "I-1-TZ"], "score": 4},
-                {"id": "A", "edges": ["I-1-TA", "I_1-TA"], "score": 4},
+                {"id": "Z", "edges": ["I_1-TZ", "I.1-TZ"], "score": 4},
+                {"id": "A", "edges": ["I.1-TA", "I_1-TA"], "score": 4},
             ],
         }
         identities = render_identity_map(state)
@@ -203,7 +203,7 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertLess(source.index(f'{z_factor_id}{{{{"Z'), source.index(f'{a_factor_id}{{{{"A'))
         self.assertLess(
             source.index(f'{identities.node("I_1")} -. grouped supports .-> {z_factor_id}'),
-            source.index(f'{identities.node("I-1")} -. grouped supports .-> {z_factor_id}'),
+            source.index(f'{identities.node("I.1")} -. grouped supports .-> {z_factor_id}'),
         )
 
     def test_offline_svg_is_order_independent_for_nodes_edges_factors_and_inputs(self) -> None:
@@ -230,7 +230,7 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A1", "type": "hypothesis", "score": 3},
             ],
             "edges": [
-                {"id": f"{source}-A1", "from": source, "to": "A1", "type": "supports"}
+                {"from": source, "to": "A1", "type": "supports"}
                 for source in (raw_node_id, "E2")
             ],
             "factors": [{"id": "F1", "edges": [f"{raw_node_id}-A1", "E2-A1"], "score": 4}],
@@ -263,10 +263,10 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "A1", "type": "hypothesis", "score": 3},
             ],
             "edges": [
-                {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports"},
-                {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports"},
+                {"from": "E1", "to": "A1", "type": "supports"},
+                {"from": "E2", "to": "A1", "type": "supports"},
             ],
-            "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4}],
+            "factors": [{"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4}],
         }
         identities = render_identity_map(state)
         presentation_svg = offline_graph_svg(state, {"E1", "A1"}, identities=identities)
@@ -294,7 +294,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
                 {"id": "E1", "type": "observation", "text": "Observed premise", "score": 5},
                 {"id": "G1", "type": "goal", "text": "Answer the question"},
             ],
-            "edges": [{"id": "E1-G1-leads_to", "from": "E1", "to": "G1", "type": "leads_to"}],
+            "edges": [{"from": "E1", "to": "G1", "type": "leads_to"}],
         }
         document = html_document(state, to_mermaid(state))
 

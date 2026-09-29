@@ -21,13 +21,13 @@ def state_with(**edge_fields: object) -> dict:
             {"id": "O1", "type": "observation", "text": "Deployment finished at 02:10"},
             {"id": "H1", "type": "hypothesis", "text": "The deployment caused the outage"},
         ],
-        "edges": [{"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", **edge_fields}],
+        "edges": [{"from": "O1", "to": "H1", "type": "supports", **edge_fields}],
     }
 
 
 @pytest.mark.parametrize("edge_type", sorted(EDGE_TYPES))
 def test_every_edge_type_is_valid_without_a_note(edge_type):
-    edge = {"id": "A-B", "from": "A", "to": "B", "type": edge_type}
+    edge = {"from": "A", "to": "B", "type": edge_type}
     assert not patch_schema_errors({"edges": [edge]})
     assert not patch_schema_errors({"edges": [{**edge, "note": "The source supplies what the target needs."}]})
 

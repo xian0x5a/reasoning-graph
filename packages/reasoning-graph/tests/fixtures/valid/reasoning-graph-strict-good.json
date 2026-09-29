@@ -36,19 +36,16 @@
   ],
   "edges": [
     {
-      "id": "E0",
       "from": "O1",
       "to": "A1",
       "type": "leads_to"
     },
     {
-      "id": "E1",
       "from": "A1",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "E2",
       "from": "CS1",
       "to": "G1",
       "type": "answers"

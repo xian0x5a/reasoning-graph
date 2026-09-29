@@ -17,20 +17,13 @@ from .costs import (
 from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
 from .schema_validation import state_schema_errors
+from .state import edge_id
 from .utils import as_string_list
 
 
 # Computed numbers the state used to hold. They are computed when the graph is rendered, for
 # the reader: an agent that sees them tunes scores until a number moves (issue #37).
 REMOVED_REPORT_CANDIDATE_FIELDS = ("belief", "truth_cost", "effective_truth_cost", "weight")
-
-
-def edge_id_set(state: dict[str, Any]) -> set[str]:
-    ids: set[str] = set()
-    for edge in state.get("edges", []):
-        if isinstance(edge, dict) and isinstance(edge.get("id"), str) and edge.get("id"):
-            ids.add(edge["id"])
-    return ids
 
 
 def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
@@ -44,6 +37,9 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if not isinstance(node, dict):
             continue
         owner = f"node {node.get('id') or index}"
+        if isinstance(node.get("id"), str) and "-" in node["id"]:
+            # `O1-H1` has to read as one edge, from O1 to H1.
+            errors.append(f"node id {node['id']!r} contains a hyphen; an edge is named from-to, so a node id takes none")
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_NODE_SCORE_FIELDS if field in node)
         if "belief" in node:
             errors.append(f"{owner}: belief was removed from the state; it is computed when the graph is rendered; delete the field")
@@ -59,7 +55,10 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
     for index, edge in enumerate(edges):
         if not isinstance(edge, dict):
             continue
-        owner = f"edge {edge.get('id') or index}"
+        owner = f"edge {edge_id(edge)}"
+        if "id" in edge:
+            # Agents wrote from-to as the id in 225 of 245 edges, the same thing twice (issue #38).
+            errors.append(f"{owner}: id was removed; an edge is identified by its ends, as from-to; delete the field")
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_EDGE_SCORE_FIELDS if field in edge)
         if "reasoning" in edge:
             # `reasoning` was 45% of edge bytes and mostly restated the two node texts (issue #37).
@@ -196,11 +195,9 @@ def validate_state(state: Any) -> ValidationResult:
         if not isinstance(edge, dict):
             errors.append(f"edges[{i}] must be object")
             continue
-        edge_id = edge.get("id")
-        if isinstance(edge_id, str) and edge_id:
-            if edge_id in seen_edge_ids:
-                errors.append(f"duplicate edge id {edge_id}")
-            seen_edge_ids.add(edge_id)
+        if edge_id(edge) in seen_edge_ids:
+            errors.append(f"edge {edge_id(edge)} exists more than once: one edge per ordered pair; change it with update_edges")
+        seen_edge_ids.add(edge_id(edge))
         src = edge.get("from")
         dst = edge.get("to")
         edge_type = edge.get("type") or edge.get("label")

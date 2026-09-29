@@ -1,5 +1,4 @@
-"""Edge identity, candidate answer_kind, patch field, and presentation reference contracts
-(#12, #17, #16, #10)."""
+"""Candidate answer_kind, patch field, and presentation reference contracts (#17, #16, #10)."""
 
 import json
 import subprocess
@@ -31,8 +30,8 @@ def base_state() -> dict:
             {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "score": 3},
         ],
         "edges": [
-            {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to"},
-            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+            {"from": "A1", "to": "CS1", "type": "leads_to"},
+            {"from": "CS1", "to": "G1", "type": "answers"},
         ],
     }
 
@@ -49,32 +48,8 @@ class ContractAlignmentTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
-            patch_path.write_text(json.dumps({**patch}), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
             return run_cli("record", str(state_path), "--patch", str(patch_path))
-
-    # --- #12 edge identity ---
-
-    def test_edges_require_ids_in_state_and_patches(self) -> None:
-        state = base_state()
-        del state["edges"][0]["id"]
-        result = self.validate(state)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("schema $.edges[0]: 'id' is a required property", result.stderr)
-
-        patched = self.record({"edges": [{"from": "A1", "to": "A2", "type": "supports"}]})
-        self.assertEqual(patched.returncode, 1, patched.stdout)
-        self.assertIn("$.edges[0]: 'id' is a required property", patched.stderr)
-
-    def test_duplicate_edge_ids_are_rejected_before_mutation(self) -> None:
-        state = base_state()
-        state["edges"][1]["id"] = "A1-CS1"
-        result = self.validate(state)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("duplicate edge id A1-CS1", result.stderr)
-
-        patched = self.record({"edges": [{"id": "A1-CS1", "from": "A1", "to": "A2", "type": "supports"}]})
-        self.assertEqual(patched.returncode, 1, patched.stdout)
-        self.assertIn("edges id A1-CS1 already exists", patched.stderr)
 
     # --- #17 answer_kind ---
 
@@ -87,7 +62,7 @@ class ContractAlignmentTests(unittest.TestCase):
 
         patched = self.record({
             "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "score": 2}],
-            "edges": [{"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"}],
+            "edges": [{"from": "CS2", "to": "G1", "type": "answers"}],
         })
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("answer_kind", patched.stderr)
@@ -95,7 +70,7 @@ class ContractAlignmentTests(unittest.TestCase):
     # --- #16 patch fields ---
 
     def test_patch_rejects_unimplemented_or_ambiguous_fields(self) -> None:
-        factor = {"id": "F1", "edges": ["A1-CS1", "A2-CS1"], "score": 4, "note": "Shared source."}
+        factor = {"id": "F1", "edges": ["A1-A2", "A2-CS1"], "score": 4, "note": "Shared source."}
         rejected_patches = {
             "outcome-alias": {"stop_reason": "done", "stop_outcome": "user_stopped", "outcome": "solved"},
             "factors-and-update-factors": {"factors": [factor], "update_factors": [factor]},

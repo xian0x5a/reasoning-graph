@@ -14,7 +14,7 @@ from reasoning_graph.validation import validate_state
 
 
 def edge(source, target, relation, **extra):
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": relation, **extra}
+    return {"from": source, "to": target, "type": relation, **extra}
 
 
 def grouped_state(relation="supports", **group):
@@ -87,7 +87,8 @@ def invalid_groups():
         state["edges"][1]["type"] = "contradicts"
 
     def different_targets(state):
-        state["edges"][1] = {**edge("O2", "H2", "supports"), "id": "O2-H1"}
+        state["edges"][1] = edge("O2", "H2", "supports")
+        state["factors"][0]["edges"] = ["O1-H1", "O2-H2"]
 
     def ungroupable_relation(state):
         for item in state["edges"]:

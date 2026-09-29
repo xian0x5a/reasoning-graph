@@ -23,7 +23,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def edge(source: str, target: str, edge_type: str, **extra: object) -> dict:
-    return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
+    return {"from": source, "to": target, "type": edge_type, **extra}
 
 
 STORY_PATCH = {
@@ -46,7 +46,7 @@ STORY_PATCH = {
         edge("O2", "H1", "supports"),
         edge("O3", "H1", "supports"),
         edge("O1", "H2", "contradicts", score=5, note="Nine is before the theft"),
-        {"id": "E9", "from": "H1", "to": "CS1", "type": "leads_to"},
+        {"from": "H1", "to": "CS1", "type": "leads_to"},
         edge("CS1", "G1", "answers"),
     ],
     "factors": [{"id": "F1", "edges": ["O2-H1", "O3-H1"], "score": 4, "note": "Both place him on site"}],
@@ -121,8 +121,7 @@ class IndexFileTests(unittest.TestCase):
             self.assertIn("- CS1 candidate_solution: The gardener", index)
             self.assertIn("- O1 -contradicts(5)-> H2 | note: Nine is before the theft", index)
             self.assertIn("- O2 -supports-> H1", index)
-            # An edge id that is not from-to is given, since patches and groups refer to it.
-            self.assertIn("- H1 -leads_to-> CS1 [E9]", index)
+            self.assertIn("- H1 -leads_to-> CS1\n", index)
             self.assertIn("- F1 [O2-H1, O3-H1] score 4 | note: Both place him on site", index)
 
     def test_index_holds_no_quotes_and_no_computed_belief(self) -> None:

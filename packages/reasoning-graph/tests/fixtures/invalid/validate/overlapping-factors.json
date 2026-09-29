@@ -36,25 +36,21 @@
   ],
   "edges": [
     {
-      "id": "E1A1",
       "from": "E1",
       "to": "A1",
       "type": "supports"
     },
     {
-      "id": "E2A1",
       "from": "E2",
       "to": "A1",
       "type": "supports"
     },
     {
-      "id": "A1CS1",
       "from": "A1",
       "to": "CS1",
       "type": "leads_to"
     },
     {
-      "id": "CS1G1",
       "from": "CS1",
       "to": "G1",
       "type": "answers"
@@ -64,8 +60,8 @@
     {
       "id": "F_SUPPORTS_A1",
       "edges": [
-        "E1A1",
-        "E2A1"
+        "E1-A1",
+        "E2-A1"
       ],
       "score": 4,
       "note": "Signals share one detector and should be grouped as correlated support."
@@ -73,8 +69,8 @@
     {
       "id": "F_SUPPORTS_A1_OVERLAP",
       "edges": [
-        "E2A1",
-        "E1A1"
+        "E2-A1",
+        "E1-A1"
       ],
       "score": 3,
       "note": "Bad duplicate grouping for overlap fixture."

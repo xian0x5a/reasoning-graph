@@ -12,7 +12,7 @@ from .index import index_document
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
-from .state import dump_state, load_state, strict_json_dumps, write_output_text
+from .state import dump_state, edge_id, load_state, strict_json_dumps, write_output_text
 from .validation import authored_field_errors, validate_state
 
 
@@ -97,7 +97,7 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     removed_node_ids = _remove_by_id(state, "nodes", patch.get("remove_nodes") or [])
     # An edge means nothing without both endpoints, so removing a node removes its edges.
     incident_edge_ids = [
-        edge["id"]
+        edge_id(edge)
         for edge in state.get("edges", [])
         if isinstance(edge, dict) and (edge.get("from") in removed_node_ids or edge.get("to") in removed_node_ids)
     ]
@@ -108,9 +108,12 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
 
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
-    existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
     _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
-    _ensure_unique_new_ids({str(item) for item in existing_edges if item}, edges_to_add, "edges")
+    existing_edges = {edge_id(edge) for edge in state.get("edges", []) if isinstance(edge, dict)}
+    for edge in edges_to_add:
+        if edge_id(edge) in existing_edges:
+            raise ValueError(f"edge {edge_id(edge)} already exists: one edge per ordered pair; change it with update_edges")
+        existing_edges.add(edge_id(edge))
     _ensure_object_ids(factors_to_upsert, "factors")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
@@ -277,9 +280,14 @@ def _field_update_list(value: Any, field: str) -> list[dict[str, Any]]:
     return updates
 
 
+def _item_id(item: dict[str, Any], key: str) -> Any:
+    """The id a patch names an item of state[key] by; an edge carries none and is named by its ends."""
+    return edge_id(item) if key == "edges" else item.get("id")
+
+
 def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field: str) -> None:
     """Set and unset fields on existing items by id."""
-    items_by_id = {item["id"]: item for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    items_by_id = {_item_id(item, field.removeprefix("update_")): item for item in items if isinstance(item, dict)}
     for update in updates:
         item_id = str(update["id"])
         item = items_by_id.get(item_id)
@@ -299,11 +307,11 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
     if not ids:
         return []
     items = state.get(key) or []
-    present = {item.get("id") for item in items if isinstance(item, dict)}
+    present = {_item_id(item, key) for item in items if isinstance(item, dict)}
     for item_id in ids:
         if item_id not in present:
             raise ValueError(f"remove_{key} id {item_id} does not exist")
-    state[key] = [item for item in items if not (isinstance(item, dict) and item.get("id") in ids)]
+    state[key] = [item for item in items if not (isinstance(item, dict) and _item_id(item, key) in ids)]
     return ids
 
 

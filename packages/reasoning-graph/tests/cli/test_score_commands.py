@@ -33,8 +33,8 @@ def valid_patch() -> dict:
             {"id": "E2", "type": "observation", "text": "Reading", "score": 5},
         ],
         "edges": [
-            {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to"},
-            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to"},
+            {"from": "A2", "to": "D1", "type": "leads_to"},
+            {"from": "E2", "to": "D1", "type": "leads_to"},
         ],
     }
 
@@ -46,7 +46,7 @@ def patch_for(invalid_part: str) -> dict:
     elif invalid_part.startswith("update_"):
         patch["update_nodes"] = [{"id": "E0", "set": {invalid_part.removeprefix("update_"): 0.9}}]
     elif invalid_part == "removed-edge-likelihood_ratio":
-        patch["edges"].append({"id": "E2-A2", "from": "E2", "to": "A2", "type": "supports", "likelihood_ratio": 2})
+        patch["edges"].append({"from": "E2", "to": "A2", "type": "supports", "likelihood_ratio": 2})
     elif invalid_part == "score_off_the_scale":
         patch["nodes"][0]["score"] = 6
     elif invalid_part == "score_on_a_premise_edge":
@@ -105,8 +105,8 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
     patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
     patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
     patch["edges"].extend([
-        {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to"},
-        {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "D1", "to": "CS1", "type": "leads_to"},
+        {"from": "CS1", "to": "G1", "type": "answers"},
     ])
     patch["edges"][0]["note"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2."
     patch_path.write_text(json.dumps(patch), encoding="utf-8")

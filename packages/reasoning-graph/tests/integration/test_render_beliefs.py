@@ -32,16 +32,16 @@ def report_state(*, support=False):
             {"id": "T1", "type": "test", "text": "Check the premise"},
         ],
         "edges": [
-            {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to"},
-            {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to"},
-            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+            {"from": "E1", "to": "D1", "type": "leads_to"},
+            {"from": "D1", "to": "CS1", "type": "leads_to"},
+            {"from": "CS1", "to": "G1", "type": "answers"},
         ],
         "report": {"candidates": [{"id": "CS1", "name": "Answer"}]},
         "presentation": {"include_nodes": ["D1", "CS1", "G1"]},
     }
     if support:
         state["edges"].append({
-            "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "score": 3,
+            "from": "E2", "to": "D1", "type": "supports", "score": 3,
             })
     assert validate_state(state).ok
     return state
@@ -96,7 +96,7 @@ def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expecte
 def test_filtered_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
-        "id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
+        "from": "E2", "to": "D1", "type": "leads_to",
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
@@ -146,10 +146,10 @@ def ranked_state(answer):
             {"id": "CS2", "type": "candidate_solution", "text": "The butler", "answer_kind": "exact_answer"},
         ],
         "edges": [
-            {"id": "O1-CS1", "from": "O1", "to": "CS1", "type": "leads_to"},
-            {"id": "O2-CS2", "from": "O2", "to": "CS2", "type": "supports"},
-            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
-            {"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"},
+            {"from": "O1", "to": "CS1", "type": "leads_to"},
+            {"from": "O2", "to": "CS2", "type": "supports"},
+            {"from": "CS1", "to": "G1", "type": "answers"},
+            {"from": "CS2", "to": "G1", "type": "answers"},
         ],
     }
     assert validate_state(state).ok

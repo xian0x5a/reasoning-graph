@@ -22,7 +22,7 @@ MALFORMED_FIXTURES = {
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
     "removed-stop-policy.json": "stop_policy was removed",
-    "overlapping-factors.json": "edge E2A1 is already grouped by F_SUPPORTS_A1",
+    "overlapping-factors.json": "edge E2-A1 is already grouped by F_SUPPORTS_A1",
 }
 # The graph is well-formed; the answer these claim fails its checks.
 FAILED_ANSWER_FIXTURES = {

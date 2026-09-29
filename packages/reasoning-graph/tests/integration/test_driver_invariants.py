@@ -38,7 +38,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         state = self.base_state()
         first = truth_cost(state)
         state["edges"].append(
-            {"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4}
+            {"from": "E1", "to": "A1", "type": "contradicts", "score": 4}
         )
         state = json.loads(json.dumps(state))
 
@@ -51,7 +51,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         baseline = truth_cost(self.base_state())
         supported = truth_cost(
             self.base_state(
-                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "supports", "score": 4}],
+                edges=[{"from": "E1", "to": "A1", "type": "supports", "score": 4}],
             )
         )
 
@@ -62,7 +62,7 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         baseline = truth_cost(self.base_state())
         contradicted = truth_cost(
             self.base_state(
-                edges=[{"id": "E1A1", "from": "E1", "to": "A1", "type": "contradicts", "score": 4}],
+                edges=[{"from": "E1", "to": "A1", "type": "contradicts", "score": 4}],
             )
         )
 
@@ -71,10 +71,10 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
     def test_support_group_replaces_member_updates(self) -> None:
         edges = [
-            {"id": "E1A1", "from": "E1", "to": "A1", "type": "supports"},
-            {"id": "E2A1", "from": "E2", "to": "A1", "type": "supports"},
+            {"from": "E1", "to": "A1", "type": "supports"},
+            {"from": "E2", "to": "A1", "type": "supports"},
         ]
-        factor = {"id": "F1", "edges": ["E1A1", "E2A1"], "score": 4, "note": "Correlated evidence counts once, at ratio 3."}
+        factor = {"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4, "note": "Correlated evidence counts once, at ratio 3."}
 
         grouped = truth_cost(self.base_state(edges=edges, factors=[factor]))
         independent = truth_cost(self.base_state(edges=edges))

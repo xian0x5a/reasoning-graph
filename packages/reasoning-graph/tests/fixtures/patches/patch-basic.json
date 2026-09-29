@@ -9,13 +9,11 @@
   ],
   "edges": [
     {
-      "id": "A1CS2",
       "from": "A1",
       "to": "CS2",
       "type": "leads_to"
     },
     {
-      "id": "CS2G1",
       "from": "CS2",
       "to": "G1",
       "type": "answers"
