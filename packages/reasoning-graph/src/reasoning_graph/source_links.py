@@ -20,11 +20,6 @@ class SourceLink(NamedTuple):
     href: str
 
 
-def node_sources(node: dict[str, Any]) -> list[str]:
-    source = node.get("source") or node.get("sources") or ""
-    return [str(item) for item in source] if isinstance(source, list) else [str(source)] if source else []
-
-
 def file_href(path: Path, page_dir: Path | None) -> str:
     path = path.resolve()
     if page_dir is not None and path.is_relative_to(page_dir.resolve()):
@@ -37,12 +32,12 @@ def source_links(state: dict[str, Any], source_base_dir: Path, page_dir: Path | 
     (None when the page has no place on disk)."""
     links = {}
     for node in state.get("nodes", []):
-        if not isinstance(node, dict):
+        if not isinstance(node, dict) or not node.get("source"):
             continue
-        for source in node_sources(node):
-            if (local_file := local_source_file(source, source_base_dir)) is not None:
-                file_name, path = local_file
-                links[source] = SourceLink(file_name, file_href(path, page_dir))
+        source = str(node["source"])
+        if (local_file := local_source_file(source, source_base_dir)) is not None:
+            file_name, path = local_file
+            links[source] = SourceLink(file_name, file_href(path, page_dir))
     return links
 
 

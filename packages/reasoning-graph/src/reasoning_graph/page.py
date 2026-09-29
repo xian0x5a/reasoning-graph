@@ -24,7 +24,7 @@ from .policy import (
     preferred_goal_ids,
     ranked_candidates,
 )
-from .source_links import SourceLink, node_sources, source_html
+from .source_links import SourceLink, source_html
 from .state import by_id
 
 
@@ -52,7 +52,7 @@ def node_detail_cards(
         if raw_id in labels:
             pill_text = f"{pill_text} · {labels[raw_id]}"
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
-        source_text = ", ".join(source_html(source, linked_sources) for source in node_sources(node))
+        source_text = source_html(str(node["source"]), linked_sources) if node.get("source") else ""
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
             belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
