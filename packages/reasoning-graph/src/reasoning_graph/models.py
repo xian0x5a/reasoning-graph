@@ -37,12 +37,6 @@ FACTOR_RELATIONS = {
 }
 
 
-FACTOR_AGGREGATION_KINDS = {
-    "joint_probability",
-    "likelihood",
-}
-
-
 AUDIT_EVENT_ACTIONS = {
     "record",
     "refresh",

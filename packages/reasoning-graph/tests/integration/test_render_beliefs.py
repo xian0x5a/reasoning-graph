@@ -94,21 +94,18 @@ def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expecte
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
-def test_filtered_graph_uses_calibrated_factor_and_refreshes_inputs(renderer):
+def test_filtered_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
         "id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to",
         "reasoning": "Both observations are needed and their uncertainty overlaps.",
     })
-    state["factors"] = [{
-        "id": "F1", "relation": "leads_to", "target": "D1", "inputs": ["E1", "E2"],
-        "aggregation": {"kind": "joint_probability", "probability": 0.5},
-    }]
+    state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
     assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.45"
-    state["factors"][0]["aggregation"]["probability"] = 1.0
+    state["factors"][0]["score"] = 5
     del state["nodes"][2]["score"]
-    assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 1"
+    assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.9"
     assert all("belief" not in node for node in state["nodes"])
 
 

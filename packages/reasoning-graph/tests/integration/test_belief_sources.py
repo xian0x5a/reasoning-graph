@@ -104,17 +104,14 @@ def test_evidence_score_maps_through_one_table_and_contradicts_uses_the_reciproc
         assert belief(state) == pytest.approx(expected)
 
 
-def test_calibrated_joint_premise_factor_replaces_the_default():
+def test_premise_group_replaces_the_default():
     state = claim_state()
     state["nodes"].extend([
         {"id": "S1", "type": "constraint", "text": "First condition"},
         {"id": "S2", "type": "constraint", "text": "Second condition"},
     ])
     state["edges"].extend([edge("S1", "N1"), edge("S2", "N1")])
-    state["factors"] = [
-        {"id": "F1", "relation": "leads_to", "target": "N1", "inputs": ["S1", "S2"],
-         "aggregation": {"kind": "joint_probability", "probability": 0.7}},
-    ]
+    state["factors"] = [{"id": "F1", "edges": ["S1-N1-leads_to", "S2-N1-leads_to"], "score": 4}]
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.7)

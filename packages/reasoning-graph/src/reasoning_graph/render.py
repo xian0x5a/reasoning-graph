@@ -115,7 +115,7 @@ def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost
     return f'{mid}["{label}"]'
 
 
-def mermaid_factor_definition(mid: str, factor: dict[str, Any]) -> str:
+def mermaid_factor_definition(mid: str, factor: VisualFactor) -> str:
     label = escape_mermaid_label(compact_factor_label(factor))
     return f'{mid}{{{{"{label}"}}}}'
 
@@ -195,11 +195,11 @@ def to_mermaid(
         if group_by_type:
             lines.append("  subgraph cluster_factors[Factors]")
             for factor, raw_factor_id in selected_factors:
-                lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor.record)}")
+                lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
             lines.append("  end")
         else:
             for factor, raw_factor_id in selected_factors:
-                lines.append(f"  {mermaid_factor_definition(factor_id_map[raw_factor_id], factor.record)}")
+                lines.append(f"  {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
 
     styled_edge_indexes: list[int] = []
     rendered_edge_index = 0

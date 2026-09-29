@@ -33,18 +33,12 @@
   "factors": [
     {
       "id": "F_SUPPORTS_A1_EXTRA",
-      "relation": "supports",
-      "target": "A1",
-      "inputs": [
-        "E3",
-        "E4"
+      "edges": [
+        "E3A1",
+        "E4A1"
       ],
-      "aggregation": {
-        "kind": "likelihood",
-        "if_target_true": 0.7,
-        "if_target_false": 0.3
-      },
-      "reason": "New signals are correlated with each other and grouped together."
+      "score": 3,
+      "note": "New signals are correlated with each other and grouped together."
     }
   ]
 }

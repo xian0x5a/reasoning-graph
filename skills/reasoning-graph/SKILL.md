@@ -62,7 +62,7 @@ Record patch:
 
 `reason` says what the checkpoint did and becomes the progress log. One patch carries every kind of change:
 
-- **Add:** `nodes`, `edges`, `factors` (a factor whose `id` exists replaces it).
+- **Add:** `nodes`, `edges`, `factors` (a group whose `id` exists replaces it).
 - **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"score": 4}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
@@ -137,7 +137,7 @@ Edge types (every edge needs nonblank `reasoning`, one to five sentences):
 - `leads_to` — premise/dependency used to derive a target's base belief
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 
-Factors (`docs/schema/factors.md`): incoming numeric edges to one target that share a source, observation, latent cause, or logical overlap are aggregated in one factor instead of multiplied as independent evidence. `leads_to` factors use `aggregation: {"kind": "joint_probability", "probability": ...}`; `supports`/`contradicts` factors use `aggregation: {"kind": "likelihood", "if_target_true": ..., "if_target_false": ...}`.
+Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List their ids in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
 
 Goals and candidates (`docs/schema/goals.md`):
 
@@ -155,7 +155,7 @@ Default final response: the answer, a concise proof path citing sources, open hy
 
 - `docs/schema/tests.md` — test lifecycle and result observation pattern
 - `docs/schema/goals.md` — candidate, answer-kind, multiple-goal, and lemma rules
-- `docs/schema/factors.md` — `factors` examples and validation rules
+- `docs/schema/factors.md` — correlation groups
 - `docs/schema/reporting.md` — report and presentation metadata
 - `docs/cost-model.md` — score tables, defaults, and belief math
 - `docs/driver.md` — CLI commands, state JSON, events, and audit

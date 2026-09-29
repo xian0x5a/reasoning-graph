@@ -97,14 +97,7 @@ class ContractAlignmentTests(unittest.TestCase):
     # --- #16 patch fields ---
 
     def test_patch_rejects_unimplemented_or_ambiguous_fields(self) -> None:
-        factor = {
-            "id": "F1",
-            "relation": "supports",
-            "inputs": ["A1", "A2"],
-            "target": "CS1",
-            "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-            "reason": "Shared source.",
-        }
+        factor = {"id": "F1", "edges": ["A1-CS1", "A2-CS1"], "score": 4, "note": "Shared source."}
         rejected_patches = {
             "outcome-alias": {"stop_reason": "done", "stop_outcome": "user_stopped", "outcome": "solved"},
             "factors-and-update-factors": {"factors": [factor], "update_factors": [factor]},

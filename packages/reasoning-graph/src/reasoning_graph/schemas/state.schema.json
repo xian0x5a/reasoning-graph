@@ -337,113 +337,63 @@
         }
       ]
     },
-    "factorAggregation": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": [
-        "kind"
-      ],
-      "properties": {
-        "kind": {
-          "enum": [
-            "joint_probability",
-            "likelihood"
-          ]
-        },
-        "probability": {
-          "$ref": "#/$defs/probability"
-        },
-        "if_target_true": {
-          "$ref": "#/$defs/probability"
-        },
-        "if_target_false": {
-          "$ref": "#/$defs/probability"
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "joint_probability"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "probability"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "kind": {
-                "const": "likelihood"
-              }
-            },
-            "required": [
-              "kind"
-            ]
-          },
-          "then": {
-            "required": [
-              "if_target_true",
-              "if_target_false"
-            ]
-          }
-        }
-      ],
-      "not": {
-        "required": [
-          "likelihood_ratio"
-        ]
-      }
-    },
     "factor": {
       "type": "object",
       "additionalProperties": true,
+      "description": "A correlation group: edges into one target that share a source or cause, so they count once at one combined score. The edges carry the relation and the target.",
       "required": [
         "id",
-        "relation",
-        "target",
-        "inputs",
-        "aggregation"
+        "edges",
+        "score"
       ],
       "properties": {
         "id": {
           "$ref": "#/$defs/id"
         },
-        "relation": {
-          "enum": [
-            "leads_to",
-            "supports",
-            "contradicts"
-          ]
-        },
-        "target": {
-          "$ref": "#/$defs/id"
-        },
-        "inputs": {
+        "edges": {
           "type": "array",
           "minItems": 2,
           "items": {
             "$ref": "#/$defs/id"
           },
-          "uniqueItems": true
+          "uniqueItems": true,
+          "description": "Ids of leads_to, supports, or contradicts edges of one type into one target. A grouped edge carries no score of its own."
         },
-        "aggregation": {
-          "$ref": "#/$defs/factorAggregation"
+        "score": {
+          "$ref": "#/$defs/score",
+          "description": "Combined 1-5 score of the grouped edges: the joint probability tier of leads_to premises, or the joint evidence tier of supports/contradicts edges."
         },
-        "reason": {
+        "note": {
           "type": "string"
         }
       },
       "not": {
         "anyOf": [
+          {
+            "required": [
+              "relation"
+            ]
+          },
+          {
+            "required": [
+              "target"
+            ]
+          },
+          {
+            "required": [
+              "inputs"
+            ]
+          },
+          {
+            "required": [
+              "aggregation"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          },
           {
             "required": [
               "likelihood_ratio"

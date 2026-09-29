@@ -67,33 +67,21 @@
   "factors": [
     {
       "id": "F_SUPPORTS_A1",
-      "relation": "supports",
-      "target": "A1",
-      "inputs": [
-        "E1",
-        "E2"
+      "edges": [
+        "E1A1",
+        "E2A1"
       ],
-      "aggregation": {
-        "kind": "likelihood",
-        "if_target_true": 0.8,
-        "if_target_false": 0.2
-      },
-      "reason": "Signals share one detector and should be grouped as correlated support."
+      "score": 4,
+      "note": "Signals share one detector and should be grouped as correlated support."
     },
     {
       "id": "F_SUPPORTS_A1_OVERLAP",
-      "relation": "supports",
-      "target": "A1",
-      "inputs": [
-        "E2",
-        "E1"
+      "edges": [
+        "E2A1",
+        "E1A1"
       ],
-      "aggregation": {
-        "kind": "likelihood",
-        "if_target_true": 0.6,
-        "if_target_false": 0.3
-      },
-      "reason": "Bad duplicate grouping for overlap fixture."
+      "score": 3,
+      "note": "Bad duplicate grouping for overlap fixture."
     }
   ]
 }

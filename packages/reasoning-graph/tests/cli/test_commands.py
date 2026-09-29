@@ -129,13 +129,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"score": 3, "id": "A2", "type": "hypothesis", "text": "Second"},
             ],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
-            "factors": [{
-                "id": "F1",
-                "relation": "leads_to",
-                "target": "A2",
-                "inputs": ["A1", "A2"],
-                "aggregation": {"kind": "joint_probability", "probability": 0.5},
-            }],
+            "factors": [{"id": "F1", "edges": ["E1", "E2"], "score": 3, "note": "Both rest on one reading."}],
         }
 
         jsonschema.Draft202012Validator(emitted_schema).validate(patch)
@@ -529,20 +523,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
                     {"id": "E3-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports"},
                 ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "supports",
-                        "inputs": ["E1", "E2"],
-                        "target": "A1",
-                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-                        "reason": "E1 and E2 are correlated, so their combined LR is calibrated directly.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 are correlated, so they count once."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            # Default odds 1 * grouped ratio 3 * independent default ratio 2 = odds 6 => belief 6/7 => -ln(6/7).
+            # Default odds 1 * group ratio 3 * independent default ratio 2 = odds 6 => belief 6/7 => -ln(6/7).
             self.assertAlmostEqual(truth_cost(state, "A1"), 0.154151, places=6)
 
             valid = self.run_cli("validate", str(state_path))
@@ -563,21 +548,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
                     {"id": "C1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "C1", "to": "D1", "type": "leads_to"},
                 ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "leads_to",
-                        "inputs": ["A1", "B1"],
-                        "target": "D1",
-                        "aggregation": {"kind": "joint_probability", "probability": 0.18},
-                        "reason": "A1 and B1 share a latent source.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A1 and B1 share a latent source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            # Joint 0.18 replaces 0.1 * 0.3; the independent premise adds its default 0.5: -ln(0.09).
-            self.assertAlmostEqual(truth_cost(state, "D1"), 2.407946, places=6)
+            # Joint 0.3 replaces 0.1 * 0.3; the independent premise adds its default 0.5: -ln(0.15).
+            self.assertAlmostEqual(truth_cost(state, "D1"), 1.897120, places=6)
 
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
@@ -611,51 +587,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
                     {"id": "D1-A1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "D1", "to": "A1", "type": "leads_to"},
                 ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "leads_to",
-                        "target": "D1",
-                        "inputs": ["A1", "B1"],
-                        "aggregation": {"kind": "joint_probability", "probability": 0.4},
-                        "reason": "Factor cost must not hide the raw cycle.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["A1-D1-leads_to", "B1-D1-leads_to"], "score": 2, "note": "A group must not hide the raw cycle."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
             invalid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
             self.assertIn("cycle in truth dependency graph", invalid.stderr)
-
-    def test_validate_warns_but_accepts_missing_factor_reason(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "missing-reason-factor-state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 4},
-                    {"id": "B1", "type": "hypothesis", "text": "Premise B", "score": 4},
-                    {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
-                ],
-                "edges": [
-                    {"id": "A1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "D1", "type": "leads_to"},
-                    {"id": "B1-D1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "B1", "to": "D1", "type": "leads_to"},
-                ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "leads_to",
-                        "target": "D1",
-                        "inputs": ["A1", "B1"],
-                        "aggregation": {"kind": "joint_probability", "probability": 0.7},
-                    }
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            valid = self.run_cli("validate", str(state_path))
-            self.assertEqual(valid.returncode, 0, valid.stderr)
-            self.assertIn("should include reason", valid.stderr)
 
     def test_record_patch_upserts_new_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -673,16 +611,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch = {
                 "reason": "E2 shares E1's source, so their evidence is grouped.",
                 "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "supports",
-                        "inputs": ["E1", "E2"],
-                        "target": "A1",
-                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-                        "reason": "E1 and E2 share source.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
@@ -692,7 +621,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             recorded = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(recorded["factors"][0]["id"], "F1")
             self.assertEqual(recorded["events"][-1]["update_factors"], ["F1"])
-            # Grouped ratio 3 replaces the two member ratios of 2 => odds 3 => -ln(0.75).
+            # Group score 4 is ratio 3, replacing the two member ratios of 2 => odds 3 => -ln(0.75).
             self.assertAlmostEqual(truth_cost(recorded, "A1"), 0.287682, places=6)
 
     def test_audit_accepts_updated_factors(self) -> None:
@@ -708,16 +637,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports"},
                     {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"},
                 ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "supports",
-                        "inputs": ["E1", "E2"],
-                        "target": "A1",
-                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-                        "reason": "E1 and E2 share source.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
                 "events": [
                     {
                         "step": 1,
@@ -751,50 +671,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertNotEqual(valid.returncode, 0, valid.stdout)
             self.assertIn("ignored legacy field(s) strength", valid.stderr)
             self.assertIn("schema $.edges[0]", valid.stderr)
-
-    def test_validate_rejects_bad_factors(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "bad-factors.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
-                    {"score": 5, "id": "E1", "type": "observation", "text": "Signal A"},
-                    {"score": 5, "id": "E2", "type": "observation", "text": "Signal B"},
-                    {"score": 5, "id": "E3", "type": "observation", "text": "Signal C"},
-                ],
-                "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
-                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
-                ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "supports",
-                        "inputs": ["E1", "E2"],
-                        "target": "A1",
-                        "aggregation": {"kind": "likelihood", "if_target_true": 0.2, "if_target_false": 0.8},
-                        "likelihood_ratio": 2.0,
-                        "reason": "wrong direction and direct ratio forbidden",
-                    },
-                    {
-                        "id": "F2",
-                        "relation": "supports",
-                        "inputs": ["E2", "E3"],
-                        "target": "A1",
-                        "aggregation": {"kind": "joint_probability", "probability": 0.5},
-                        "reason": "overlaps and E3 has no support edge",
-                    },
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            invalid = self.run_cli("validate", str(state_path))
-            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
-            self.assertIn("factors[0] must not set likelihood_ratio directly", invalid.stderr)
-            self.assertIn("factors[0] supports likelihood ratio must be > 1", invalid.stderr)
-            self.assertIn("factors[1] input 'E3' must have a supports edge to target 'A1'", invalid.stderr)
-            self.assertIn("supports factors for target 'A1' overlap on input(s) E2", invalid.stderr)
-            self.assertIn("factors[1].aggregation.kind must be 'likelihood' for supports/contradicts factors", invalid.stderr)
 
     def test_stop_output_does_not_mutate_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1027,16 +903,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
                     {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
                 ],
-                "factors": [
-                    {
-                        "id": "F1",
-                        "relation": "supports",
-                        "inputs": ["E1", "E2"],
-                        "target": "A1",
-                        "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-                        "reason": "E1 and E2 share source.",
-                    }
-                ],
+                "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4, "note": "E1 and E2 share source."}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
@@ -1045,6 +912,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("F1", mermaid.stdout)
             self.assertIn("grouped supports", mermaid.stdout)
             self.assertIn("supports factor", mermaid.stdout)
+            self.assertIn("supports group, score 4", mermaid.stdout)
 
             html = self.run_cli("html", str(state_path), "--offline", "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)

@@ -67,18 +67,12 @@
   "factors": [
     {
       "id": "F_SUPPORTS_A1",
-      "relation": "supports",
-      "target": "A1",
-      "inputs": [
-        "E1",
-        "E2"
+      "edges": [
+        "E1A1",
+        "E2A1"
       ],
-      "aggregation": {
-        "kind": "likelihood",
-        "if_target_true": 0.8,
-        "if_target_false": 0.2
-      },
-      "reason": "Signals share one detector and should be grouped as correlated support."
+      "score": 4,
+      "note": "Signals share one detector and should be grouped as correlated support."
     }
   ]
 }

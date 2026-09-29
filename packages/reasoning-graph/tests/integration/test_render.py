@@ -176,7 +176,7 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertIn(f"LS-{identities.node('E1')} LE-{factor_id}", svg)
         self.assertIn(f"LS-{factor_id} LE-{identities.node('A1')}", svg)
         self.assertNotIn(f"LS-{identities.node('E1')} LE-{identities.node('A1')}", svg)
-        self.assertIn("supports joint likelihood", svg)
+        self.assertIn("supports group, score 4", svg)
 
     def test_mermaid_preserves_declared_factor_and_input_order(self) -> None:
         state = {
@@ -191,10 +191,8 @@ class RenderIdentityTests(unittest.TestCase):
                 for target in ("TZ", "TA") for source in ("I_1", "I-1")
             ],
             "factors": [
-                {"id": "Z", "relation": "supports", "inputs": ["I_1", "I-1"], "target": "TZ",
-                 "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.2}},
-                {"id": "A", "relation": "supports", "inputs": ["I-1", "I_1"], "target": "TA",
-                 "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.2}},
+                {"id": "Z", "edges": ["I_1-TZ", "I-1-TZ"], "score": 4},
+                {"id": "A", "edges": ["I-1-TA", "I_1-TA"], "score": 4},
             ],
         }
         identities = render_identity_map(state)
@@ -216,7 +214,7 @@ class RenderIdentityTests(unittest.TestCase):
             "nodes": list(reversed(state["nodes"])),
             "edges": list(reversed(state["edges"])),
             "factors": [
-                {**factor, "inputs": list(reversed(factor["inputs"]))}
+                {**factor, "edges": list(reversed(factor["edges"]))}
                 for factor in reversed(state["factors"])
             ],
         }
@@ -235,8 +233,7 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": f"{source}-A1", "from": source, "to": "A1", "type": "supports", "reasoning": "The observation supports A1."}
                 for source in (raw_node_id, "E2")
             ],
-            "factors": [{"id": "F1", "relation": "supports", "inputs": [raw_node_id, "E2"], "target": "A1",
-                         "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.2}}],
+            "factors": [{"id": "F1", "edges": [f"{raw_node_id}-A1", "E2-A1"], "score": 4}],
         }
         identities = render_identity_map(state)
         svg = offline_graph_svg(state, identities=identities)
@@ -269,8 +266,7 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "reasoning": "E1 supports A1."},
                 {"id": "E2-A1-supports", "from": "E2", "to": "A1", "type": "supports", "reasoning": "E2 supports A1."},
             ],
-            "factors": [{"id": "F1", "relation": "supports", "inputs": ["E1", "E2"], "target": "A1",
-                         "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.2}}],
+            "factors": [{"id": "F1", "edges": ["E1-A1-supports", "E2-A1-supports"], "score": 4}],
         }
         identities = render_identity_map(state)
         presentation_svg = offline_graph_svg(state, {"E1", "A1"}, identities=identities)
@@ -284,8 +280,8 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertNotIn("grouped supports", presentation_mermaid)
         self.assertIn("grouped supports", audit_mermaid)
         # Hidden factor members still contribute to the target's final belief.
-        self.assertIn("belief 0.8", presentation_svg)
-        self.assertIn("belief 0.8", presentation_mermaid)
+        self.assertIn("belief 0.75", presentation_svg)
+        self.assertIn("belief 0.75", presentation_mermaid)
 
 
 class GraphCanvasLayoutTests(unittest.TestCase):

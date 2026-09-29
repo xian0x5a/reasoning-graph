@@ -120,11 +120,7 @@ class PatchOperationTests(unittest.TestCase):
                 "nodes": [observation("O3", "or so he said")],
                 "edges": [edge("O3", "H1", "supports")],
                 "update_edges": [{"id": "O2-H1", "unset": ["score"]}],
-                "factors": [{
-                    "id": "F1", "relation": "supports", "target": "H1", "inputs": ["O2", "O3"],
-                    "aggregation": {"kind": "likelihood", "if_target_true": 0.8, "if_target_false": 0.3},
-                    "reason": "One witness.",
-                }],
+                "factors": [{"id": "F1", "edges": ["O2-H1", "O3-H1"], "score": 4, "note": "One witness."}],
             }))
             before = state_path.read_text(encoding="utf-8")
 

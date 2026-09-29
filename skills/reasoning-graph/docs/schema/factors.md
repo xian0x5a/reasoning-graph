@@ -1,159 +1,50 @@
-# Factors
+# Correlation groups
 
-`factors` are top-level records for grouping dependent incoming numeric edges. Use this page as the shape and example reference; usage policy lives in `../../SKILL.md`.
+`factors` holds correlation groups: edges into one target that share a source, an observation, a latent cause, or a logical overlap. A group counts its edges once, at one combined score, instead of multiplying them as independent evidence.
 
-## Factor shape
+## Shape
+
+```json
+{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4, "note": "Two log lines of the same failed request."}
+```
+
+- `id` — unique group id.
+- `edges` — two or more edge ids. All share one type (`leads_to`, `supports`, or `contradicts`) and one target.
+- `score` — required, 1 to 5: the combined weight of the grouped edges, read from the same tables as an ungrouped score (`../cost-model.md`).
+  - `supports` / `contradicts`: the evidence ratio of the whole group.
+  - `leads_to`: the joint probability that all grouped premises hold.
+- `note` — optional: why the edges depend on each other.
+
+The edges carry the relation, the target, and the sources, so a group names none of them. A grouped edge carries no `score` of its own; the group's score is the one number.
+
+## Example
+
+Two log lines of one failed request support `H1`. Ungrouped, two default edges would double the odds twice. Grouped at score 4, they triple them once.
 
 ```json
 {
-  "id": "F1",
-  "relation": "leads_to",
-  "target": "H3",
-  "inputs": ["H1", "H2"],
-  "aggregation": {"kind": "joint_probability", "probability": 0.72},
-  "reason": "H1 and H2 share the same source."
-}
-```
-
-Fields:
-
-- `id` — unique factor id.
-- `relation` — `leads_to`, `supports`, or `contradicts`.
-- `target` — node receiving the grouped numeric update.
-- `inputs` — two or more source node ids.
-- `aggregation` — combined numeric impact for the group.
-- `reason` — short explanation for why these inputs are dependent.
-
-Each input must have a matching edge to the same `target` with the same `relation`.
-
-## Aggregation shapes
-
-### `leads_to`
-
-```json
-"aggregation": {"kind": "joint_probability", "probability": 0.72}
-```
-
-`probability` is the calibrated joint probability for the grouped premises.
-
-### `supports`
-
-```json
-"aggregation": {"kind": "likelihood", "if_target_true": 0.54, "if_target_false": 0.18}
-```
-
-The implied likelihood ratio must be greater than `1`.
-
-### `contradicts`
-
-```json
-"aggregation": {"kind": "likelihood", "if_target_true": 0.1, "if_target_false": 0.5}
-```
-
-The implied likelihood ratio must be between `0` and `1`.
-
-Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_false`.
-
-## Examples
-
-### Grouped `leads_to` premises
-
-```json
-{
-  "nodes": [
-    {"id": "H1", "type": "hypothesis", "text": "Source says X", "score": 4},
-    {"id": "H2", "type": "hypothesis", "text": "Same source implies Y", "score": 4},
-    {"id": "H3", "type": "hypothesis", "text": "X and Y explain the result"}
-  ],
+  "reason": "Both log lines come from one request",
   "edges": [
-    {"id": "H1-H3", "from": "H1", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."},
-    {"id": "H2-H3", "from": "H2", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "reasoning": "A timeout at the gateway is more likely if the pool is exhausted."},
+    {"id": "O2-H1", "from": "O2", "to": "H1", "type": "supports", "reasoning": "The retry of that request timing out is the same signal again."}
   ],
   "factors": [
-    {
-      "id": "F1",
-      "relation": "leads_to",
-      "target": "H3",
-      "inputs": ["H1", "H2"],
-      "aggregation": {"kind": "joint_probability", "probability": 0.72},
-      "reason": "H1 and H2 both depend on the same source."
-    }
+    {"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4, "note": "One request, logged twice."}
   ]
 }
 ```
 
-### Grouped `supports` edges
+## Changing a group
 
-```json
-{
-  "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."},
-    {"id": "O2-H1", "from": "O2", "to": "H1", "type": "supports", "reasoning": "The observed signal is more likely when the target claim is true."}
-  ],
-  "factors": [
-    {
-      "id": "F2",
-      "relation": "supports",
-      "target": "H1",
-      "inputs": ["O1", "O2"],
-      "aggregation": {"kind": "likelihood", "if_target_true": 0.54, "if_target_false": 0.18},
-      "reason": "O1 and O2 are two log lines from the same failed request."
-    }
-  ]
-}
-```
+A patch adds or replaces a group by `id`: to add an edge, send the whole group again with the longer `edges` list and the score you now hold. `remove_factors` removes groups by id.
 
-### Grouped `contradicts` edges
+A group is never removed implicitly. Removing an edge or a node that a group still names fails validation, so remove or replace the group in the same patch.
 
-```json
-{
-  "edges": [
-    {"id": "O3-H1", "from": "O3", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."},
-    {"id": "O4-H1", "from": "O4", "to": "H1", "type": "contradicts", "reasoning": "The observed signal is less likely when the target claim is true."}
-  ],
-  "factors": [
-    {
-      "id": "F3",
-      "relation": "contradicts",
-      "target": "H1",
-      "inputs": ["O3", "O4"],
-      "aggregation": {"kind": "likelihood", "if_target_true": 0.1, "if_target_false": 0.5},
-      "reason": "O3 and O4 are two views of the same negative check."
-    }
-  ]
-}
-```
+## Validation
 
-### Replace a factor in a patch
-
-Record patches use `factors` to add or replace factors by `id`. To append an input, submit the full replacement factor with the updated `inputs` and recalibrated `aggregation`.
-
-```json
-{
-  "edges": [
-    {"id": "H4-H3", "from": "H4", "to": "H3", "type": "leads_to", "reasoning": "The target conclusion depends on this premise."}
-  ],
-  "factors": [
-    {
-      "id": "F1",
-      "relation": "leads_to",
-      "target": "H3",
-      "inputs": ["H1", "H2", "H4"],
-      "aggregation": {"kind": "joint_probability", "probability": 0.76},
-      "reason": "H1, H2, and H4 now form one source-dependent input group."
-    }
-  ]
-}
-```
-
-## Validation checklist
-
-- `inputs` has at least two unique node ids.
-- `target` is not in `inputs`.
-- `target` and every input reference existing nodes.
-- Every input has a matching `relation` edge to `target`.
-- Factor inputs do not overlap for the same `relation` and `target`.
-- `leads_to` uses `joint_probability` with `probability`.
-- `supports` and `contradicts` use `likelihood` with `if_target_true` and `if_target_false`.
-- `supports` likelihood ratio is `> 1`; `contradicts` likelihood ratio is in `(0, 1)`.
-- Factor does not set `effective_truth_cost` or direct `likelihood_ratio`.
+- `edges` lists at least two different ids, each of an existing edge.
+- The edges share one type, which is `leads_to`, `supports`, or `contradicts`, and one target.
+- An edge belongs to at most one group.
+- A grouped edge has no `score`.
+- `score` is an integer from 1 to 5.
+- The removed fields `relation`, `target`, `inputs`, `aggregation`, and `reason` are rejected.

@@ -21,7 +21,7 @@ VALIDATE_INVALID_FIXTURES = {
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
     "invalid-stop-policy.json": "stop_policy.min_viable_candidates must be a non-negative integer",
-    "overlapping-factors.json": "supports factors for target 'A1' overlap",
+    "overlapping-factors.json": "edge E2A1 is already grouped by F_SUPPORTS_A1",
 }
 AUDIT_INVALID_FIXTURES = {
     "duplicate-report-candidate.json": "viable candidates 1 < stop_policy.min_viable_candidates 3",

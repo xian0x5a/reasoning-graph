@@ -69,19 +69,12 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
         self.assertGreater(contradicted, baseline)
         self.assertAlmostEqual(contradicted, -math.log(0.25), places=6)
 
-    def test_grouped_support_factor_replaces_member_likelihood_updates(self) -> None:
+    def test_support_group_replaces_member_updates(self) -> None:
         edges = [
             {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A1", "from": "E1", "to": "A1", "type": "supports"},
             {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A1", "from": "E2", "to": "A1", "type": "supports"},
         ]
-        factor = {
-            "id": "F1",
-            "relation": "supports",
-            "target": "A1",
-            "inputs": ["E1", "E2"],
-            "aggregation": {"kind": "likelihood", "if_target_true": 0.6, "if_target_false": 0.2},
-            "reason": "Correlated evidence should count once as grouped LR 3.",
-        }
+        factor = {"id": "F1", "edges": ["E1A1", "E2A1"], "score": 4, "note": "Correlated evidence counts once, at ratio 3."}
 
         grouped = truth_cost(self.base_state(edges=edges, factors=[factor]))
         independent = truth_cost(self.base_state(edges=edges))

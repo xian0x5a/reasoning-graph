@@ -35,7 +35,7 @@ Mutually exclusive sibling hypotheses do not have to sum to anything; the scale 
 
 ### Required edge reasoning
 
-Every edge requires nonblank `reasoning` explaining the directed relationship, including `requires`, `prompts`, `answers`, and factor member edges. Aim for one to five sentences. Repeating the edge type is not an explanation, and a factor's `reason` does not replace member-edge reasoning.
+Every edge requires nonblank `reasoning` explaining the directed relationship, including `requires`, `prompts`, `answers`, and grouped edges. Aim for one to five sentences. Repeating the edge type is not an explanation, and a group's `note` does not replace member-edge reasoning.
 
 ```json
 {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to", "reasoning": "The deployment timestamp is earlier than the first failing request, so deployment preceded the outage."}
@@ -49,9 +49,9 @@ Belief is computed in cost space, where a probability `P` has cost `-ln(P)`:
 
 ```txt
 local_probability = table[score], or table[default] for a claim without claim premises, or 1 for a premise-backed claim without a score
-base_truth_cost(target) = -ln(local_probability) + sum(effective_truth_cost(ungrouped premises via leads_to)) + sum(-ln(leads_to factor joint_probability))
+base_truth_cost(target) = -ln(local_probability) + sum(effective_truth_cost(ungrouped premises via leads_to)) + sum(-ln(leads_to group probability))
 base_odds = P_base / (1 - P_base)
-updated_odds = base_odds * product(ungrouped supports/contradicts ratios) * product(supports/contradicts factor ratios)
+updated_odds = base_odds * product(ungrouped supports/contradicts ratios) * product(supports/contradicts group ratios)
 effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 belief = exp(-effective_truth_cost)
 ```
@@ -65,8 +65,8 @@ Graph labels and candidate tables show effective belief; node details show the a
 - Every `supports` and `contradicts` edge updates its target, at its score or at the default 3.
 - Multiple evidence edges multiply in odds space: a default hypothesis with two default supports has odds `1 * 2 * 2` and belief `0.8`.
 - The edge score already includes how reliable the source is. An observation's own score contributes through `leads_to`; it does not dampen the observation's `supports`/`contradicts` edges.
-- Evidence from a claim (`hypothesis` or `candidate_solution`) is only as strong as the claim: with source belief `b`, ratio `r` acts as `1 + b·(r − 1)`, treating a false source as uninformative. A factor with claim inputs uses the product of their beliefs. `supports` from a claim that is not evidence-grounded (`SKILL.md` stop gates) has no effect; `contradicts` always applies, scaled. Claim-sourced evidence is a truth dependency, so cycles through it are invalid.
-- Correlated or overlapping evidence should be merged or grouped with a `factor`, so it counts once.
-- If an exact joint probability is known for required `leads_to` premises, use a `leads_to` factor with `aggregation.kind: "joint_probability"`; if correlated support/contradiction has a calibrated joint likelihood, use a `supports`/`contradicts` factor with conditional likelihood fields.
+- Evidence from a claim (`hypothesis` or `candidate_solution`) is only as strong as the claim: with source belief `b`, ratio `r` acts as `1 + b·(r − 1)`, treating a false source as uninformative. A group with claim sources uses the product of their beliefs. `supports` from a claim that is not evidence-grounded (`SKILL.md` stop gates) has no effect; `contradicts` always applies, scaled. Claim-sourced evidence is a truth dependency, so cycles through it are invalid.
+- Correlated or overlapping evidence should be merged into one node or grouped (`schema/factors.md`), so it counts once. A group's score replaces its members' updates: two grouped supports at group score 3 double the odds once, not twice.
+- `leads_to` premises that stand or fall together are grouped the same way; the group's score is read from the claim table as their joint probability and replaces their product.
 
-`leads_to` is not an evidence update. It forms the target's base belief by propagating ungrouped premise truth costs plus any `leads_to` factor joint-probability costs. `supports`/`contradicts` then update that base belief, with factor likelihoods replacing grouped member updates.
+`leads_to` is not an evidence update. It forms the target's base belief from the ungrouped premises and any `leads_to` groups. `supports`/`contradicts` then update that base belief.

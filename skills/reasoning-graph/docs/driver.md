@@ -66,10 +66,10 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 
 `record` applies `reason` plus any of these operations, in this order: removals, then updates, then additions.
 
-- `remove_nodes`, `remove_edges`, `remove_factors` take id lists; each id must exist. Removing a node also removes every edge touching it, and the event lists those edges. Factors are never removed implicitly: a factor left pointing at a removed node or edge fails validation, so remove or replace it in the same patch.
+- `remove_nodes`, `remove_edges`, `remove_factors` take id lists; each id must exist. Removing a node also removes every edge touching it, and the event lists those edges. Groups are never removed implicitly: a group left naming a removed edge fails validation, so remove or replace it in the same patch.
 - `update_nodes` and `update_edges` take items `{"id": ..., "set": {...}, "unset": [...]}` with at least one of `set` or `unset`. `set` replaces top-level fields; `unset` deletes fields the item has. A node's `id` and `type` and an edge's `id`, `from`, and `to` are immutable. Use `update_nodes` to keep one node per claim as evidence arrives.
 - `nodes` and `edges` are insert-only; an id that exists after the removals is rejected. An id removed earlier in the same patch may be added again.
-- `factors` adds or replaces factors by id.
+- `factors` adds or replaces correlation groups by id.
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
 - Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.
 

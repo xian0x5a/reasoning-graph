@@ -25,6 +25,14 @@ EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 # evidence (issue #37); belief always follows the recorded inputs.
 REMOVED_NODE_SCORE_FIELDS = ("prior", "confidence", "probability", "posterior")
 REMOVED_EDGE_SCORE_FIELDS = ("likelihood", "likelihood_ratio")
+# A group names its edges, which already carry the relation, the target, and the sources.
+REMOVED_GROUP_FIELDS = {
+    "relation": "list the grouped edge ids in edges",
+    "target": "list the grouped edge ids in edges",
+    "inputs": "list the grouped edge ids in edges",
+    "aggregation": "use score, an integer from 1 to 5",
+    "reason": "use note",
+}
 
 
 def require_score(value: Any, field: str = "score") -> int:
@@ -59,23 +67,9 @@ def probability_from_value(value: Any) -> float | None:
     return None
 
 
-def likelihood_probability_from_value(value: Any, field: str) -> float:
-    return require_probability(value, field)
-
-
-def likelihood_ratio_from_likelihood(likelihood: Any, field: str = "likelihood") -> float:
-    if not isinstance(likelihood, dict):
-        raise ValueError(f"{field} must be an object")
-    if_target_true = likelihood_probability_from_value(
-        likelihood.get("if_target_true"), f"{field}.if_target_true"
-    )
-    if_target_false = likelihood_probability_from_value(
-        likelihood.get("if_target_false"), f"{field}.if_target_false"
-    )
-    likelihood_ratio = if_target_true / if_target_false
-    if not math.isfinite(likelihood_ratio):
-        raise ValueError(f"{field} ratio must be finite, got {likelihood_ratio}")
-    return likelihood_ratio
+def evidence_ratio(score: Any, relation: str, field: str = "score") -> float:
+    ratio = EVIDENCE_SCORE_RATIO[require_score(score, field)]
+    return 1 / ratio if relation == "contradicts" else ratio
 
 
 def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
@@ -83,54 +77,91 @@ def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
     for field in REMOVED_EDGE_SCORE_FIELDS:
         if field in edge:
             raise ValueError(removed_score_field_message(f"edge {edge.get('id')}", field))
-    ratio = EVIDENCE_SCORE_RATIO[require_score(edge.get("score", DEFAULT_EVIDENCE_SCORE))]
-    return 1 / ratio if edge.get("type") == "contradicts" else ratio
+    return evidence_ratio(edge.get("score", DEFAULT_EVIDENCE_SCORE), str(edge.get("type")))
 
 
-def factor_label(source: str, index: int) -> str:
-    return f"{source}[{index}]"
+@dataclass(frozen=True)
+class EdgeGroup:
+    """Edges into one target that count once, at one combined score."""
+
+    group_id: str
+    relation: str
+    target: str
+    edge_ids: tuple[str, ...]
+    sources: tuple[str, ...]
+    score: int
 
 
-def iter_numeric_factor_specs(state: dict[str, Any]) -> Iterable[tuple[str, int, dict[str, Any]]]:
-    factors = state.get("factors", [])
-    if factors is None:
-        factors = []
+def resolve_edge_groups(state: dict[str, Any]) -> tuple[list[EdgeGroup], list[str]]:
+    """Resolve each `factors` record against the edges it names; return the valid groups and every error."""
+
+    factors = state.get("factors") or []
     if not isinstance(factors, list):
-        raise ValueError("factors must be a list when present")
+        return [], ["factors must be a list when present"]
+    edges = {
+        edge["id"]: edge
+        for edge in state.get("edges", [])
+        if isinstance(edge, dict) and isinstance(edge.get("id"), str)
+    }
+    groups: list[EdgeGroup] = []
+    errors: list[str] = []
+    grouped_by: dict[str, str] = {}
     for index, factor in enumerate(factors):
+        label = f"factors[{index}]"
         if not isinstance(factor, dict):
-            raise ValueError(f"factors[{index}] must be object")
-        if "effective_truth_cost" in factor:
-            raise ValueError(f"factors[{index}] must not set effective_truth_cost; it is computed from aggregation")
-        if "likelihood_ratio" in factor:
-            raise ValueError(
-                f"factors[{index}] must not set likelihood_ratio directly; use aggregation.if_target_true and aggregation.if_target_false"
+            errors.append(f"{label} must be object")
+            continue
+        name = factor["id"] if isinstance(factor.get("id"), str) and factor.get("id") else label
+        found = [f"{label}: {field} was removed; {replacement}" for field, replacement in REMOVED_GROUP_FIELDS.items() if field in factor]
+
+        edge_ids = factor.get("edges")
+        if (
+            not isinstance(edge_ids, list)
+            or not all(isinstance(edge_id, str) and edge_id for edge_id in edge_ids)
+            or len(set(edge_ids)) < 2
+            or len(set(edge_ids)) != len(edge_ids)
+        ):
+            found.append(f"{label}.edges must list at least two different edge ids")
+            edge_ids = []
+        found.extend(f"{label}.edges references missing edge {edge_id!r}" for edge_id in edge_ids if edge_id not in edges)
+        members = [edges[edge_id] for edge_id in edge_ids if edge_id in edges]
+        relations = sorted({str(member.get("type")) for member in members})
+        targets = sorted({str(member.get("to")) for member in members})
+        if len(relations) > 1:
+            found.append(f"{label}.edges must share one type, got {', '.join(relations)}")
+        elif relations and relations[0] not in FACTOR_RELATIONS:
+            found.append(f"{label}.edges must be leads_to, supports, or contradicts edges, got {relations[0]}")
+        if len(targets) > 1:
+            found.append(f"{label}.edges must share one target, got {', '.join(targets)}")
+        for member in members:
+            member_id = member["id"]
+            if member_id in grouped_by:
+                found.append(f"{label}: edge {member_id} is already grouped by {grouped_by[member_id]}")
+            grouped_by.setdefault(member_id, name)
+            if "score" in member:
+                found.append(f"{label}: edge {member_id} is grouped by {name} and must not carry its own score; the group's score is the one number")
+
+        if "score" not in factor:
+            found.append(f"{label}.score is required: the combined score of the grouped edges, an integer from 1 to 5")
+        else:
+            try:
+                require_score(factor["score"], f"{label}.score")
+            except ValueError as exc:
+                found.append(str(exc))
+
+        errors.extend(found)
+        if not found:
+            groups.append(
+                EdgeGroup(
+                    group_id=name,
+                    relation=relations[0],
+                    target=targets[0],
+                    edge_ids=tuple(edge_ids),
+                    sources=tuple(str(member.get("from")) for member in members),
+                    score=int(factor["score"]),
+                )
             )
-        aggregation = factor.get("aggregation")
-        if isinstance(aggregation, dict) and "likelihood_ratio" in aggregation:
-            raise ValueError(
-                f"factors[{index}].aggregation must not set likelihood_ratio directly; use if_target_true and if_target_false"
-            )
-        yield "factors", index, factor
-
-def joint_probability_cost_from_factor(factor: dict[str, Any], label: str) -> float:
-    aggregation = factor.get("aggregation")
-    if not isinstance(aggregation, dict):
-        raise ValueError(f"{label}.aggregation must be an object")
-    if aggregation.get("kind") != "joint_probability":
-        raise ValueError(f"{label}.aggregation.kind must be 'joint_probability' for leads_to factors")
-    if "probability" not in aggregation:
-        raise ValueError(f"{label}.aggregation.probability missing")
-    return probability_cost(aggregation.get("probability"), f"{label}.aggregation.probability")
-
-
-def likelihood_ratio_from_factor(factor: dict[str, Any], label: str) -> float:
-    aggregation = factor.get("aggregation")
-    if not isinstance(aggregation, dict):
-        raise ValueError(f"{label}.aggregation must be an object")
-    if aggregation.get("kind") != "likelihood":
-        raise ValueError(f"{label}.aggregation.kind must be 'likelihood' for supports/contradicts factors")
-    return likelihood_ratio_from_likelihood(aggregation, f"{label}.aggregation")
+    return groups, errors
 
 
 def probability_from_log_odds(log_odds: float) -> float:
@@ -230,7 +261,7 @@ def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -
 
 @dataclass(frozen=True)
 class EvidenceUpdate:
-    """One odds-space update on a claim: an ungrouped edge or a likelihood factor."""
+    """One odds-space update on a claim: an ungrouped edge or a group of edges."""
 
     log_likelihood_ratio: float
     source_ids: tuple[str, ...]
@@ -242,21 +273,29 @@ class TruthInputs:
 
     nodes: dict[str, dict[str, Any]]
     premise_sources: dict[str, list[str]]
+    ungrouped_premise_sources: dict[str, list[str]]
     premise_group_costs: dict[str, list[float]]
-    grouped_premise_sources: dict[str, set[str]]
-    # Per-node updates after factor grouping, in edge-then-factor order.
+    # Per-node updates after grouping, in edge-then-group order.
     evidence_updates: dict[str, list[EvidenceUpdate]]
-    # Claims whose belief comes from a claim premise or a calibrated premise factor.
+    # Claims whose belief comes from a claim premise or a premise group.
     premise_backed_nodes: set[str]
 
 
 def truth_inputs(state: dict[str, Any]) -> TruthInputs:
-    """Collect premises and likelihood updates, validating edges and factors."""
+    """Collect premises and evidence updates, validating edges and groups."""
 
     nodes = by_id(state.get("nodes", []), "node")
+    groups, group_errors = resolve_edge_groups(state)
+    if group_errors:
+        raise ValueError(group_errors[0])
+    grouped_edge_ids = {edge_id for group in groups for edge_id in group.edge_ids}
+
     premise_sources: dict[str, list[str]] = {node_id: [] for node_id in nodes}
-    likelihood_edges: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in nodes}
-    likelihood_source_sets: dict[tuple[str, str], set[str]] = {}
+    ungrouped_premise_sources: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+    # Evidence from a non-observation source is scaled by that source's belief,
+    # so it is a truth dependency just like a premise.
+    truth_dependencies: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+    evidence_updates: dict[str, list[EvidenceUpdate]] = {}
 
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -264,100 +303,40 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         edge_type = edge.get("type") or edge.get("label")
         # Validate every evidence edge, including those the belief walk never reaches.
         if edge_type in EVIDENCE_EDGE_TYPES:
-            likelihood_ratio_from_edge(edge)
+            likelihood_ratio = likelihood_ratio_from_edge(edge)
         src = edge.get("from")
         dst = edge.get("to")
         if not isinstance(src, str) or not isinstance(dst, str) or src not in nodes or dst not in nodes:
             continue
+        grouped = edge.get("id") in grouped_edge_ids
         if edge_type == "leads_to":
-            premise_sources.setdefault(dst, []).append(src)
+            premise_sources[dst].append(src)
+            truth_dependencies[dst].append(src)
+            if not grouped:
+                ungrouped_premise_sources[dst].append(src)
         elif edge_type in EVIDENCE_EDGE_TYPES:
-            likelihood_source_sets.setdefault((dst, str(edge_type)), set()).add(src)
-            likelihood_edges.setdefault(dst, []).append(edge)
-
-    # Evidence from a non-observation source is scaled by that source's belief,
-    # so it is a truth dependency just like a premise.
-    truth_dependencies = {node_id: list(sources) for node_id, sources in premise_sources.items()}
-    for target, edges in likelihood_edges.items():
-        truth_dependencies[target] += [str(edge["from"]) for edge in edges if nodes[str(edge["from"])].get("type") != "observation"]
+            if nodes[src].get("type") != "observation":
+                truth_dependencies[dst].append(src)
+            if not grouped:
+                evidence_updates.setdefault(dst, []).append(EvidenceUpdate(math.log(likelihood_ratio), (src,)))
     assert_acyclic_premise_dependencies(truth_dependencies)
 
+    # A group is an explicit bundle of dependent edges; its score replaces theirs.
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
-    grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
-    grouped_likelihood_sources: dict[tuple[str, str], set[str]] = {}
-    factor_updates: dict[str, list[EvidenceUpdate]] = {node_id: [] for node_id in nodes}
-    premise_source_sets = {node_id: set(sources) for node_id, sources in premise_sources.items()}
-    for source, index, factor in iter_numeric_factor_specs(state):
-        label = factor_label(source, index)
-        relation = factor.get("relation")
-        if relation not in FACTOR_RELATIONS:
-            raise ValueError(f"{label}.relation must be one of {sorted(FACTOR_RELATIONS)}, got {relation!r}")
-        target = factor.get("target")
-        if not isinstance(target, str) or target not in nodes:
-            raise ValueError(f"{label}.target references missing node {target!r}")
-        inputs = factor.get("inputs")
-        input_label = "inputs"
-        if not isinstance(inputs, list) or len(inputs) < 2:
-            raise ValueError(f"{label}.{input_label} must be a list of at least two node ids")
-        input_ids: list[str] = []
-        for input_index, input_id in enumerate(inputs):
-            if not isinstance(input_id, str) or not input_id:
-                raise ValueError(f"{label}.{input_label}[{input_index}] must be a non-empty string")
-            if input_id not in nodes:
-                raise ValueError(f"{label}.{input_label}[{input_index}] references missing node {input_id!r}")
-            if input_id == target:
-                raise ValueError(f"{label} must not include target {target!r} as an input")
-            if relation == "leads_to" and input_id not in premise_source_sets.get(target, set()):
-                raise ValueError(f"{label} input {input_id!r} must have a leads_to edge to target {target!r}")
-            if relation in {"supports", "contradicts"} and input_id not in likelihood_source_sets.get((target, relation), set()):
-                raise ValueError(f"{label} input {input_id!r} must have a {relation} edge to target {target!r}")
-            input_ids.append(input_id)
-        if len(set(input_ids)) != len(input_ids):
-            raise ValueError(f"{label}.{input_label} must not contain duplicates")
-
-        if relation == "leads_to":
-            overlap = grouped_premise_sources[target].intersection(input_ids)
-            if overlap:
-                joined = ", ".join(sorted(overlap))
-                raise ValueError(f"leads_to factors for target {target!r} overlap on input(s) {joined}")
-            premise_group_costs[target].append(joint_probability_cost_from_factor(factor, label))
-            grouped_premise_sources[target].update(input_ids)
+    for group in groups:
+        if group.target not in nodes or any(source not in nodes for source in group.sources):
             continue
-
-        grouped_key = (target, relation)
-        grouped_for_relation = grouped_likelihood_sources.setdefault(grouped_key, set())
-        overlap = grouped_for_relation.intersection(input_ids)
-        if overlap:
-            joined = ", ".join(sorted(overlap))
-            raise ValueError(f"{relation} factors for target {target!r} overlap on input(s) {joined}")
-        likelihood_ratio = likelihood_ratio_from_factor(factor, label)
-        if relation == "supports" and likelihood_ratio <= 1:
-            raise ValueError(f"{label} supports likelihood ratio must be > 1")
-        if relation == "contradicts" and likelihood_ratio >= 1:
-            raise ValueError(f"{label} contradicts likelihood ratio must be in (0, 1)")
-        factor_updates[target].append(EvidenceUpdate(math.log(likelihood_ratio), tuple(input_ids)))
-        grouped_for_relation.update(input_ids)
-
-    evidence_updates: dict[str, list[EvidenceUpdate]] = {}
-    for node_id in nodes:
-        ungrouped_likelihood_edges = [
-            edge
-            for edge in likelihood_edges.get(node_id, [])
-            if str(edge.get("from"))
-            not in grouped_likelihood_sources.get((node_id, str(edge.get("type") or edge.get("label"))), set())
-        ]
-        # Factors are explicit non-independent bundles; their calibrated
-        # likelihood replaces grouped member updates.
-        updates = [EvidenceUpdate(math.log(likelihood_ratio_from_edge(edge)), (str(edge["from"]),)) for edge in ungrouped_likelihood_edges]
-        updates += factor_updates.get(node_id, [])
-        if updates:
-            evidence_updates[node_id] = updates
+        if group.relation == "leads_to":
+            premise_group_costs[group.target].append(probability_cost(CLAIM_SCORE_PROBABILITY[group.score]))
+        else:
+            ratio = evidence_ratio(group.score, group.relation)
+            evidence_updates.setdefault(group.target, []).append(EvidenceUpdate(math.log(ratio), group.sources))
 
     return TruthInputs(
         nodes=nodes,
         premise_sources=premise_sources,
+        ungrouped_premise_sources=ungrouped_premise_sources,
         premise_group_costs=premise_group_costs,
-        grouped_premise_sources=grouped_premise_sources,
         evidence_updates=evidence_updates,
         premise_backed_nodes={
             node_id
@@ -404,10 +383,10 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
     Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. Top-level `leads_to` factors replace
-    grouped member costs with a calibrated joint_probability.
+    cost to the target's base belief. A `leads_to` group replaces its members'
+    costs with the joint probability of its score.
     Incoming `supports`/`contradicts` edges update that base belief in odds
-    space; grouped likelihood factors replace correlated member updates.
+    space; a group replaces its members' updates with one at its score.
     Computed beliefs are returned as costs; `score` is never rewritten.
     """
 
@@ -425,7 +404,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             return update.log_likelihood_ratio
         if update.log_likelihood_ratio > 0 and not all(source in evidence_grounded for source in update.source_ids):
             return 0.0
-        # Factor inputs are treated as jointly true with independent beliefs.
+        # Group sources are treated as jointly true with independent beliefs.
         source_belief = math.exp(-sum(effective_cost(source) for source in claim_sources))
         return math.log1p(source_belief * math.expm1(update.log_likelihood_ratio))
 
@@ -440,14 +419,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
 
         visiting.add(node_id)
         local_cost = node_local_truth_cost(node, node_id in inputs.premise_backed_nodes)
-        grouped_sources = inputs.grouped_premise_sources.get(node_id, set())
-        ungrouped_source_cost = sum(
-            effective_cost(source_id)
-            for source_id in inputs.premise_sources.get(node_id, [])
-            if source_id not in grouped_sources
-        )
-        # Factors are explicit non-independent bundles; their calibrated
-        # aggregation replaces grouped member costs.
+        ungrouped_source_cost = sum(effective_cost(source_id) for source_id in inputs.ungrouped_premise_sources.get(node_id, []))
         premise_cost = sum(inputs.premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
         updates = inputs.evidence_updates.get(node_id, [])

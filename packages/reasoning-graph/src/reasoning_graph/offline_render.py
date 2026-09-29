@@ -257,7 +257,7 @@ def offline_graph_svg(
         x, y = positions[factor_key]
         escaped_mid = html.escape(factor_mid, quote=True)
         escaped_factor_id = html.escape(factor.raw_id, quote=True)
-        label = _label_tspans(compact_factor_label(factor.record), x + node_width // 2, y + node_height // 2 - 4)
+        label = _label_tspans(compact_factor_label(factor), x + node_width // 2, y + node_height // 2 - 4)
         diamond = f"{x + node_width // 2},{y} {x + node_width},{y + node_height // 2} {x + node_width // 2},{y + node_height} {x},{y + node_height // 2}"
         node_parts.append(
             f'<g id="{escaped_mid}" class="node factor" data-factor-id="{escaped_factor_id}" data-node-type="factor">'
