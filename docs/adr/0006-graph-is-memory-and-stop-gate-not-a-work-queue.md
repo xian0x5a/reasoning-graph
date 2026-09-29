@@ -29,10 +29,10 @@ The graph has three jobs: working memory the agent reads back, a gate on the fin
 
 - `record` appends progress with a reason and refreshes `<state>.html`. The agent works however it judges best and is told, not forced, to record as it goes.
 - Observations cite a `source` and, for text, a verbatim `quote` that keeps the source's hedges. Any node may carry a `note` as the agent's own memory.
-- A `solved` or `candidate_threshold_met` stop needs every accepted goal answered, a grounded best candidate at or above `belief_threshold`, a result for every test, and a passing review with no `record` after it. The review comes from an independent subagent that checks observations against their sources and the answer against the graph.
+- A `solved` or `candidate_threshold_met` stop needs every accepted goal answered, a grounded best candidate at or above `belief_threshold`, a result for every test, and a passing review with no `record` after it. The review comes from an independent subagent that checks observations against their sources and the answer against the graph. ([ADR 0011](0011-the-record-is-memory-before-it-is-a-gate.md) amends this: the threshold, the review and `candidate_threshold_met` are removed.)
 - Alternatives are the agent's call. `min_viable_candidates` remains only as an opt-in for when the user asks for alternatives.
 
-The queue is removed from the CLI with no compatibility path: the `seed`, `next`, `assign`, `expand`, `frontier`, `sort`, `path`, standalone `rank`, and `costs` commands; `frontier`, `search_policy`, and `view.frontier` in state; the `init`, `seed`, `pop`, `assign`, `expand`, and `supersede` events; the `frontier_exhausted` outcome; search-cost ranking; and the audit's best-first replay. A read-only `beliefs` command prints computed beliefs.
+The queue is removed from the CLI with no compatibility path: the `seed`, `next`, `assign`, `expand`, `frontier`, `sort`, `path`, standalone `rank`, and `costs` commands; `frontier`, `search_policy`, and `view.frontier` in state; the `init`, `seed`, `pop`, `assign`, `expand`, and `supersede` events; the `frontier_exhausted` outcome; search-cost ranking; and the audit's best-first replay. A read-only `beliefs` command prints computed beliefs. ([ADR 0010](0010-computed-belief-is-for-the-reader.md) removes it.)
 
 ## Consequences
 

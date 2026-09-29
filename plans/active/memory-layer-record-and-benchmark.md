@@ -117,10 +117,15 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - [x] 1. Pilot on Sonnet 5.5: 97 of 120 runs correct, 15 of 60 items kept, 8 of them wrong in both runs. Cost $13.54.
 - [x] 2. Rubrics: 14 items, rewritten by hand from the drafts. `the-diamond-necklace` is left out because its decisive clue appears only in the solution.
 - [x] 3. Loop harness and baseline arms: both arms ran as `s55-loop-r1` on 14 items. `notes-file` passed 12, `no-memory` passed 3. Table under Outcomes.
-- [ ] 4. Record changes
+- [x] 4. Record changes: 375 package tests pass
   - [x] 4.1 Reviewer and threshold removed: `9599b4d`, `e0b6f62`
   - [x] 4.2 `posterior` removed: `6b17b82`
-  - [ ] 4.3 to 4.8
+  - [x] 4.3 Scale with defaults: `87a2ab1`
+  - [x] 4.4 Correlation groups: `7424ba1`
+  - [x] 4.5 `note` replaces `reasoning`: `5d6f908`
+  - [x] 4.6 Belief out of the state: `43b2739`, `37c98ad`, `33b738c`
+  - [x] 4.7 Index file: `183312d`
+  - [x] 4.8 Docs and ADRs 0009, 0010, 0011. Skill docs changed with each step.
 - [ ] 5. Graph arm and result
 
 ## Surprises & Discoveries
@@ -148,6 +153,13 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 - The "answer names the best candidate" check lived only in `stop-review`. It moved into `stop`, which gained `--draft`. `audit` rechecks `summary.answer` and `report.answer`, since both sit outside the digest.
 - `init --strict` now sets only `stop_policy.severity` to `error`.
 - With the threshold gone `candidate_threshold_met` had the same gates as `solved`, so the outcome was removed.
+- A default on every claim would halve belief at each step of a derivation. The default therefore applies only to a claim with no score and no claim premise.
+- With no ranking, the grounding gate needs to know which candidate is the answer. Among several candidates the answer must name exactly one. `summary.answer` is out of a patch's reach, so `stop` gained `--answer`.
+- `mermaid` and `html` still compute belief and the agent can run them. Nothing asks it to. The graph arm counts how often it does.
+- `stop` writes no index. The index reflects the last `record` or `refresh`.
+- The installed `reasoning-graph` is a copy from an earlier commit, while the installed skill is a link to this working tree. The loop driver puts the package's own environment first on `PATH`.
+- The accuracy guard is weak on 14 items: 6 items right only without the skill against 1 right only with it gives p = 0.125 and does not trigger it. The result reports the raw counts beside the verdict.
+- An index of a 13-object graph is 0.7 KB against 2.5 KB of state.
 - Agents already write tiers. Across 262 graphs in `test-results/`, 93% of observation priors sit in 0.80–0.95, and edge ratios cluster on 1.2, 1.3, 1.5, 2 and 3.
 
 ## Decisions
