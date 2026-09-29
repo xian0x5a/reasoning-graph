@@ -71,7 +71,7 @@ One plant per item and view, alternating between two kinds by item:
 
 1. **Views.** `reader_views.py <item>` writes `page.txt`, `transcript.txt`, `notes.txt` and the two answers under `<item>/reader/views/`. Checked by reading the three views of sweat-it-out.
 2. **Trace.** `run_reader.py trace <item>...` reads, judges, and writes `<item>/reader/trace/<view>.json`. `score_reader.py` prints per view: hit rate, verbatim rate, reading tokens. Pilot on 3 items; read every reader output by hand.
-3. **Plants.** `draft_plants.py` writes `<item>/reader/plants.json`; I check and fix all 11. `reader_views.py --plant` writes the planted views.
+3. **Plants.** `draft_plants.py` writes `<item>/reader/plants.json`; I check and fix all 11. `reader_views.py` then writes the planted views as well.
 4. **Catch.** `run_reader.py catch <item>...` reads each planted and clean view, judges, and writes `<item>/reader/catch/<view>.<planted|clean>.json`. `score_reader.py` adds catch rate, false alarms, and real flaws found. Pilot on 3 items.
 5. **Full run.** 11 items, each call 3 times, since a model reader varies. Results and the decision below go to #39 and to `docs/` as the accepted finding.
 6. **Human check (optional, the user's call).** The user reads 4 items, timed: 2 on the rendered page in a browser, 2 on the transcript, with Catch only. A sanity check of the model result, not a statistic.
@@ -83,7 +83,7 @@ Commit after each step. Scripts only; outputs stay ignored.
 The page earns the record's cost from the reader when, on the full run:
 
 - **Catch:** its hit rate beats notes and at least ties transcript, with no more false alarms than either.
-- **Trace:** its hit rate beats notes and at least ties transcript, at under a quarter of the transcript's reading tokens.
+- **Trace:** its hit rate beats notes and at least ties transcript, at under a quarter of the transcript's reading size.
 
 If the page only ties notes on Catch, the record does not earn its cost from the reader. That answer goes back to #37.
 
@@ -104,19 +104,71 @@ Catch's two plant kinds give a first read on the open question of #39, whether t
 
 ## Progress
 
-- [ ] 1. Views
-- [ ] 2. Trace
-- [ ] 3. Plants
-- [ ] 4. Catch
-- [ ] 5. Full run
+- [x] 1. Views (0b89043)
+- [x] 2. Trace (4dcda24; pilot on 3 items, read by hand)
+- [x] 3. Plants (e6baa8d; 11 drafted, all checked by hand, one written by hand)
+- [x] 4. Catch (pilot on 3 items, read by hand; then 97e89ae, dffbaf2 for refusals)
+- [x] 5. Full run (11 items × 3 repeats: 99 trace reads, 198 catch reads)
 - [ ] 6. Human check
 
 ## Surprises & Discoveries
+
+- **The `s55` final states predate the current schema.** They carry edge ids, `stop_policy` and `events`, so the page reported "43 checks fail". `reader_views.py` drops those fields before rendering; the audit then passes.
+- **4 of 11 graph agents never set `summary.answer`,** although each passed with a lettered answer. Their pages would open with no case, so the views fill it from the passed answer's letter (`UNCLAIMED_ANSWERS`). The skill lets an agent finish without claiming its answer in the state; that is a gap of its own, not this eval's.
+- **The grader's hints sit inside both memories.** The graph records them as `GRADER FEEDBACK` observations, the notes as feedback sections. Every view shows them, so no view gets an edge from them.
+- **As text, the transcript is small.** The raw jsonl is 81–296 KB; the text the agent saw and wrote is 16–58k characters. The page is about 1/6 of that (4.8–9.2k), the notes 0.2–4.7k.
+- **Trace has a ceiling.** In the pilot, page and transcript traced 9 of 9 key points, notes 1 of 9. A reader of the page or the transcript almost always finds the quote, since both carry the verbatim passage for every point. Trace separates notes from the graph, not page from transcript.
+- **The safety classifier refuses some reads.** A refused call exits 1 with `stop_reason: refusal`. The reader of mystery-of-the-bratty-kid's notes is refused on every try (a 7-year-old in a story about a smashed gift); other refusals are sporadic and pass on a rerun. The plant drafter was refused on the-cocktail-conundrum (a poisoning), so that plant is written by hand.
+- **A planted edge shows its score.** The page prints `score 5` on a scored edge, and most records score few edges, so a planted wrong weight can stand out by its score alone. That is the feature under test, not a leak: a real wrong weight would show it too.
 
 ## Decisions
 
 1. Trace replaces "find the decisive evidence": the answer already names it.
 2. Page and transcript come from the same graph run, so the comparison isolates presentation. Notes come from the notes-file run, since that is the rival memory layer of #37.
 3. The model reader reads the page as text. The visual page is for the human check.
+4. Reading cost is the view's size in characters, not tokens: every harness call adds about 7k tokens of its own.
+5. Plants where a clue that clears one suspect is made strong support for the answer (dead-mans-island, the-secret-in-the-old-trunk) are kept. Clearing one suspect of several is weak support at most, so a score 5 is a real overweight, but it is the mildest wrong weight in the set.
+6. A read the classifier refuses is reported as missing, not scored as a miss, and the counts show it.
+7. The reader's system prompt says the puzzle is published fiction. Without it the classifier refused three items' notes reads every time; with it, two still are (cocktail 3 of 3, trunk 2 of 3), 5 of 99 trace reads. No catch read was refused. The first trace run and the catch pilot, read under the old prompt, were discarded and rerun.
 
 ## Outcomes & Retrospective
+
+Full run, 11 items × 3 reads, reader and judge `claude-opus-5-5`. Reproduce with `score_reader.py <item-dirs> --by-item`.
+
+| | page | transcript | notes |
+| --- | --- | --- | --- |
+| Reading size (chars, mean) | 7.0k | 42.6k | 2.1k |
+| Trace: key points traced | 94/99 | 99/99 | 14/84 |
+| Catch: plants caught | 33/33 | 33/33 | 28/33 |
+| Catch: plant ranked first | 16/33 | 20/33 | 22/33 |
+| Real flaws found, planted/clean | 78/76 | 91/113 | 22/42 |
+| Spurious findings, planted/clean | 54/85 | 41/52 | 114/122 |
+| Cost (trace + catch) | $15.20 | $29.67 | $12.47 |
+
+By plant kind, where the plant ranks among the five findings:
+
+| | overclaim first | overclaim rank | wrong weight first | wrong weight rank |
+| --- | --- | --- | --- | --- |
+| page | 12/18 | 1.7 | 4/15 | 2.9 |
+| transcript | 11/18 | 1.6 | 9/15 | 1.7 |
+| notes | 7/18 (13 caught) | 1.8 | 15/15 | 1.0 |
+
+**Against the decision rule:**
+
+- Against notes, the page wins on everything: it traces 95% of key points to 17%, catches every plant to 85%, finds 2.4× the real flaws and raises 40% fewer spurious ones. The graph record earns its cost from the reader over a notes file, which is the question #37 left.
+- Against the transcript, the page does not meet the rule. It ties on catch rate but raises more spurious findings (139 to 93), and traces 94 to 99. It does that at a sixth of the reading. The transcript's edge is the story it holds: its reader checks a quote against the text, so its doubts are real flaws, not guesses.
+- **The score does not help a reader catch a wrong weight on the page.** The page shows `score 5` on the planted edge, yet the plant ranked first in 4 of 15 reads. Findings above it were 17 real and 12 spurious. On the transcript only real flaws outranked it. A hint only: the transcript and notes plants are a sentence that says "strong support" out loud, which stands out more than an edge in a tree.
+
+**What the numbers do not say:**
+
+- Both tasks hit a ceiling on page and transcript: every plant is caught, nearly every key point traced. Rank and false alarms carry the differences, and they rest on 11 items.
+- Readers return five findings on every read, clean records included. "Spurious" measures what a reader fills the slots with when the view does not let it check, more than a tendency to cry wolf.
+- Clean records are not clean: 231 findings on clean reads are real flaws by the judge. A sample of 8 read by hand holds up (two checked against the story: a quote that is a rhetorical question, and one that breaks off mid-sentence).
+
+**Follow-ups, not in this plan:**
+
+- The page could show enough of the story around each quote for a reader to check it, which is the transcript's one advantage.
+- A wrong-weight test that plants the same edge with and without its score, as #39 asks.
+- The skill lets an agent finish without setting `summary.answer` (4 of 11 here).
+
+Spent: $57.34 on the reads that count, about $15 on the discarded first trace run and pilot, plus the plant drafts (not logged).
