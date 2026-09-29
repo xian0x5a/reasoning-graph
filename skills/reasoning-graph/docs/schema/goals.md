@@ -74,7 +74,7 @@ Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. 
 }
 ```
 
-A goal is **answered** when it has an `answers` edge from a `candidate_solution` and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. A candidate-bearing stop (`solved`, `candidate_count_met`) is rejected by `stop` and `audit` while any accepted, non-optional goal is unanswered.
+A goal is **answered** when it has an `answers` edge from a `candidate_solution` and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
 
 ## Proof-shaped tasks
 
