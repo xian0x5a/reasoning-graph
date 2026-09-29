@@ -28,9 +28,9 @@ class MalformedStateInputTests(unittest.TestCase):
     MALFORMED_DOCUMENTS = {
         "list": ("[]", "state must be an object"),
         "null": ("null", "state must be an object"),
-        "bad-probability": (
-            json.dumps({"nodes": [{"id": "A1", "type": "hypothesis", "prior": "high"}], "edges": []}),
-            "prior",
+        "bad-score": (
+            json.dumps({"nodes": [{"id": "A1", "type": "hypothesis", "score": "high"}], "edges": []}),
+            "score",
         ),
     }
 

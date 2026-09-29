@@ -67,13 +67,3 @@ def by_id(items: Iterable[dict[str, Any]], label: str) -> dict[str, dict[str, An
             continue
         result[item_id] = item
     return result
-
-
-def node_label(node: dict[str, Any]) -> str:
-    parts = [str(node.get("type", "node"))]
-    text = str(node.get("text", node.get("id", ""))).strip()
-    if text:
-        parts.append(text)
-    if node.get("type") == "hypothesis" and "prior" in node:
-        parts.append(f"prior {float(node['prior']):.2f}")
-    return ": ".join(parts[:2]) + (f"\n{parts[2]}" if len(parts) > 2 else "")

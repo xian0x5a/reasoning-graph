@@ -9,14 +9,13 @@
       "id": "A1",
       "type": "hypothesis",
       "text": "Route",
-      "prior": 0.5
+      "score": 3
     },
     {
       "id": "CS1",
       "type": "candidate_solution",
       "text": "Candidate",
-      "answer_kind": "exact_answer",
-      "prior": 1.0
+      "answer_kind": "exact_answer"
     }
   ],
   "edges": [

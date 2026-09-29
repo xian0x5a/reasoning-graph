@@ -32,10 +32,10 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
   "summary": {"title": "Reasoning Graph", "answer": "Compact answer shown above the graph."},
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
-    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired", "prior": 0.95, "belief": 0.95},
+    {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired", "belief": 0.9},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "user prompt"},
-    {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this.", "belief": 0.95},
-    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer", "belief": 0.95}
+    {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this.", "belief": 0.9},
+    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer", "belief": 0.9}
   ],
   "edges": [
     {"id": "O1-H1", "from": "O1", "to": "H1", "type": "leads_to", "reasoning": "An expired token right after issue points to skew."},
@@ -45,7 +45,7 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
   "stop_policy": {"severity": "error"},
   "events": [
     {"step": 1, "action": "record", "reason": "Read the incident log", "add_nodes": ["O1", "H1", "CS1"], "add_edges": ["O1-H1", "H1-CS1", "CS1-G1"], "update_factors": []},
-    {"step": 2, "action": "rank", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
+    {"step": 2, "action": "rank", "best": "CS1", "belief": 0.9, "candidates": [{"node": "CS1", "belief": 0.9, "effective_truth_cost": 0.105361}]},
     {"step": 3, "action": "stop", "reason": "CS1 answers G1 and rests on O1", "outcome": "solved"}
   ]
 }
@@ -73,7 +73,7 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 - `belief` is rejected in `nodes` and `update_nodes`; `record` rewrites every claim's `belief` from the merged graph.
 - Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.
 
-The patch is applied atomically: if the merged graph fails validation (missing belief source, bad likelihood, dangling reference) or a quote check, nothing is written. Quote and validation failures are reported together, so one run lists everything to fix.
+The patch is applied atomically: if the merged graph fails validation (a removed field, a score off the scale, a dangling reference) or a quote check, nothing is written. Quote and validation failures are reported together, so one run lists everything to fix.
 
 ## Hand edits and the graph digest
 

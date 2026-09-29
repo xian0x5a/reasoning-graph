@@ -44,8 +44,8 @@ class DistinctCandidateCliTests(unittest.TestCase):
             "severity": "error",
         }
         state["nodes"].extend([
-            {"id": "CS2", "type": "candidate_solution", "text": "Candidate from A2", "answer_kind": "exact_answer", "prior": 0.4},
-            {"id": "CS3", "type": "candidate_solution", "text": "Alternate from A1", "answer_kind": "exact_answer", "prior": 0.3},
+            {"id": "CS2", "type": "candidate_solution", "text": "Candidate from A2", "answer_kind": "exact_answer", "score": 2},
+            {"id": "CS3", "type": "candidate_solution", "text": "Alternate from A1", "answer_kind": "exact_answer", "score": 2},
         ])
         state["edges"].extend([
             {"id": "E3", "from": "A2", "to": "CS2", "type": "leads_to", "reasoning": "Candidate CS2 depends on A2."},

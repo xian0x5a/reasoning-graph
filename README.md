@@ -32,7 +32,7 @@ The graph is the agent's working memory and the gate on its final answer, not a 
 
 1. `init` frames the goal.
 2. The agent works the problem its own way and `record`s what each step produced: observations (with `source` and verbatim `quote`), hypotheses, tests and their results, candidate answers. Every `record` refreshes `state.html` so a human can follow along.
-3. Belief is computed from the graph: observation priors, `leads_to` premises, and likelihood updates.
+3. Belief is computed from the graph: 1-5 scores with defaults, `leads_to` premises, and evidence edges.
 4. `stop` accepts a `solved` answer only when it is grounded in observations, every test has a recorded result, and the reported answer names the graph's best candidate.
 
 ## Helper commands
@@ -47,7 +47,7 @@ cat > step.json <<'JSON'
 {
   "reason": "Read the maintenance log",
   "nodes": [
-    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14", "prior": 0.95},
+    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14"},
     {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
   "edges": [

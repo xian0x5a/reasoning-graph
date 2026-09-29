@@ -1,4 +1,4 @@
-"""Prior is a local input and belief is computed; no authored field overrides it."""
+"""One optional 1-5 `score` is the only authored number on claims and evidence edges."""
 
 import json
 import sys
@@ -13,20 +13,21 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.cli import starter_state
-from reasoning_graph.costs import node_effective_truth_costs, node_local_truth_cost, probability_from_cost
-from reasoning_graph.models import NODE_TYPES
+from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
+from reasoning_graph.models import EDGE_TYPES, NODE_TYPES
 from reasoning_graph.offline_render import offline_graph_svg
 from reasoning_graph.render import compact_node_label, to_mermaid
 from reasoning_graph.schema_validation import patch_schema_errors, standalone_schema, state_schema_errors
 from reasoning_graph.validation import validate_state
 
 
-FIELDS = ("prior",)
-REJECTED_INPUT_FIELDS = ("confidence", "probability", "posterior")
+REMOVED_NODE_FIELDS = ("prior", "confidence", "probability", "posterior")
+REMOVED_EDGE_FIELDS = {"likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}, "likelihood_ratio": 2}
 
-CLAIM_TYPES = ("observation", "hypothesis", "candidate_solution", "hypothesis")
+CLAIM_TYPES = ("candidate_solution", "hypothesis", "observation")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
-ACCEPTED = [(node_type, field) for node_type in CLAIM_TYPES for field in FIELDS]
+EVIDENCE_EDGE_TYPES = ("contradicts", "supports")
+INVALID_SCORES = [0, 6, -1, 2.5, True, "3", None]
 
 
 def build_node(node_type: str, **extra: object) -> dict:
@@ -41,65 +42,108 @@ def state_with(node_type: str, **extra: object) -> dict:
     return {"nodes": [build_node(node_type, **extra)], "edges": []}
 
 
-@pytest.mark.parametrize("node_type,field", ACCEPTED)
-def test_allowed_score_field(node_type, field):
-    assert not state_schema_errors(state_with(node_type, **{field: 0.8}))
-    assert not patch_schema_errors({"nodes": [build_node(node_type, **{field: 0.8})]})
+def score_errors(state: dict) -> list[str]:
+    # A lone candidate fails validation for lacking an answers edge; only score errors matter here.
+    return [error for error in validate_state(state).errors if "score" in error]
+
+
+def evidence_state(edge_type: str = "supports", **extra: object) -> dict:
+    return {
+        "nodes": [
+            {"id": "O1", "type": "observation", "text": "Signal"},
+            {"id": "H1", "type": "hypothesis", "text": "Target"},
+        ],
+        "edges": [{"id": "O1-H1", "from": "O1", "to": "H1", "type": edge_type, "reasoning": "The signal bears on the target.", **extra}],
+    }
+
+
+@pytest.mark.parametrize("score", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_claims_accept_a_score_from_one_to_five(node_type, score):
+    assert not state_schema_errors(state_with(node_type, score=score))
+    assert not patch_schema_errors({"nodes": [build_node(node_type, score=score)]})
+    assert not score_errors(state_with(node_type, score=score))
 
 
 @pytest.mark.parametrize("node_type", CLAIM_TYPES)
-def test_schema_defers_belief_source_checks_to_complete_graph_validation(node_type):
-    assert not state_schema_errors(state_with(node_type))
+def test_claims_need_no_score(node_type):
     assert not patch_schema_errors({"nodes": [build_node(node_type)]})
+    assert not score_errors(state_with(node_type))
 
 
 @pytest.mark.parametrize("node_type", SCORE_FREE_TYPES)
-def test_score_free_types_reject_every_score(node_type):
-    for field in FIELDS:
-        assert state_schema_errors(state_with(node_type, **{field: 0.8})), field
+def test_score_free_types_reject_a_score(node_type):
+    assert state_schema_errors(state_with(node_type, score=3))
+    assert any("score is only valid on" in error for error in score_errors(state_with(node_type, score=3)))
 
 
-@pytest.mark.parametrize("node_type", sorted(set(CLAIM_TYPES)))
-def test_computed_belief_is_stored_on_claims_but_never_authored_in_a_patch(node_type):
-    node = build_node(node_type, prior=0.8, belief=0.8)
-    assert not state_schema_errors({"nodes": [node], "edges": []})
-    assert patch_schema_errors({"nodes": [node]})
-    assert patch_schema_errors({"update_nodes": [{"id": "N1", "set": {"belief": 0.8}}]})
+@pytest.mark.parametrize("value", INVALID_SCORES)
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_claim_score_outside_the_scale_is_rejected(node_type, value):
+    assert state_schema_errors(state_with(node_type, score=value))
+    result = validate_state(state_with(node_type, score=value))
+    assert any("score must be an integer from 1 to 5" in error for error in result.errors), result.errors
 
 
-@pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
+@pytest.mark.parametrize("value", INVALID_SCORES)
+@pytest.mark.parametrize("edge_type", EVIDENCE_EDGE_TYPES)
+def test_edge_score_outside_the_scale_is_rejected(edge_type, value):
+    state = evidence_state(edge_type, score=value)
+    assert state_schema_errors(state)
+    result = validate_state(state)
+    assert any("score must be an integer from 1 to 5" in error for error in result.errors), result.errors
+
+
+@pytest.mark.parametrize("edge_type", sorted(set(EDGE_TYPES) - set(EVIDENCE_EDGE_TYPES)))
+def test_only_evidence_edges_take_a_score(edge_type):
+    state = evidence_state(edge_type, score=3)
+    result = validate_state(state)
+    assert any("score is only valid on supports/contradicts edges" in error for error in result.errors), result.errors
+
+
+@pytest.mark.parametrize("field", REMOVED_NODE_FIELDS)
 @pytest.mark.parametrize("node_type", sorted(NODE_TYPES))
-def test_obsolete_scores_are_rejected_as_node_inputs(node_type, field):
-    score = {"prior": 0.8} if node_type in CLAIM_TYPES else {}
-    node = build_node(node_type, **score, **{field: 0.9})
+def test_removed_node_scores_are_rejected_and_name_the_replacement(node_type, field):
+    node = build_node(node_type, **{field: 0.9})
     state = {"nodes": [node], "edges": []}
     patch = {"nodes": [node]}
     assert state_schema_errors(state)
     assert patch_schema_errors(patch)
     assert not jsonschema.Draft202012Validator(standalone_schema("state.schema.json")).is_valid(state)
     assert not jsonschema.Draft202012Validator(standalone_schema("patch.schema.json")).is_valid(patch)
+    errors = validate_state(state).errors
+    assert any(f"{field} was removed" in error and "score" in error for error in errors), errors
 
 
-@pytest.mark.parametrize("field", REJECTED_INPUT_FIELDS)
-def test_direct_cost_consumers_reject_invalid_score_inputs(field):
-    node = build_node("hypothesis", prior=0.8, **{field: 0.9})
-    with pytest.raises(ValueError, match=field):
-        node_local_truth_cost(node)
+@pytest.mark.parametrize("field,value", sorted(REMOVED_EDGE_FIELDS.items()))
+def test_removed_edge_scores_are_rejected_and_name_the_replacement(field, value):
+    state = evidence_state(**{field: value})
+    assert state_schema_errors(state)
+    assert patch_schema_errors({"edges": state["edges"]})
+    errors = validate_state(state).errors
+    assert any(f"{field} was removed" in error and "score" in error for error in errors), errors
+
+
+@pytest.mark.parametrize("field", REMOVED_NODE_FIELDS)
+def test_direct_cost_consumers_reject_removed_score_inputs(field):
+    node = build_node("hypothesis", **{field: 0.9})
     with pytest.raises(ValueError, match=field):
         node_effective_truth_costs({"nodes": [node], "edges": []})
 
 
-@pytest.mark.parametrize("value", [0, -0.1, 1.1, True, "0.8", None])
-@pytest.mark.parametrize("node_type,field", ACCEPTED)
-def test_invalid_score_values_are_rejected(node_type, field, value):
-    assert state_schema_errors(state_with(node_type, **{field: value}))
+@pytest.mark.parametrize("node_type", CLAIM_TYPES)
+def test_computed_belief_is_stored_on_claims_but_never_authored_in_a_patch(node_type):
+    node = build_node(node_type, score=5, belief=0.9)
+    assert not state_schema_errors({"nodes": [node], "edges": []})
+    assert patch_schema_errors({"nodes": [node]})
+    assert patch_schema_errors({"update_nodes": [{"id": "N1", "set": {"belief": 0.8}}]})
 
 
 def derived_state(**derived: object) -> dict:
     return {
         "nodes": [
-            {"id": "E1", "type": "observation", "text": "Observation", "prior": 0.8},
-            {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.9},
+            {"id": "E1", "type": "observation", "text": "Observation", "score": 4},
+            {"id": "A1", "type": "hypothesis", "text": "Premise", "score": 5},
             {"id": "D1", "type": "hypothesis", "text": "Conclusion", **derived},
         ],
         "edges": [
@@ -112,10 +156,10 @@ def derived_state(**derived: object) -> dict:
 def test_derived_belief_is_the_premise_product():
     state = derived_state()
     assert validate_state(state).ok
-    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.72)
+    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.63)
 
-    assert "belief 0.72" in to_mermaid(state)
-    assert "belief 0.72" in offline_graph_svg(state)
+    assert "belief 0.63" in to_mermaid(state)
+    assert "belief 0.63" in offline_graph_svg(state)
 
 
 def test_score_free_labels_carry_no_score_line():
@@ -124,46 +168,37 @@ def test_score_free_labels_carry_no_score_line():
     assert compact_node_label(build_node("test"), 0.0) == "N1\ntest"
 
 
-@pytest.mark.parametrize("relation,ratio,expected", [
-    ("supports", 2.0, 2 / 3),
-    ("contradicts", 0.1, 1 / 11),
+@pytest.mark.parametrize("relation,expected", [
+    ("supports", 2 / 3),
+    ("contradicts", 1 / 3),
 ])
-def test_neutral_prior_propagates_and_certainty_stays_certain(relation, ratio, expected):
+def test_default_hypothesis_propagates_its_updated_belief(relation, expected):
     fixture = PACKAGE_ROOT / "tests" / "fixtures" / "valid" / "neutral-likelihood-state.json"
     state = json.loads(fixture.read_text(encoding="utf-8"))
-    state["edges"][0].update(type=relation, likelihood_ratio=ratio)
+    state["edges"][0].update(type=relation)
     assert validate_state(state).ok
     costs = node_effective_truth_costs(state)
     for node_id in ("A1", "D1", "CS1"):
         assert probability_from_cost(costs[node_id]) == pytest.approx(expected)
 
-    # An unscored node still falls back to neutral odds, but that state is invalid now.
-    del state["nodes"][2]["prior"]
-    assert not validate_state(state).ok
-    assert probability_from_cost(node_effective_truth_costs(state)["A1"]) == pytest.approx(expected)
 
-    # Explicit certainty stays certain: 1.0 must not be reinterpreted as unknown.
-    state["nodes"][2]["prior"] = 1.0
-    assert probability_from_cost(node_effective_truth_costs(state)["A1"]) == 1.0
-
-
-def test_derived_belief_updates_from_likelihoods_on_uncertain_premises():
+def test_derived_belief_updates_from_evidence_on_uncertain_premises():
     state = {
         "nodes": [
-            {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
-            {"id": "E2", "type": "observation", "text": "Counter-observation", "prior": 0.95},
+            {"id": "E1", "type": "observation", "text": "Premise", "score": 4},
+            {"id": "E2", "type": "observation", "text": "Counter-observation"},
             {"id": "D1", "type": "hypothesis", "text": "Deterministic conclusion"},
         ],
         "edges": [
             {"id": "E1-D1", "from": "E1", "to": "D1", "type": "leads_to",
              "reasoning": "The conclusion follows deterministically if this premise is true."},
-            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "contradicts", "likelihood_ratio": 0.1,
-             "reasoning": "This independent observation is ten times less likely if the conclusion is true."},
+            {"id": "E2-D1", "from": "E2", "to": "D1", "type": "contradicts", "score": 5,
+             "reasoning": "This independent observation is five times less likely if the conclusion is true."},
         ],
     }
     assert validate_state(state).ok
-    # Premise 0.8 gives odds 4; ratio 0.1 gives odds 0.4 and belief 2/7.
-    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(2 / 7)
+    # Premise 0.7 gives odds 7/3; ratio 1/5 gives odds 7/15 and belief 7/22.
+    assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(7 / 22)
 
 
 def test_partial_update_can_retain_existing_score():
@@ -177,4 +212,4 @@ class ScoreContractCliTests(unittest.TestCase):
     def test_starter_goal_has_no_score(self) -> None:
         state = starter_state("default")
         self.assertEqual([node["type"] for node in state["nodes"]], ["goal"])
-        self.assertFalse(set(FIELDS) & set(state["nodes"][0]))
+        self.assertNotIn("score", state["nodes"][0])

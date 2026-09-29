@@ -8,14 +8,12 @@
     {
       "id": "E1",
       "type": "observation",
-      "text": "Failures began just after deployment",
-      "prior": 0.95
+      "text": "Failures began just after deployment"
     },
     {
       "id": "A1",
       "type": "hypothesis",
-      "text": "The deployment caused the outage",
-      "prior": 0.5
+      "text": "The deployment caused the outage"
     },
     {
       "id": "D1",
@@ -26,8 +24,7 @@
       "id": "CS1",
       "type": "candidate_solution",
       "text": "The cause is deployment-related",
-      "answer_kind": "exact_answer",
-      "prior": 1.0
+      "answer_kind": "exact_answer"
     }
   ],
   "edges": [
@@ -36,8 +33,7 @@
       "from": "E1",
       "to": "A1",
       "type": "supports",
-      "likelihood_ratio": 2.0,
-      "reasoning": "This timing is twice as likely under a deployment-related cause, with observation reliability included in the ratio."
+      "reasoning": "This timing is more likely under a deployment-related cause."
     },
     {
       "id": "A1D1",

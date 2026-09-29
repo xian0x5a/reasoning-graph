@@ -28,9 +28,9 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 def valid_patch() -> dict:
     return {
         "nodes": [
-            {"id": "A2", "type": "hypothesis", "text": "Second branch", "prior": 0.5},
+            {"id": "A2", "type": "hypothesis", "text": "Second branch", "score": 3},
             {"id": "D1", "type": "hypothesis", "text": "Conclusion"},
-            {"id": "E2", "type": "observation", "text": "Reading", "prior": 0.9},
+            {"id": "E2", "type": "observation", "text": "Reading", "score": 5},
         ],
         "edges": [
             {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to",
@@ -44,47 +44,50 @@ def valid_patch() -> dict:
 
 def patch_for(invalid_part: str) -> dict:
     patch = valid_patch()
-    if invalid_part == "missing_score":
-        del patch["nodes"][0]["prior"]
-    elif invalid_part == "unanchored_derived":
-        patch["edges"] = [edge for edge in patch["edges"] if edge["type"] != "leads_to"]
-    elif invalid_part == "removed_probability":
-        patch["nodes"][0] = {"id": "A2", "type": "hypothesis", "text": "Second branch", "probability": 0.5}
-    elif invalid_part in {"removed_confidence", "removed_posterior", "computed_belief"}:
-        field = "belief" if invalid_part == "computed_belief" else invalid_part.removeprefix("removed_")
-        patch["nodes"][0][field] = 0.9
-    elif invalid_part in {"update_confidence", "update_posterior", "update_belief"}:
-        field = invalid_part.removeprefix("update_")
-        patch["update_nodes"] = [{"id": "E0", "set": {field: 0.9}}]
+    if invalid_part.startswith("removed_"):
+        patch["nodes"][0][invalid_part.removeprefix("removed_")] = 0.9
+    elif invalid_part == "computed_belief":
+        patch["nodes"][0]["belief"] = 0.9
+    elif invalid_part.startswith("update_"):
+        patch["update_nodes"] = [{"id": "E0", "set": {invalid_part.removeprefix("update_"): 0.9}}]
+    elif invalid_part == "removed-edge-likelihood_ratio":
+        patch["edges"].append({"id": "E2-A2", "from": "E2", "to": "A2", "type": "supports", "likelihood_ratio": 2,
+                               "reasoning": "The reading favors the branch."})
+    elif invalid_part == "score_off_the_scale":
+        patch["nodes"][0]["score"] = 6
+    elif invalid_part == "score_on_a_premise_edge":
+        patch["edges"][0]["score"] = 3
+    elif invalid_part == "score_on_a_goal":
+        patch["update_nodes"] = [{"id": "G1", "set": {"score": 3}}]
     elif invalid_part == "missing_reasoning":
         del patch["edges"][0]["reasoning"]
-    elif invalid_part == "blank_reasoning":
+    else:  # blank_reasoning
         patch["edges"][0]["reasoning"] = " \n\t"
-    else:  # update_score
-        patch["update_nodes"] = [{"id": "G1", "set": {"prior": None}}]
     return patch
 
 
 INVALID_PARTS = {
-    "missing_score": "belief source",
-    "unanchored_derived": "belief source",
-    "removed_probability": "schema",
-    "removed_confidence": "confidence",
-    "removed_posterior": "posterior",
+    "removed_prior": "prior was removed; use score",
+    "removed_probability": "probability was removed; use score",
+    "removed_confidence": "confidence was removed; use score",
+    "removed_posterior": "posterior was removed; use score",
+    "removed-edge-likelihood_ratio": "likelihood_ratio was removed; use score",
     "computed_belief": "belief",
-    "update_confidence": "confidence",
-    "update_posterior": "posterior was removed",
+    "update_prior": "prior was removed; use score",
+    "update_posterior": "posterior was removed; use score",
     "update_belief": "belief",
+    "score_off_the_scale": "score must be an integer from 1 to 5",
+    "score_on_a_premise_edge": "score is only valid on supports/contradicts edges",
+    "score_on_a_goal": "score is only valid on observation, hypothesis, and candidate_solution nodes",
     "missing_reasoning": "schema",
     "blank_reasoning": "schema",
-    "update_score": "prior",
 }
 
 
 @pytest.mark.parametrize("invalid_part", sorted(INVALID_PARTS))
 def test_invalid_patch_does_not_modify_state(tmp_path, invalid_part):
     state = starter_state("default")
-    state["nodes"].append({"id": "E0", "type": "observation", "text": "Existing observation", "prior": 0.8})
+    state["nodes"].append({"id": "E0", "type": "observation", "text": "Existing observation", "score": 4})
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -98,10 +101,10 @@ def test_invalid_patch_does_not_modify_state(tmp_path, invalid_part):
     assert state_path.read_bytes() == original
 
 
-@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"prior": 0.9}, 0.405)])
+@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"score": 5}, 0.405)])
 def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, score, expected):
     state = starter_state("default")
-    state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "prior": 0.5})
+    state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "score": 3})
     state_path = tmp_path / "state.json"
     patch_path = tmp_path / "patch.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")

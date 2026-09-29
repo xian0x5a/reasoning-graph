@@ -1,4 +1,4 @@
-"""Belief sources, not zero costs or node roles, determine score requirements."""
+"""Defaults and premises give every claim its starting belief; scores are written only on exceptions."""
 
 import sys
 from copy import deepcopy
@@ -14,7 +14,9 @@ from reasoning_graph.policy import ranked_viable_candidates
 from reasoning_graph.validation import validate_state
 
 
-CLAIM_TYPES = ("observation", "hypothesis", "hypothesis", "candidate_solution")
+CLAIM_DEFAULTS = {"observation": 0.9, "hypothesis": 0.5, "candidate_solution": 0.5}
+CLAIM_TABLE = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
+RATIO_TABLE = {1: 1.2, 2: 1.5, 3: 2, 4: 3, 5: 5}
 
 
 def edge(source, target, relation="leads_to", **extra):
@@ -37,87 +39,72 @@ def belief(state, node_id="N1"):
     return probability_from_cost(node_effective_truth_costs(state)[node_id])
 
 
-@pytest.mark.parametrize("node_type", CLAIM_TYPES)
-def test_unscored_standalone_claim_is_invalid_and_not_certain(node_type):
+@pytest.mark.parametrize("node_type,expected", sorted(CLAIM_DEFAULTS.items()))
+def test_unscored_standalone_claim_takes_its_type_default(node_type, expected):
     state = claim_state(node_type)
     result = validate_state(state)
-    assert not result.ok
-    # Direct consumers of the cost engine must not recover the old free certainty.
-    assert belief(state) == pytest.approx(0.5)
-    assert any("belief source" in error for error in result.errors), result.errors
-    assert belief(state, "G1") == 1.0  # Objectives still have no local truth penalty.
+    assert result.ok, result.errors
+    assert belief(state) == pytest.approx(expected)
+    assert belief(state, "G1") == 1.0  # Objectives have no truth penalty.
 
 
-@pytest.mark.parametrize("node_type", CLAIM_TYPES)
-def test_claim_inherits_scored_premises_without_an_extra_local_factor(node_type):
+@pytest.mark.parametrize("score,expected", sorted(CLAIM_TABLE.items()))
+@pytest.mark.parametrize("node_type", sorted(CLAIM_DEFAULTS))
+def test_claim_score_maps_through_one_table(node_type, score, expected):
+    state = claim_state(node_type, score=score)
+    assert validate_state(state).ok
+    assert belief(state) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("node_type", sorted(CLAIM_DEFAULTS))
+def test_premise_backed_claim_adds_no_default_factor(node_type):
+    # A default of 0.5 on every derived claim would halve belief at each step of a chain.
     state = claim_state(node_type)
     state["nodes"].extend([
-        {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.6},
+        {"id": "A1", "type": "hypothesis", "text": "Premise", "score": 4},
         {"id": "D1", "type": "hypothesis", "text": "Intermediate conclusion"},
     ])
     state["edges"].extend([edge("A1", "D1"), edge("D1", "N1")])
     result = validate_state(state)
     assert result.ok, result.errors
-    assert belief(state) == pytest.approx(0.6)
+    assert belief(state) == pytest.approx(0.7)
 
-    state["nodes"][1]["prior"] = 0.9
-    result = validate_state(state)
-    assert result.ok, result.errors
-    assert belief(state) == pytest.approx(0.54)
+    # An explicit score on a premise-backed claim is a further local factor.
+    state["nodes"][1]["score"] = 5
+    assert validate_state(state).ok
+    assert belief(state) == pytest.approx(0.63)
 
 
 @pytest.mark.parametrize("source_type", ["goal", "constraint", "test"])
-def test_scoreless_nonclaim_premise_does_not_ground_a_candidate(source_type):
+def test_scoreless_nonclaim_premise_leaves_the_default_in_place(source_type):
     state = claim_state()
     state["nodes"].append({"id": "S1", "type": source_type, "text": "Stipulation or action"})
     state["edges"].append(edge("S1", "N1"))
     result = validate_state(state)
-    assert not result.ok
-    assert any("belief source" in error for error in result.errors), result.errors
+    assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.5)
 
 
-def test_likelihood_update_is_not_a_substitute_for_a_starting_belief():
+@pytest.mark.parametrize("relation,expected", [("supports", 2 / 3), ("contradicts", 1 / 3)])
+def test_unscored_evidence_edge_takes_the_default_ratio(relation, expected):
     state = claim_state()
-    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "prior": 0.9})
-    state["edges"].append(edge("E1", "N1", "supports", likelihood_ratio=2))
-    result = validate_state(state)
-    assert not result.ok
-    assert any("belief source" in error for error in result.errors), result.errors
-    assert belief(state) == pytest.approx(2 / 3)
+    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation"})
+    state["edges"].append(edge("E1", "N1", relation))
+    assert validate_state(state).ok
+    assert belief(state) == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("relation,ratio", [("supports", 2), ("contradicts", 0.1)])
-@pytest.mark.parametrize("grouped", [False, True])
-def test_certain_premises_remain_certain_under_finite_likelihoods(relation, ratio, grouped):
-    state = claim_state()
-    state["nodes"].extend([
-        {"id": "E1", "type": "observation", "text": "Certain premise", "prior": 1.0},
-        {"id": "E2", "type": "observation", "text": "Second premise", "prior": 1.0},
-        {"id": "D1", "type": "hypothesis", "text": "Intermediate conclusion"},
-        {"id": "L1", "type": "observation", "text": "Likelihood observation", "prior": 0.9},
-        {"id": "L2", "type": "observation", "text": "Related observation", "prior": 0.9},
-    ])
-    state["edges"].extend([edge("E1", "D1"), edge("E2", "D1"), edge("D1", "N1")])
-    assert belief(state, "D1") == 1.0
-    assert belief(state) == 1.0
-    state["edges"].append(edge("L1", "D1", relation, likelihood_ratio=ratio))
-    if grouped:
-        state["edges"].append(edge("L2", "D1", relation, likelihood_ratio=ratio))
-        state["factors"] = [
-            {"id": "F1", "relation": "leads_to", "target": "D1", "inputs": ["E1", "E2"],
-             "aggregation": {"kind": "joint_probability", "probability": 1.0}},
-            {"id": "F2", "relation": relation, "target": "D1", "inputs": ["L1", "L2"],
-             "aggregation": {"kind": "likelihood", "if_target_true": min(ratio, 1),
-                             "if_target_false": min(1 / ratio, 1)}},
-        ]
-    assert belief(state, "D1") == 1.0
-    assert belief(state) == 1.0
-    result = validate_state(state)
-    assert result.ok, result.errors
+@pytest.mark.parametrize("score,ratio", sorted(RATIO_TABLE.items()))
+def test_evidence_score_maps_through_one_table_and_contradicts_uses_the_reciprocal(score, ratio):
+    for relation, expected in (("supports", ratio / (1 + ratio)), ("contradicts", 1 / (1 + ratio))):
+        state = claim_state()
+        state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation"})
+        state["edges"].append(edge("E1", "N1", relation, score=score))
+        assert validate_state(state).ok
+        assert belief(state) == pytest.approx(expected)
 
 
-def test_calibrated_joint_premise_factor_is_a_belief_source():
+def test_calibrated_joint_premise_factor_replaces_the_default():
     state = claim_state()
     state["nodes"].extend([
         {"id": "S1", "type": "constraint", "text": "First condition"},
@@ -133,120 +120,124 @@ def test_calibrated_joint_premise_factor_is_a_belief_source():
     assert belief(state) == pytest.approx(0.7)
 
 
-def test_local_inference_prior_matches_an_explicit_validity_assumption():
-    state = claim_state("hypothesis", prior=0.9)
-    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "prior": 0.8})
+def test_local_inference_score_matches_an_explicit_validity_assumption():
+    state = claim_state("hypothesis", score=5)
+    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "score": 4})
     state["edges"].append(edge("E1", "N1"))
     result = validate_state(state)
     assert result.ok, result.errors
-    assert belief(state) == pytest.approx(0.72)
+    assert belief(state) == pytest.approx(0.63)
 
-    del state["nodes"][1]["prior"]
-    state["nodes"].append({"id": "A1", "type": "hypothesis", "text": "Inference is valid", "prior": 0.9})
+    del state["nodes"][1]["score"]
+    state["nodes"].append({"id": "A1", "type": "hypothesis", "text": "Inference is valid", "score": 5})
     state["edges"].append(edge("A1", "N1"))
     assert validate_state(state).ok
-    assert belief(state) == pytest.approx(0.72)
+    assert belief(state) == pytest.approx(0.63)
 
 
 def test_candidate_ranking_uses_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "O1", "type": "observation", "text": "Observed clue", "prior": 1.0},
-        {"id": "A1", "type": "hypothesis", "text": "Premise", "prior": 0.6},
+        {"id": "O1", "type": "observation", "text": "Observed clue"},
         {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
-         "answer_kind": "exact_answer", "prior": 0.55},
+         "answer_kind": "exact_answer", "score": 4},
     ])
-    state["edges"].extend([edge("O1", "A1"), edge("A1", "N1"), edge("CS2", "G1", "answers")])
+    state["edges"].extend([edge("O1", "N1"), edge("CS2", "G1", "answers")])
     assert validate_state(state).ok
     ranked = ranked_viable_candidates(state)
-    assert [(item["node"], item["belief"]) for item in ranked] == [("N1", 0.6), ("CS2", 0.55)]
-
-    # Without its only absolute belief sources the chain is invalid and falls back to neutral belief.
-    del next(node for node in state["nodes"] if node["id"] == "A1")["prior"]
-    state["edges"] = [item for item in state["edges"] if item["from"] != "O1"]
-    assert not validate_state(state).ok
-    assert belief(state) == pytest.approx(0.5)
+    assert [(item["node"], item["belief"]) for item in ranked] == [("N1", 0.9), ("CS2", 0.7)]
 
 
 def test_computed_belief_recalculates_without_writing_node_scores():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "E1", "type": "observation", "text": "Premise", "prior": 0.8},
-        {"id": "L1", "type": "observation", "text": "Independent observation", "prior": 0.9},
-        {"id": "D1", "type": "hypothesis", "text": "Soft inference", "prior": 0.9},
+        {"id": "E1", "type": "observation", "text": "Premise", "score": 4},
+        {"id": "L1", "type": "observation", "text": "Independent observation"},
+        {"id": "D1", "type": "hypothesis", "text": "Soft inference", "score": 5},
     ])
-    state["edges"].extend([
-        edge("E1", "D1"), edge("L1", "D1", "supports", likelihood_ratio=2), edge("D1", "N1"),
-    ])
+    state["edges"].extend([edge("E1", "D1"), edge("L1", "D1", "supports"), edge("D1", "N1")])
     original = deepcopy(state)
     assert validate_state(state).ok
-    # Local 0.9 times inherited 0.8 gives 0.72; LR 2 gives 36/43.
-    assert belief(state) == pytest.approx(36 / 43)
-    assert ranked_viable_candidates(state)[0]["belief"] == pytest.approx(36 / 43, abs=1e-6)
+    # Local 0.9 times inherited 0.7 gives 0.63; ratio 2 gives odds 126/37.
+    assert belief(state) == pytest.approx(126 / 163)
+    assert ranked_viable_candidates(state)[0]["belief"] == pytest.approx(126 / 163, abs=1e-6)
     assert state == original
 
-    state["nodes"][2]["prior"] = 0.5
+    state["nodes"][2]["score"] = 3
     updated = deepcopy(state)
+    # Local 0.9 times inherited 0.5 gives 0.45; ratio 2 gives odds 18/11.
     assert belief(state) == pytest.approx(18 / 29)
     assert state == updated
 
 
-def hypothesis_evidence_state(source_nodes, source_edges, relation, ratio):
-    """N1 starts at 0.5; H2 bears evidence on it with the given relation and ratio."""
-    state = claim_state(prior=0.5)
+def test_long_chain_keeps_a_finite_cost_after_an_evidence_update():
+    # 400 premises at 0.1 put the base belief far below what a float holds.
+    state = claim_state("hypothesis")
+    premises = [{"id": f"P{index}", "type": "hypothesis", "text": "Unlikely premise", "score": 1} for index in range(400)]
+    state["nodes"].extend([*premises, {"id": "E1", "type": "observation", "text": "Signal"}])
+    state["edges"].extend([*(edge(premise["id"], "N1") for premise in premises), edge("E1", "N1", "supports", score=3)])
+
+    assert validate_state(state).ok
+    cost = node_effective_truth_costs(state)["N1"]
+    assert cost == pytest.approx(400 * 2.302585092994046 - 0.6931471805599453)
+
+
+def hypothesis_evidence_state(source_nodes, source_edges, relation, score):
+    """N1 starts at 0.5; H2 bears evidence on it with the given relation and score."""
+    state = claim_state()
     state["nodes"].extend(source_nodes)
-    state["edges"].extend([*source_edges, edge("H2", "N1", relation, likelihood_ratio=ratio)])
+    state["edges"].extend([*source_edges, edge("H2", "N1", relation, score=score)])
     return state
 
 
 def test_support_from_an_ungrounded_hypothesis_has_no_effect_on_belief():
-    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9}], [], "supports", 9)
+    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Guess", "score": 5}], [], "supports", 5)
     assert belief(state) == pytest.approx(0.5)
 
 
 def test_support_from_a_grounded_hypothesis_is_scaled_by_its_belief():
-    # H2 has belief 0.5 from O1, so ratio 9 becomes 1 + 0.5 * 8 = 5: odds 1 -> 5.
+    # H2 has belief 0.5 from O1, so ratio 5 becomes 1 + 0.5 * 4 = 3: odds 1 -> 3.
     state = hypothesis_evidence_state(
-        [{"id": "O1", "type": "observation", "text": "Clue", "prior": 0.5}, {"id": "H2", "type": "hypothesis", "text": "Lemma"}],
+        [{"id": "O1", "type": "observation", "text": "Clue", "score": 3}, {"id": "H2", "type": "hypothesis", "text": "Lemma"}],
         [edge("O1", "H2")],
         "supports",
-        9,
+        5,
     )
-    assert belief(state) == pytest.approx(5 / 6)
+    assert belief(state) == pytest.approx(0.75)
 
 
 def test_contradiction_from_an_ungrounded_hypothesis_is_scaled_by_its_belief():
-    # Ratio 0.2 at source belief 0.5 becomes 1 - 0.5 * 0.8 = 0.6: odds 1 -> 0.6.
-    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Rival", "prior": 0.5}], [], "contradicts", 0.2)
+    # Ratio 1/5 at source belief 0.5 becomes 1 - 0.5 * 0.8 = 0.6: odds 1 -> 0.6.
+    state = hypothesis_evidence_state([{"id": "H2", "type": "hypothesis", "text": "Rival"}], [], "contradicts", 5)
     assert belief(state) == pytest.approx(0.375)
 
 
-def test_observation_evidence_is_not_scaled_by_its_prior():
-    state = claim_state(prior=0.5)
-    state["nodes"].append({"id": "O1", "type": "observation", "text": "Clue", "prior": 0.5})
-    state["edges"].append(edge("O1", "N1", "supports", likelihood_ratio=9))
-    assert belief(state) == pytest.approx(0.9)
+def test_observation_evidence_is_not_scaled_by_its_score():
+    state = claim_state()
+    state["nodes"].append({"id": "O1", "type": "observation", "text": "Clue", "score": 3})
+    state["edges"].append(edge("O1", "N1", "supports", score=5))
+    assert belief(state) == pytest.approx(5 / 6)
 
 
 def test_ungrounded_support_does_not_raise_a_grounded_candidate():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "O1", "type": "observation", "text": "Clue", "prior": 0.6},
-        {"id": "H2", "type": "hypothesis", "text": "Guess", "prior": 0.9},
+        {"id": "O1", "type": "observation", "text": "Clue", "score": 4},
+        {"id": "H2", "type": "hypothesis", "text": "Guess", "score": 5},
     ])
-    state["edges"].extend([edge("O1", "N1"), edge("H2", "N1", "supports", likelihood_ratio=9)])
-    assert belief(state) == pytest.approx(0.6)
+    state["edges"].extend([edge("O1", "N1"), edge("H2", "N1", "supports", score=5)])
+    assert belief(state) == pytest.approx(0.7)
 
 
 def test_evidence_cycle_between_hypotheses_is_invalid():
-    state = claim_state(prior=0.5)
+    state = claim_state()
     state["nodes"].extend([
-        {"id": "H1", "type": "hypothesis", "text": "First", "prior": 0.6},
-        {"id": "H2", "type": "hypothesis", "text": "Second", "prior": 0.6},
+        {"id": "H1", "type": "hypothesis", "text": "First"},
+        {"id": "H2", "type": "hypothesis", "text": "Second"},
     ])
     state["edges"].extend([
-        edge("H1", "H2", "supports", likelihood_ratio=3),
-        edge("H2", "H1", "supports", likelihood_ratio=3),
+        edge("H1", "H2", "supports"),
+        edge("H2", "H1", "supports"),
         edge("H1", "N1"),
     ])
     result = validate_state(state)

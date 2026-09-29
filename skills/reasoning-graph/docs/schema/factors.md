@@ -61,8 +61,8 @@ Do not store `likelihood_ratio` directly. Store `if_target_true` and `if_target_
 ```json
 {
   "nodes": [
-    {"id": "H1", "type": "hypothesis", "text": "Source says X", "prior": 0.8},
-    {"id": "H2", "type": "hypothesis", "text": "Same source implies Y", "prior": 0.75},
+    {"id": "H1", "type": "hypothesis", "text": "Source says X", "score": 4},
+    {"id": "H2", "type": "hypothesis", "text": "Same source implies Y", "score": 4},
     {"id": "H3", "type": "hypothesis", "text": "X and Y explain the result"}
   ],
   "edges": [

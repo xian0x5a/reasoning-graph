@@ -16,7 +16,7 @@ from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
 from .state import dump_state, load_state, strict_json_dumps, write_output_text
-from .validation import validate_state
+from .validation import score_field_errors, validate_state
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -270,7 +270,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     patch = load_state(args.patch)
     if not isinstance(patch, dict):
         raise ValueError("record patch must be a JSON object")
-    patch_errors = patch_schema_errors(patch)
+    added = {field: patch[field] if isinstance(patch.get(field), list) else [] for field in ("nodes", "edges")}
+    # Listed first: the schema rejects a removed field too, but does not say what replaced it.
+    patch_errors = score_field_errors(added["nodes"], added["edges"]) + patch_schema_errors(patch)
     if patch_errors:
         for error in patch_errors:
             print(f"error: {error}", file=sys.stderr)

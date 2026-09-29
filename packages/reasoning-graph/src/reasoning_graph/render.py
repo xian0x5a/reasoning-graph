@@ -10,7 +10,6 @@ from typing import Any
 from .costs import (
     node_belief_label,
     node_effective_truth_costs,
-    node_truth_cost,
     probability_from_cost,
 )
 from .identities import RenderIdentityMap, render_identity_map
@@ -391,8 +390,8 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
         if raw_type in BELIEF_NODE_TYPES:
             belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
             extras.append(f"<span>Effective belief: {belief}</span>")
-            if "prior" in node:
-                extras.append(f"<span>Local prior: {html.escape(str(node['prior']))}</span>")
+            if "score" in node:
+                extras.append(f"<span>Score: {html.escape(str(node['score']))}</span>")
         edge_reasons = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):

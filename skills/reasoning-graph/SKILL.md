@@ -49,12 +49,12 @@ Record patch:
 {
   "reason": "Read the maintenance log",
   "nodes": [
-    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14 (cause unknown)", "prior": 0.95},
-    {"id": "H1", "type": "hypothesis", "text": "P2 restarts caused the outage", "prior": 0.4},
+    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14 (cause unknown)"},
+    {"id": "H1", "type": "hypothesis", "text": "P2 restarts caused the outage", "score": 2, "note": "P2 restarts weekly without an outage."},
     {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
   "edges": [
-    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "likelihood_ratio": 2, "reasoning": "Restarts just before an outage are more likely if they caused it."},
+    {"id": "O1-H1", "from": "O1", "to": "H1", "type": "supports", "reasoning": "Restarts just before an outage are more likely if they caused it."},
     {"id": "H1-T1", "from": "H1", "to": "T1", "type": "prompts", "reasoning": "The claim suggests a timing check."}
   ]
 }
@@ -63,7 +63,7 @@ Record patch:
 `reason` says what the checkpoint did and becomes the progress log. One patch carries every kind of change:
 
 - **Add:** `nodes`, `edges`, `factors` (a factor whose `id` exists replaces it).
-- **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"prior": 0.3}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
+- **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"score": 4}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
 Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand. The next `record` or `stop` checks the edit as it would a patch and logs it; run `reasoning-graph refresh state.json` to do that now and read the recomputed beliefs.
@@ -87,7 +87,7 @@ A `solved` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
 - `summary.answer`, `report.answer`, and the `--draft` file name the best candidate of each accepted goal, by id or exact text
-- the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a prior never grounds a claim
+- the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a score never grounds a claim
 - every `test` node has a result observation or a `not_run` reason
 
 No belief level gates a stop. `stop` computes every belief itself and ignores stored ones.
@@ -99,9 +99,17 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 ## Beliefs
 
-`prior` is local input and `belief` is computed output; nothing you write overrides it. `record` writes each claim's current `belief` into the state: read it there, never set it. Claims need a prior, belief-bearing `leads_to` premises, or a calibrated joint factor. Goals, constraints, and tests carry no score. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Read `docs/cost-model.md` before assigning likelihoods.
+`score` is the only number you write, from 1 to 5, on claims and on `supports`/`contradicts` edges. Leave it out unless the default is wrong:
 
-Use coarse numbers.
+| score | claim | evidence edge |
+| --- | --- | --- |
+| 1 | very unlikely | barely bears on the target |
+| 3 | open | moderate |
+| 5 | well established | decisive |
+
+Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises inherits their belief and needs no score. Goals, constraints, and tests carry none.
+
+`belief` is computed output; nothing you write overrides it. `record` writes each claim's current `belief` into the state: read it there, never set it. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
 
 ## Final checks
 
@@ -114,17 +122,17 @@ Validate real files with `reasoning-graph validate`. Machine-readable contracts:
 Node types:
 
 - `goal` — target to prove, solve, decide, or explain
-- `observation` — what was seen, given, verified, or source-backed, recorded as observed rather than interpreted; `prior` accounts for observation/transcription/source reliability
+- `observation` — what was seen, given, verified, or source-backed, recorded as observed rather than interpreted; lower its score only when the reading itself is doubtful
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
-- `hypothesis` — claim not yet established: an interpretation, an intermediate step toward the goal, or a blocker backed by observations. Carries `prior` while open and `leads_to` premises once proved
+- `hypothesis` — claim not yet established: an interpretation, an intermediate step toward the goal, or a blocker backed by observations. Open until it has `leads_to` premises
 - `test` — action/check/procedure; carries no score until its result `observation` is recorded
 - `candidate_solution` — possible answer; requires `answer_kind` and a `candidate_solution -> goal` `answers` edge
 
 Edge types (every edge needs nonblank `reasoning`, one to five sentences):
 
 - `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
-- `supports` — positive belief update; numeric form uses `likelihood` or `likelihood_ratio > 1`
-- `contradicts` — negative belief update; numeric form uses `likelihood` or `0 < likelihood_ratio < 1`; lowers belief but does not disqualify the target by itself
+- `supports` — positive belief update, at its `score` or the default
+- `contradicts` — negative belief update, at its `score` or the default; lowers belief but does not disqualify the target by itself
 - `prompts` — non-evidential provenance from a claim to a test or follow-up; no belief update
 - `leads_to` — premise/dependency used to derive a target's base belief
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
@@ -149,7 +157,7 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/goals.md` — candidate, answer-kind, multiple-goal, and lemma rules
 - `docs/schema/factors.md` — `factors` examples and validation rules
 - `docs/schema/reporting.md` — report and presentation metadata
-- `docs/cost-model.md` — belief math and likelihoods
+- `docs/cost-model.md` — score tables, defaults, and belief math
 - `docs/driver.md` — CLI commands, state JSON, events, and audit
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install

@@ -9,8 +9,7 @@
       "id": "O1",
       "type": "observation",
       "text": "Seen in the source",
-      "source": "probe",
-      "prior": 1.0
+      "source": "probe"
     },
     {
       "id": "H1",

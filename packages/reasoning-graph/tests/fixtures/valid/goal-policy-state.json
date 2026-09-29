@@ -18,14 +18,13 @@
       "id": "A1",
       "type": "hypothesis",
       "text": "Answer route",
-      "prior": 0.7
+      "score": 4
     },
     {
       "id": "CS1",
       "type": "candidate_solution",
       "text": "Exact answer",
-      "answer_kind": "exact_answer",
-      "prior": 1.0
+      "answer_kind": "exact_answer"
     }
   ],
   "goal_groups": [

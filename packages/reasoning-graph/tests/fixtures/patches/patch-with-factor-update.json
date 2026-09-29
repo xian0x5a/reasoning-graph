@@ -5,13 +5,13 @@
       "id": "E3",
       "type": "observation",
       "text": "Third correlated signal",
-      "prior": 0.75
+      "score": 4
     },
     {
       "id": "E4",
       "type": "observation",
       "text": "Fourth correlated signal",
-      "prior": 0.7
+      "score": 4
     }
   ],
   "edges": [

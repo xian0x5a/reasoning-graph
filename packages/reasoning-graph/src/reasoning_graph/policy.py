@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .costs import node_effective_truth_costs, node_truth_cost, evidence_grounded_node_ids, truth_inputs
+from .costs import node_effective_truth_costs, evidence_grounded_node_ids, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
 from .utils import finite_float
@@ -131,14 +131,11 @@ def unanswered_goal_messages(state: dict[str, Any]) -> list[str]:
 def goal_best_candidates(state: dict[str, Any]) -> dict[str, str]:
     """Best-belief candidate per accepted goal that has at least one answering candidate."""
 
-    nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     accepted = accepted_goal_ids(state)
     best: dict[str, tuple[float, str]] = {}
     for candidate_id, goal_targets in candidate_goal_targets(state).items():
-        truth_cost = node_truth_costs.get(candidate_id)
-        if truth_cost is None:
-            truth_cost = node_truth_cost(nodes.get(candidate_id, {}))
+        truth_cost = node_truth_costs[candidate_id]
         for goal_id in goal_targets & accepted:
             if goal_id not in best or (truth_cost, candidate_id) < best[goal_id]:
                 best[goal_id] = (truth_cost, candidate_id)
@@ -185,14 +182,10 @@ def epistemic_goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def ranked_viable_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
-    nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     ranked: list[dict[str, Any]] = []
     for candidate_id in sorted(viable_candidate_ids(state)):
-        node = nodes.get(candidate_id, {})
-        truth_cost = node_truth_costs.get(candidate_id)
-        if truth_cost is None:
-            truth_cost = node_truth_cost(node)
+        truth_cost = node_truth_costs[candidate_id]
         belief = math.exp(-truth_cost)
         ranked.append(
             {
@@ -253,11 +246,7 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     for candidate_id in viable_candidate_ids(state):
         node = nodes.get(candidate_id, {})
         enriched = {"id": candidate_id, "name": node.get("text"), **metadata_by_id.get(candidate_id, {})}
-        truth_cost = node_truth_costs.get(candidate_id)
-        if truth_cost is None:
-            truth_cost = finite_float(enriched.get("truth_cost"))
-        if truth_cost is None:
-            truth_cost = node_truth_cost(node)
+        truth_cost = node_truth_costs[candidate_id]
         effective_truth_cost = truth_cost
         effective_belief = math.exp(-effective_truth_cost)
         enriched["truth_cost"] = round(truth_cost, 6)

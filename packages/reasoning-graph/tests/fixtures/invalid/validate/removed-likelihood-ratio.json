@@ -3,14 +3,12 @@
     {
       "id": "E1",
       "type": "observation",
-      "text": "Signal",
-      "prior": 0.95
+      "text": "Signal"
     },
     {
       "id": "A1",
       "type": "hypothesis",
-      "text": "Target",
-      "prior": 0.5
+      "text": "Target"
     }
   ],
   "edges": [
@@ -19,7 +17,7 @@
       "from": "E1",
       "to": "A1",
       "type": "supports",
-      "likelihood_ratio": 0.5,
+      "likelihood_ratio": 2,
       "reasoning": "The observed signal is more likely when the target claim is true."
     }
   ]

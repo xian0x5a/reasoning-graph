@@ -11,12 +11,31 @@ from .state import by_id
 from .utils import require_finite_float, require_non_negative_float
 
 
-NEUTRAL_UPDATE_PRIOR = 0.5
+# Scores are tiers, not calibrated numbers: authored decimals claimed a precision that the
+# #36 runs showed does not exist. One table per kind turns a tier into the number the
+# belief math needs (issue #37).
+CLAIM_SCORE_PROBABILITY = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
+# The ratios agents wrote most often. `contradicts` uses the reciprocal.
+EVIDENCE_SCORE_RATIO = {1: 1.2, 2: 1.5, 3: 2.0, 4: 3.0, 5: 5.0}
+DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3, "candidate_solution": 3}
+DEFAULT_EVIDENCE_SCORE = 3
+EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 
-NODE_SCORE_FIELDS = ("prior",)
-# Score fields that no longer exist. `posterior` let an author overrule the graph's own
-# evidence (issue #37); belief now always follows the recorded inputs.
-REMOVED_NODE_SCORE_FIELDS = ("confidence", "probability", "posterior")
+# Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
+# evidence (issue #37); belief always follows the recorded inputs.
+REMOVED_NODE_SCORE_FIELDS = ("prior", "confidence", "probability", "posterior")
+REMOVED_EDGE_SCORE_FIELDS = ("likelihood", "likelihood_ratio")
+
+
+def require_score(value: Any, field: str = "score") -> int:
+    # bool is an int subclass; True must not pass as score 1. JSON Schema counts 3.0 as an integer.
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value not in CLAIM_SCORE_PROBABILITY:
+        raise ValueError(f"{field} must be an integer from 1 to 5, got {value!r}")
+    return int(value)
+
+
+def removed_score_field_message(owner: str, field: str) -> str:
+    return f"{owner}: {field} was removed; use score, an integer from 1 to 5, or omit it to take the default"
 
 
 def require_probability(value: Any, field: str = "probability") -> float:
@@ -40,13 +59,6 @@ def probability_from_value(value: Any) -> float | None:
     return None
 
 
-def likelihood_ratio_from_value(value: Any, field: str = "likelihood_ratio") -> float:
-    likelihood_ratio = require_finite_float(value, field)
-    if likelihood_ratio <= 0:
-        raise ValueError(f"{field} must be > 0, got {likelihood_ratio}")
-    return likelihood_ratio
-
-
 def likelihood_probability_from_value(value: Any, field: str) -> float:
     return require_probability(value, field)
 
@@ -67,11 +79,12 @@ def likelihood_ratio_from_likelihood(likelihood: Any, field: str = "likelihood")
 
 
 def likelihood_ratio_from_edge(edge: dict[str, Any]) -> float:
-    if "likelihood" in edge and "likelihood_ratio" in edge:
-        raise ValueError("edge must not set both likelihood and likelihood_ratio")
-    if "likelihood" in edge:
-        return likelihood_ratio_from_likelihood(edge.get("likelihood"))
-    return likelihood_ratio_from_value(edge.get("likelihood_ratio"))
+    """Ratio of an evidence edge: its score, or the default, through the table."""
+    for field in REMOVED_EDGE_SCORE_FIELDS:
+        if field in edge:
+            raise ValueError(removed_score_field_message(f"edge {edge.get('id')}", field))
+    ratio = EVIDENCE_SCORE_RATIO[require_score(edge.get("score", DEFAULT_EVIDENCE_SCORE))]
+    return 1 / ratio if edge.get("type") == "contradicts" else ratio
 
 
 def factor_label(source: str, index: int) -> str:
@@ -164,10 +177,6 @@ def truth_cost_from_log_odds(log_odds: float) -> float:
     return -log_odds + math.log1p(math.exp(log_odds))
 
 
-def node_has_score(node: dict[str, Any] | None) -> bool:
-    return bool(node) and any(field in node for field in NODE_SCORE_FIELDS)
-
-
 def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     """Label a claim's effective belief; objectives/actions have no truth score."""
     if node.get("type") not in BELIEF_NODE_TYPES:
@@ -175,70 +184,27 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {probability_from_cost(effective_truth_cost):.3g}"
 
 
-def node_local_truth_cost(node: dict[str, Any] | None) -> float:
-    """Cost of the local prior; zero when the node has none."""
+def node_local_truth_cost(node: dict[str, Any] | None, premise_backed: bool = False) -> float:
+    """Cost of a claim's own score, or of its type default when nothing else gives it a belief.
+
+    A premise-backed claim without a score adds no factor: a default on every derived claim
+    would halve belief at each step of a chain. Goals, constraints, and tests cost nothing.
+    """
 
     if not node:
         return 0.0
-    # Direct cost consumers do not necessarily run schema validation first.
-    # Reject obsolete inputs rather than silently changing belief. A stored
-    # `belief` is CLI-written output and is never read back as input.
+    # Direct cost consumers do not necessarily run validation first; reject removed
+    # inputs rather than silently computing without them.
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
-            raise ValueError(f"node {node.get('id')}: {field} is not supported; use prior for local probability")
-    if "prior" in node:
-        return probability_cost(node["prior"], "prior")
-    return 0.0
-
-
-def node_truth_cost(node: dict[str, Any] | None) -> float:
-    """Local truth cost for a node, preserving the historical public helper.
-
-    `prior` is the local starting-probability factor, including observation or
-    inference reliability. Missing local inputs contribute no additional penalty;
-    the effective-cost engine checks for a belief source.
-    """
-
-    return node_local_truth_cost(node)
-
-
-def nodes_with_belief_sources(state: dict[str, Any]) -> set[str]:
-    """Find claims grounded by a local score or a calibrated premise factor.
-
-    Only leads_to propagates a starting belief. Likelihood ratios describe a
-    relative update, and scoreless objectives/actions do not establish certainty.
-    Reachability is independent of numerical cost, including an exact zero.
-    """
-    nodes = by_id(state.get("nodes", []), "node")
-    grounded = {node_id for node_id, node in nodes.items() if node_has_score(node)}
-    for factor in state.get("factors", []) or []:
-        if not isinstance(factor, dict) or factor.get("relation") != "leads_to":
-            continue
-        target = factor.get("target")
-        aggregation = factor.get("aggregation")
-        if (
-            isinstance(target, str)
-            and target in nodes
-            and isinstance(aggregation, dict)
-            and aggregation.get("kind") == "joint_probability"
-        ):
-            grounded.add(target)
-
-    dependents: dict[str, list[str]] = {}
-    for edge in state.get("edges", []):
-        if not isinstance(edge, dict) or (edge.get("type") or edge.get("label")) != "leads_to":
-            continue
-        source, target = edge.get("from"), edge.get("to")
-        if isinstance(source, str) and isinstance(target, str) and source in nodes and target in nodes:
-            dependents.setdefault(source, []).append(target)
-
-    pending = list(grounded)
-    while pending:
-        for target in dependents.get(pending.pop(), []):
-            if target not in grounded:
-                grounded.add(target)
-                pending.append(target)
-    return grounded
+            raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
+    if node.get("type") not in BELIEF_NODE_TYPES:
+        return 0.0
+    if "score" in node:
+        return probability_cost(CLAIM_SCORE_PROBABILITY[require_score(node["score"])])
+    if premise_backed:
+        return 0.0
+    return probability_cost(CLAIM_SCORE_PROBABILITY[DEFAULT_CLAIM_SCORE[str(node["type"])]])
 
 
 def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:
@@ -280,7 +246,8 @@ class TruthInputs:
     grouped_premise_sources: dict[str, set[str]]
     # Per-node updates after factor grouping, in edge-then-factor order.
     evidence_updates: dict[str, list[EvidenceUpdate]]
-    belief_source_nodes: set[str]
+    # Claims whose belief comes from a claim premise or a calibrated premise factor.
+    premise_backed_nodes: set[str]
 
 
 def truth_inputs(state: dict[str, Any]) -> TruthInputs:
@@ -294,20 +261,19 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
-        # Validate every edge, including those the belief walk never reaches.
-        if "likelihood" in edge or "likelihood_ratio" in edge:
-            likelihood_ratio_from_edge(edge)
         edge_type = edge.get("type") or edge.get("label")
+        # Validate every evidence edge, including those the belief walk never reaches.
+        if edge_type in EVIDENCE_EDGE_TYPES:
+            likelihood_ratio_from_edge(edge)
         src = edge.get("from")
         dst = edge.get("to")
         if not isinstance(src, str) or not isinstance(dst, str) or src not in nodes or dst not in nodes:
             continue
         if edge_type == "leads_to":
             premise_sources.setdefault(dst, []).append(src)
-        elif edge_type in {"supports", "contradicts"}:
+        elif edge_type in EVIDENCE_EDGE_TYPES:
             likelihood_source_sets.setdefault((dst, str(edge_type)), set()).add(src)
-            if "likelihood_ratio" in edge or "likelihood" in edge:
-                likelihood_edges.setdefault(dst, []).append(edge)
+            likelihood_edges.setdefault(dst, []).append(edge)
 
     # Evidence from a non-observation source is scaled by that source's belief,
     # so it is a truth dependency just like a premise.
@@ -315,7 +281,6 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     for target, edges in likelihood_edges.items():
         truth_dependencies[target] += [str(edge["from"]) for edge in edges if nodes[str(edge["from"])].get("type") != "observation"]
     assert_acyclic_premise_dependencies(truth_dependencies)
-    grounded_nodes = nodes_with_belief_sources(state)
 
     premise_group_costs: dict[str, list[float]] = {node_id: [] for node_id in nodes}
     grouped_premise_sources: dict[str, set[str]] = {node_id: set() for node_id in nodes}
@@ -394,7 +359,12 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         premise_group_costs=premise_group_costs,
         grouped_premise_sources=grouped_premise_sources,
         evidence_updates=evidence_updates,
-        belief_source_nodes=grounded_nodes,
+        premise_backed_nodes={
+            node_id
+            for node_id in nodes
+            if premise_group_costs[node_id]
+            or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
+        },
     )
 
 
@@ -405,7 +375,7 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
     `leads_to` premises is grounded, or when its evidence favors it (net
     likelihood ratio > 1) counting supporting updates only from grounded sources
     and contradicting updates from any source: unbacked support cannot lift a
-    claim, but unbacked doubt still weighs. A prior never grounds a
+    claim, but unbacked doubt still weighs. A score never grounds a
     claim. Evidence cycles between claims are rejected by `truth_inputs`.
     """
 
@@ -436,10 +406,9 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     Incoming `leads_to` edges are required premises and contribute source truth
     cost to the target's base belief. Top-level `leads_to` factors replace
     grouped member costs with a calibrated joint_probability.
-    Incoming `supports`/`contradicts` edges with `likelihood` or
-    `likelihood_ratio` update that base belief in odds space; grouped likelihood
-    factors replace correlated member likelihood updates.
-    Computed beliefs are returned as costs; `prior` is never rewritten.
+    Incoming `supports`/`contradicts` edges update that base belief in odds
+    space; grouped likelihood factors replace correlated member updates.
+    Computed beliefs are returned as costs; `score` is never rewritten.
     """
 
     inputs = truth_inputs(state)
@@ -470,7 +439,7 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             return 0.0
 
         visiting.add(node_id)
-        local_cost = node_local_truth_cost(node)
+        local_cost = node_local_truth_cost(node, node_id in inputs.premise_backed_nodes)
         grouped_sources = inputs.grouped_premise_sources.get(node_id, set())
         ungrouped_source_cost = sum(
             effective_cost(source_id)
@@ -482,10 +451,6 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
         premise_cost = sum(inputs.premise_group_costs.get(node_id, [])) + ungrouped_source_cost
         base_cost = local_cost + premise_cost
         updates = inputs.evidence_updates.get(node_id, [])
-        if node_id not in inputs.belief_source_nodes and (node.get("type") in BELIEF_NODE_TYPES or updates):
-            # Unknown claims must not become free certainty, even when the cost
-            # engine is called without validation. A grounded zero stays certain.
-            base_cost = probability_cost(NEUTRAL_UPDATE_PRIOR)
         if updates:
             # Stay in log space: exp(-base_cost) can underflow for valid inherited
             # beliefs. expm1 also preserves precision near explicit certainty.

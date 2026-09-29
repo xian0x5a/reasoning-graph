@@ -23,7 +23,7 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def edge(source: str, target: str, edge_type: str, **extra: float) -> dict:
+def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
     return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, "reasoning": "Test edge.", **extra}
 
 
@@ -41,12 +41,12 @@ class RecordModeTests(unittest.TestCase):
         patch_path.write_text(json.dumps(patch), encoding="utf-8")
         return run_cli("record", str(state_path), "--patch", str(patch_path))
 
-    def solved_trail(self, state_path: Path, observation_prior: float) -> None:
+    def solved_trail(self, state_path: Path, observation_score: int) -> None:
         self.ok(self.record(state_path, {
             "reason": "Ran the probe",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
-                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "note": "Only the last run was logged", "prior": observation_prior},
+                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "note": "Only the last run was logged", "score": observation_score},
             ],
             "edges": [edge("T1", "O1", "leads_to")],
         }))
@@ -62,7 +62,7 @@ class RecordModeTests(unittest.TestCase):
     def test_record_logs_progress_and_renders_live_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
             state = json.loads(state_path.read_text(encoding="utf-8"))
             records = [event for event in state["events"] if event["action"] == "record"]
@@ -76,7 +76,7 @@ class RecordModeTests(unittest.TestCase):
     def test_record_leaves_live_view_untouched_when_the_view_is_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
             live_view_path = state_path.with_suffix(".html")
             before = live_view_path.stat()
 
@@ -90,7 +90,7 @@ class RecordModeTests(unittest.TestCase):
     def test_doctor_accepts_a_working_state_and_audits_only_once_stopped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
             working = run_cli("doctor", str(state_path))
             self.ok(working)
@@ -104,22 +104,22 @@ class RecordModeTests(unittest.TestCase):
     def test_record_writes_computed_belief_on_each_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
             nodes = {node["id"]: node for node in json.loads(state_path.read_text(encoding="utf-8"))["nodes"]}
             computed = json.loads(run_cli("beliefs", str(state_path), "--json").stdout)
 
             self.assertEqual({row["id"]: nodes[row["id"]]["belief"] for row in computed}, {row["id"]: row["belief"] for row in computed})
-            self.assertEqual(nodes["O1"]["belief"], 0.95)
+            self.assertEqual(nodes["O1"]["belief"], 0.9)
             self.assertNotIn("belief", nodes["G1"])
             self.assertNotIn("belief", nodes["T1"])
 
     def test_record_rejects_an_authored_belief(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
-            new_node = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "prior": 0.5, "belief": 0.9}]})
+            new_node = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "score": 3, "belief": 0.9}]})
             update = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "O1", "set": {"belief": 0.99}}]})
 
             for rejected in (new_node, update):
@@ -140,7 +140,7 @@ class RecordModeTests(unittest.TestCase):
             )
 
             def observation(node_id: str, quote: str, source: str = "case.md Section 8") -> dict:
-                return {"id": node_id, "type": "observation", "text": "Seen in the case file", "source": source, "quote": quote, "prior": 0.9}
+                return {"id": node_id, "type": "observation", "text": "Seen in the case file", "source": source, "quote": quote, "score": 5}
 
             # Line breaks, blockquote markers, quote-mark style, and ellipsis-joined fragments are not edits.
             self.ok(self.record(state_path, {"reason": "Read the case file", "nodes": [
@@ -165,9 +165,9 @@ class RecordModeTests(unittest.TestCase):
     def test_stale_belief_fails_validation_until_refreshed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
             state = json.loads(state_path.read_text(encoding="utf-8"))
-            next(node for node in state["nodes"] if node["id"] == "O1")["prior"] = 0.6
+            next(node for node in state["nodes"] if node["id"] == "O1")["score"] = 3
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
             stale = run_cli("validate", str(state_path))
@@ -178,7 +178,7 @@ class RecordModeTests(unittest.TestCase):
             self.assertIn("stale belief", stale.stderr)
             self.assertIn("refresh", stale.stderr)
             self.ok(run_cli("validate", str(state_path)))
-            self.assertEqual(next(node for node in refreshed["nodes"] if node["id"] == "O1")["belief"], 0.6)
+            self.assertEqual(next(node for node in refreshed["nodes"] if node["id"] == "O1")["belief"], 0.5)
 
     def test_belief_is_only_written_on_claims(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -208,7 +208,7 @@ class RecordModeTests(unittest.TestCase):
     def test_grounded_answer_stops_and_audits_without_queue_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
             self.ok(self.stop(state_path))
             audit = run_cli("audit", str(state_path))
@@ -221,7 +221,7 @@ class RecordModeTests(unittest.TestCase):
         # reviewer shared the misreading, so neither gates a stop.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.6)
+            self.solved_trail(state_path, 3)
 
             self.ok(self.stop(state_path))
             self.ok(run_cli("audit", str(state_path)))
@@ -229,7 +229,7 @@ class RecordModeTests(unittest.TestCase):
     def test_solved_stop_needs_every_test_result_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
             self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T2", "type": "test", "text": "Check the config"}]}))
 
             stopped = self.stop(state_path)
@@ -241,7 +241,7 @@ class RecordModeTests(unittest.TestCase):
         # Issue #35: an unrunnable check was answered with an invented result; not_run records it honestly.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
             self.ok(self.record(state_path, {"reason": "Noted a decisive check nobody can run here", "nodes": [
                 {"id": "T2", "type": "test", "text": "Compare dental records", "not_run": "The case file has no dental records"},
             ]}))
@@ -254,9 +254,9 @@ class RecordModeTests(unittest.TestCase):
     def test_not_run_is_only_a_reason_on_a_test_without_a_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 0.95)
+            self.solved_trail(state_path, 5)
 
-            on_hypothesis = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "prior": 0.5, "not_run": "x"}]})
+            on_hypothesis = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "score": 3, "not_run": "x"}]})
             blank_reason = self.record(state_path, {"reason": "r", "nodes": [{"id": "T2", "type": "test", "text": "Check", "not_run": " "}]})
             with_result = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "T1", "set": {"not_run": "Could not run it"}}]})
 
@@ -285,7 +285,7 @@ class RecordModeTests(unittest.TestCase):
         for removed, edit in cases.items():
             with self.subTest(removed=removed), tempfile.TemporaryDirectory() as tmp_dir:
                 state_path = self.start(tmp_dir)
-                self.solved_trail(state_path, 0.95)
+                self.solved_trail(state_path, 5)
                 state = json.loads(state_path.read_text(encoding="utf-8"))
                 edit(state)
                 state_path.write_text(json.dumps(state), encoding="utf-8")

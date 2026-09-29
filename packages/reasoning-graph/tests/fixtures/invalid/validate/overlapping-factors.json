@@ -13,26 +13,25 @@
       "id": "E1",
       "type": "observation",
       "text": "Primary signal appears",
-      "prior": 0.9
+      "score": 5
     },
     {
       "id": "E2",
       "type": "observation",
       "text": "Secondary signal appears",
-      "prior": 0.8
+      "score": 4
     },
     {
       "id": "A1",
       "type": "hypothesis",
       "text": "Cause is grouped signal",
-      "prior": 0.4
+      "score": 2
     },
     {
       "id": "CS1",
       "type": "candidate_solution",
       "text": "Grouped signal is the cause",
-      "answer_kind": "exact_answer",
-      "prior": 1.0
+      "answer_kind": "exact_answer"
     }
   ],
   "edges": [

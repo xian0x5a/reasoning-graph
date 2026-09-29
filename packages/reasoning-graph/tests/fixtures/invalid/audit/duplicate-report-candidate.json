@@ -13,13 +13,13 @@
       "id": "A1",
       "type": "hypothesis",
       "text": "Likely cause",
-      "prior": 0.6
+      "score": 3
     },
     {
       "id": "A2",
       "type": "hypothesis",
       "text": "Less likely cause",
-      "prior": 0.4
+      "score": 2
     },
     {
       "id": "CS1",
@@ -57,18 +57,18 @@
         "E2"
       ],
       "update_factors": [],
-      "graph_digest": "390a384ea47c9af1"
+      "graph_digest": "26766635136a1bcb"
     },
     {
       "step": 2,
       "action": "rank",
       "best": "CS1",
-      "belief": 0.6,
+      "belief": 0.5,
       "candidates": [
         {
           "node": "CS1",
-          "belief": 0.6,
-          "effective_truth_cost": 0.510826
+          "belief": 0.5,
+          "effective_truth_cost": 0.693147
         }
       ]
     },
@@ -77,7 +77,7 @@
       "action": "stop",
       "reason": "CS1 answers G1 and its premise chain is recorded",
       "outcome": "solved",
-      "graph_digest": "390a384ea47c9af1"
+      "graph_digest": "26766635136a1bcb"
     }
   ],
   "stop_policy": {

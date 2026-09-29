@@ -13,7 +13,7 @@
       "id": "H1",
       "type": "hypothesis",
       "text": "The code is the room number",
-      "prior": 0.5
+      "score": 3
     },
     {
       "id": "T1",
@@ -24,7 +24,7 @@
       "id": "H2",
       "type": "hypothesis",
       "text": "The keypad rejects the room number",
-      "prior": 0.9
+      "score": 5
     }
   ],
   "edges": [
@@ -47,7 +47,7 @@
       "from": "H2",
       "to": "H1",
       "type": "contradicts",
-      "likelihood_ratio": 0.2,
+      "score": 5,
       "reasoning": "A rejection undercuts the room-number reading."
     }
   ],
@@ -69,14 +69,14 @@
         "H2-H1"
       ],
       "update_factors": [],
-      "graph_digest": "d46e7988b5cb67ae"
+      "graph_digest": "a0c60b536b016a7c"
     },
     {
       "step": 2,
       "action": "stop",
       "reason": "The keypad settled it",
       "outcome": "solved",
-      "graph_digest": "d46e7988b5cb67ae"
+      "graph_digest": "a0c60b536b016a7c"
     }
   ]
 }

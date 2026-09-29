@@ -16,7 +16,7 @@ REPO_ROOT = PACKAGE_ROOT.parents[1]
 FIXTURES = PACKAGE_ROOT / "tests" / "fixtures"
 VALID_FIXTURES = sorted((FIXTURES / "valid").glob("*.json"))
 VALIDATE_INVALID_FIXTURES = {
-    "bad-likelihood-direction.json": "supports likelihood ratio must be > 1",
+    "removed-likelihood-ratio.json": "likelihood_ratio was removed; use score",
     "bad-node-type.json": "invalid type 'fact'",
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
@@ -175,7 +175,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         base_state = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find exact answer"},
-                {"id": "A1", "type": "hypothesis", "text": "Primary route", "prior": 0.6},
+                {"id": "A1", "type": "hypothesis", "text": "Primary route", "score": 3},
             ],
             "edges": [],
         }

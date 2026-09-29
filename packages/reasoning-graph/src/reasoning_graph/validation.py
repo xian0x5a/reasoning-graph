@@ -5,14 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from .costs import (
-    NODE_SCORE_FIELDS,
+    EVIDENCE_EDGE_TYPES,
+    REMOVED_EDGE_SCORE_FIELDS,
+    REMOVED_NODE_SCORE_FIELDS,
     assert_acyclic_premise_dependencies,
     claim_beliefs,
-    likelihood_ratio_from_edge,
     likelihood_ratio_from_likelihood,
-    likelihood_ratio_from_value,
-    nodes_with_belief_sources,
     probability_cost,
+    removed_score_field_message,
+    require_score,
 )
 from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, FACTOR_AGGREGATION_KINDS, FACTOR_RELATIONS, NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
@@ -33,6 +34,44 @@ def edge_id_set(state: dict[str, Any]) -> set[str]:
         if isinstance(edge, dict) and isinstance(edge.get("id"), str) and edge.get("id"):
             ids.add(edge["id"])
     return ids
+
+
+def score_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
+    """Reject the decimals `score` replaced, and scores off the scale or on objects that take none.
+
+    `record` runs this on a patch's additions too, so a removed field names its replacement
+    there instead of failing with the schema's generic message.
+    """
+    errors: list[str] = []
+    for index, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            continue
+        owner = f"node {node.get('id') or index}"
+        errors.extend(removed_score_field_message(owner, field) for field in REMOVED_NODE_SCORE_FIELDS if field in node)
+        if "score" not in node:
+            continue
+        if node.get("type") not in BELIEF_NODE_TYPES:
+            errors.append(f"{owner}: score is only valid on observation, hypothesis, and candidate_solution nodes")
+            continue
+        try:
+            require_score(node["score"])
+        except ValueError as exc:
+            errors.append(f"{owner}: {exc}")
+    for index, edge in enumerate(edges):
+        if not isinstance(edge, dict):
+            continue
+        owner = f"edge {edge.get('id') or index}"
+        errors.extend(removed_score_field_message(owner, field) for field in REMOVED_EDGE_SCORE_FIELDS if field in edge)
+        if "score" not in edge:
+            continue
+        if edge.get("type") not in EVIDENCE_EDGE_TYPES:
+            errors.append(f"{owner}: score is only valid on supports/contradicts edges")
+            continue
+        try:
+            require_score(edge["score"])
+        except ValueError as exc:
+            errors.append(f"{owner}: {exc}")
+    return errors
 
 
 def validate_state(state: Any) -> ValidationResult:
@@ -64,6 +103,8 @@ def validate_state(state: Any) -> ValidationResult:
     if "premise_groups" in state:
         errors.append("premise_groups is not supported; use factors with relation='leads_to'")
 
+    errors.extend(score_field_errors(nodes_raw, edges_raw))
+
     node_ids: set[str] = set()
     for i, node in enumerate(nodes_raw):
         if not isinstance(node, dict):
@@ -79,14 +120,6 @@ def validate_state(state: Any) -> ValidationResult:
             node_ids.add(node_id)
         if node_type not in NODE_TYPES:
             errors.append(f"node {node_id or i} invalid type {node_type!r}")
-        if "posterior" in node:
-            errors.append(f"node {node_id or i}: posterior was removed; belief always follows prior, premises, and evidence; delete the field")
-        for probability_field in NODE_SCORE_FIELDS:
-            if probability_field in node:
-                try:
-                    probability_cost(node[probability_field], probability_field)
-                except ValueError as exc:
-                    errors.append(f"node {node_id or i}: {exc}")
         if "not_run" in node:
             if node_type != "test":
                 errors.append(f"node {node_id or i} not_run is only valid on test nodes")
@@ -187,22 +220,8 @@ def validate_state(state: Any) -> ValidationResult:
         ignored_legacy_fields = sorted(field for field in ("hard", "mode", "strength") if field in edge)
         if ignored_legacy_fields:
             warnings.append(
-                f"edge {i} uses ignored legacy field(s) {', '.join(ignored_legacy_fields)}; use likelihood/likelihood_ratio for numeric belief updates"
+                f"edge {i} uses ignored legacy field(s) {', '.join(ignored_legacy_fields)}; use score on supports/contradicts edges"
             )
-        has_likelihood_update = "likelihood_ratio" in edge or "likelihood" in edge
-        if has_likelihood_update:
-            try:
-                likelihood_ratio = likelihood_ratio_from_edge(edge) if "likelihood" in edge else likelihood_ratio_from_value(edge.get("likelihood_ratio"), "likelihood_ratio")
-            except ValueError as exc:
-                errors.append(f"edge {i}: {exc}")
-                likelihood_ratio = None
-            if edge_type not in {"supports", "contradicts"}:
-                errors.append(f"edge {i} likelihood/likelihood_ratio is only valid on supports/contradicts edges")
-            elif likelihood_ratio is not None:
-                if edge_type == "supports" and likelihood_ratio <= 1:
-                    errors.append(f"edge {i} supports likelihood ratio must be > 1")
-                if edge_type == "contradicts" and likelihood_ratio >= 1:
-                    errors.append(f"edge {i} contradicts likelihood ratio must be in (0, 1)")
         if isinstance(src, str) and isinstance(dst, str) and isinstance(edge_type, str):
             relation_pairs.add((src, dst, edge_type))
         src_type = nodes_by_id.get(src, {}).get("type") if isinstance(src, str) else None
@@ -446,14 +465,6 @@ def validate_state(state: Any) -> ValidationResult:
                 errors.append(
                     f"stale belief on {node_id}: stored {node['belief']!r}, computed {beliefs[node_id]}; "
                     "after a hand edit, run `reasoning-graph refresh <state>`"
-                )
-        grounded_nodes = nodes_with_belief_sources(state)
-        for node_id, node in nodes_by_id.items():
-            if node.get("type") in BELIEF_NODE_TYPES and node_id not in grounded_nodes:
-                errors.append(
-                    f"{node.get('type')} node {node_id} requires a belief source: "
-                    "a local prior, belief-bearing leads_to premises, "
-                    "or a calibrated joint-probability factor"
                 )
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")

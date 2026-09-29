@@ -26,9 +26,9 @@ def base_state() -> dict:
     return {
         "nodes": [
             {"id": "G1", "type": "goal", "text": "Find the exact answer"},
-            {"id": "A1", "type": "hypothesis", "text": "Likely route", "prior": 0.6},
-            {"id": "A2", "type": "hypothesis", "text": "Other route", "prior": 0.3},
-            {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "prior": 0.5},
+            {"id": "A1", "type": "hypothesis", "text": "Likely route", "score": 3},
+            {"id": "A2", "type": "hypothesis", "text": "Other route", "score": 2},
+            {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "score": 3},
         ],
         "edges": [
             {"id": "A1-CS1", "from": "A1", "to": "CS1", "type": "leads_to", "reasoning": "The candidate depends on the likely route."},
@@ -88,7 +88,7 @@ class ContractAlignmentTests(unittest.TestCase):
                 self.assertIn("answer_kind", result.stderr)
 
         patched = self.record({
-            "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "prior": 0.4}],
+            "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "score": 2}],
             "edges": [{"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "Second candidate answers the goal."}],
         })
         self.assertEqual(patched.returncode, 1, patched.stdout)
@@ -108,7 +108,7 @@ class ContractAlignmentTests(unittest.TestCase):
         rejected_patches = {
             "outcome-alias": {"stop_reason": "done", "stop_outcome": "user_stopped", "outcome": "solved"},
             "factors-and-update-factors": {"factors": [factor], "update_factors": [factor]},
-            "decorative-updated-nodes": {"updated_nodes": [{"id": "A1", "fields": ["prior"]}]},
+            "decorative-updated-nodes": {"updated_nodes": [{"id": "A1", "fields": ["score"]}]},
             "unknown-field": {"notes": "free text"},
         }
         for label, patch in rejected_patches.items():
@@ -123,13 +123,13 @@ class ContractAlignmentTests(unittest.TestCase):
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
             patch_path.write_text(
-                json.dumps({"update_nodes": [{"id": "A1", "set": {"prior": 0.7}}], "reason": "Calibration only."}),
+                json.dumps({"update_nodes": [{"id": "A1", "set": {"score": 4}}], "reason": "Calibration only."}),
                 encoding="utf-8",
             )
             result = run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertEqual(result.returncode, 0, result.stderr)
             event = json.loads(state_path.read_text(encoding="utf-8"))["events"][-1]
-            self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["prior"]}])
+            self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["score"]}])
 
     # --- #10 presentation/view references ---
 

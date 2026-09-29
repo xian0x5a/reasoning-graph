@@ -23,9 +23,9 @@ RENDERERS = ("mermaid", "grouped-mermaid", "offline")
 def report_state(*, support=False):
     state = {
         "nodes": [
-            {"id": "E1", "type": "observation", "text": "Observed premise", "prior": 0.8},
-            {"id": "E2", "type": "observation", "text": "Independent signal", "prior": 0.9},
-            {"id": "D1", "type": "hypothesis", "text": "Conclusion", "prior": 0.9},
+            {"id": "E1", "type": "observation", "text": "Observed premise", "score": 4},
+            {"id": "E2", "type": "observation", "text": "Independent signal", "score": 5},
+            {"id": "D1", "type": "hypothesis", "text": "Conclusion", "score": 5},
             {"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"},
             {"id": "G1", "type": "goal", "text": "Find the answer"},
             {"id": "C1", "type": "constraint", "text": "Use the observed data"},
@@ -41,7 +41,7 @@ def report_state(*, support=False):
     }
     if support:
         state["edges"].append({
-            "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "likelihood_ratio": 2,
+            "id": "E2-D1", "from": "E2", "to": "D1", "type": "supports", "score": 3,
             "reasoning": "The signal is twice as likely when the conclusion is true.",
         })
     assert validate_state(state).ok
@@ -74,8 +74,8 @@ def detail_card(document, node_id):
 @pytest.mark.parametrize("renderer", RENDERERS)
 @pytest.mark.parametrize("filtered", [False, True])
 @pytest.mark.parametrize("support,expected", [
-    (False, "0.72"),
-    (True, "0.837"),  # 0.72 base and LR 2 give 36/43.
+    (False, "0.63"),
+    (True, "0.773"),  # 0.63 base and ratio 2 give 126/163.
 ])
 def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expected):
     state = report_state(support=support)
@@ -89,7 +89,7 @@ def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expecte
     if filtered:
         assert set(labels) == selected
     else:
-        assert labels["E1"] == "E1\nobservation\nbelief 0.8"
+        assert labels["E1"] == "E1\nobservation\nbelief 0.7"
     assert state == original
 
 
@@ -107,7 +107,7 @@ def test_filtered_graph_uses_calibrated_factor_and_refreshes_inputs(renderer):
     assert validate_state(state).ok
     assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.45"
     state["factors"][0]["aggregation"]["probability"] = 1.0
-    state["nodes"][2]["prior"] = 1.0
+    del state["nodes"][2]["score"]
     assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 1"
     assert all("belief" not in node for node in state["nodes"])
 
@@ -117,11 +117,11 @@ def test_details_separate_effective_belief_from_authored_inputs():
     original = deepcopy(state)
     cards = node_detail_cards(state)
     derived = detail_card(cards, "D1")
-    assert "Effective belief: 0.837209" in derived
-    assert "Local prior: 0.9" in derived
+    assert "Effective belief: 0.773006" in derived
+    assert "Score: 5" in derived
     candidate = detail_card(cards, "CS1")
-    assert "Effective belief: 0.837209" in candidate
-    assert "Local prior" not in candidate
+    assert "Effective belief: 0.773006" in candidate
+    assert "Score" not in candidate
     for node_id in ("G1", "C1", "T1"):
         assert "Effective belief" not in detail_card(cards, node_id)
     assert state == original
@@ -132,8 +132,8 @@ def test_html_report_keeps_labels_details_and_candidate_table_consistent(render_
     state = report_state(support=True)
     original_nodes = deepcopy(state["nodes"])
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
-    assert "belief 0.837" in document
-    assert "Effective belief: 0.837209" in detail_card(document, "CS1")
-    assert "<td>0.837209</td>" in document  # Candidate table overrides stale report metadata.
-    assert "Local prior: 0.9" in detail_card(document, "D1")
+    assert "belief 0.773" in document
+    assert "Effective belief: 0.773006" in detail_card(document, "CS1")
+    assert "<td>0.773006</td>" in document  # Candidate table overrides stale report metadata.
+    assert "Score: 5" in detail_card(document, "D1")
     assert state["nodes"] == original_nodes

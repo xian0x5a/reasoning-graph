@@ -31,12 +31,12 @@ def write_json(path: Path, payload: dict) -> Path:
 
 ROOM_SEED = {
     "nodes": [
-        {"id": "E1", "type": "observation", "text": "Room 1 shows eight windows with tinted panes", "source": "room page", "prior": 1.0},
-        {"id": "A1", "type": "hypothesis", "text": "The panes are Braille cells", "prior": 0.6},
+        {"id": "E1", "type": "observation", "text": "Room 1 shows eight windows with tinted panes", "source": "room page"},
+        {"id": "A1", "type": "hypothesis", "text": "The panes are Braille cells", "score": 3},
         {"id": "T1", "type": "test", "text": "Decode the panes as Braille and probe the URL"},
     ],
     "edges": [
-        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2, "reasoning": "Two-by-three panes match Braille cells."},
+        {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3, "reasoning": "Two-by-three panes match Braille cells."},
         {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts", "reasoning": "The Braille reading motivates a decode probe."},
     ],
     "reason": "Read room 1",
@@ -44,11 +44,11 @@ ROOM_SEED = {
 
 ROOM_ONE_SOLVED = {
     "nodes": [
-        {"id": "E2", "type": "observation", "text": "Braille decode reads TWOSIGNS and the URL returns 200", "source": "probe", "prior": 0.95},
+        {"id": "E2", "type": "observation", "text": "Braille decode reads TWOSIGNS and the URL returns 200", "source": "probe", "score": 5},
         {"id": "CS1", "type": "candidate_solution", "text": "TwoSigns", "answer_kind": "exact_answer"},
         {"id": "G2", "type": "goal", "text": "Find the next URL path under /TwoSigns/"},
-        {"id": "E3", "type": "observation", "text": "Room 2 shows a waveform image", "source": "room page", "prior": 1.0},
-        {"id": "A2", "type": "hypothesis", "text": "The waveform encodes 5-bit characters", "prior": 0.5},
+        {"id": "E3", "type": "observation", "text": "Room 2 shows a waveform image", "source": "room page"},
+        {"id": "A2", "type": "hypothesis", "text": "The waveform encodes 5-bit characters", "score": 3},
         {"id": "T2", "type": "test", "text": "Decode the waveform and probe the URL"},
     ],
     "edges": [
@@ -56,7 +56,7 @@ ROOM_ONE_SOLVED = {
         {"id": "E2-CS1", "from": "E2", "to": "CS1", "type": "leads_to", "reasoning": "The confirmed URL is the answer."},
         {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers", "reasoning": "TwoSigns is the room 1 path."},
         {"id": "G1-G2", "from": "G1", "to": "G2", "type": "requires", "reasoning": "The trail continues into room 2."},
-        {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "likelihood_ratio": 1.5, "reasoning": "Square waves suggest bit tracks."},
+        {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "score": 2, "reasoning": "Square waves suggest bit tracks."},
         {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts", "reasoning": "The 5-bit reading motivates a decode probe."},
     ],
     "reason": "Solved room 1 and read room 2",
@@ -82,7 +82,7 @@ class SpookyManorFlow(unittest.TestCase):
 
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
-        "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft", "prior": 1.0}],
+        "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft"}],
         "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to", "reasoning": "The probe produced this profile."}],
         "reason": "Profiled the room 2 waveform",
     }
@@ -137,7 +137,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             # Forge the terminal events by hand to bypass the CLI preflight.
             step = state["events"][-1]["step"]
             state["events"].extend([
-                {"step": step + 1, "action": "rank", "best": "CS1", "belief": 0.95, "candidates": [{"node": "CS1", "belief": 0.95, "effective_truth_cost": 0.051293}]},
+                {"step": step + 1, "action": "rank", "best": "CS1", "belief": 0.9, "candidates": [{"node": "CS1", "belief": 0.9, "effective_truth_cost": 0.105361}]},
                 {"step": step + 2, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved", "graph_digest": graph_digest(state)},
             ])
             write_json(state_path, state)
@@ -196,7 +196,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
     def test_draft_must_name_the_best_candidate_for_the_resolved_goal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = self.unstopped_state()
-            state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "prior": 0.1})
+            state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
             state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers", "reasoning": "A weaker answer to the same goal."})
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
@@ -235,10 +235,10 @@ class StrictTestResultTests(SpookyManorFlow):
             write_json(state_path, state)
             self.ok(self.record(tmp_dir, state_path, "conclusion", {
                 "reason": "Concluded from the decode attempt",
-                "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "prior": 0.9}],
+                "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "score": 5}],
                 "edges": [
                     {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to", "reasoning": "The probe suggests this conclusion."},
-                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "likelihood_ratio": 0.3, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
+                    {"id": "H1-A2", "from": "H1", "to": "A2", "type": "contradicts", "score": 4, "reasoning": "Not ITA2 undercuts the 5-bit reading."},
                 ],
             }))
 
@@ -254,21 +254,21 @@ if __name__ == "__main__":
 
 class GroundedPathTests(unittest.TestCase):
     """A solved stop needs a candidate whose belief is earned from observations,
-    not carried by hand-set priors on the claims it rests on."""
+    not carried by hand-set scores on the claims it rests on."""
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def recorded_state(self, tmp_dir: str, nodes: list[dict], edges: list[dict], candidate_prior: float | None = None) -> Path:
+    def recorded_state(self, tmp_dir: str, nodes: list[dict], edges: list[dict], candidate_score: int | None = None) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         self.ok(run_cli("init", "--goal", "Explain the failure", "--strict", "-o", str(state_path)))
         patch = {
             "reason": "Probed the system",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
-                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe", "prior": 0.95},
+                {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe", "score": 5},
                 {"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}
-                | ({"prior": candidate_prior} if candidate_prior is not None else {}),
+                | ({"score": candidate_score} if candidate_score is not None else {}),
                 *nodes,
             ],
             "edges": [
@@ -284,19 +284,19 @@ class GroundedPathTests(unittest.TestCase):
         return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
 
     @staticmethod
-    def hypothesis(node_id: str, prior: float | None = None) -> dict:
+    def hypothesis(node_id: str, score: int | None = None) -> dict:
         node = {"id": node_id, "type": "hypothesis", "text": f"Claim {node_id}"}
-        if prior is not None:
-            node["prior"] = prior
+        if score is not None:
+            node["score"] = score
         return node
 
     @staticmethod
-    def edge(source: str, target: str, edge_type: str, **extra: float) -> dict:
+    def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
         return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, "reasoning": "Test edge.", **extra}
 
-    def test_prior_only_hypothesis_blocks_solved_stop(self) -> None:
+    def test_score_only_hypothesis_blocks_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
 
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
@@ -307,8 +307,8 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.6)],
-                [self.edge("O1", "H1", "supports", likelihood_ratio=6), self.edge("H1", "CS1", "leads_to")],
+                [self.hypothesis("H1", 3)],
+                [self.edge("O1", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
             )
 
             stopped = self.stop(state_path, "candidate_threshold_met")
@@ -316,14 +316,14 @@ class GroundedPathTests(unittest.TestCase):
             self.assertIn("candidate_threshold_met", stopped.stderr)
             self.ok(self.stop(state_path, "solved"))
 
-    def test_prior_only_path_may_stop_as_budget_exhausted(self) -> None:
+    def test_score_only_path_may_stop_as_budget_exhausted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 0.95)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
             self.ok(self.stop(state_path, "budget_exhausted"))
 
-    def test_prior_only_candidate_blocks_solved_stop(self) -> None:
+    def test_score_only_candidate_blocks_solved_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(tmp_dir, [], [], candidate_prior=0.9)
+            state_path = self.recorded_state(tmp_dir, [], [], candidate_score=5)
 
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
@@ -333,8 +333,8 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.99)],
-                [self.edge("O1", "H1", "contradicts", likelihood_ratio=0.8), self.edge("H1", "CS1", "leads_to")],
+                [self.hypothesis("H1", 5)],
+                [self.edge("O1", "H1", "contradicts", score=1), self.edge("H1", "CS1", "leads_to")],
             )
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
@@ -344,10 +344,10 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.6), {"id": "O2", "type": "observation", "text": "Odd log line", "source": "logs", "prior": 0.9}],
+                [self.hypothesis("H1", 3), {"id": "O2", "type": "observation", "text": "Odd log line", "source": "logs", "score": 5}],
                 [
-                    self.edge("O1", "H1", "supports", likelihood_ratio=6),
-                    self.edge("O2", "H1", "contradicts", likelihood_ratio=0.8),
+                    self.edge("O1", "H1", "supports", score=5),
+                    self.edge("O2", "H1", "contradicts", score=1),
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )
@@ -357,10 +357,10 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.5), self.hypothesis("H2", 0.5)],
+                [self.hypothesis("H1", 3), self.hypothesis("H2", 3)],
                 [
-                    self.edge("O1", "H2", "contradicts", likelihood_ratio=0.1),
-                    self.edge("O1", "H1", "supports", likelihood_ratio=9),
+                    self.edge("O1", "H2", "contradicts", score=5),
+                    self.edge("O1", "H1", "supports", score=5),
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )
@@ -374,7 +374,7 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             mixed = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H0", 0.99), self.hypothesis("H1")],
+                [self.hypothesis("H0", 5), self.hypothesis("H1")],
                 [self.edge("O1", "H1", "leads_to"), self.edge("H0", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")],
             )
             stopped = self.stop(mixed)
@@ -385,8 +385,8 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.5), self.hypothesis("H2", 0.9)],
-                [self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
+                [self.hypothesis("H1", 3), self.hypothesis("H2", 5)],
+                [self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
             )
             stopped = self.stop(state_path)
             self.assertEqual(stopped.returncode, 1, stopped.stdout)
@@ -396,8 +396,8 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.5), self.hypothesis("H2")],
-                [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", likelihood_ratio=9), self.edge("H1", "CS1", "leads_to")],
+                [self.hypothesis("H1", 3), self.hypothesis("H2")],
+                [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
             )
             self.ok(self.stop(state_path))
 
@@ -405,10 +405,10 @@ class GroundedPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(
                 tmp_dir,
-                [self.hypothesis("H1", 0.95), self.hypothesis("H2", 0.5)],
+                [self.hypothesis("H1", 5), self.hypothesis("H2", 3)],
                 [
-                    self.edge("O1", "H1", "supports", likelihood_ratio=2),
-                    self.edge("H2", "H1", "contradicts", likelihood_ratio=0.25),
+                    self.edge("O1", "H1", "supports", score=3),
+                    self.edge("H2", "H1", "contradicts", score=5),
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )

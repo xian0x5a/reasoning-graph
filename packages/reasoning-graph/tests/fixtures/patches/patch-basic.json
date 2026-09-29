@@ -5,8 +5,7 @@
       "id": "CS2",
       "type": "candidate_solution",
       "text": "Alternative exact answer",
-      "answer_kind": "exact_answer",
-      "prior": 1.0
+      "answer_kind": "exact_answer"
     }
   ],
   "edges": [

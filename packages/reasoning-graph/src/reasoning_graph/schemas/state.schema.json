@@ -68,6 +68,11 @@
       "exclusiveMinimum": 0,
       "maximum": 1
     },
+    "score": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
     "stringList": {
       "type": "array",
       "items": {
@@ -88,14 +93,10 @@
       }
     },
     "scoreStipulation": {
-      "description": "Goals, constraints, and tests are objectives, boundaries, or actions, not claims; they carry no numeric score.",
+      "description": "Goals, constraints, and tests are objectives, boundaries, or actions, not claims; they carry no score.",
       "not": {
-        "anyOf": [
-          {
-            "required": [
-              "prior"
-            ]
-          }
+        "required": [
+          "score"
         ]
       }
     },
@@ -142,9 +143,9 @@
           "pattern": "\\S",
           "description": "Test nodes only: why this check cannot be run here. A not-run test settles the test-result gate and must have no result observation."
         },
-        "prior": {
-          "$ref": "#/$defs/probability",
-          "description": "Optional local starting-probability factor, including observation or inference reliability. Multiplies inherited premise belief; omit when it would repeat uncertainty already in the premises. Not rewritten by the engine."
+        "score": {
+          "$ref": "#/$defs/score",
+          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with leads_to premises inherits their belief, and a score on it is a further local factor."
         },
         "belief": {
           "type": "number",
@@ -210,6 +211,11 @@
         "anyOf": [
           {
             "required": [
+              "prior"
+            ]
+          },
+          {
+            "required": [
               "confidence"
             ]
           },
@@ -225,23 +231,7 @@
           }
         ]
       },
-      "description": "Claims use prior as their optional local input and computed belief as output. Without a prior, a claim must inherit a belief source through leads_to premises or a calibrated joint-probability factor; the CLI checks the complete graph. A local prior multiplies premise belief, so omit it when it repeats the same uncertainty. Goals, constraints, and tests carry no score. Removed confidence/probability/posterior fields are rejected on nodes, not silently ignored or converted. Claims carry the computed belief the CLI writes; it is never authored."
-    },
-    "likelihood": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "if_target_true",
-        "if_target_false"
-      ],
-      "properties": {
-        "if_target_true": {
-          "$ref": "#/$defs/probability"
-        },
-        "if_target_false": {
-          "$ref": "#/$defs/probability"
-        }
-      }
+      "description": "Claims take one optional 1-5 score; the CLI maps it to a probability and computes belief. Goals, constraints, and tests carry no score. The removed prior/confidence/probability/posterior fields are rejected, not converted. Claims carry the computed belief the CLI writes; it is never authored."
     },
     "edge": {
       "type": "object",
@@ -275,12 +265,9 @@
             "answers"
           ]
         },
-        "likelihood": {
-          "$ref": "#/$defs/likelihood"
-        },
-        "likelihood_ratio": {
-          "type": "number",
-          "exclusiveMinimum": 0
+        "score": {
+          "$ref": "#/$defs/score",
+          "description": "supports/contradicts only: optional 1-5 tier for how strongly the source bears on the target. Omit it to take the default 3."
         },
         "reasoning": {
           "type": "string",
@@ -293,7 +280,11 @@
         "anyOf": [
           {
             "required": [
-              "likelihood",
+              "likelihood"
+            ]
+          },
+          {
+            "required": [
               "likelihood_ratio"
             ]
           },
@@ -318,7 +309,33 @@
             ]
           }
         ]
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "not": {
+                  "enum": [
+                    "supports",
+                    "contradicts"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "score"
+              ]
+            }
+          }
+        }
+      ]
     },
     "factorAggregation": {
       "type": "object",

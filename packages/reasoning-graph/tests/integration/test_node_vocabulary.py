@@ -30,20 +30,20 @@ class NodeVocabularyTests(unittest.TestCase):
         self.assertEqual(set(RESULT_NODE_TYPES), {"observation"})
 
     def test_hypothesis_to_goal_edge_is_rejected(self) -> None:
-        # Both hypothesis shapes are covered: one carrying a local prior, one whose belief
+        # Both hypothesis shapes are covered: one carrying its own score, one whose belief
         # comes from a leads_to premise. Neither may reach a goal except through a candidate.
-        prior_backed = {
+        score_backed = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find answer"},
-                {"id": "H1", "type": "hypothesis", "text": "Direct answer", "prior": 0.5},
+                {"id": "H1", "type": "hypothesis", "text": "Direct answer", "score": 3},
             ],
-            "edges": [{"id": "H1G1", "from": "H1", "to": "G1", "type": "supports", "likelihood_ratio": 2, "reasoning": "Claims the goal directly."}],
+            "edges": [{"id": "H1G1", "from": "H1", "to": "G1", "type": "supports", "score": 3, "reasoning": "Claims the goal directly."}],
             "frontier": [{"id": "Q1", "node": "H1", "cost_components": {"truth": "auto"}}],
         }
         premise_backed = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find answer"},
-                {"id": "O1", "type": "observation", "text": "Seen in the source", "source": "probe", "prior": 1.0},
+                {"id": "O1", "type": "observation", "text": "Seen in the source", "source": "probe"},
                 {"id": "H1", "type": "hypothesis", "text": "Established step"},
             ],
             "edges": [
@@ -51,7 +51,7 @@ class NodeVocabularyTests(unittest.TestCase):
                 {"id": "H1G1", "from": "H1", "to": "G1", "type": "leads_to", "reasoning": "The step is taken as the answer."},
             ],
         }
-        for label, state in {"prior-backed": prior_backed, "premise-backed": premise_backed}.items():
+        for label, state in {"score-backed": score_backed, "premise-backed": premise_backed}.items():
             with self.subTest(hypothesis=label):
                 errors = validate_state(state).errors
                 self.assertTrue(any("connects hypothesis H1 directly to goal G1" in error for error in errors), errors)

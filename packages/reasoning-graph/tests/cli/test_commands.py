@@ -31,8 +31,8 @@ PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.
 # A valid record patch against the fixture: one new observation supporting A1.
 FIXTURE_RECORD_PATCH = {
     "reason": "Recorded a second symptom report",
-    "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "prior": 0.9}],
-    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The observed signal is more likely when the target claim is true."}],
+    "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "score": 5}],
+    "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "score": 3, "reasoning": "The observed signal is more likely when the target claim is true."}],
 }
 
 
@@ -125,8 +125,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch = {
             "reason": "Added two hypotheses and a grouped premise",
             "nodes": [
-                {"prior": 0.5, "id": "A1", "type": "hypothesis", "text": "First"},
-                {"prior": 0.5, "id": "A2", "type": "hypothesis", "text": "Second"},
+                {"score": 3, "id": "A1", "type": "hypothesis", "text": "First"},
+                {"score": 3, "id": "A2", "type": "hypothesis", "text": "Second"},
             ],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1", "from": "A1", "to": "A2", "type": "supports"}],
             "factors": [{
@@ -211,8 +211,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         fixture_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         patch = {
             "reason": "Added a third cause",
-            "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "prior": 0.2}],
-            "update_nodes": [{"id": "A1", "set": {"prior": 0.7}}],
+            "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "score": 1}],
+            "update_nodes": [{"id": "A1", "set": {"score": 4}}],
             "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
         }
 
@@ -244,7 +244,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
+                    "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 1}],
                     "edges": [],
                 }),
                 encoding="utf-8",
@@ -252,7 +252,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_path.write_text(
                 json.dumps({
                     "reason": "Cheap checks on A1 complete; only its score changed.",
-                    "update_nodes": [{"id": "A1", "set": {"prior": 0.75, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
+                    "update_nodes": [{"id": "A1", "set": {"score": 4, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
                 }),
                 encoding="utf-8",
             )
@@ -261,12 +261,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(recorded.returncode, 0, recorded.stderr)
             updated = json.loads(state_path.read_text(encoding="utf-8"))
 
-            self.assertEqual(updated["nodes"][0]["prior"], 0.75)
+            self.assertEqual(updated["nodes"][0]["score"], 4)
             self.assertTrue(updated["nodes"][0]["exhausted"])
             self.assertEqual(updated["nodes"][0]["exhaustion_reason"], "cheap checks complete")
             self.assertEqual(
                 updated["events"][-1]["updated_nodes"],
-                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "prior"]}],
+                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "score"]}],
             )
 
     def test_record_patch_rejects_missing_or_identity_node_updates(self) -> None:
@@ -275,13 +275,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(
                 json.dumps({
-                    "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.2}],
+                    "nodes": [{"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 1}],
                     "edges": [],
                 }),
                 encoding="utf-8",
             )
 
-            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"prior": 0.5}}]}), encoding="utf-8")
+            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"score": 3}}]}), encoding="utf-8")
             missing = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("update_nodes id A2 does not exist", missing.stderr)
@@ -314,12 +314,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             patch = {
                 "nodes": [
-                    {"id": "E1", "type": "observation", "text": "API error rate increased", "prior": 0.9},
-                    {"id": "A1", "type": "hypothesis", "text": "Database latency is causing errors", "prior": 0.4},
+                    {"id": "E1", "type": "observation", "text": "API error rate increased", "score": 5},
+                    {"id": "A1", "type": "hypothesis", "text": "Database latency is causing errors", "score": 2},
                     {"id": "T1", "type": "test", "text": "Check database latency metrics"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0},
+                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
                     {"reasoning": "This claim motivates the follow-up check.", "id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
                 ],
             }
@@ -406,9 +406,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             evidence_state = {
                 "nodes": [
                     {"id": "G1", "type": "goal", "text": "Pick cause"},
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.6},
-                    {"id": "E1", "type": "observation", "text": "Observed mismatch", "prior": 0.9},
-                    {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"id": "E1", "type": "observation", "text": "Observed mismatch", "score": 5},
+                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
                     {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts"},
@@ -442,8 +442,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             invalid_state = {
                 "nodes": [
                     {"id": "G1", "type": "goal", "text": "Pick cause"},
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.6},
-                    {"prior": 1.0, "id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
                     {"id": "A1-CS1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "CS1", "type": "leads_to"},
@@ -463,7 +463,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "prompts-edge-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.6},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
                     {"id": "T1", "type": "test", "text": "Check likely cause"},
                 ],
                 "edges": [{"id": "A1-T1-prompts", "reasoning": "This claim motivates the follow-up check.", "from": "A1", "to": "T1", "type": "prompts"}],
@@ -474,18 +474,18 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(valid.returncode, 0, valid.stderr)
             self.assertIn("ok", valid.stdout)
 
-    def test_beliefs_use_conditional_likelihood_updates(self) -> None:
+    def test_beliefs_use_evidence_scores(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "likelihood-state.json"
+            state_path = Path(tmp_dir) / "evidence-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Negative signal"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause"},
+                    {"id": "E1", "type": "observation", "text": "Positive signal"},
+                    {"id": "E2", "type": "observation", "text": "Negative signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.75, "if_target_false": 0.25}},
-                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.2, "if_target_false": 0.4}},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "score": 4},
+                    {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts"},
                 ],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -493,52 +493,15 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             result = self.run_cli("beliefs", str(state_path), "--json")
             self.assertEqual(result.returncode, 0, result.stderr)
             beliefs = {row["id"]: row["belief"] for row in json.loads(result.stdout)}
-            # Prior odds 1 * (0.75/0.25) * (0.2/0.4) = odds 1.5 => posterior 0.6 => -ln(.6).
+            # Default odds 1 * ratio 3 * default ratio 1/2 = odds 1.5 => belief 0.6 => -ln(.6).
             self.assertAlmostEqual(beliefs["A1"], 0.6, places=6)
             self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
-
-    def test_beliefs_handle_certain_prior_with_finite_likelihood_update(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "certain-prior-state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Certain premise", "prior": 1.0},
-                    {"id": "E1", "type": "observation", "text": "Finite supporting signal", "prior": 0.9},
-                ],
-                "edges": [
-                    {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 2.0, "reasoning": "The signal supports the target with a finite likelihood ratio."},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            validation = self.run_cli("validate", str(state_path))
-
-            self.assertEqual(validation.returncode, 0, validation.stderr)
-            a1_truth_cost = truth_cost(state, "A1")
-            self.assertEqual(a1_truth_cost, 0.0)
-            self.assertTrue(math.isfinite(a1_truth_cost))
-
-    def test_beliefs_use_likelihood_ratio_updates(self) -> None:
-        state = {
-            "nodes": [
-                {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal"},
-                {"prior": 0.95, "id": "E2", "type": "observation", "text": "Negative signal"},
-            ],
-            "edges": [
-                {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 3.0},
-                {"id": "E2-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E2", "to": "A1", "type": "contradicts", "likelihood_ratio": 0.5},
-            ],
-        }
-
-        # Prior odds 1 * LR 3 * LR 0.5 = odds 1.5 => posterior 0.6 => -ln(.6).
-        self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
 
     def test_beliefs_propagate_leads_to_premises(self) -> None:
         state = {
             "nodes": [
-                {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.8},
-                {"id": "E1", "type": "observation", "text": "Premise E", "prior": 0.9},
+                {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 4},
+                {"id": "E1", "type": "observation", "text": "Premise E"},
                 {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
             ],
             "edges": [
@@ -547,24 +510,24 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             ],
         }
 
-        self.assertAlmostEqual(truth_cost(state, "A1"), 0.223144, places=6)
-        # D1 truth is graph-derived from both premises: -ln(0.8 * 0.9).
-        self.assertAlmostEqual(truth_cost(state, "D1"), 0.328504, places=6)
+        self.assertAlmostEqual(truth_cost(state, "A1"), 0.356675, places=6)
+        # D1 truth is graph-derived from both premises: -ln(0.7 * 0.9).
+        self.assertAlmostEqual(truth_cost(state, "D1"), 0.462035, places=6)
 
     def test_beliefs_factor_replaces_correlated_likelihood_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "factor-likelihood-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal A"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Positive signal B"},
-                    {"prior": 0.95, "id": "E3", "type": "observation", "text": "Independent signal"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
+                    {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
+                    {"score": 5, "id": "E3", "type": "observation", "text": "Independent signal"},
                 ],
                 "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
-                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
-                    {"id": "E3-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.6, "if_target_false": 0.3}},
+                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
+                    {"id": "E2-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E2", "to": "A1", "type": "supports"},
+                    {"id": "E3-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E3", "to": "A1", "type": "supports"},
                 ],
                 "factors": [
                     {
@@ -579,7 +542,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            # Prior odds 1 * grouped LR 3 * independent LR 2 = odds 6 => posterior 6/7 => -ln(6/7).
+            # Default odds 1 * grouped ratio 3 * independent default ratio 2 = odds 6 => belief 6/7 => -ln(6/7).
             self.assertAlmostEqual(truth_cost(state, "A1"), 0.154151, places=6)
 
             valid = self.run_cli("validate", str(state_path))
@@ -590,9 +553,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "factor-leads-to-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.2},
-                    {"id": "B1", "type": "observation", "text": "Premise B", "prior": 0.3},
-                    {"id": "C1", "type": "hypothesis", "text": "Independent premise C", "prior": 0.5},
+                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 1},
+                    {"id": "B1", "type": "observation", "text": "Premise B", "score": 2},
+                    {"id": "C1", "type": "hypothesis", "text": "Independent premise C"},
                     {"id": "D1", "type": "hypothesis", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
@@ -613,6 +576,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
+            # Joint 0.18 replaces 0.1 * 0.3; the independent premise adds its default 0.5: -ln(0.09).
             self.assertAlmostEqual(truth_cost(state, "D1"), 2.407946, places=6)
 
             valid = self.run_cli("validate", str(state_path))
@@ -628,9 +592,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         rows = {row["id"]: row for row in json.loads(as_json.stdout)}
         # Goals carry no belief; only observation/hypothesis/candidate claims are listed.
         self.assertEqual(set(rows), {"O1", "A1", "A2", "CS1"})
-        self.assertEqual(rows["CS1"], {"id": "CS1", "type": "candidate_solution", "belief": 0.6})
+        self.assertEqual(rows["CS1"], {"id": "CS1", "type": "candidate_solution", "belief": 0.45})
         self.assertEqual(as_text.returncode, 0, as_text.stderr)
-        self.assertIn("CS1 candidate_solution belief 0.6", as_text.stdout)
+        self.assertIn("CS1 candidate_solution belief 0.45", as_text.stdout)
         self.assertEqual(FIXTURE.read_text(encoding="utf-8"), original)
 
     def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
@@ -638,8 +602,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "grouped-cycle-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.5},
-                    {"id": "B1", "type": "hypothesis", "text": "Premise B", "prior": 0.5},
+                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 3},
+                    {"id": "B1", "type": "hypothesis", "text": "Premise B", "score": 3},
                     {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
                 ],
                 "edges": [
@@ -669,8 +633,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "missing-reason-factor-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "prior": 0.8},
-                    {"id": "B1", "type": "hypothesis", "text": "Premise B", "prior": 0.8},
+                    {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 4},
+                    {"id": "B1", "type": "hypothesis", "text": "Premise B", "score": 4},
                     {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
                 ],
                 "edges": [
@@ -700,15 +664,15 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             output_path = Path(tmp_dir) / "record-factor-output.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal A"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Positive signal B"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
+                    {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
-                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}}],
+                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports"}],
             }
             patch = {
                 "reason": "E2 shares E1's source, so their evidence is grouped.",
-                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}}],
+                "edges": [{"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
                 "factors": [
                     {
                         "id": "F1",
@@ -728,7 +692,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             recorded = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(recorded["factors"][0]["id"], "F1")
             self.assertEqual(recorded["events"][-1]["update_factors"], ["F1"])
-            # Grouped LR 3 replaces the member LRs 4 and 3 => odds 3 => -ln(0.75).
+            # Grouped ratio 3 replaces the two member ratios of 2 => odds 3 => -ln(0.75).
             self.assertAlmostEqual(truth_cost(recorded, "A1"), 0.287682, places=6)
 
     def test_audit_accepts_updated_factors(self) -> None:
@@ -736,13 +700,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "audit-factor-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal A"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Positive signal B"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
+                    {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports", "likelihood": {"if_target_true": 0.9, "if_target_false": 0.3}},
+                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E1A", "from": "E1", "to": "A1", "type": "supports"},
+                    {"reasoning": "The observed signal is more likely when the target claim is true.", "id": "E2A", "from": "E2", "to": "A1", "type": "supports"},
                 ],
                 "factors": [
                     {
@@ -771,64 +735,32 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             result = self.run_cli("audit", str(state_path))
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_contradicts_without_likelihood_ratio_is_explanatory_only(self) -> None:
+    def test_legacy_edge_strength_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "legacy-contradiction-state.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"id": "E1", "type": "observation", "text": "Negative signal", "prior": 0.1},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause"},
+                    {"id": "E1", "type": "observation", "text": "Negative signal"},
                 ],
                 "edges": [{"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "strength": 1.0}],
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            self.assertAlmostEqual(truth_cost(state, "A1"), 0.693147, places=6)
 
             valid = self.run_cli("validate", str(state_path))
             self.assertNotEqual(valid.returncode, 0, valid.stdout)
             self.assertIn("ignored legacy field(s) strength", valid.stderr)
             self.assertIn("schema $.edges[0]", valid.stderr)
 
-    def test_validate_rejects_bad_likelihood_ratio_semantics(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "bad-lr-state.json"
-            state = {
-                "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Signal"},
-                ],
-                "edges": [
-                    {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports", "likelihood_ratio": 0.5},
-                    {"id": "A1-E1-leads_to", "reasoning": "The target conclusion depends on this premise.", "from": "A1", "to": "E1", "type": "leads_to", "likelihood_ratio": 2.0},
-                    {"reasoning": "The observed signal is more likely when the target claim is true.",
-                        "from": "E1",
-                        "to": "A1",
-                        "type": "supports",
-                        "likelihood_ratio": 2.0,
-                        "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2},
-                    },
-                    {"id": "E1-A1-contradicts", "reasoning": "The observed signal is less likely when the target claim is true.", "from": "E1", "to": "A1", "type": "contradicts", "likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}},
-                ],
-            }
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            invalid = self.run_cli("validate", str(state_path))
-            self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
-            self.assertIn("supports likelihood ratio must be > 1", invalid.stderr)
-            self.assertIn("likelihood/likelihood_ratio is only valid on supports/contradicts", invalid.stderr)
-            self.assertIn("edge must not set both likelihood and likelihood_ratio", invalid.stderr)
-            self.assertIn("contradicts likelihood ratio must be in (0, 1)", invalid.stderr)
-
     def test_validate_rejects_bad_factors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "bad-factors.json"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Signal A"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Signal B"},
-                    {"prior": 0.95, "id": "E3", "type": "observation", "text": "Signal C"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"score": 5, "id": "E1", "type": "observation", "text": "Signal A"},
+                    {"score": 5, "id": "E2", "type": "observation", "text": "Signal B"},
+                    {"score": 5, "id": "E3", "type": "observation", "text": "Signal C"},
                 ],
                 "edges": [
                     {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},
@@ -961,7 +893,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "already has a stop",
             ),
             "blank reason": (
-                {"nodes": [{"id": "A1", "type": "hypothesis", "prior": 1.0}], "edges": []},
+                {"nodes": [{"id": "A1", "type": "hypothesis"}], "edges": []},
                 "   ",
                 "stop reason must be non-empty",
             ),
@@ -1051,8 +983,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_offline_html_uses_collision_safe_render_identities(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "prior": 0.6},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer", "prior": 0.4},
+                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "score": 3},
+                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer", "score": 2},
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
@@ -1087,9 +1019,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             html_path = Path(tmp_dir) / "factor-render.html"
             state = {
                 "nodes": [
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "prior": 0.5},
-                    {"prior": 0.95, "id": "E1", "type": "observation", "text": "Positive signal A"},
-                    {"prior": 0.95, "id": "E2", "type": "observation", "text": "Positive signal B"},
+                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
+                    {"score": 5, "id": "E1", "type": "observation", "text": "Positive signal A"},
+                    {"score": 5, "id": "E2", "type": "observation", "text": "Positive signal B"},
                 ],
                 "edges": [
                     {"id": "E1-A1-supports", "reasoning": "The observed signal is more likely when the target claim is true.", "from": "E1", "to": "A1", "type": "supports"},

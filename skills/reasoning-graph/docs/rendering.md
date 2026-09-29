@@ -25,7 +25,7 @@ Example compact shape:
 Answer: ...
 
 Proof path:
-E1 -> C1 -> A2 (prior 0.6) -> D4 -> candidate S1
+E1 -> C1 -> A2 (score 4) -> D4 -> candidate S1
 
 Why this wins:
 - satisfies C1/C2
@@ -94,9 +94,9 @@ Recommended graph/HTML flow:
 
 ### Belief display
 
-Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the local `prior`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
+Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief** from **Local prior**, which shows only when authored. For example, premise `0.8` and local prior `0.9` give a graph label `belief 0.72` and details `Local prior: 0.9`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
+Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
 
 Canvas rules:
 
@@ -118,7 +118,7 @@ Mermaid styling pattern:
 flowchart TD
   O1["observation: input is sorted"] --> H2["hypothesis: two-pointer is viable"]
   C1["constraint: O(n) time"] --> H2
-  H1["H1<br/>hypothesis<br/>belief 0.4"] --> CS1["CS1<br/>candidate<br/>belief 0.4"]
+  H1["H1<br/>hypothesis<br/>belief 0.5"] --> CS1["CS1<br/>candidate<br/>belief 0.5"]
   CS1 -- answers --> G
   O2["observation: violates O(n)"] -. contradicts .-> H1
 

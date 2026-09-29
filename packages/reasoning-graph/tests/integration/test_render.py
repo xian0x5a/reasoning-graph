@@ -16,8 +16,8 @@ from reasoning_graph.render import html_document, to_mermaid
 class RenderIdentityTests(unittest.TestCase):
     def state(self, reverse: bool = False) -> dict:
         nodes = [
-            {"id": "A-B", "type": "observation", "text": "hyphen", "prior": 0.6},
-            {"id": "A_B", "type": "hypothesis", "text": "underscore", "prior": 0.4},
+            {"id": "A-B", "type": "observation", "text": "hyphen", "score": 3},
+            {"id": "A_B", "type": "hypothesis", "text": "underscore", "score": 2},
             {"id": "A B", "type": "goal", "text": "space"},
         ]
         if reverse:
@@ -25,7 +25,7 @@ class RenderIdentityTests(unittest.TestCase):
         return {
             "nodes": nodes,
             "edges": [
-                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "likelihood_ratio": 2, "reasoning": "The hyphenated observation supports the underscored claim."},
+                {"id": "A-B>A_B", "from": "A-B", "to": "A_B", "type": "supports", "score": 3, "reasoning": "The hyphenated observation supports the underscored claim."},
                 {"id": "A B>A-B", "from": "A B", "to": "A-B", "type": "leads_to", "reasoning": "The goal motivates the hyphenated observation."},
             ],
         }
@@ -61,16 +61,17 @@ class RenderIdentityTests(unittest.TestCase):
             self.assertIn(f'id="details-{render_id}"', document)
         self.assertIn('"from": "A_B_2", "to": "A_B_3"', document)
         self.assertIn('"from": "A_B", "to": "A_B_2"', document)
-        self.assertIn("belief 0.571", source)
-        self.assertIn("belief 0.571", svg)
-        self.assertIn("Effective belief: 0.571429", document)
-        self.assertIn("Local prior: 0.4", document)
+        # Score 2 gives odds 3/7; the supporting ratio 2 gives 6/13.
+        self.assertIn("belief 0.462", source)
+        self.assertIn("belief 0.462", svg)
+        self.assertIn("Effective belief: 0.461538", document)
+        self.assertIn("Score: 2", document)
 
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:
         state = {
             "nodes": [
-                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "prior": 0.6, "answer_kind": "exact_answer"},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "prior": 0.4, "answer_kind": "exact_answer"},
+                {"id": "A-B", "type": "candidate_solution", "text": "hyphen", "score": 3, "answer_kind": "exact_answer"},
+                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "score": 2, "answer_kind": "exact_answer"},
                 {"id": "A B", "type": "goal", "text": "goal"},
             ],
             "edges": [
@@ -98,17 +99,17 @@ class RenderIdentityTests(unittest.TestCase):
         state = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "goal"},
-                {"id": "O1", "type": "observation", "text": "clue", "prior": 1},
-                {"id": "H1", "type": "hypothesis", "text": "clue encodes data", "prior": 0.8},
+                {"id": "O1", "type": "observation", "text": "clue"},
+                {"id": "H1", "type": "hypothesis", "text": "clue encodes data", "score": 4},
                 {"id": "T1", "type": "test", "text": "extract data"},
-                {"id": "O4", "type": "observation", "text": "extracted data", "prior": 1},
-                {"id": "H3", "type": "hypothesis", "text": "decoding A", "prior": 0.7},
+                {"id": "O4", "type": "observation", "text": "extracted data"},
+                {"id": "H3", "type": "hypothesis", "text": "decoding A", "score": 4},
                 {"id": "T3", "type": "test", "text": "decode with A"},
-                {"id": "O5", "type": "observation", "text": "decoding A works", "prior": 1},
-                {"id": "CS1", "type": "candidate_solution", "text": "answer A", "prior": 1, "answer_kind": "exact_answer"},
-                {"id": "H4", "type": "hypothesis", "text": "decoding B", "prior": 0.3},
-                {"id": "O6", "type": "observation", "text": "decoding B fails", "prior": 1},
-                {"id": "CS2", "type": "candidate_solution", "text": "answer B", "prior": 0.01, "answer_kind": "exact_answer"},
+                {"id": "O5", "type": "observation", "text": "decoding A works"},
+                {"id": "CS1", "type": "candidate_solution", "text": "answer A", "answer_kind": "exact_answer"},
+                {"id": "H4", "type": "hypothesis", "text": "decoding B", "score": 2},
+                {"id": "O6", "type": "observation", "text": "decoding B fails"},
+                {"id": "CS2", "type": "candidate_solution", "text": "answer B", "score": 1, "answer_kind": "exact_answer"},
             ],
             "edges": [
                 edge("O1", "supports", "H1"),
@@ -137,8 +138,8 @@ class RenderIdentityTests(unittest.TestCase):
         graph candidates even when no report metadata was written."""
         state = {
             "nodes": [
-                {"id": "CS1", "type": "candidate_solution", "text": "First answer", "prior": 0.6, "answer_kind": "exact_answer"},
-                {"id": "CS2", "type": "candidate_solution", "text": "Second answer", "prior": 0.4, "answer_kind": "exact_answer"},
+                {"id": "CS1", "type": "candidate_solution", "text": "First answer", "score": 3, "answer_kind": "exact_answer"},
+                {"id": "CS2", "type": "candidate_solution", "text": "Second answer", "score": 2, "answer_kind": "exact_answer"},
                 {"id": "G1", "type": "goal", "text": "goal"},
             ],
             "edges": [
@@ -180,10 +181,10 @@ class RenderIdentityTests(unittest.TestCase):
     def test_mermaid_preserves_declared_factor_and_input_order(self) -> None:
         state = {
             "nodes": [
-                {"id": "I_1", "type": "observation", "prior": 0.9},
-                {"id": "I-1", "type": "observation", "prior": 0.9},
-                {"id": "TZ", "type": "hypothesis", "prior": 0.5},
-                {"id": "TA", "type": "hypothesis", "prior": 0.5},
+                {"id": "I_1", "type": "observation", "score": 5},
+                {"id": "I-1", "type": "observation", "score": 5},
+                {"id": "TZ", "type": "hypothesis", "score": 3},
+                {"id": "TA", "type": "hypothesis", "score": 3},
             ],
             "edges": [
                 {"id": f"{source}-{target}", "from": source, "to": target, "type": "supports", "reasoning": "The observation supports this claim."}
@@ -226,9 +227,9 @@ class RenderIdentityTests(unittest.TestCase):
         raw_node_id = "@factor:factor_F1"
         state = {
             "nodes": [
-                {"id": raw_node_id, "type": "observation", "prior": 0.9},
-                {"id": "E2", "type": "observation", "prior": 0.9},
-                {"id": "A1", "type": "hypothesis", "prior": 0.5},
+                {"id": raw_node_id, "type": "observation", "score": 5},
+                {"id": "E2", "type": "observation", "score": 5},
+                {"id": "A1", "type": "hypothesis", "score": 3},
             ],
             "edges": [
                 {"id": f"{source}-A1", "from": source, "to": "A1", "type": "supports", "reasoning": "The observation supports A1."}
@@ -260,9 +261,9 @@ class RenderIdentityTests(unittest.TestCase):
     def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
         state = {
             "nodes": [
-                {"id": "E1", "type": "observation", "prior": 0.9},
-                {"id": "E2", "type": "observation", "prior": 0.9},
-                {"id": "A1", "type": "hypothesis", "prior": 0.5},
+                {"id": "E1", "type": "observation", "score": 5},
+                {"id": "E2", "type": "observation", "score": 5},
+                {"id": "A1", "type": "hypothesis", "score": 3},
             ],
             "edges": [
                 {"id": "E1-A1-supports", "from": "E1", "to": "A1", "type": "supports", "reasoning": "E1 supports A1."},
@@ -294,7 +295,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         the graph collapses into an intrinsic-height strip and pan/zoom clips inside it."""
         state = {
             "nodes": [
-                {"id": "E1", "type": "observation", "text": "Observed premise", "prior": 0.9},
+                {"id": "E1", "type": "observation", "text": "Observed premise", "score": 5},
                 {"id": "G1", "type": "goal", "text": "Answer the question"},
             ],
             "edges": [{"id": "E1-G1-leads_to", "from": "E1", "to": "G1", "type": "leads_to", "reasoning": "E1 motivates G1."}],
