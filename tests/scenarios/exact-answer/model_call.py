@@ -1,4 +1,4 @@
-"""One structured model call through the claude harness, for the rubric drafter and the scorer (issue #37)."""
+"""One structured model call through the claude harness, for the rubric drafter, the scorer and the reader eval (issues #37, #39)."""
 
 import json
 import subprocess
@@ -9,15 +9,21 @@ CALL_TIMEOUT_SECONDS = 300
 SYSTEM_PROMPT = "You are a careful grader of detective puzzles. Answer only with the requested JSON."
 
 
-def structured_call(prompt: str, schema: dict, model: str) -> dict:
-    """Return the model's answer as an object matching `schema`. Raises when the call fails."""
+def model_call(prompt: str, schema: dict, model: str, system_prompt: str = SYSTEM_PROMPT) -> dict:
+    """Return the harness's whole result: `structured_output` matches `schema`, and
+    `total_cost_usd` is what the call cost. Raises when the call fails."""
     completed = subprocess.run(
         ["claude", "-p", prompt, "--model", model, "--output-format", "json",
-         "--no-session-persistence", "--tools", "", "--system-prompt", SYSTEM_PROMPT,
+         "--no-session-persistence", "--tools", "", "--system-prompt", system_prompt,
          "--json-schema", json.dumps(schema)],
         capture_output=True, text=True, timeout=CALL_TIMEOUT_SECONDS, check=True,
     )
     result = json.loads(completed.stdout)
     if result["is_error"]:
         raise RuntimeError(f"model call failed: {result['result']}")
-    return result["structured_output"]
+    return result
+
+
+def structured_call(prompt: str, schema: dict, model: str) -> dict:
+    """Return the model's answer as an object matching `schema`. Raises when the call fails."""
+    return model_call(prompt, schema, model)["structured_output"]
