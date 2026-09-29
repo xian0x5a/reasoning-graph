@@ -37,9 +37,9 @@ FIXTURE_RECORD_PATCH = {
 
 
 def unstopped_fixture_state() -> dict[str, Any]:
-    """Fixture graph before its terminal rank/stop events, so mutating commands can append."""
+    """Fixture graph before its terminal stop event, so mutating commands can append."""
     state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    state["events"] = [event for event in state["events"] if event.get("action") not in {"rank", "stop"}]
+    state["events"] = [event for event in state["events"] if event.get("action") != "stop"]
     return state
 
 
@@ -95,7 +95,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
-        self.assertEqual(set(event_actions), {"record", "refresh", "rank", "stop"})
+        self.assertEqual(set(event_actions), {"record", "refresh", "stop"})
         self.assertNotIn("frontier_exhausted", state_schema["$defs"]["event"]["properties"]["outcome"]["enum"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
         self.assertIn("reason", patch_schema["properties"])
@@ -370,7 +370,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         audit = self.run_cli("audit", str(FIXTURE))
         self.assertEqual(audit.returncode, 0, audit.stderr)
         self.assertIn("ok", audit.stdout)
-        self.assertIn("events=3 records=1 rankings=1", audit.stdout)
+        self.assertIn("events=2 records=1", audit.stdout)
 
     def test_audit_reports_validation_errors_without_deeper_audit_crash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -484,11 +484,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             }
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            result = self.run_cli("beliefs", str(state_path), "--json")
-            self.assertEqual(result.returncode, 0, result.stderr)
-            beliefs = {row["id"]: row["belief"] for row in json.loads(result.stdout)}
+            self.assertEqual(self.run_cli("validate", str(state_path)).returncode, 0)
             # Default odds 1 * ratio 3 * default ratio 1/2 = odds 1.5 => belief 0.6 => -ln(.6).
-            self.assertAlmostEqual(beliefs["A1"], 0.6, places=6)
             self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
 
     def test_beliefs_propagate_leads_to_premises(self) -> None:
@@ -557,21 +554,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
 
             valid = self.run_cli("validate", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
-
-    def test_beliefs_command_prints_claim_beliefs_without_mutating_state(self) -> None:
-        original = FIXTURE.read_text(encoding="utf-8")
-
-        as_json = self.run_cli("beliefs", str(FIXTURE), "--json")
-        as_text = self.run_cli("beliefs", str(FIXTURE))
-
-        self.assertEqual(as_json.returncode, 0, as_json.stderr)
-        rows = {row["id"]: row for row in json.loads(as_json.stdout)}
-        # Goals carry no belief; only observation/hypothesis/candidate claims are listed.
-        self.assertEqual(set(rows), {"O1", "A1", "A2", "CS1"})
-        self.assertEqual(rows["CS1"], {"id": "CS1", "type": "candidate_solution", "belief": 0.45})
-        self.assertEqual(as_text.returncode, 0, as_text.stderr)
-        self.assertIn("CS1 candidate_solution belief 0.45", as_text.stdout)
-        self.assertEqual(FIXTURE.read_text(encoding="utf-8"), original)
 
     def test_validate_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -700,7 +682,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(stopped["events"][-1]["action"], "stop")
             self.assertEqual(stopped["events"][-1]["outcome"], "user_stopped")
 
-    def test_stop_ranks_candidate_outcomes_without_mutating_input_file(self) -> None:
+    def test_solved_stop_does_not_mutate_input_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             stopped_path = Path(tmp_dir) / "stopped.json"
@@ -721,15 +703,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             stopped = json.loads(stopped_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in stopped["events"][-2:]], ["rank", "stop"])
-            self.assertNotIn("item", stopped["events"][-2])
-            self.assertEqual(stopped["events"][-2]["best"], "CS1")
+            self.assertEqual([event["action"] for event in stopped["events"]], ["record", "stop"])
             self.assertEqual(stopped["events"][-1]["outcome"], "solved")
 
             audit = self.run_cli("audit", str(stopped_path))
             self.assertEqual(audit.returncode, 0, audit.stderr)
 
-    def test_stop_candidate_outcome_rejects_unmet_gate_without_persisting_rank_or_stop(self) -> None:
+    def test_stop_candidate_outcome_rejects_unmet_gate_without_persisting_stop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             state = unstopped_fixture_state()
@@ -752,7 +732,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("must connect to a goal with an answers edge", stopped.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             persisted = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertNotIn("rank", [event["action"] for event in persisted["events"]])
             self.assertNotIn("stop", [event["action"] for event in persisted["events"]])
 
     def test_stop_preflight_rejects_invalid_terminal_states_without_persisting(self) -> None:

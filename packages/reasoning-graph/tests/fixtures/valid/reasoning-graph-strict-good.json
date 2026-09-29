@@ -71,19 +71,6 @@
     },
     {
       "step": 2,
-      "action": "rank",
-      "best": "CS1",
-      "belief": 0.45,
-      "candidates": [
-        {
-          "node": "CS1",
-          "belief": 0.45,
-          "effective_truth_cost": 0.798508
-        }
-      ]
-    },
-    {
-      "step": 3,
       "action": "stop",
       "reason": "CS1 answers G1 and its premise chain is recorded",
       "outcome": "solved",

@@ -77,7 +77,7 @@ Score every run on the same sheet, whichever arm produced it:
 
 For reasoning-graph runs, also record from the stopped state:
 
-- `reasoning-graph audit` stats: `records` and `rankings`
+- `reasoning-graph audit` stats: `events` and `records`
 - number of `contradicts` edges, and which stop gate the `stop` event names
 - `validate` / `audit` verdicts
 

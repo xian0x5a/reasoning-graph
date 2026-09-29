@@ -40,7 +40,6 @@ FACTOR_RELATIONS = {
 AUDIT_EVENT_ACTIONS = {
     "record",
     "refresh",
-    "rank",
     "stop",
 }
 

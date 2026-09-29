@@ -9,7 +9,7 @@ from .costs import (
     REMOVED_EDGE_SCORE_FIELDS,
     REMOVED_NODE_SCORE_FIELDS,
     assert_acyclic_premise_dependencies,
-    claim_beliefs,
+    node_effective_truth_costs,
     removed_score_field_message,
     require_score,
     resolve_edge_groups,
@@ -20,8 +20,9 @@ from .schema_validation import state_schema_errors
 from .utils import as_string_list
 
 
-# Stored beliefs are rounded to 6 places when written.
-BELIEF_TOLERANCE = 1e-6
+# Computed numbers the state used to hold. They are computed when the graph is rendered, for
+# the reader: an agent that sees them tunes scores until a number moves (issue #37).
+REMOVED_REPORT_CANDIDATE_FIELDS = ("belief", "truth_cost", "effective_truth_cost", "weight")
 # Belief did not separate right answers from wrong ones and a same-model reviewer shared the
 # author's misreading (issue #37), so neither gates a stop. A state that still asks for them fails.
 REMOVED_STOP_POLICY_KEYS = ("belief_threshold", "require_review")
@@ -47,6 +48,8 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
             continue
         owner = f"node {node.get('id') or index}"
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_NODE_SCORE_FIELDS if field in node)
+        if "belief" in node:
+            errors.append(f"{owner}: belief was removed from the state; it is computed when the graph is rendered; delete the field")
         if "score" not in node:
             continue
         if node.get("type") not in BELIEF_NODE_TYPES:
@@ -191,6 +194,8 @@ def validate_state(state: Any) -> ValidationResult:
     for i, event in enumerate(events if isinstance(events, list) else []):
         if isinstance(event, dict) and event.get("action") == "review":
             errors.append(f"events[{i}] is a review event, which was removed: no review gates a stop; delete the event")
+        if isinstance(event, dict) and event.get("action") == "rank":
+            errors.append(f"events[{i}] is a rank event, which was removed: the state holds no computed belief; delete the event")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}
@@ -311,6 +316,11 @@ def validate_state(state: Any) -> ValidationResult:
             if not isinstance(row, dict):
                 errors.append(f"report.candidates[{index}] must be object")
                 continue
+            errors.extend(
+                f"report.candidates[{index}].{field} was removed; ranking is computed when the graph is rendered; delete the field"
+                for field in REMOVED_REPORT_CANDIDATE_FIELDS
+                if field in row
+            )
             row_id = row.get("id")
             if row_id is not None and row_id not in candidate_ids:
                 errors.append(f"report.candidates[{index}].id references missing candidate_solution {row_id!r}")
@@ -345,17 +355,8 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"solutions references non-candidate node {node_id!r}; selected answers must be candidate_solution nodes")
 
     try:
-        beliefs = claim_beliefs(state)
-        for node_id, node in nodes_by_id.items():
-            if "belief" not in node:
-                continue
-            if node_id not in beliefs:
-                errors.append(f"{node.get('type')} node {node_id} has belief; only claims carry a computed belief")
-            elif not isinstance(node["belief"], (int, float)) or abs(node["belief"] - beliefs[node_id]) > BELIEF_TOLERANCE:
-                errors.append(
-                    f"stale belief on {node_id}: stored {node['belief']!r}, computed {beliefs[node_id]}; "
-                    "after a hand edit, run `reasoning-graph refresh <state>`"
-                )
+        # Computed only to catch inputs the belief math rejects, such as an evidence cycle.
+        node_effective_truth_costs(state)
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")
 

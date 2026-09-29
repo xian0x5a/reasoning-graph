@@ -136,10 +136,9 @@ class UnansweredGoalTests(SpookyManorFlow):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             # Forge the terminal events by hand to bypass the CLI preflight.
             step = state["events"][-1]["step"]
-            state["events"].extend([
-                {"step": step + 1, "action": "rank", "best": "CS1", "belief": 0.9, "candidates": [{"node": "CS1", "belief": 0.9, "effective_truth_cost": 0.105361}]},
-                {"step": step + 2, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved", "graph_digest": graph_digest(state)},
-            ])
+            state["events"].append(
+                {"step": step + 1, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved", "graph_digest": graph_digest(state)},
+            )
             write_json(state_path, state)
 
             audit = run_cli("audit", str(state_path))
@@ -164,14 +163,14 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
 
     def unstopped_state(self) -> dict:
         state = self.stopped_state()
-        state["events"] = [event for event in state["events"] if event["action"] not in {"rank", "stop"}]
+        state["events"] = [event for event in state["events"] if event["action"] != "stop"]
         return state
 
     def stop(self, tmp_dir: str, state: dict, *extra: str) -> subprocess.CompletedProcess[str]:
         state_path = write_json(Path(tmp_dir) / "state.json", state)
         return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", "solved", *extra)
 
-    def test_answer_fields_must_name_the_best_candidate_for_each_accepted_goal(self) -> None:
+    def test_answer_fields_must_name_the_candidate_for_each_accepted_goal(self) -> None:
         for field in ("summary", "report"):
             for command, state in (("stop", self.unstopped_state()), ("audit", self.stopped_state())):
                 with self.subTest(field=field, command=command), tempfile.TemporaryDirectory() as tmp_dir:
@@ -183,7 +182,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
                         result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
                     self.assertEqual(result.returncode, 1, result.stdout)
-                    self.assertIn(f"{field}.answer does not name best candidate CS1", result.stderr)
+                    self.assertIn(f"{field}.answer does not name candidate CS1", result.stderr)
                     self.assertIn("The trail ends at Photophone.", result.stderr)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -193,7 +192,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
             result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_draft_must_name_the_best_candidate_for_the_resolved_goal(self) -> None:
+    def test_draft_must_name_the_answer_candidate_for_the_resolved_goal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = self.unstopped_state()
             state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
@@ -204,7 +203,7 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
             rejected = self.stop(tmp_dir, state, "--draft", str(draft_path))
 
             self.assertEqual(rejected.returncode, 1, rejected.stdout)
-            self.assertIn("draft does not mention best candidate CS1", rejected.stderr)
+            self.assertIn("draft does not mention candidate CS1", rejected.stderr)
 
             draft_path.write_text("Final answer: Candidate from A1.", encoding="utf-8")
             self.assertEqual(self.stop(tmp_dir, state, "--draft", str(draft_path)).returncode, 0)
@@ -253,8 +252,8 @@ if __name__ == "__main__":
 
 
 class GroundedPathTests(unittest.TestCase):
-    """A solved stop needs a candidate whose belief is earned from observations,
-    not carried by hand-set scores on the claims it rests on."""
+    """A solved stop needs an answer candidate that rests on observations,
+    not on hand-set scores on the claims under it."""
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(result.returncode, 0, result.stderr)

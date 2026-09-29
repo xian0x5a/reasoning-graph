@@ -96,7 +96,9 @@ Recommended graph/HTML flow:
 
 Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into node inputs.
+Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into the state.
+
+When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; the stop gate accepts any grounded candidate as the answer.
 
 Canvas rules:
 

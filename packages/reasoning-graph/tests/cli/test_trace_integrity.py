@@ -40,22 +40,6 @@ class AuditEventIntegrityTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn(expected, result.stderr)
 
-    def test_forged_rank_payloads_are_rejected(self) -> None:
-        forged = {
-            "belief": lambda event: event.update({"belief": 0.99}),
-            "row-belief": lambda event: event["candidates"][0].update({"belief": 0.99}),
-            "row-node": lambda event: event["candidates"][0].update({"node": "A1"}),
-            "extra-row": lambda event: event["candidates"].append({"node": "CS1", "belief": 0.6, "effective_truth_cost": 0.510826}),
-        }
-        for label, mutate in forged.items():
-            with self.subTest(forged=label):
-                state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-                mutate(state["events"][1])
-                result = self.audit(state)
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn("events[1] step=2 action=rank", result.stderr)
-                self.assertIn("derived", result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

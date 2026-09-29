@@ -44,8 +44,6 @@ def patch_for(invalid_part: str) -> dict:
     patch = valid_patch()
     if invalid_part.startswith("removed_") and invalid_part != "removed_edge_reasoning":
         patch["nodes"][0][invalid_part.removeprefix("removed_")] = 0.9
-    elif invalid_part == "computed_belief":
-        patch["nodes"][0]["belief"] = 0.9
     elif invalid_part.startswith("update_"):
         patch["update_nodes"] = [{"id": "E0", "set": {invalid_part.removeprefix("update_"): 0.9}}]
     elif invalid_part == "removed-edge-likelihood_ratio":
@@ -67,10 +65,8 @@ INVALID_PARTS = {
     "removed_confidence": "confidence was removed; use score",
     "removed_posterior": "posterior was removed; use score",
     "removed-edge-likelihood_ratio": "likelihood_ratio was removed; use score",
-    "computed_belief": "belief",
     "update_prior": "prior was removed; use score",
     "update_posterior": "posterior was removed; use score",
-    "update_belief": "belief",
     "score_off_the_scale": "score must be an integer from 1 to 5",
     "score_on_a_premise_edge": "score is only valid on supports/contradicts edges",
     "score_on_a_goal": "score is only valid on observation, hypothesis, and candidate_solution nodes",
@@ -119,8 +115,5 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
     assert result.returncode == 0, result.stderr
     updated = json.loads(state_path.read_text(encoding="utf-8"))
     assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(expected)
-    stored_nodes = {node["id"]: node for node in updated["nodes"]}
-    assert stored_nodes["CS1"]["belief"] == pytest.approx(expected)
-    # Persisting a patch stores computed belief but must not manufacture overrides.
-    expected_nodes = {node["id"]: node for node in state["nodes"] + patch["nodes"]}
-    assert {node_id: {k: v for k, v in node.items() if k != "belief"} for node_id, node in stored_nodes.items()} == expected_nodes
+    # Persisting a patch stores what was authored, nothing computed.
+    assert updated["nodes"] == state["nodes"] + patch["nodes"]

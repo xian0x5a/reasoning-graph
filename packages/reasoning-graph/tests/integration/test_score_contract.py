@@ -131,12 +131,13 @@ def test_direct_cost_consumers_reject_removed_score_inputs(field):
         node_effective_truth_costs({"nodes": [node], "edges": []})
 
 
-@pytest.mark.parametrize("node_type", CLAIM_TYPES)
-def test_computed_belief_is_stored_on_claims_but_never_authored_in_a_patch(node_type):
-    node = build_node(node_type, score=5, belief=0.9)
-    assert not state_schema_errors({"nodes": [node], "edges": []})
+@pytest.mark.parametrize("node_type", sorted(NODE_TYPES))
+def test_computed_belief_is_rejected_in_state_and_patch(node_type):
+    node = build_node(node_type, belief=0.9)
+    assert state_schema_errors({"nodes": [node], "edges": []})
     assert patch_schema_errors({"nodes": [node]})
-    assert patch_schema_errors({"update_nodes": [{"id": "N1", "set": {"belief": 0.8}}]})
+    errors = validate_state({"nodes": [node], "edges": []}).errors
+    assert any("belief was removed from the state" in error for error in errors), errors
 
 
 def derived_state(**derived: object) -> dict:

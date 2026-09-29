@@ -32,8 +32,8 @@ The graph is the agent's working memory and the gate on its final answer, not a 
 
 1. `init` frames the goal.
 2. The agent works the problem its own way and `record`s what each step produced: observations (with `source` and verbatim `quote`), hypotheses, tests and their results, candidate answers. Every `record` refreshes `state.html` so a human can follow along.
-3. Belief is computed from the graph: 1-5 scores with defaults, `leads_to` premises, and evidence edges.
-4. `stop` accepts a `solved` answer only when it is grounded in observations, every test has a recorded result, and the reported answer names the graph's best candidate.
+3. The agent scores claims and evidence on a 1-5 scale, only where the default is wrong. Belief is computed from those scores when the graph is rendered, for the reader; the state holds none.
+4. `stop` accepts a `solved` answer only when it is grounded in observations, every test has a recorded result, and the reported answer names a candidate in the graph.
 
 ## Helper commands
 
@@ -56,7 +56,6 @@ cat > step.json <<'JSON'
 }
 JSON
 $rg record state.json --patch step.json      # appends a record event, refreshes state.html
-$rg beliefs state.json                        # computed belief per claim
 $rg doctor state.json
 
 $rg stop state.json --reason "Smoke run stopped by user request" --outcome user_stopped -o state.stopped.json

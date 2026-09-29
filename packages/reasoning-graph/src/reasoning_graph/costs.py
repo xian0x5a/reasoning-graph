@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from .models import BELIEF_NODE_TYPES, FACTOR_RELATIONS
 from .state import by_id
@@ -55,16 +55,6 @@ def require_probability(value: Any, field: str = "probability") -> float:
 
 def probability_cost(value: Any, field: str = "probability") -> float:
     return -math.log(require_probability(value, field))
-
-
-def probability_from_value(value: Any) -> float | None:
-    try:
-        probability = float(value)
-    except (TypeError, ValueError):
-        return None
-    if 0 <= probability <= 1:
-        return probability
-    return None
 
 
 def evidence_ratio(score: Any, relation: str, field: str = "score") -> float:
@@ -440,13 +430,3 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     for node_id in inputs.nodes:
         effective_cost(node_id)
     return memo
-
-
-def claim_beliefs(state: dict[str, Any]) -> dict[str, float]:
-    """Computed belief per claim node, rounded like ranked candidate beliefs."""
-    truth_costs = node_effective_truth_costs(state)
-    return {
-        node["id"]: round(probability_from_cost(truth_costs[node["id"]]), 6)
-        for node in state.get("nodes", [])
-        if node.get("type") in BELIEF_NODE_TYPES
-    }

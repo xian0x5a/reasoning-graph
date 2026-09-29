@@ -66,7 +66,7 @@ Record patch:
 - **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"score": 4}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `id`/`from`/`to` are fixed; remove and re-add instead.
 - **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
 
-Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand. The next `record` or `stop` checks the edit as it would a patch and logs it; run `reasoning-graph refresh state.json` to do that now and read the recomputed beliefs.
+Make every change through a patch. For what a patch cannot reach (`goal_policy`, a bulk rewrite), edit `state.json` by hand. The next `record` or `stop` checks the edit as it would a patch and logs it; run `reasoning-graph refresh state.json` to do that now.
 
 ## Recording
 
@@ -86,18 +86,18 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 A `solved` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
-- `summary.answer`, `report.answer`, and the `--draft` file name the best candidate of each accepted goal, by id or exact text
-- the best candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it (net likelihood ratio > 1) counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a score never grounds a claim
+- `summary.answer`, `report.answer`, and the `--draft` file name the answer candidate of each accepted goal, by id or exact text; when several candidates answer a goal, `summary.answer` names exactly one of them
+- the answer candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it on balance, counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a score never grounds a claim
 - every `test` node has a result observation or a `not_run` reason
 
-No belief level gates a stop. `stop` computes every belief itself and ignores stored ones.
+No belief level and no ranking gates a stop: the answer is the candidate you name, not the one that scores highest.
 
 Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report the open hypotheses. The stop reason names the gate that fired.
 
-- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it. Contradicting its siblings does not raise the survivor's belief.
+- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it. Contradicting its siblings does not ground the survivor.
 - Ask the user before deepening search when remaining work would cost meaningful time.
 
-## Beliefs
+## Scores
 
 `score` is the only number you write, from 1 to 5, on claims and on `supports`/`contradicts` edges. Leave it out unless the default is wrong:
 
@@ -109,7 +109,7 @@ Otherwise stop with `inconclusive`, `budget_exhausted`, or `blocked` and report 
 
 Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises inherits their belief and needs no score. Goals, constraints, and tests carry none.
 
-`belief` is computed output; nothing you write overrides it. `record` writes each claim's current `belief` into the state: read it there, never set it. Evidence from a hypothesis or candidate is scaled by its belief, support from an ungrounded claim has no effect, and evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
+Score what you judge and move on. The CLI turns scores into a belief per claim only when it renders the graph, so a reader can see why one candidate outranks another and catch a weight that looks wrong. The state holds no belief and no command prints one. Evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
 
 ## Final checks
 
@@ -131,10 +131,10 @@ Node types:
 Edge types (any edge may carry a `note`):
 
 - `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
-- `supports` — positive belief update, at its `score` or the default
-- `contradicts` — negative belief update, at its `score` or the default; lowers belief but does not disqualify the target by itself
-- `prompts` — non-evidential provenance from a claim to a test or follow-up; no belief update
-- `leads_to` — premise/dependency used to derive a target's base belief
+- `supports` — evidence for the target, at its `score` or the default
+- `contradicts` — evidence against the target, at its `score` or the default; does not disqualify the target by itself
+- `prompts` — non-evidential provenance from a claim to a test or follow-up
+- `leads_to` — premise the target rests on
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 
 Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List their ids in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
@@ -145,7 +145,7 @@ Goals and candidates (`docs/schema/goals.md`):
 - "Not solved", "cannot establish", or "missing dependency" is a stop outcome or hypothesis blocker, not a candidate, unless the user accepted an epistemic/negative goal.
 - Use multiple `goal` nodes only when the user accepts multiple outcomes. Chained sub-goals are `goal` nodes linked `parent --requires--> child`; a goal is answered only when a candidate answers it and every required sub-goal is answered.
 
-Report (`docs/schema/reporting.md`): `summary.answer`, `report.answer`, and the final draft must name the best candidate of each accepted goal by id or exact text; an answer matching no candidate fails `stop`. Keep ranking words like `Best` or `rejected` out of node text.
+Report (`docs/schema/reporting.md`): `summary.answer`, `report.answer`, and the final draft must name the answer candidate of each accepted goal by id or exact text; an answer matching no candidate fails `stop`. Keep ranking words like `Best` or `rejected` out of node text.
 
 ## Output
 
@@ -157,7 +157,7 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/goals.md` — candidate, answer-kind, multiple-goal, and lemma rules
 - `docs/schema/factors.md` — correlation groups
 - `docs/schema/reporting.md` — report and presentation metadata
-- `docs/cost-model.md` — score tables, defaults, and belief math
+- `docs/cost-model.md` — score tables, defaults, and the belief math behind the rendered view
 - `docs/driver.md` — CLI commands, state JSON, events, and audit
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install

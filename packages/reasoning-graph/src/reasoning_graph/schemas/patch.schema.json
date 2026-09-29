@@ -11,35 +11,13 @@
     "nodes": {
       "type": "array",
       "items": {
-        "$ref": "state.schema.json#/$defs/node",
-        "not": {
-          "required": [
-            "belief"
-          ]
-        },
-        "description": "belief is computed and written by the CLI, never authored."
+        "$ref": "state.schema.json#/$defs/node"
       }
     },
     "update_nodes": {
       "type": "array",
       "items": {
-        "allOf": [
-          {
-            "$ref": "#/$defs/fieldUpdate"
-          },
-          {
-            "properties": {
-              "set": {
-                "not": {
-                  "required": [
-                    "belief"
-                  ]
-                }
-              }
-            }
-          }
-        ],
-        "description": "belief is computed and written by the CLI, never authored."
+        "$ref": "#/$defs/fieldUpdate"
       }
     },
     "remove_nodes": {

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from .costs import node_effective_truth_costs, evidence_grounded_node_ids, truth_inputs
 from .models import EPISTEMIC_GOAL_MARKERS, GOAL_TEXT_CLUE_MARKERS, GOAL_TEXT_EXACT_ANSWER_MARKERS
 from .state import by_id
-from .utils import finite_float
 
 
 def goal_accepts_answer_kind(goal: dict[str, Any], answer_kind: str) -> bool:
@@ -128,8 +128,19 @@ def unanswered_goal_messages(state: dict[str, Any]) -> list[str]:
     return messages
 
 
+def goal_candidates(state: dict[str, Any]) -> dict[str, list[str]]:
+    """Candidates answering each accepted goal that has any, in node order."""
+
+    accepted = accepted_goal_ids(state)
+    by_goal: dict[str, list[str]] = {}
+    for candidate_id, goal_targets in candidate_goal_targets(state).items():
+        for goal_id in sorted(goal_targets & accepted):
+            by_goal.setdefault(goal_id, []).append(candidate_id)
+    return by_goal
+
+
 def goal_best_candidates(state: dict[str, Any]) -> dict[str, str]:
-    """Best-belief candidate per accepted goal that has at least one answering candidate."""
+    """Top-ranked candidate per accepted goal, for the rendered view only: no gate reads belief."""
 
     node_truth_costs = node_effective_truth_costs(state)
     accepted = accepted_goal_ids(state)
@@ -171,66 +182,15 @@ def candidate_goal_answer_ids(state: dict[str, Any]) -> set[str]:
     return {candidate_id for candidate_id, targets in candidate_goal_targets(state).items() if targets}
 
 
-def epistemic_goal_ids(state: dict[str, Any]) -> set[str]:
-    nodes = by_id(state.get("nodes", []), "node")
-    return {
-        node_id
-        for node_id, node in nodes.items()
-        if node.get("type") == "goal"
-        and any(marker in str(node.get("text") or "").lower() for marker in EPISTEMIC_GOAL_MARKERS)
-    }
-
-
-def ranked_viable_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
-    node_truth_costs = node_effective_truth_costs(state)
-    ranked: list[dict[str, Any]] = []
-    for candidate_id in sorted(viable_candidate_ids(state)):
-        truth_cost = node_truth_costs[candidate_id]
-        belief = math.exp(-truth_cost)
-        ranked.append(
-            {
-                "node": candidate_id,
-                "belief": round(belief, 6),
-                "effective_truth_cost": round(truth_cost, 6),
-            }
-        )
-    return sorted(ranked, key=lambda candidate: (candidate["effective_truth_cost"], str(candidate["node"])))
-
-
-def best_candidate_ids(state: dict[str, Any]) -> set[str]:
-    ranked = ranked_viable_candidates(state)
-    return {str(ranked[0]["node"])} if ranked else set()
-
-
-def best_epistemic_candidate_ids(state: dict[str, Any]) -> set[str]:
-    epistemic_goals = epistemic_goal_ids(state)
-    if not epistemic_goals:
-        return set()
-    targets = candidate_goal_targets(state)
-    return {candidate_id for candidate_id in best_candidate_ids(state) if targets.get(candidate_id, set()) & epistemic_goals}
-
-
-def candidate_pruned_ids(state: dict[str, Any]) -> set[str]:
-    """Legacy compatibility: contradictions no longer disqualify candidate nodes."""
-
-    return set()
-
-
 def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
     accepted = accepted_goal_ids(state)
     targets = candidate_goal_targets(state)
     return {candidate_id for candidate_id, goal_targets in targets.items() if goal_targets & accepted}
 
 
-def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, str]:
-    try:
-        truth_cost = float(candidate.get("effective_truth_cost", candidate.get("truth_cost")))
-    except (TypeError, ValueError):
-        truth_cost = math.inf
-    return (truth_cost, str(candidate.get("id") or candidate.get("name") or ""))
-
-
 def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Candidates ranked by computed belief, for the rendered view only."""
+
     report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
     report_candidates = report.get("candidates") if isinstance(report.get("candidates"), list) else []
     metadata_by_id = {
@@ -240,26 +200,23 @@ def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     }
     nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
-    filtered: list[dict[str, Any]] = []
     # The graph is the source of candidates; `report` is optional metadata that can
     # lag behind the graph, so it only annotates live candidates and never adds any.
-    for candidate_id in viable_candidate_ids(state):
-        node = nodes.get(candidate_id, {})
-        enriched = {"id": candidate_id, "name": node.get("text"), **metadata_by_id.get(candidate_id, {})}
-        truth_cost = node_truth_costs[candidate_id]
-        effective_truth_cost = truth_cost
-        effective_belief = math.exp(-effective_truth_cost)
-        enriched["truth_cost"] = round(truth_cost, 6)
-        enriched["effective_truth_cost"] = round(effective_truth_cost, 6)
-        enriched["belief"] = round(effective_belief, 6)
-        filtered.append(enriched)
-
-    total_belief = sum(float(candidate.get("belief", 0.0)) for candidate in filtered if finite_float(candidate.get("belief")) is not None)
+    ranked = [
+        {
+            "id": candidate_id,
+            "name": nodes.get(candidate_id, {}).get("text"),
+            **metadata_by_id.get(candidate_id, {}),
+            "effective_truth_cost": round(node_truth_costs[candidate_id], 6),
+            "belief": round(math.exp(-node_truth_costs[candidate_id]), 6),
+        }
+        for candidate_id in viable_candidate_ids(state)
+    ]
+    total_belief = sum(candidate["belief"] for candidate in ranked)
     if total_belief > 0:
-        for candidate in filtered:
-            belief = finite_float(candidate.get("belief")) or 0.0
-            candidate["weight"] = round(belief / total_belief, 6)
-    return sorted(filtered, key=candidate_sort_key)
+        for candidate in ranked:
+            candidate["weight"] = round(candidate["belief"] / total_belief, 6)
+    return sorted(ranked, key=lambda candidate: (candidate["effective_truth_cost"], str(candidate["id"])))
 
 
 def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str]) -> dict[str, list[str]]:
@@ -281,14 +238,25 @@ def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str
 
 
 def ungrounded_goal_answer_messages(state: dict[str, Any]) -> list[str]:
-    """Explain each best answer to an accepted, non-optional goal that lacks evidence grounding."""
+    """Explain each answer to an accepted, non-optional goal that is not named or lacks evidence grounding.
 
-    best_by_goal = goal_best_candidates(state)
+    The gate judges the candidate the answer names, never the top-ranked one: the agent is not
+    steered by computed belief (issue #37).
+    """
+
+    nodes = by_id(state.get("nodes", []), "node")
     required_goals = accepted_goal_ids(state) - optional_goal_ids(state)
-    best_candidates = {candidate_id for goal_id, candidate_id in best_by_goal.items() if goal_id in required_goals}
-    return [
-        f"best candidate {candidate_id} is not evidence-grounded; claims resting on scores alone: {', '.join(claims)}"
-        for candidate_id, claims in ungrounded_claims_by_candidate(state, best_candidates).items()
+    answers = answer_candidates(state)
+    messages = [
+        f"goal {goal_id} has {len(candidates)} candidates and no answer names one; "
+        f"name the one answer in summary.answer, by id or exact text: {_candidate_listing(nodes, candidates)}"
+        for goal_id, candidates in sorted(goal_candidates(state).items())
+        if goal_id in required_goals and answers[goal_id] is None and not _named_in_state(state, nodes, candidates)
+    ]
+    named = {candidate_id for goal_id, candidate_id in answers.items() if goal_id in required_goals and candidate_id}
+    return messages + [
+        f"answer candidate {candidate_id} is not evidence-grounded; claims resting on scores alone: {', '.join(claims)}"
+        for candidate_id, claims in ungrounded_claims_by_candidate(state, named).items()
     ]
 
 
@@ -333,33 +301,88 @@ def candidate_stop_messages(state: dict[str, Any]) -> list[str]:
 
 
 def grounded_stop_messages(state: dict[str, Any]) -> list[str]:
-    """Everything a solved stop must satisfy beyond answering each goal."""
+    """Everything a solved stop must satisfy beyond answering each goal and naming the answer."""
 
     return ungrounded_goal_answer_messages(state) + unrecorded_test_messages(state)
 
 
-def unnamed_best_candidate_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
-    """Name each answer text that leaves out the best candidate of an accepted goal.
+def _names(text: str, candidate_id: str, candidate_text: str) -> bool:
+    """Whether an answer text names the candidate, by id as a whole word or by its exact text."""
 
-    The reported answer must be the graph's answer: `summary.answer`, `report.answer`, and the
-    draft each name the candidate by id or exact text. An empty answer is not checked.
-    """
+    # A bare substring would find CS1 inside CS10.
+    by_id_word = re.search(rf"(?<![\w-]){re.escape(candidate_id)}(?![\w-])", text)
+    return bool(by_id_word) or bool(candidate_text and candidate_text in text)
 
-    nodes = by_id(state.get("nodes", []), "node")
-    answer_texts = {
+
+def _candidate_text(nodes: dict[str, dict[str, Any]], candidate_id: str) -> str:
+    return str(nodes.get(candidate_id, {}).get("text") or "").strip()
+
+
+def _candidate_listing(nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> str:
+    return ", ".join(f"{candidate_id} ({_candidate_text(nodes, candidate_id)!r})" for candidate_id in candidate_ids)
+
+
+def state_answer_texts(state: dict[str, Any]) -> dict[str, str]:
+    """The non-empty answer texts the state holds, by field."""
+
+    texts = {
         f"{section}.answer": str(state[section].get("answer") or "").strip()
         for section in ("summary", "report")
         if isinstance(state.get(section), dict)
     }
-    if draft is not None:
-        answer_texts["draft"] = draft
+    return {field: text for field, text in texts.items() if text}
+
+
+def _named_in_state(state: dict[str, Any], nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> list[str]:
+    texts = state_answer_texts(state).values()
+    return [
+        candidate_id
+        for candidate_id in candidate_ids
+        if any(_names(text, candidate_id, _candidate_text(nodes, candidate_id)) for text in texts)
+    ]
+
+
+def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
+    """The candidate the answer stands for, per accepted goal that has candidates.
+
+    A goal's only candidate is its answer. Among several, it is the one `summary.answer` or
+    `report.answer` names; None when they name none or more than one.
+    """
+
+    nodes = by_id(state.get("nodes", []), "node")
+    answers: dict[str, str | None] = {}
+    for goal_id, candidates in goal_candidates(state).items():
+        named = candidates if len(candidates) == 1 else _named_in_state(state, nodes, candidates)
+        answers[goal_id] = named[0] if len(named) == 1 else None
+    return answers
+
+
+def unnamed_answer_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
+    """Name each answer text that does not stand for a candidate of an accepted goal.
+
+    `summary.answer`, `report.answer`, and the draft each name the answer candidate by id or exact
+    text; any candidate may be the answer. An empty text is not checked.
+    """
+
+    nodes = by_id(state.get("nodes", []), "node")
+    texts = state_answer_texts(state)
+    if draft:
+        texts["draft"] = draft
+    answers = answer_candidates(state)
     messages = []
-    for goal_id, candidate_id in sorted(goal_best_candidates(state).items()):
-        candidate_text = str(nodes.get(candidate_id, {}).get("text") or "").strip()
-        for field, text in answer_texts.items():
-            if not text or candidate_id in text or (candidate_text and candidate_text in text):
-                continue
+    for goal_id, candidates in sorted(goal_candidates(state).items()):
+        answer = answers[goal_id]
+        named_in_state = _named_in_state(state, nodes, candidates)
+        if answer is None and len(named_in_state) > 1:
+            messages.append(
+                f"{' and '.join(state_answer_texts(state))} names several candidates for goal {goal_id}: "
+                f"{', '.join(named_in_state)}; name the one answer"
+            )
+        for field, text in texts.items():
             verb = "mention" if field == "draft" else "name"
             quoted = "" if field == "draft" else f"; answer: {text!r}"
-            messages.append(f"{field} does not {verb} best candidate {candidate_id} ({candidate_text!r}) for goal {goal_id}{quoted}")
+            if answer is not None and not _names(text, answer, _candidate_text(nodes, answer)):
+                messages.append(f"{field} does not {verb} candidate {answer} ({_candidate_text(nodes, answer)!r}) for goal {goal_id}{quoted}")
+            elif answer is None and not any(_names(text, candidate_id, _candidate_text(nodes, candidate_id)) for candidate_id in candidates):
+                messages.append(f"{field} {verb}s no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}{quoted}")
     return messages

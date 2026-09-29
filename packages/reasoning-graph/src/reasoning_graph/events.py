@@ -21,20 +21,19 @@ def next_event_step(state: dict[str, Any]) -> int:
 
 
 def graph_digest(state: dict[str, Any]) -> str:
-    """Fingerprint everything the gates judge: nodes minus the computed belief, edges, factors, and policies.
+    """Fingerprint everything the gates judge: nodes, edges, factors, and policies.
 
     Events store it so `record` and `stop` can tell when the state was edited outside the CLI.
     Lists are sorted by id, so reordering alone is not a change.
     """
 
-    def rows(field: str, computed: frozenset[str] = frozenset()) -> list[Any]:
+    def rows(field: str) -> list[Any]:
         items = state.get(field)
         items = items if isinstance(items, list) else []
-        stripped = [{key: value for key, value in item.items() if key not in computed} if isinstance(item, dict) else item for item in items]
-        return sorted(stripped, key=lambda item: str(item.get("id")) if isinstance(item, dict) else "")
+        return sorted(items, key=lambda item: str(item.get("id")) if isinstance(item, dict) else "")
 
     content = {
-        "nodes": rows("nodes", frozenset({"belief"})),
+        "nodes": rows("nodes"),
         "edges": rows("edges"),
         "factors": rows("factors"),
         **{field: state.get(field) for field in DIGEST_POLICY_FIELDS},

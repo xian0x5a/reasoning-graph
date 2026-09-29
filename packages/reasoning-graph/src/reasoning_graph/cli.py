@@ -8,10 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from .audit import audit_state
-from .costs import claim_beliefs
 from .events import RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
 from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
-from .policy import candidate_stop_messages, grounded_stop_messages, ranked_viable_candidates, unnamed_best_candidate_messages
+from .policy import candidate_stop_messages, grounded_stop_messages, unnamed_answer_messages
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
@@ -40,19 +39,6 @@ def cmd_schema(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_beliefs(args: argparse.Namespace) -> int:
-    """Print each claim's computed belief."""
-    state = load_state(args.state)
-    beliefs = claim_beliefs(state)
-    rows = [{"id": node["id"], "type": node["type"], "belief": beliefs[node["id"]]} for node in state.get("nodes", []) if node["id"] in beliefs]
-    if args.json:
-        print(strict_json_dumps(rows, indent=2, ensure_ascii=False))
-    else:
-        for row in rows:
-            print(f"{row['id']} {row['type']} belief {row['belief']:.3g}")
-    return 0
-
-
 def cmd_audit(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     result, stats = audit_state(state)
@@ -62,9 +48,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
         print(f"error: {error}", file=sys.stderr)
     if result.ok:
         print("ok")
-        print(
-            "events={events} records={records} rankings={rankings}".format(**stats)
-        )
+        print("events={events} records={records}".format(**stats))
         return 0
     return 1
 
@@ -199,14 +183,14 @@ def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
 
 
 def _passes_quote_and_graph_checks(state: dict[str, Any], state_path: str) -> bool:
-    """Recheck every quote and validate the graph, rewriting beliefs; print every failure and return False on any.
+    """Recheck every quote and validate the graph; print every failure and return False on any.
 
     The two checks are independent, so one run lists everything to fix instead of one kind per retry.
     """
     quote_errors = _quote_errors(state, state_path)
     for message in quote_errors:
         print(f"error: {message}", file=sys.stderr)
-    graph_valid = refresh_beliefs(state)
+    graph_valid = passes_validation(state)
     return graph_valid and not quote_errors
 
 
@@ -228,11 +212,8 @@ def _objects_removed_outside_record(state: dict[str, Any]) -> dict[str, list[str
     return removed
 
 
-def refresh_beliefs(state: dict[str, Any]) -> bool:
-    """Validate the graph and rewrite each claim's stored belief; report errors and return False if invalid."""
-    # Stored beliefs describe the graph before this edit; drop them so validation judges the graph, not the stale copy.
-    for node in state.get("nodes", []):
-        node.pop("belief", None)
+def passes_validation(state: dict[str, Any]) -> bool:
+    """Validate the graph; report errors and return False if invalid."""
     result = validate_state(state)
     for error in result.errors:
         print(f"error: {error}", file=sys.stderr)
@@ -240,10 +221,6 @@ def refresh_beliefs(state: dict[str, Any]) -> bool:
         return False
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    beliefs = claim_beliefs(state)
-    for node in state["nodes"]:
-        if node["id"] in beliefs:
-            node["belief"] = beliefs[node["id"]]
     return True
 
 
@@ -312,7 +289,7 @@ def cmd_record(args: argparse.Namespace) -> int:
 
 
 def cmd_refresh(args: argparse.Namespace) -> int:
-    """Re-sync a hand-edited state: validate it, recheck every quote, log removed objects, rewrite beliefs and the view."""
+    """Take in a hand-edited state: validate it, recheck every quote, log removed objects, and refresh the view."""
     state = load_state(args.state)
     if is_stopped(state):
         print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
@@ -321,7 +298,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if not _passes_quote_and_graph_checks(state, args.state):
         return 1
     if hand_edit is None:
-        print("ok: no edits outside the CLI; beliefs rewritten")
+        print("ok: no edits outside the CLI")
     else:
         step = next_event_step(state)
         state.setdefault("events", []).append({"step": step, **hand_edit})
@@ -345,13 +322,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print("doctor: validation failed")
         return 1
 
-    try:
-        claim_beliefs(state)
-    except Exception as exc:
-        print(f"error: belief computation failed: {exc}", file=sys.stderr)
-        print("doctor: belief computation failed")
-        return 1
-
     print("doctor: validation ok")
     print(
         "doctor: nodes={nodes} edges={edges} stopped={stopped}".format(
@@ -371,9 +341,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"warning: {warning}", file=sys.stderr)
     for error in audit_result.errors:
         print(f"error: {error}", file=sys.stderr)
-    print(
-        "doctor: audit events={events} records={records} rankings={rankings}".format(**stats)
-    )
+    print("doctor: audit events={events} records={records}".format(**stats))
     if not audit_result.ok:
         print("doctor: audit failed")
         return 1
@@ -467,29 +435,6 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
     return ids
 
 
-def append_rank_event(state: dict[str, Any], top: int = 10) -> int:
-    """Pin the best candidate at stop time so audit checks the answer against it."""
-    ranked = ranked_viable_candidates(state)
-    if not ranked:
-        print("error: no viable candidate_solution answers an accepted goal", file=sys.stderr)
-        return 1
-
-    events = state.setdefault("events", [])
-    if not isinstance(events, list):
-        print("error: events must be a list before rank can append", file=sys.stderr)
-        return 1
-
-    event: dict[str, Any] = {
-        "step": next_event_step(state),
-        "action": "rank",
-        "best": ranked[0]["node"],
-        "belief": ranked[0]["belief"],
-        "candidates": ranked[: max(1, top)],
-    }
-    events.append(event)
-    return 0
-
-
 def _stop_preflight(state: dict[str, Any], reason: str, outcome: str, draft: str | None = None) -> int:
     """Reject a stop whose outcome the recorded graph does not support, or whose answer is not the graph's."""
     reason = reason.strip()
@@ -518,9 +463,9 @@ def _stop_preflight(state: dict[str, Any], reason: str, outcome: str, draft: str
                 file=sys.stderr,
             )
             return 1
-        unnamed = unnamed_best_candidate_messages(state, draft)
+        unnamed = unnamed_answer_messages(state, draft)
         for message in unnamed:
-            print(f"error: stop outcome {outcome!r} reports another answer than the graph's; {message}", file=sys.stderr)
+            print(f"error: stop outcome {outcome!r} reports an answer the graph does not hold; {message}", file=sys.stderr)
         if unnamed:
             return 1
     if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
@@ -548,24 +493,19 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str, draft: s
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     hand_edit = _hand_edit_event(state)
-    # The gates need a valid graph and judge beliefs computed here; stored ones are overwritten, never trusted.
-    if not refresh_beliefs(state):
+    # The gates need a valid graph.
+    if not passes_validation(state):
         return 1
     # Quote and gate failures are independent, so report both in one run instead of one per retry.
     quote_errors = _quote_errors(state, args.state)
     for message in quote_errors:
         print(f"error: {message}", file=sys.stderr)
     draft = Path(args.draft).read_text(encoding="utf-8") if args.draft else None
-    # Preflight all terminal invariants before candidate auto-ranking can append
-    # a rank event.
     if _stop_preflight(state, args.reason, args.outcome, draft) != 0 or quote_errors:
         return 1
-    # Logged only once every check passes, and before rank and stop, since nothing may follow stop.
+    # Logged only once every check passes, and before stop, since nothing may follow stop.
     if hand_edit:
         state.setdefault("events", []).append({"step": next_event_step(state), **hand_edit})
-    if args.outcome in CANDIDATE_STOP_OUTCOMES:
-        if append_rank_event(state, top=args.top) != 0:
-            return 1
     if append_stop_event(state, args.reason, args.outcome, draft) != 0:
         return 1
     dump_state(state, args.output, default_in_place_source(args))
@@ -613,7 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("-o", "--output", help="write updated state to path")
     record.set_defaults(func=cmd_record)
 
-    refresh = sub.add_parser("refresh", help="after a hand edit: validate, recheck quotes, recompute beliefs, and log the edit")
+    refresh = sub.add_parser("refresh", help="after a hand edit: validate, recheck quotes, and log the edit")
     refresh.add_argument("state", help="state JSON path")
     refresh.add_argument("-o", "--output", help="write updated state to path")
     refresh.set_defaults(func=cmd_refresh)
@@ -627,25 +567,19 @@ def build_parser() -> argparse.ArgumentParser:
     schema.add_argument("-o", "--output", help="write schema JSON to path instead of stdout")
     schema.set_defaults(func=cmd_schema)
 
-    doctor = sub.add_parser("doctor", help="validate state, compute beliefs, and audit a stopped trace")
+    doctor = sub.add_parser("doctor", help="validate state and audit a stopped trace")
     doctor.add_argument("state", help="state JSON path, or - for stdin")
     doctor.set_defaults(func=cmd_doctor)
-
-    beliefs = sub.add_parser("beliefs", help="print each claim's computed belief")
-    beliefs.add_argument("state", help="state JSON path, or - for stdin")
-    beliefs.add_argument("--json", action="store_true", help="print JSON instead of compact text")
-    beliefs.set_defaults(func=cmd_beliefs)
 
     audit = sub.add_parser("audit", help="audit the event trace and stop gates")
     audit.add_argument("state", help="state JSON path, or - for stdin")
     audit.set_defaults(func=cmd_audit)
 
-    stop = sub.add_parser("stop", help="check stop gates, rank candidate-bearing outcomes, then append a stop event")
+    stop = sub.add_parser("stop", help="check stop gates, then append a stop event")
     stop.add_argument("state", help="state JSON path, or - for stdin")
     stop.add_argument("--reason", required=True, help="why search is stopping")
     stop.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
-    stop.add_argument("--top", type=int, default=10, help="number of ranked candidates to include for candidate-bearing outcomes")
-    stop.add_argument("--draft", help="final answer draft; a candidate-bearing stop needs it to name the best candidate of each accepted goal")
+    stop.add_argument("--draft", help="final answer draft; a candidate-bearing stop needs it to name the answer candidate of each accepted goal")
     stop.add_argument("-o", "--output", help="write mutated state to path")
     stop.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
     stop.set_defaults(func=cmd_stop)

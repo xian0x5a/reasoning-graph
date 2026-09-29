@@ -101,31 +101,6 @@ class RecordModeTests(unittest.TestCase):
             self.ok(stopped)
             self.assertIn("doctor: audit ok", stopped.stdout)
 
-    def test_record_writes_computed_belief_on_each_claim(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 5)
-
-            nodes = {node["id"]: node for node in json.loads(state_path.read_text(encoding="utf-8"))["nodes"]}
-            computed = json.loads(run_cli("beliefs", str(state_path), "--json").stdout)
-
-            self.assertEqual({row["id"]: nodes[row["id"]]["belief"] for row in computed}, {row["id"]: row["belief"] for row in computed})
-            self.assertEqual(nodes["O1"]["belief"], 0.9)
-            self.assertNotIn("belief", nodes["G1"])
-            self.assertNotIn("belief", nodes["T1"])
-
-    def test_record_rejects_an_authored_belief(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 5)
-
-            new_node = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "score": 3, "belief": 0.9}]})
-            update = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "O1", "set": {"belief": 0.99}}]})
-
-            for rejected in (new_node, update):
-                self.assertEqual(rejected.returncode, 1, rejected.stdout)
-                self.assertIn("belief", rejected.stderr)
-
     def test_record_checks_quotes_against_a_local_source_file(self) -> None:
         # Issue #35: stitched or trimmed quotes went unnoticed, so the CLI checks them verbatim.
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -161,36 +136,6 @@ class RecordModeTests(unittest.TestCase):
                 self.assertIn(node_id, rejected.stderr)
                 self.assertIn("case.md", rejected.stderr)
             self.assertEqual(len(json.loads(state_path.read_text(encoding="utf-8"))["events"]), events_before)
-
-    def test_stale_belief_fails_validation_until_refreshed(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 5)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            next(node for node in state["nodes"] if node["id"] == "O1")["score"] = 3
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            stale = run_cli("validate", str(state_path))
-            self.ok(run_cli("refresh", str(state_path)))
-            refreshed = json.loads(state_path.read_text(encoding="utf-8"))
-
-            self.assertEqual(stale.returncode, 1, stale.stdout)
-            self.assertIn("stale belief", stale.stderr)
-            self.assertIn("refresh", stale.stderr)
-            self.ok(run_cli("validate", str(state_path)))
-            self.assertEqual(next(node for node in refreshed["nodes"] if node["id"] == "O1")["belief"], 0.5)
-
-    def test_belief_is_only_written_on_claims(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            state["nodes"][0]["belief"] = 1.0
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            result = run_cli("validate", str(state_path))
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("G1", result.stderr)
 
     def test_record_requires_reason_and_takes_no_frontier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

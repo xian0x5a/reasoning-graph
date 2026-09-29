@@ -15,7 +15,7 @@ from .costs import (
 from .identities import RenderIdentityMap, render_identity_map
 from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .offline_render import offline_graph_svg
-from .policy import accepted_goal_ids, candidate_goal_targets, preferred_goal_ids, sorted_report_candidates
+from .policy import accepted_goal_ids, answer_candidates, candidate_goal_targets, goal_best_candidates, preferred_goal_ids, sorted_report_candidates
 from .state import by_id
 from .utils import finite_float
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
@@ -622,6 +622,28 @@ def goal_policy_html(state: dict[str, Any]) -> str:
   </section>"""
 
 
+def answer_rank_notes(state: dict[str, Any]) -> str:
+    """Tell the reader when the answer is not the candidate the graph ranks first.
+
+    Only the reader is told: no gate and no command shows the agent a ranking (issue #37).
+    """
+
+    truth_costs = node_effective_truth_costs(state)
+    top_ranked = goal_best_candidates(state)
+    notes = []
+    for goal_id, answer_id in sorted(answer_candidates(state).items()):
+        top_id = top_ranked.get(goal_id)
+        if answer_id is None or top_id is None or not truth_costs[top_id] < truth_costs[answer_id]:
+            continue
+        top_belief, answer_belief = (f"{probability_from_cost(truth_costs[node_id]):.3g}" for node_id in (top_id, answer_id))
+        notes.append(
+            f'<p class="answer-rank-note">Answer <code>{html.escape(answer_id)}</code> is not the top-ranked candidate for '
+            f"<code>{html.escape(goal_id)}</code>: <code>{html.escape(top_id)}</code> ranks higher "
+            f"(belief {top_belief} against {answer_belief}).</p>"
+        )
+    return "".join(notes)
+
+
 def html_document(
     state: dict[str, Any],
     mermaid_source: str,
@@ -699,6 +721,7 @@ def html_document(
     .hero, section {{ background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06); scroll-margin-top: 5rem; }}
     .hero {{ padding: 1.4rem 1.6rem; margin-bottom: 1rem; }}
     .answer {{ padding: 1rem; background: #eff6ff; border-left: 4px solid var(--brand); border-radius: 12px; }}
+    .answer-rank-note {{ padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }}
     section {{ padding: 1.2rem; margin: 1rem 0; }}
     .two-col {{ display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }}
     table {{ width: 100%; border-collapse: collapse; font-size: .92rem; table-layout: fixed; }}
@@ -838,6 +861,7 @@ def html_document(
   <header class="hero">
     <h1>{title}</h1>
     <p class="answer"><strong>Answer:</strong> {answer}</p>
+    {answer_rank_notes(state)}
   </header>
 
   {goal_policy_section}

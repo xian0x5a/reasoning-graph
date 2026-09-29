@@ -36,7 +36,7 @@ def report_state(*, support=False):
             {"id": "D1-CS1", "from": "D1", "to": "CS1", "type": "leads_to"},
             {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
         ],
-        "report": {"candidates": [{"id": "CS1", "name": "Answer", "belief": 0.123}]},
+        "report": {"candidates": [{"id": "CS1", "name": "Answer"}]},
         "presentation": {"include_nodes": ["D1", "CS1", "G1"]},
     }
     if support:
@@ -129,6 +129,44 @@ def test_html_report_keeps_labels_details_and_candidate_table_consistent(render_
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert "belief 0.773" in document
     assert "Effective belief: 0.773006" in detail_card(document, "CS1")
-    assert "<td>0.773006</td>" in document  # Candidate table overrides stale report metadata.
+    assert "<td>0.773006</td>" in document
     assert "Score: 5" in detail_card(document, "D1")
     assert state["nodes"] == original_nodes
+
+
+def ranked_state(answer):
+    """CS1 ranks above CS2; the summary names `answer`."""
+    state = {
+        "summary": {"title": "Who did it?", "answer": answer},
+        "nodes": [
+            {"id": "G1", "type": "goal", "text": "Who did it?"},
+            {"id": "O1", "type": "observation", "text": "The gardener signed in at nine"},
+            {"id": "O2", "type": "observation", "text": "The butler had the key"},
+            {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
+            {"id": "CS2", "type": "candidate_solution", "text": "The butler", "answer_kind": "exact_answer"},
+        ],
+        "edges": [
+            {"id": "O1-CS1", "from": "O1", "to": "CS1", "type": "leads_to"},
+            {"id": "O2-CS2", "from": "O2", "to": "CS2", "type": "supports"},
+            {"id": "CS1-G1", "from": "CS1", "to": "G1", "type": "answers"},
+            {"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"},
+        ],
+    }
+    assert validate_state(state).ok
+    return state
+
+
+@pytest.mark.parametrize("render_mode", ["mermaid", "offline"])
+def test_html_marks_an_answer_that_is_not_the_top_ranked_candidate(render_mode):
+    state = ranked_state("The butler did it.")
+    document = html_document(state, to_mermaid(state), render_mode=render_mode)
+    assert 'class="answer-rank-note"' in document
+    assert "Answer <code>CS2</code> is not the top-ranked candidate for <code>G1</code>" in document
+    assert "<code>CS1</code> ranks higher" in document
+
+
+@pytest.mark.parametrize("answer", ["The gardener did it.", ""])
+def test_html_leaves_a_top_ranked_or_unnamed_answer_unmarked(answer):
+    state = ranked_state(answer)
+    document = html_document(state, to_mermaid(state))
+    assert 'class="answer-rank-note"' not in document

@@ -17,11 +17,11 @@ uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoni
 
 ## Score fixtures
 
-Claims and evidence edges take one optional `score` from 1 to 5. Effective
-`belief` is computed from the graph. Goal, constraint, and test nodes carry no
-score. The removed `prior`, `confidence`, `probability`, `posterior`,
-`likelihood`, and `likelihood_ratio` fields, and authored node `belief`, appear
-only in rejection tests.
+Claims and evidence edges take one optional `score` from 1 to 5. Belief is
+computed from the graph when it is rendered and is never stored. Goal,
+constraint, and test nodes carry no score. The removed `prior`, `confidence`,
+`probability`, `posterior`, `likelihood`, `likelihood_ratio`, and `belief`
+fields appear only in rejection tests.
 
 A claim without a score takes its type default unless claim premises give it a
 belief; fixtures write a score only where the default is wrong. Tests cover the

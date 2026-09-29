@@ -147,12 +147,6 @@
           "$ref": "#/$defs/score",
           "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with leads_to premises inherits their belief, and a score on it is a further local factor."
         },
-        "belief": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "description": "Computed belief, written by the CLI on claim nodes so the state can be read as memory. Never authored: record patches reject it and validate fails when it no longer matches the graph."
-        },
         "answer_kind": {
           "enum": [
             "exact_answer",
@@ -228,10 +222,15 @@
             "required": [
               "posterior"
             ]
+          },
+          {
+            "required": [
+              "belief"
+            ]
           }
         ]
       },
-      "description": "Claims take one optional 1-5 score; the CLI maps it to a probability and computes belief. Goals, constraints, and tests carry no score. The removed prior/confidence/probability/posterior fields are rejected, not converted. Claims carry the computed belief the CLI writes; it is never authored."
+      "description": "Claims take one optional 1-5 score; the CLI maps it to a probability. Goals, constraints, and tests carry no score. The removed prior/confidence/probability/posterior fields are rejected, not converted. Computed belief is not stored: it is computed when the graph is rendered."
     },
     "edge": {
       "type": "object",
@@ -425,42 +424,8 @@
           "enum": [
             "record",
             "refresh",
-            "rank",
             "stop"
           ]
-        },
-        "best": {
-          "$ref": "#/$defs/id"
-        },
-        "belief": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "candidates": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": true,
-            "required": [
-              "node",
-              "belief",
-              "effective_truth_cost"
-            ],
-            "properties": {
-              "node": {
-                "$ref": "#/$defs/id"
-              },
-              "belief": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1
-              },
-              "effective_truth_cost": {
-                "type": "number"
-              }
-            }
-          }
         },
         "reason": {
           "type": "string"
@@ -567,27 +532,6 @@
               "add_nodes",
               "add_edges",
               "graph_digest"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "enum": [
-                  "rank"
-                ]
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "best",
-              "belief",
-              "candidates"
             ]
           }
         },
@@ -742,22 +686,6 @@
         "name": {
           "type": "string"
         },
-        "belief": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "truth_cost": {
-          "type": "number"
-        },
-        "effective_truth_cost": {
-          "type": "number"
-        },
-        "weight": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
         "path_nodes": {
           "$ref": "#/$defs/stringList"
         },
@@ -767,6 +695,30 @@
         "next_test": {
           "type": "string"
         }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "belief"
+            ]
+          },
+          {
+            "required": [
+              "truth_cost"
+            ]
+          },
+          {
+            "required": [
+              "effective_truth_cost"
+            ]
+          },
+          {
+            "required": [
+              "weight"
+            ]
+          }
+        ]
       }
     },
     "presentation": {

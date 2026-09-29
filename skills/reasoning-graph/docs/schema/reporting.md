@@ -12,10 +12,6 @@ Use this page as the shape and example reference for optional human-facing metad
     {
       "id": "CS1",
       "name": "Candidate label",
-      "belief": 0.45,
-      "truth_cost": 0.798508,
-      "effective_truth_cost": 0.798508,
-      "weight": 0.72,
       "path_nodes": ["O1", "H2", "CS1"],
       "why": "Explains the most observations with lowest constraint tension",
       "next_test": "Run the decisive verification"
@@ -51,16 +47,11 @@ Presentation views are curated and may omit low-value nodes for readability. The
 }
 ```
 
-## Weight formula
+## Computed columns
 
-When useful, compute candidate display weight from displayed candidates:
+The rendered candidate table adds `belief` and `weight` from the graph: `belief = exp(-effective_truth_cost)` and `weight = belief / sum(belief of displayed candidates)`. `weight` is relative among displayed candidates, not a calibrated probability.
 
-```txt
-belief = exp(-effective_truth_cost)
-weight = belief / sum(belief of displayed candidates)
-```
-
-`weight` is relative among displayed candidates, not calibrated real-world probability. Reported `belief` is computed from the current graph and is not written into node scores.
+A report row never carries them. `belief`, `truth_cost`, `effective_truth_cost`, and `weight` in `report.candidates` are rejected.
 
 ## Example
 
@@ -73,9 +64,6 @@ weight = belief / sum(belief of displayed candidates)
       {
         "id": "CS1",
         "name": "Stale config",
-        "belief": 0.67,
-        "effective_truth_cost": 0.400478,
-        "weight": 0.78,
         "path_nodes": ["O1", "H1", "CS1"],
         "why": "Deploy-time mtime and restart behavior support this branch.",
         "next_test": "Restart with config hash logging."
@@ -97,8 +85,7 @@ weight = belief / sum(belief of displayed candidates)
 ## Validation checklist
 
 - Do not encode rank words such as `Best`, `Second`, or `Weak` in candidate `name` or node `text`.
-- Avoid storing a `rank` field unless ordering comes from an external criterion not derivable from cost or belief.
+- Store no rank, belief, or weight; the rendered view computes them.
 - Candidate viability should come from graph relationships and report text.
-- Use `weight` only as relative display weight among listed candidates.
 - `presentation.include_nodes`, `highlight_nodes`, and `dim_nodes` reference existing node ids.
 - Presentation/report metadata does not add claims missing from graph state.

@@ -1,8 +1,7 @@
-"""A hand-edited state passes the checks a patch would before anything builds on it, and the stop
-gate computes what it checks itself.
+"""A hand-edited state passes the checks a patch would before anything builds on it.
 
 Agents edited state.json with Python in 15 of 22 #34 runs. A hand edit went unlogged and
-unchecked, and stored beliefs were trusted until something validated them."""
+unchecked."""
 
 import json
 import subprocess
@@ -34,7 +33,7 @@ def observation(node_id: str, quote: str) -> dict:
 
 
 def story_patch(hypothesis_score: int) -> dict:
-    """A graph whose candidate's belief follows the hypothesis score."""
+    """A graph whose candidate rests on one hypothesis."""
     return {
         "reason": "Read the story",
         "nodes": [
@@ -88,7 +87,7 @@ class HandEditTests(unittest.TestCase):
         edit(state)
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    def test_refresh_logs_hand_removals_and_recomputes_beliefs(self) -> None:
+    def test_refresh_logs_hand_removals(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
@@ -97,14 +96,12 @@ class HandEditTests(unittest.TestCase):
                 self.node(state, "O2")["score"] = 3
 
             self.hand_edit(state_path, drop_edge_and_lower_score)
-            self.fails(run_cli("validate", str(state_path)), "stale belief", "refresh")
             self.ok(run_cli("refresh", str(state_path)))
 
             state = self.load(state_path)
             event = state["events"][-1]
             self.assertEqual(event["action"], "refresh")
             self.assertEqual(event["remove_edges"], ["O1-H2"])
-            self.assertEqual(self.node(state, "O2")["belief"], 0.5)
             self.ok(run_cli("validate", str(state_path)))
             # A second refresh finds nothing new and adds no event.
             self.ok(run_cli("refresh", str(state_path)))
@@ -161,19 +158,7 @@ class HandEditTests(unittest.TestCase):
             self.hand_edit(state_path, lambda state: self.node(state, "H1").update({"score": 5}))
 
             self.ok(self.stop(state_path))
-            self.assertEqual([event["action"] for event in self.load(state_path)["events"]][-3:], ["refresh", "rank", "stop"])
-            self.ok(run_cli("audit", str(state_path)))
-
-    def test_stop_recomputes_beliefs_instead_of_trusting_stored_ones(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir, hypothesis_score=2)
-            self.hand_edit(state_path, lambda state: self.node(state, "CS1").update({"belief": 0.99}))
-
-            self.ok(self.stop(state_path))
-
-            stopped = self.load(state_path)
-            self.assertLess(self.node(stopped, "CS1")["belief"], 0.8)
-            self.assertEqual(stopped["events"][-2]["belief"], self.node(stopped, "CS1")["belief"])
+            self.assertEqual([event["action"] for event in self.load(state_path)["events"]][-2:], ["refresh", "stop"])
             self.ok(run_cli("audit", str(state_path)))
 
     def test_audit_catches_an_edit_after_stop(self) -> None:

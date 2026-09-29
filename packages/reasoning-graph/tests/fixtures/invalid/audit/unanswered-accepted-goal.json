@@ -170,19 +170,6 @@
     },
     {
       "step": 3,
-      "action": "rank",
-      "best": "CS1",
-      "belief": 0.9,
-      "candidates": [
-        {
-          "node": "CS1",
-          "belief": 0.9,
-          "effective_truth_cost": 0.105361
-        }
-      ]
-    },
-    {
-      "step": 4,
       "action": "stop",
       "reason": "systematically solved stage by stage",
       "outcome": "solved",

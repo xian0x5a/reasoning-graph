@@ -1,6 +1,6 @@
 # Reasoning Graph Cost Model
 
-Scores, defaults, computed belief, and correlated evidence.
+Scores, defaults, and the belief the rendered view computes from them. Read the first section to score; the rest explains what a reader sees.
 
 ## Scores and defaults
 
@@ -29,7 +29,7 @@ A `contradicts` edge uses the reciprocal of its ratio.
 - The scale has no certainty and no impossibility. Record a ruled-out claim in its text or a `contradicts` edge.
 - The removed fields `prior`, `confidence`, `probability`, and `posterior` on nodes and `likelihood` and `likelihood_ratio` on edges are rejected, not converted.
 
-`belief` is output only: the CLI writes it on each claim, record patches reject it, and `validate` fails when a stored value no longer matches the graph. The engine never writes a computed value into `score`.
+Belief is computed only when the graph is rendered, for the reader. The state stores none, a state or patch carrying `belief` is rejected, and no command prints it: an agent that sees a belief tunes scores until the number moves.
 
 Mutually exclusive sibling hypotheses do not have to sum to anything; the scale is too coarse for that. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node.
 
@@ -56,7 +56,7 @@ effective_truth_cost = -ln(updated_odds / (1 + updated_odds))
 belief = exp(-effective_truth_cost)
 ```
 
-Belief accumulates through the claim graph: `leads_to` premises multiply into the target node's belief, so premises `0.7` and `0.9` give `0.63`. `reasoning-graph beliefs state.json` prints the computed belief of every claim.
+Belief accumulates through the claim graph: `leads_to` premises multiply into the target node's belief, so premises `0.7` and `0.9` give `0.63`.
 
 Graph labels and candidate tables show effective belief; node details show the authored score beside it. See [belief display](rendering.md#belief-display).
 
