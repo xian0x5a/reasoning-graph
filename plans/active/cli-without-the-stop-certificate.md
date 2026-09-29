@@ -207,9 +207,34 @@ What the 37 failed CLI calls were:
 
 The counts add to more than 37 because one call can fail on two checks.
 
+### Repeat, `s55-loop-r3`
+
+The same code and items as `s55-loop-r2`, run once more to separate noise from a real drop.
+
+| Measure | Notes file | Graph, old CLI | New CLI, first run | New CLI, repeat |
+|---|---|---|---|---|
+| First submit right | 7 | 8 | 6 | 7 |
+| Passed | 12 | 12 | 10 | 12 |
+| Submits used | 39 | 39 | 41 | 37 |
+| Repeated a rejected answer | 0 | 0 | 0 | 0 |
+| Hints used in the next submit | 20 of 25 | 25 of 25 | 19 of 27 | 19 of 23 |
+| Cost | $6.86 | $12.25 | $11.57 | $10.35 |
+| Cost of round 1, mean | $0.27 | $0.49 | $0.36 | $0.39 |
+| Cost of a later round, mean | $0.12 | $0.22 | $0.24 | $0.22 |
+| Tool calls | 115 | 246 | 221 | 203 |
+| CLI calls that failed | | 50 | 37 | 35 |
+| Hand edits of the state | | 23 | 0 | 0 |
+
+- **The drop in passes was noise.** 12, 10 and 12 of 14.
+- **Hint use on the new CLI is 38 of 50 over both runs.** That is the level of the notes file (20 of 25, Fisher exact p = 0.78) and below the one run of the old CLI (25 of 25, p = 0.006).
+- **No hint was lost.** All 12 unused hints of both runs are in a node of the graph.
+- **Whether the old 25 of 25 was luck is not known.** There is one run of the old CLI. A second one, from a worktree at `a84f1a4`, would settle it for about $12.
+- **Cost is $10.96 on average, 11% below the old CLI** and 1.6 times the notes file.
+- **The draft check is the friction that is left.** In the repeat, 27 of the 35 failed calls are `audit --draft`: 14 on an `answer.md` that does not exist yet, 13 on a draft that does not name the candidate.
+
 Follow-ups, each its own plan:
 
-1. Repeat the rerun once to separate noise from a real drop in hint use and passes.
-2. `audit` without `--draft` when no draft exists yet, and an error message for a missing draft file.
+1. Decide on the draft check: remove `--draft`, or keep it and make it cheap. The answer is already named in the state.
+2. A second run of the old CLI, only if the hint-use question has to be settled.
 3. Cut `score_ab.py` down to what still applies.
 4. The presentation eval (#39).
