@@ -237,6 +237,6 @@ The same code and items as `s55-loop-r2`, run once more to separate noise from a
 Follow-ups, each its own plan:
 
 1. ~~Decide on the draft check.~~ Removed, decision 12.
-2. A second run of the old CLI, only if the hint-use question has to be settled.
+2. A second run of the old CLI, only if the hint-use question has to be settled. Not run: the plan was closed without it, so whether the old 25 of 25 was luck stays open.
 3. Cut `score_ab.py` down to what still applies.
 4. The presentation eval (#39).
