@@ -13,13 +13,22 @@ Per arm:
 - repeated answers: submits whose wrong letter an earlier round had already been told is wrong
 - hint used: of the hints given, how often the next submit covered the hinted key point
 - cost: the agent's sessions, without the scorer
+
+With both the no-memory and the graph arm given, it also prints the accuracy guard: the skill
+hurts when more items are right only without it than only with it, at McNemar p < 0.10. This
+is the score_ab.py rule read in reverse, on the first submit.
 """
 
 import argparse
 import json
 from pathlib import Path
 
+from score_ab import VALUE_P_THRESHOLD, mcnemar_exact_p
+
 COVERED = "covered"
+# The no-memory arm's first submit is an answer without the skill.
+GUARD_BASELINE_ARM = "no-memory"
+GUARD_SKILL_ARM = "graph"
 
 
 def hint_outcomes(rounds: list[dict]) -> list[bool]:
@@ -40,6 +49,18 @@ def arm_summary(loops: list[dict]) -> dict:
         "hint used": sum(hints),
         "cost": round(sum(loop["cost"] for loop in loops), 2),
     }
+
+
+def accuracy_guard(baseline_loops: list[dict], skill_loops: list[dict]) -> str:
+    pairs = [(baseline["first_submit_correct"], skill["first_submit_correct"])
+             for baseline, skill in zip(baseline_loops, skill_loops)]
+    baseline_only_right = sum(baseline and not skill for baseline, skill in pairs)
+    skill_only_right = sum(skill and not baseline for baseline, skill in pairs)
+    p_value = mcnemar_exact_p(skill_only_right, baseline_only_right)
+    hurts = baseline_only_right > skill_only_right and p_value < VALUE_P_THRESHOLD
+    return (f"accuracy guard: right only without the skill {baseline_only_right}, "
+            f"right only with it {skill_only_right}, McNemar exact p = {p_value:.3f}: "
+            f"{'the skill hurts' if hurts else 'no harm shown'}")
 
 
 def main() -> None:
@@ -67,6 +88,11 @@ def main() -> None:
     for measure in next(iter(summaries.values())):
         values = "  ".join(f"{arm}: {summary[measure]}" for arm, summary in summaries.items())
         print(f"{measure:<20} {values}")
+
+    if {GUARD_BASELINE_ARM, GUARD_SKILL_ARM} <= set(args.arms):
+        loops_of = {arm: [loops[index] for loops in loops_by_item.values()] for index, arm in enumerate(args.arms)}
+        print()
+        print(accuracy_guard(loops_of[GUARD_BASELINE_ARM], loops_of[GUARD_SKILL_ARM]))
 
 
 if __name__ == "__main__":
