@@ -8,6 +8,7 @@ from typing import Any
 from .costs import node_belief_label, node_effective_truth_costs
 from .identities import RenderIdentityMap, render_identity_map
 from .models import node_render_class, node_type_label
+from .policy import answer_labels
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
 
@@ -24,9 +25,11 @@ def _html_anchor(raw: str, prefix: str = "details") -> str:
     return f"{prefix}-{cleaned}"
 
 
-def _compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str:
+def _compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
     node_id = str(node.get("id") or "node")
-    parts = (node_id, node_type_label(node), node_belief_label(node, effective_truth_cost))
+    # The answer is labelled, not highlighted: the focus control lights a path when the reader asks.
+    id_line = f"{node_id} · {answer_label}" if answer_label else node_id
+    parts = (id_line, node_type_label(node), node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -229,6 +232,7 @@ def offline_graph_svg(
                 f"{factor.relation} factor",
             )
 
+    labels = answer_labels(state)
     node_parts: list[str] = []
     for node in selected_nodes:
         raw_id = str(node.get("id"))
@@ -237,7 +241,7 @@ def offline_graph_svg(
         mid = html.escape(identities.node(raw_id) or "", quote=True)
         anchor = html.escape(f"#{identities.node_anchor(raw_id)}", quote=True)
         label = _label_tspans(
-            _compact_node_label(node, node_truth_costs[raw_id]),
+            _compact_node_label(node, node_truth_costs[raw_id], labels.get(raw_id, "")),
             x + node_width // 2,
             y + node_height // 2 - 4,
         )

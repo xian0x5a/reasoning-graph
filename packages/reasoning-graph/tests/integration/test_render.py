@@ -149,7 +149,6 @@ class RenderIdentityTests(unittest.TestCase):
 
         for raw_id in ("CS1", "CS2"):
             self.assertIn(f'option value="{identities.node_ids[raw_id]}">{raw_id}</option>', document)
-        self.assertNotIn("No viable answer candidates recorded.", document)
         self.assertIn("First answer", document)
 
     def test_offline_svg_renders_factors_and_replaces_member_edges(self) -> None:

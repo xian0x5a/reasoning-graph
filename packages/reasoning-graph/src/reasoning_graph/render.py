@@ -16,7 +16,7 @@ from .costs import (
 from .identities import RenderIdentityMap, render_identity_map
 from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .offline_render import offline_graph_svg
-from .policy import accepted_goal_ids, answer_candidates, candidate_goal_targets, goal_best_candidates, preferred_goal_ids, ranked_candidates
+from .policy import accepted_goal_ids, answer_candidates, answer_labels, goal_best_candidates, preferred_goal_ids, ranked_candidates
 from .state import by_id
 from .utils import finite_float
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
@@ -42,11 +42,13 @@ def html_anchor(raw: str, prefix: str = "details") -> str:
     return f"{prefix}-{cleaned}"
 
 
-def compact_node_label(node: dict[str, Any], effective_truth_cost: float) -> str:
+def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
     # Keep graph labels stable and tiny. Full text lives in modal/detail cards;
     # long Mermaid labels are hard to navigate and can expose HTML entity noise.
     node_id = str(node.get("id") or "node")
-    parts = (node_id, node_type_label(node), node_belief_label(node, effective_truth_cost))
+    # The answer is labelled, not highlighted: the focus control lights a path when the reader asks.
+    id_line = f"{node_id} · {answer_label}" if answer_label else node_id
+    parts = (id_line, node_type_label(node), node_belief_label(node, effective_truth_cost))
     return "\n".join(part for part in parts if part)
 
 
@@ -69,8 +71,8 @@ GRAPH_GROUPS = (
 )
 
 
-def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost: float) -> str:
-    label = escape_mermaid_label(compact_node_label(node, effective_truth_cost))
+def mermaid_node_definition(mid: str, node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
+    label = escape_mermaid_label(compact_node_label(node, effective_truth_cost, answer_label))
     return f'{mid}["{label}"]'
 
 
@@ -127,6 +129,7 @@ def to_mermaid(
         selected_factors.append((factor, factor.raw_id))
 
     groups = grouped_nodes(selected_nodes)
+    labels = answer_labels(state)
     for group_id, title, _ in (*GRAPH_GROUPS, ("cluster_other", "Other", set())):
         group_nodes = groups.get(group_id, [])
         if not group_nodes:
@@ -134,7 +137,7 @@ def to_mermaid(
         lines.append(f"  subgraph {group_id}[{title}]")
         for node in group_nodes:
             raw_id = str(node.get("id"))
-            lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
+            lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id], labels.get(raw_id, ''))}")
         lines.append("  end")
 
     if selected_factors:
@@ -220,84 +223,10 @@ def to_mermaid(
     return "\n".join(lines) + "\n"
 
 
-def ledger_rows(state: dict[str, Any], node_type: str) -> str:
-    identities = render_identity_map(state)
-    rows: list[str] = []
-    for node in state.get("nodes", []):
-        if not isinstance(node, dict) or node.get("type") != node_type:
-            continue
-        raw_id = str(node.get("id", ""))
-        node_id = html.escape(raw_id)
-        text = html.escape(str(node.get("text", "")))
-        source = node.get("source") or node.get("sources") or ""
-        if isinstance(source, list):
-            source_text = ", ".join(str(item) for item in source)
-        else:
-            source_text = str(source)
-        source_html = html.escape(source_text)
-        rows.append(
-            f'<tr id="{identities.node_anchor(raw_id, "ledger")}"><th scope="row">{node_id}</th><td>{text}</td><td>{source_html}</td></tr>'
-        )
-    if not rows:
-        return "<p class=\"empty\">None recorded.</p>"
-    return (
-        "<table>"
-        "<thead><tr><th>ID</th><th>Statement</th><th>Source</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
-        "</table>"
-    )
-
-
-def candidate_rows(state: dict[str, Any]) -> str:
-    sorted_candidates = ranked_candidates(state)
-    if not sorted_candidates:
-        return '<p class="empty">No viable answer candidates recorded.</p>'
-    nodes = by_id(state.get("nodes", []), "node")
-    targets_by_candidate = candidate_goal_targets(state)
-    accepted = accepted_goal_ids(state)
-    preferred = preferred_goal_ids(state)
-    rows: list[str] = []
-    for index, candidate in enumerate(sorted_candidates, 1):
-        raw_cid = str(candidate.get("id", index))
-        node = nodes.get(raw_cid, {})
-        cid = html.escape(raw_cid)
-        name = html.escape(str(candidate.get("name") or candidate.get("candidate") or "Candidate"))
-        target_parts: list[str] = []
-        for goal_id in sorted(targets_by_candidate.get(raw_cid, set())):
-            labels = []
-            if goal_id in accepted:
-                labels.append("accepted")
-            if goal_id in preferred:
-                labels.append("preferred")
-            suffix = f" ({', '.join(labels)})" if labels else ""
-            target_parts.append(f"<code>{html.escape(goal_id)}</code>{html.escape(suffix)}")
-        targets_html = ", ".join(target_parts)
-        truth_value = candidate.get("effective_truth_cost", candidate.get("truth_cost", "n/a"))
-        penalty = candidate.get("contradiction_penalty")
-        belief_value = candidate.get("belief", "n/a")
-        belief_html = html.escape(str(belief_value))
-        if penalty is not None:
-            belief_html = f"{belief_html} <small>(truth cost {html.escape(str(truth_value))}; +{html.escape(str(penalty))} contradicting evidence)</small>"
-        weight = candidate.get("weight", candidate.get("relative_weight", candidate.get("relative_weight_among_explored", "n/a")))
-        weight_html = html.escape(str(weight))
-        rows.append(
-            "<tr>"
-            f"<th scope=\"row\">#{index}</th>"
-            f"<td><code>{cid}</code></td><td>{name}</td><td>{targets_html}</td>"
-            f"<td>{belief_html}</td><td>{weight_html}</td>"
-            "</tr>"
-        )
-    return (
-        "<table>"
-        "<thead><tr><th>Rank</th><th>ID</th><th>Candidate</th><th>Goal(s)</th><th>Belief</th><th>Weight</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
-        "</table>"
-    )
-
-
 def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
     node_truth_costs = node_effective_truth_costs(state)
     identities = identities or render_identity_map(state)
+    labels = answer_labels(state)
     cards: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
@@ -306,6 +235,8 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
         raw_type = str(node.get("type", "node"))
         node_type = html.escape(raw_type)
         pill_text = node_type_label(node) if raw_type == "test" else raw_type
+        if raw_id in labels:
+            pill_text = f"{pill_text} · {labels[raw_id]}"
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
         source = node.get("source") or node.get("sources") or ""
         source_text = ", ".join(str(item) for item in source) if isinstance(source, list) else str(source)
@@ -340,11 +271,12 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
 
 def candidate_focus_options(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
     identities = identities or render_identity_map(state)
+    labels = answer_labels(state)
     options = ['<option value="">None</option>']
-    for index, candidate in enumerate(ranked_candidates(state), 1):
-        raw_cid = str(candidate.get("id", index))
+    for candidate in ranked_candidates(state):
+        raw_cid = str(candidate["id"])
         key = html.escape(identities.node(raw_cid) or "", quote=True)
-        text = html.escape(raw_cid)
+        text = html.escape(f"{raw_cid} ({labels[raw_cid]})" if raw_cid in labels else raw_cid)
         options.append(f'<option value="{key}">{text}</option>')
     return "".join(options)
 
@@ -527,6 +459,21 @@ def goal_policy_html(state: dict[str, Any]) -> str:
   </section>"""
 
 
+def answer_lines(state: dict[str, Any]) -> str:
+    """One header line per answered goal, resolved from the graph: the candidate's id and text."""
+
+    nodes = by_id(state.get("nodes", []), "node")
+    answers = answer_candidates(state)
+    lines = []
+    for goal_id, answer_id in sorted(answers.items()):
+        if answer_id is None:
+            continue
+        lead = f"Answer to {goal_id}:" if len(answers) > 1 else "Answer:"
+        text = str(nodes[answer_id].get("text") or "")
+        lines.append(f'<p class="answer"><strong>{html.escape(lead)}</strong> {html.escape(answer_id)}, {html.escape(text)}</p>')
+    return "".join(lines)
+
+
 def answer_rank_notes(state: dict[str, Any]) -> str:
     """Tell the reader when the answer is not the candidate the graph ranks first.
 
@@ -560,11 +507,9 @@ def html_document(
     # Computed here, not read from the state, so the reader never sees a stale status.
     status = html.escape(audit_state(state, quote_errors).status)
     title = html.escape(str(summary.get("title") or "Reasoning Graph"))
-    answer = html.escape(str(summary.get("answer") or "See report sections."))
     identities = render_identity_map(state)
     offline_mode = render_mode == "offline"
     audit_svg = offline_graph_svg(state, spacing, "audit-graph", identities=identities) if offline_mode else None
-    candidates_html = candidate_rows(state)
     focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
 
@@ -607,10 +552,6 @@ def html_document(
     .status {{ padding: 0.75rem 1rem; background: #f8fafc; border-left: 4px solid var(--line); border-radius: 12px; }}
     .answer-rank-note {{ padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }}
     section {{ padding: 1.2rem; margin: 1rem 0; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: .92rem; table-layout: fixed; }}
-    th, td {{ padding: .55rem .65rem; border: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }}
-    th {{ background: var(--soft); text-align: left; }}
-    th[scope="row"] {{ width: 5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
     .empty, .hint, .source {{ color: var(--muted); }}
     a {{ color: #1d4ed8; }}
     .section-head {{ display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }}
@@ -743,17 +684,12 @@ def html_document(
 <main>
   <header class="hero">
     <h1>{title}</h1>
-    <p class="answer"><strong>Answer:</strong> {answer}</p>
+    {answer_lines(state)}
     <p class="status"><strong>Status:</strong> {status}</p>
     {answer_rank_notes(state)}
   </header>
 
   {goal_policy_section}
-
-  <section>
-    <h2>Candidate ranking</h2>
-    {candidates_html}
-  </section>
 
   {graph_panel("Full audit graph", mermaid_source, "audit-graph", focus_options, audit_svg)}
 

@@ -193,21 +193,15 @@ def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
 def ranked_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Candidates ranked by computed belief, for the rendered view only."""
 
-    nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
     ranked = [
         {
             "id": candidate_id,
-            "name": nodes.get(candidate_id, {}).get("text"),
             "effective_truth_cost": round(node_truth_costs[candidate_id], 6),
             "belief": round(math.exp(-node_truth_costs[candidate_id]), 6),
         }
         for candidate_id in viable_candidate_ids(state)
     ]
-    total_belief = sum(candidate["belief"] for candidate in ranked)
-    if total_belief > 0:
-        for candidate in ranked:
-            candidate["weight"] = round(candidate["belief"] / total_belief, 6)
     return sorted(ranked, key=lambda candidate: (candidate["effective_truth_cost"], str(candidate["id"])))
 
 
@@ -308,6 +302,20 @@ def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
         named = _named_in(claimed_answer(state), nodes, candidates)
         answers[goal_id] = named[0] if len(named) == 1 else None
     return answers
+
+
+def answer_labels(state: dict[str, Any]) -> dict[str, str]:
+    """What the rendered view writes on each answer candidate; the goal is named when several take an answer."""
+
+    answers = answer_candidates(state)
+    goals_by_candidate: dict[str, list[str]] = {}
+    for goal_id, candidate_id in sorted(answers.items()):
+        if candidate_id is not None:
+            goals_by_candidate.setdefault(candidate_id, []).append(goal_id)
+    return {
+        candidate_id: f"ANSWER to {', '.join(goals)}" if len(answers) > 1 else "ANSWER"
+        for candidate_id, goals in goals_by_candidate.items()
+    }
 
 
 def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:

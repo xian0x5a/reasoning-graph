@@ -116,13 +116,12 @@ def test_details_separate_effective_belief_from_authored_inputs():
 
 
 @pytest.mark.parametrize("render_mode", ["mermaid", "offline"])
-def test_html_report_keeps_labels_details_and_candidate_table_consistent(render_mode):
+def test_html_report_keeps_labels_and_details_consistent(render_mode):
     state = report_state(support=True)
     original_nodes = deepcopy(state["nodes"])
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert "belief 0.773" in document
     assert "Effective belief: 0.773006" in detail_card(document, "CS1")
-    assert "<td>0.773006</td>" in document
     assert "Score: 5" in detail_card(document, "D1")
     assert state["nodes"] == original_nodes
 
@@ -163,3 +162,68 @@ def test_html_leaves_a_top_ranked_or_unnamed_answer_unmarked(answer):
     state = ranked_state(answer)
     document = html_document(state, to_mermaid(state))
     assert 'class="answer-rank-note"' not in document
+
+
+@pytest.mark.parametrize("render_mode", ["mermaid", "offline"])
+def test_html_header_names_the_answer_by_id_and_text(render_mode):
+    state = ranked_state("CS2")
+    document = html_document(state, to_mermaid(state), render_mode=render_mode)
+    assert '<p class="answer"><strong>Answer:</strong> CS2, The butler</p>' in document
+    assert "Candidate ranking" not in document
+    assert "<th>Rank</th>" not in document
+
+
+def test_html_header_has_no_answer_line_while_none_is_claimed():
+    state = ranked_state("")
+    document = html_document(state, to_mermaid(state))
+    assert '<p class="answer">' not in document
+    assert "<strong>Status:</strong> no answer claimed" in document
+
+
+@pytest.mark.parametrize("renderer", RENDERERS)
+def test_graph_labels_the_answer_and_no_rival(renderer):
+    labels = graph_labels(ranked_state("The butler did it."), renderer)
+    assert labels["CS2"].split("\n")[:2] == ["CS2 · ANSWER", "candidate"]
+    assert labels["CS1"].split("\n")[:2] == ["CS1", "candidate"]
+
+
+@pytest.mark.parametrize("renderer", RENDERERS)
+def test_graph_labels_no_answer_while_none_is_claimed(renderer):
+    labels = graph_labels(ranked_state(""), renderer)
+    assert not any("ANSWER" in label for label in labels.values())
+
+
+def two_goal_state():
+    state = ranked_state("CS1 and CS3")
+    state["nodes"] += [
+        {"id": "G2", "type": "goal", "text": "With what?"},
+        {"id": "O3", "type": "observation", "text": "The rope was cut"},
+        {"id": "CS3", "type": "candidate_solution", "text": "The shears", "answer_kind": "exact_answer"},
+    ]
+    state["edges"] += [
+        {"from": "O3", "to": "CS3", "type": "leads_to"},
+        {"from": "CS3", "to": "G2", "type": "answers"},
+    ]
+    assert validate_state(state).ok
+    return state
+
+
+@pytest.mark.parametrize("renderer", RENDERERS)
+def test_answer_label_names_the_goal_when_there_are_several(renderer):
+    state = two_goal_state()
+    labels = graph_labels(state, renderer)
+    assert labels["CS1"].split("\n")[0] == "CS1 · ANSWER to G1"
+    assert labels["CS3"].split("\n")[0] == "CS3 · ANSWER to G2"
+    document = html_document(state, to_mermaid(state))
+    assert '<p class="answer"><strong>Answer to G1:</strong> CS1, The gardener</p>' in document
+    assert '<p class="answer"><strong>Answer to G2:</strong> CS3, The shears</p>' in document
+
+
+def test_focus_option_and_detail_card_say_which_candidate_is_the_answer():
+    state = ranked_state("CS2")
+    document = html_document(state, to_mermaid(state))
+    assert '<option value="CS2">CS2 (ANSWER)</option>' in document
+    assert '<option value="CS1">CS1</option>' in document
+    assert "ANSWER" in detail_card(document, "CS2")
+    assert "ANSWER" not in detail_card(document, "CS1")
+
