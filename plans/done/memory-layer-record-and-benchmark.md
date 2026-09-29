@@ -126,7 +126,7 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
   - [x] 4.6 Belief out of the state: `43b2739`, `37c98ad`, `33b738c`
   - [x] 4.7 Index file: `183312d`
   - [x] 4.8 Docs and ADRs 0009, 0010, 0011. Skill docs changed with each step.
-- [ ] 5. Graph arm and result
+- [x] 5. Graph arm and result: the graph ties the notes file at 12 of 14 and costs 1.8 times as much. Result posted on #37.
 
 ## Surprises & Discoveries
 
@@ -195,19 +195,42 @@ Proposed scale table, to confirm in step 4.3. The edge values are the ratios age
 
 ## Outcomes & Retrospective
 
-Baseline arms, run id `s55-loop-r1`, 14 items, one run per arm, so a repeat can shift the counts.
+Three arms, run id `s55-loop-r1`, 14 items, `claude-sonnet-5-5` at high effort, one run per arm. A repeat can shift the counts by an item or two.
 
-| Measure | no-memory | notes-file |
-|---|---|---|
-| First submit right | 6 | 7 |
-| Passed | 3 | 12 |
-| Submits used | 49 | 39 |
-| Repeated a rejected answer | 17 | 0 |
-| Hints used in the next submit | 5 of 35 | 20 of 25 |
-| Cost | $11.05 | $6.86 |
+| Measure | no-memory | notes-file | graph |
+|---|---|---|---|
+| First submit right | 6 | 7 | 8 |
+| Passed | 3 | 12 | 12 |
+| Submits used | 49 | 39 | 39 |
+| Repeated a rejected answer | 17 | 0 | 0 |
+| Hints used in the next submit | 5 of 35 | 20 of 25 | 25 of 25 |
+| Cost | $11.05 | $6.86 | $12.25 |
+| Cost of round 1, mean | $0.26 | $0.27 | $0.49 |
+| Tool calls | 101 | 115 | 246 |
+| Memory file at the end, median | none | 2.6 KB | 3.4 KB index, 8.9 KB state |
 
 Reproduce:
 
-    uv run tests/scenarios/exact-answer/score_loop.py test-results/exact-answer/true-detective s55-loop-r1 no-memory notes-file
+    uv run tests/scenarios/exact-answer/score_loop.py test-results/exact-answer/true-detective s55-loop-r1 no-memory notes-file graph
+    uv run tests/scenarios/exact-answer/loop_usage.py test-results/exact-answer/true-detective s55-loop-r1 no-memory notes-file graph
 
-The graph arm and the record changes are open.
+What the result says:
+
+- **The graph works as memory.** No rejected answer was repeated, every resumed round read the index first, and every hint was used in the next submit.
+- **It does not beat a notes file.** Both pass 12 of 14 in 39 submits. They fail on different items, which is within the noise of one run: the graph arm failed `the-golden-ruse` here and passed it in the smoke run.
+- **It costs 1.8 times the notes file.** The extra cost is tool calls: 246 against 115.
+- **Accuracy is not hurt.** Right only without the skill 1, right only with it 3, McNemar exact p = 0.625. The guard is weak on 14 items, so this shows no harm, not the absence of harm.
+- **No agent looked at computed belief.** No run called `html` or `mermaid`.
+
+The plan set the test: if the graph cannot beat a notes file, the record should be shaped for people. On tasks this small it cannot. A 2.6 KB note holds the whole case. Whether the graph wins on a task too large for one note is not measured.
+
+Waste found in the graph arm:
+
+- **A stopped state refuses every write.** 20 of 44 stops were written in place and 19 times the stopped file was copied over `state.json`. 13 of 14 loops then hit a refused `record` or `refresh`, 38 refusals in all, and agents made 23 hand edits of the state, most of them to strip the stop event. About a quarter of the tool calls went here.
+- **12 records failed on a node id that already existed**, after a reset the agent did not remember which ids were taken.
+
+Follow-ups, each its own plan:
+
+1. Let `record` reopen a stopped state and keep the stop in the trace.
+2. The presentation eval.
+3. A task too large for one note, to test the graph against a notes file where they can differ.
