@@ -49,7 +49,7 @@ Graph/HTML artifacts may have two useful views:
 - `audit graph` — complete/debuggable reasoning graph; good for checking reasoning completeness.
 - explanation view — concise human report, optionally a curated/lossy graph, good for communicating why the answer wins.
 
-The full reasoning state is always the source of truth. An explanation view can omit nodes, but must not invent observations, constraints, candidate claims, or edges absent from the state/report metadata.
+The full reasoning state is always the source of truth. An explanation view can omit nodes, but must not invent observations, constraints, candidate claims, or edges absent from the state.
 
 Create an HTML artifact as a report, not a fixed template. Choose the layout that best explains the case/problem. It must include:
 
@@ -93,7 +93,7 @@ Recommended graph/HTML flow:
 
 ### Belief display
 
-Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Compute it from the full state before filtering the presentation graph, so hidden premises and factors still contribute. Goals, constraints, and tests have no belief label.
+Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Goals, constraints, and tests have no belief label.
 
 Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; details and candidate-table beliefs are rounded to six decimal places. Rendering never writes these computed values into the state.
 
@@ -125,15 +125,11 @@ flowchart TD
   CS1 -- answers --> G
   O2["observation: violates O(n)"] -. contradicts .-> H1
 
-  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
   classDef candidate fill:#dbeafe,stroke:#2563eb;
-  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;
   classDef bad fill:#fee2e2,stroke:#dc2626;
 
-  class E1,C1,D1 winning;
   class CS1 candidate;
-  class A1 dim;
-  class E2 bad;
+  class O2 bad;
 ```
 
 HTML report design guidance:

@@ -150,7 +150,7 @@ Goals and candidates (`docs/schema/goals.md`):
 - "Not solved", "cannot establish", or "missing dependency" is a hypothesis blocker, not a candidate, unless the user accepted an epistemic/negative goal.
 - Use multiple `goal` nodes only when the user accepts multiple outcomes. Chained sub-goals are `goal` nodes linked `parent --requires--> child`; a goal is answered only when a candidate answers it and every required sub-goal is answered.
 
-Report (`docs/schema/reporting.md`): `report.answer`, when set, names the same candidate as the answer. Keep ranking words like `Best` or `rejected` out of node text.
+The state is the graph: there is no report section. Keep ranking words like `Best` or `rejected` out of node text; the rank is computed when the graph renders.
 
 ## Output
 
@@ -161,7 +161,6 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/tests.md` — test lifecycle and result observation pattern
 - `docs/schema/goals.md` — candidate, answer-kind, multiple-goal, and lemma rules
 - `docs/schema/factors.md` — correlation groups
-- `docs/schema/reporting.md` — report and presentation metadata
 - `docs/cost-model.md` — score tables, defaults, and the belief math behind the rendered view
 - `docs/driver.md` — CLI commands, state JSON, the index file, and audit
 - `docs/rendering.md` — graph/HTML rendering options

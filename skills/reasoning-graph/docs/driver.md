@@ -46,9 +46,9 @@ The state holds what you authored, nothing computed and no trace of how it got t
 - The list order of `nodes` and `edges` is the order they were recorded in.
 - Belief is computed when the graph is rendered (`cost-model.md`), and so is the status of the claim.
 
-Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`), `report` / `presentation` / `view` (`docs/schema/reporting.md`).
+Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`).
 
-Removed, and rejected by validation: `events`, `stop_policy`, and an `id` on an edge.
+Removed, and rejected by validation: `events`, `stop_policy`, an `id` on an edge, and the sections `report`, `presentation` and `view`. They held a second copy of the graph for the reader. The answer is `summary.answer`, the reason for a candidate is a `note` on the node or edge, and a next check is a `test` node.
 
 ## Edge identity
 
@@ -123,10 +123,7 @@ Answer checks:
 
 - every accepted, non-optional goal is answered (`docs/schema/goals.md`)
 - `summary.answer` names exactly one candidate for each of those goals, by id as a whole word or by exact text. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
-- `report.answer`, when set, names the same candidate
 - the answer candidate is evidence-grounded, and every test has a result or `not_run` (`../SKILL.md`)
-
-`report.answer` without `summary.answer` fails validation: the view would show an answer nothing checked.
 
 The HTML view shows the same status line, computed when it renders.
 

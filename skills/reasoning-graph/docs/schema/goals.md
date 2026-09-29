@@ -84,7 +84,7 @@ A goal is **answered** when it has an `answers` edge from a `candidate_solution`
 | axiom, given | `observation`, or `constraint` |
 | lemma, proposition, corollary, conjecture | `hypothesis` |
 | proof | `candidate_solution` with `answer_kind: "exact_method"` |
-| remark | report text |
+| remark | a `note` on the node it concerns, or the final response |
 
 ### Lemma-shaped steps
 
