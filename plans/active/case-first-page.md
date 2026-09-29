@@ -77,12 +77,13 @@ Commit after each step.
 - [x] 1. Shared visual graph (96cd100). Mermaid output unchanged except the unused `bad` class; the offline SVG now paints from the shared palette.
 - [x] 2. Split `render.py`. Mermaid, markup, CSS and page data unchanged on the fixtures and two real states; the script reads its data from `#page-data`.
 - [x] 3. The case. `case.py` `answer_cases(state)`; `tests/integration/test_case.py`. Checked by hand on sweat-it-out r3 and the-anonymous-bank-robber r4.
-- [ ] 4. Case-first page
+- [x] 4. Case-first page. `case_section.py`; `tests/integration/test_case_page.py`. Checked in headless Chrome at 1400px and 390px on sweat-it-out r3; a clicked case id opens its popup in both modes.
 - [ ] 5. Legible graph
 
 ## Surprises & Discoveries
 
 - Moving the JS out of a Python f-string kept its doubled backslashes (`/\\s+/`). No test caught it; the golden diff of the script text did. The page now runs identically in headless Chrome (same edge hitbox count, both modes).
+- A module script runs only after its imports load, so case links set up inside the Mermaid bootstrap would wait on the CDN. `setupPage()` (case links, popups, filters, nav) now runs in the classic script; `setupGraphs()` still waits for the drawn graph.
 - A local `uv build` reuses the ignored `packages/reasoning-graph/build/`, so a wheel can carry a deleted module. A git install starts clean.
 
 ## Decisions

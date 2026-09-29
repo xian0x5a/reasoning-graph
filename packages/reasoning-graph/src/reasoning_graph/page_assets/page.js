@@ -1,6 +1,6 @@
 // Browser behaviour of the reasoning graph page: pan/zoom canvas, edge highlights,
 // candidate focus, node popups, filters and navigation. The page embeds its data as
-// JSON in #page-data; setupGraphs() runs once the graph svg exists.
+// JSON in #page-data; setupPage() runs at once, setupGraphs() once the graph svg exists.
 const pageData = JSON.parse(document.getElementById("page-data").textContent);
 const graphEdgeMaps = pageData.graphEdgeMaps;
 const candidateFocusMap = pageData.candidateFocusMap;
@@ -525,6 +525,13 @@ function runSetup(label, callback) {
   }
 }
 
+function setupPage() {
+  document.querySelectorAll(".case-section").forEach((section) => runSetup("case links", () => installDetailClicks(section)));
+  runSetup("filters", setupFilters);
+  runSetup("modal", setupModal);
+  runSetup("floating nav", setupFloatingNav);
+}
+
 function setupGraphs() {
   document.querySelectorAll(".graph-section").forEach((section) => {
     const canvas = section.querySelector(".graph-canvas");
@@ -532,8 +539,5 @@ function setupGraphs() {
     runSetup("node detail clicks", () => installDetailClicks(section));
     runSetup("edge highlights", () => setupEdgeHighlights(section));
   });
-  runSetup("filters", setupFilters);
   runSetup("candidate focus", setupCandidateFocus);
-  runSetup("modal", setupModal);
-  runSetup("floating nav", setupFloatingNav);
 }

@@ -99,9 +99,24 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 | Answer | one line per answered goal, `Answer: CS1, <candidate text>`; with several goals, `Answer to G2: CS3, <candidate text>`. No line while no answer is claimed |
 | Status | the line `audit` prints, such as `answer CS1: checks pass`, computed when the page renders |
 | Rank note | only when another candidate of the same goal outranks the answer |
-| Goal policy | only when the state has `goal_policy` or `goal_groups` |
+| Case | the case for each answer, described below. None while no answer is claimed |
 | Graph | the full graph, grouped by node type, in a pan/zoom canvas |
-| Node details | one card per node: text, source, quote, note, belief, edges |
+| Goal policy | only when the state has `goal_policy` or `goal_groups` |
+| Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
+
+### The case
+
+The case lets a reader check the answer without reading the graph first. It lists nodes and edges only, no written summary. Each id is a chip in its node's colour, and clicking it opens that node's popup.
+
+| Part | Content |
+| --- | --- |
+| Why believe it | the `leads_to` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's score, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
+| Against it | `contradicts` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
+| Tests | tests that a why-tree node prompts or is checked by, or that produced a why-tree observation, with each result observation or the `not_run` reason |
+| Rivals | the other candidates of the goal, by belief, with the `contradicts` edges into each |
+| Weak spots | counted, not judged: a why-tree claim resting on one input or none (a group counts once), a why-tree observation without a quote, an unrun test |
+
+The why-tree follows the edges belief flows through, so the case and the computed beliefs agree. The data comes from `answer_cases` in `case.py`.
 
 The answer is labelled, not highlighted:
 
@@ -109,7 +124,7 @@ The answer is labelled, not highlighted:
 - its detail card and popup carry the same label beside the node type
 - the focus dropdown lists it as `CS1 (ANSWER)`. Picking a candidate there highlights its derivation; nothing is focused by default
 
-There is no candidate table. The belief of each claim is on its node.
+Candidates are ranked only under Rivals in the case. The belief of each claim is also on its node.
 
 ### Belief display
 

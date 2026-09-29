@@ -1,4 +1,4 @@
-"""The HTML page: the answer, the graph canvas and the node details, with its browser behaviour inlined."""
+"""The HTML page: the answer, its case, the graph canvas and the node details, with its browser behaviour inlined."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from importlib.resources import files
 from typing import Any
 
 from .audit import audit_state
+from .case_section import case_id_styles, case_section_html
 from .costs import (
     node_effective_truth_costs,
     probability_from_cost,
@@ -320,6 +321,8 @@ def html_document(
     focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
 
+    case_html = case_section_html(state, identities)
+    case_nav = '<a href="#case-section">Case</a>' if case_html else ""
     details_html = node_detail_cards(state, identities)
     filters_html = detail_filter_buttons()
     page_data = {
@@ -330,8 +333,7 @@ def html_document(
     page_data_json = json.dumps(page_data, ensure_ascii=False).replace("</", "<\\/")
     if offline_mode:
         bootstrap = """<script>
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupGraphs);
-  else setupGraphs();
+  setupGraphs();
 </script>"""
     else:
         bootstrap = f"""<script type="module">
@@ -350,12 +352,13 @@ def html_document(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{title}</title>
   <style>
-{page_asset("page.css")}  </style>
+{page_asset("page.css")}{case_id_styles()}  </style>
 </head>
 <body>
 <nav class="floating-nav" aria-label="Graph navigation">
   <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="floating-nav-menu" title="Open navigation">☰</button>
   <div id="floating-nav-menu" class="nav-menu">
+    {case_nav}
     <a href="#section-audit-graph">Audit canvas</a>
     <a href="#node-details-section">Details</a>
   </div>
@@ -368,15 +371,19 @@ def html_document(
     {answer_rank_notes(state)}
   </header>
 
-  {goal_policy_section}
+  {case_html}
 
   {graph_panel("Full audit graph", mermaid_source, "audit-graph", focus_options, audit_svg)}
 
+  {goal_policy_section}
+
   <section id="node-details-section">
-    <h2>Node details</h2>
-    <p class="hint">Includes observations, constraints, hypotheses, and candidate answers. Use filters or click graph nodes for popup cards.</p>
-    {filters_html}
-    <div class="detail-grid">{details_html}</div>
+    <details class="node-details">
+      <summary><h2>Node details</h2></summary>
+      <p class="hint">Every node of the graph. Use filters, or click an id or a graph node for its popup card.</p>
+      {filters_html}
+      <div class="detail-grid">{details_html}</div>
+    </details>
   </section>
 </main>
 <dialog id="node-modal" class="node-modal" aria-labelledby="node-modal-title">
@@ -388,7 +395,10 @@ def html_document(
 </dialog>
 <script type="application/json" id="page-data">{page_data_json}</script>
 <script>
-{page_asset("page.js")}</script>
+{page_asset("page.js")}
+// The case, the popups and the nav work at once; the graph is set up once it is drawn.
+setupPage();
+</script>
 {bootstrap}
 </body>
 </html>
