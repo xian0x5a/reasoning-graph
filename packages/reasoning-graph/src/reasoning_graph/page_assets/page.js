@@ -327,6 +327,19 @@ function setupCandidateFocus() {
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") clearCandidateFocus(); });
 }
 
+// A graph opens fitted to the canvas width, never above its natural size, and the canvas
+// grows as tall as that takes, up to a few screens. Fitted to a fixed-height canvas, a
+// graph with a long column of observations opened too small to read. The page scroll
+// still passes over the canvas, so a tall canvas reads like a tall figure.
+const MAX_CANVAS_SCREENS = 2;
+
+function fitCanvasHeight(canvas, box) {
+  const scale = Math.min(1, canvas.clientWidth / box.width);
+  const minHeight = parseFloat(getComputedStyle(canvas).minHeight) || 0;
+  const height = Math.min(Math.max(box.height * scale, minHeight), window.innerHeight * MAX_CANVAS_SCREENS);
+  canvas.style.height = `${Math.round(height)}px`;
+}
+
 function setupPanZoom(canvas) {
   const svg = canvas.querySelector("svg");
   if (!svg) return;
@@ -337,6 +350,7 @@ function setupPanZoom(canvas) {
   svg.style.height = "100%";
 
   let box = contentBox(svg);
+  fitCanvasHeight(canvas, box);
   // Zoom stays between the fitted content box and a fixed zoom-in limit. Panning is
   // deliberately unbounded: the graph can be dragged right off the canvas the same
   // way the window can be scrolled away from a document, and "Reset view" brings it

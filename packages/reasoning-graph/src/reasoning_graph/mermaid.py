@@ -15,6 +15,10 @@ def mermaid_label(text: str) -> str:
     return escaped.replace("\n", "<br/>")
 
 
+# Left to right: observations, the widest rank of a real graph, stack in a column the
+# page canvas grows down to fit. Top down lays them in one row wider than any screen.
+LAYOUT_DIRECTION = "LR"
+
 GROUP_STYLES = {
     "cluster_goal": "fill:#fffbeb,stroke:#fde68a,stroke-width:1px",
     "cluster_observations": "fill:#f8fafc,stroke:#bae6fd,stroke-width:1px",
@@ -42,12 +46,10 @@ def mermaid_edge(edge: ViewEdge) -> str:
 def to_mermaid(
     state: dict[str, Any],
     *,
-    direction: str = "TD",
     identities: RenderIdentityMap | None = None,
 ) -> str:
     view = graph_view(state, identities)
-    safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
-    lines = [f"flowchart {safe_direction}"]
+    lines = [f"flowchart {LAYOUT_DIRECTION}"]
 
     drawn_groups: list[str] = []
     for group_id, title in (*((group_id, title) for group_id, title, _ in GRAPH_GROUPS), OTHER_GROUP):

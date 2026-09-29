@@ -8,6 +8,11 @@ from typing import Any
 from .graph_view import ViewEdge, graph_view
 from .identities import RenderIdentityMap, html_anchor
 
+EDGE_LABEL_FONT_SIZE = 12
+# A generous glyph width, as a share of the font size, to reserve room for a label.
+EDGE_LABEL_GLYPH_WIDTH = 0.6
+EDGE_LABEL_GAP = 2
+
 
 def _spacing_metrics(spacing: str) -> dict[str, int]:
     presets = {
@@ -40,6 +45,33 @@ def _label_tspans(label: str, x: int, y: int) -> str:
         line_y = start_y if index == 0 else start_y + index * 18
         tspans.append(f'<tspan x="{x}" y="{line_y}" font-weight="{weight}">{html.escape(line)}</tspan>')
     return "".join(tspans)
+
+
+LabelBox = tuple[float, float, float, float]
+
+
+def _boxes_overlap(a: LabelBox, b: LabelBox) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _spread_labels(labels: list[tuple[str, int, int]]) -> list[tuple[str, int, int]]:
+    """Move each edge label down until it clears the labels placed before it.
+
+    Edges that converge on one node, or cross between two columns, put their midpoints
+    on one spot, and their labels would print over each other.
+    """
+    line_height = EDGE_LABEL_FONT_SIZE + EDGE_LABEL_GAP
+    placed: list[LabelBox] = []
+    spread = []
+    for label, x, y in labels:
+        half_width = len(label) * EDGE_LABEL_FONT_SIZE * EDGE_LABEL_GLYPH_WIDTH / 2 + EDGE_LABEL_GAP
+        box = (x - half_width, y - line_height, x + half_width, y)
+        while any(_boxes_overlap(box, other) for other in placed):
+            y += line_height
+            box = (box[0], box[1] + line_height, box[2], box[3] + line_height)
+        placed.append(box)
+        spread.append((label, x, y))
+    return spread
 
 
 def offline_graph_svg(
@@ -87,7 +119,7 @@ def offline_graph_svg(
     marker_id = html.escape(html_anchor(graph_id, "arrowhead"), quote=True)
 
     edge_parts: list[str] = []
-    label_parts: list[str] = []
+    labels: list[tuple[str, int, int]] = []
 
     def append_edge(edge: ViewEdge) -> None:
         sx, sy = positions[edge.source_key]
@@ -111,10 +143,7 @@ def offline_graph_svg(
             f'd="M {start_x} {start_y} C {c1x} {start_y}, {c2x} {end_y}, {end_x} {end_y}" '
             f'fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#{marker_id})"/>'
         )
-        label_parts.append(
-            f'<text class="edgeLabel" x="{mid_x}" y="{mid_y}" text-anchor="middle">'
-            f"<tspan>{html.escape(edge.label)}</tspan></text>"
-        )
+        labels.append((edge.label, mid_x, mid_y))
 
     for edge in sorted(view.edges, key=lambda edge: (edge.source_key[1], edge.target_key[1], edge.label)):
         append_edge(edge)
@@ -123,6 +152,12 @@ def offline_graph_svg(
             append_edge(edge)
         if factor.target_edge is not None:
             append_edge(factor.target_edge)
+
+    label_parts = [
+        f'<text class="edgeLabel" x="{x}" y="{y}" text-anchor="middle" font-size="{EDGE_LABEL_FONT_SIZE}">'
+        f"<tspan>{html.escape(label)}</tspan></text>"
+        for label, x, y in _spread_labels(labels)
+    ]
 
     node_parts: list[str] = []
     for node in nodes:
