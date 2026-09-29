@@ -27,7 +27,7 @@ In scope:
 - #18: a shared visual graph model, and the split of `render.py` into Mermaid, page, and browser assets.
 - The case: a pure function from the state to the case for the claimed answer, and its section on the page.
 - The page reorder: case first, graph second, node details collapsed.
-- Graph legibility: the Mermaid canvas opens readable, and the offline SVG no longer stacks every observation in one column.
+- Graph legibility: the canvas opens readable in both modes, and offline edge labels no longer print over each other.
 
 Out of scope:
 
@@ -78,12 +78,14 @@ Commit after each step.
 - [x] 2. Split `render.py`. Mermaid, markup, CSS and page data unchanged on the fixtures and two real states; the script reads its data from `#page-data`.
 - [x] 3. The case. `case.py` `answer_cases(state)`; `tests/integration/test_case.py`. Checked by hand on sweat-it-out r3 and the-anonymous-bank-robber r4.
 - [x] 4. Case-first page. `case_section.py`; `tests/integration/test_case_page.py`. Checked in headless Chrome at 1400px and 390px on sweat-it-out r3; a clicked case id opens its popup in both modes.
-- [ ] 5. Legible graph
+- [x] 5. Legible graph (f02e9f3). Mermaid draws left to right; the canvas fits the graph to its width and grows tall to match, up to two screens; offline edge labels move clear of each other (`tests/integration/test_offline_layout.py`). Checked in headless Chrome on did-the-vicar r1, sweat-it-out r3 and the-anonymous-bank-robber r4, both modes.
 
 ## Surprises & Discoveries
 
 - Moving the JS out of a Python f-string kept its doubled backslashes (`/\\s+/`). No test caught it; the golden diff of the script text did. The page now runs identically in headless Chrome (same edge hitbox count, both modes).
 - A module script runs only after its imports load, so case links set up inside the Mermaid bootstrap would wait on the CDN. `setupPage()` (case links, popups, filters, nav) now runs in the classic script; `setupGraphs()` still waits for the drawn graph.
+- The widest rank of a real graph is its observations (14 of 26 nodes on sweat-it-out r3). Top down, Mermaid lays them in one row 3628px wide, so any canvas opens it at a third of its size. Left to right, the same graph is 1153×2710: the width fits, and the height is a matter of how tall the canvas may grow.
+- Headless Chrome will not make a window narrower than about 500px, so a "390px" screenshot is a 411px canvas cropped. Good enough to compare before and after, not to judge the phone toolbar.
 - A local `uv build` reuses the ignored `packages/reasoning-graph/build/`, so a wheel can carry a deleted module. A git install starts clean.
 
 ## Decisions
@@ -101,4 +103,15 @@ Commit after each step.
 4. A claim with no input at all is a weak spot too (`no_input`), next to one resting on a single input. Both are counts, so the rule stays mechanical.
 5. Tests are listed in node order, and linked either way: a why-tree node prompts or is checked by the test, or the test produced a why-tree observation (`test leads_to observation`).
 
+6. The canvas grows tall instead of wrapping a tall rank into several columns. Wrapping sends edges from the back column across the front one, and it only helps the offline SVG. A canvas that fits the graph to its width helps both modes; the page scroll passes over it, so it reads like a tall figure. It is capped at two screens, past which the graph fits the capped height and the reader zooms.
+
 ## Outcomes & Retrospective
+
+- The page leads with the case: answer, why believe it down to the quotes, against it, tests, rivals, weak spots. Every id opens its node card. The graph follows; node details start collapsed.
+- The graph opens readable: at desktop width, scale 0.93 offline and 0.66 to 1 in Mermaid on the three real states, up from about 0.3.
+- #18 is done: one `GraphView` feeds Mermaid and the offline SVG, and a parity test holds them to the same nodes, labels, edges and colours. `render.py` is split into `mermaid.py`, `page.py`, `case.py`, `case_section.py` and `page_assets/`.
+- Not measured yet: whether the case lets a reader check the answer faster. That is the reader eval, the next plan.
+- Follow-ups, not done here:
+  - Offline rows sort by id as text (`O10` before `O2`), and nothing orders them to cut crossings.
+  - On a phone the graph toolbar leaves large gaps and the Focus select runs off the edge (seen before and after this plan).
+  - On a phone a 26-node graph still opens at about a third of its size; the case section is the phone's reading path.
