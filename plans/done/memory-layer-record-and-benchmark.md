@@ -227,7 +227,7 @@ The plan set the test: if the graph cannot beat a notes file, the record should 
 Waste found in the graph arm:
 
 - **A stopped state refuses every write.** 20 of 44 stops were written in place and 19 times the stopped file was copied over `state.json`. 13 of 14 loops then hit a refused `record` or `refresh`, 38 refusals in all, and agents made 23 hand edits of the state, most of them to strip the stop event. About a quarter of the tool calls went here.
-- **12 records failed on a node id that already existed**, after a reset the agent did not remember which ids were taken.
+- **12 records failed on a node id that already existed.** All 12 are `G1` in round 1: `init` creates the goal and prints nothing, and the first patch adds it again. An earlier version of this line blamed the context reset, which was wrong.
 
 Follow-ups, each its own plan:
 
