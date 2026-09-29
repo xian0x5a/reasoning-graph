@@ -196,6 +196,18 @@ class AnswerNamesACandidateTests(StateCase):
             ambiguous = self.start(tmp_dir, answer="CS1 or CS2")
             self.fails(self.stop(ambiguous), "names several candidates for goal G1: CS1, CS2", "name the one answer")
 
+    def test_stop_takes_the_answer_as_an_option(self) -> None:
+        # Without it, naming one of several candidates costs a hand edit of the state.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = self.start(tmp_dir)
+
+            self.fails(self.stop(state_path, "--answer", "The chauffeur did it."), "summary.answer names no candidate for goal G1")
+            self.assertEqual(self.load(state_path)["summary"]["answer"], "")
+
+            self.ok(self.stop(state_path, "--answer", "CS1"))
+            self.assertEqual(self.load(state_path)["summary"]["answer"], "CS1")
+            self.ok(run_cli("audit", str(state_path)))
+
     def test_draft_must_name_the_answer_the_state_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, answer="CS2")

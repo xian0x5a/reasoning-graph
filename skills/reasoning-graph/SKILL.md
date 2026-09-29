@@ -36,7 +36,7 @@ reasoning-graph init --goal "<goal>" --strict -o state.json
 reasoning-graph record state.json --patch - <<'JSON'
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
-reasoning-graph stop state.json --outcome solved --reason "<gate that fired>" --draft answer.md -o state.stopped.json \
+reasoning-graph stop state.json --outcome solved --answer "<candidate id>" --reason "<gate that fired>" --draft answer.md -o state.stopped.json \
   && reasoning-graph validate state.stopped.json \
   && reasoning-graph audit state.stopped.json
 ```
@@ -86,7 +86,7 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 A `solved` stop is accepted only when:
 
 - every accepted goal has a `candidate_solution` answering it (or is listed in `goal_policy.optional_goals`)
-- `summary.answer`, `report.answer`, and the `--draft` file name the answer candidate of each accepted goal, by id or exact text; when several candidates answer a goal, `summary.answer` names exactly one of them
+- `summary.answer`, `report.answer`, and the `--draft` file name the answer candidate of each accepted goal, by id or exact text; when several candidates answer a goal, `summary.answer` names exactly one of them. `stop --answer` sets `summary.answer`
 - the answer candidate is evidence-grounded: all of its `leads_to` premises are grounded, or its evidence favors it on balance, counting `supports` only from grounded sources and `contradicts` from any source; observations are the base, and a score never grounds a claim
 - every `test` node has a result observation or a `not_run` reason
 

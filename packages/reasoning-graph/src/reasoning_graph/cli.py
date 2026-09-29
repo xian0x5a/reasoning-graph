@@ -499,6 +499,8 @@ def append_stop_event(state: dict[str, Any], reason: str, outcome: str, draft: s
 def cmd_stop(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     hand_edit = _hand_edit_event(state)
+    if args.answer:
+        state.setdefault("summary", {})["answer"] = args.answer.strip()
     # The gates need a valid graph.
     if not passes_validation(state):
         return 1
@@ -585,6 +587,7 @@ def build_parser() -> argparse.ArgumentParser:
     stop.add_argument("state", help="state JSON path, or - for stdin")
     stop.add_argument("--reason", required=True, help="why search is stopping")
     stop.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
+    stop.add_argument("--answer", help="the answer, naming its candidate by id or exact text; stored as summary.answer")
     stop.add_argument("--draft", help="final answer draft; a candidate-bearing stop needs it to name the answer candidate of each accepted goal")
     stop.add_argument("-o", "--output", help="write mutated state to path")
     stop.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")

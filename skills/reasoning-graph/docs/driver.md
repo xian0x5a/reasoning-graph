@@ -14,7 +14,7 @@ JSON
 reasoning-graph refresh state.json                 # take in a hand edit now: validate, recheck quotes, log it
 reasoning-graph doctor state.json                  # validate, audit once stopped
 reasoning-graph validate state.json                # schema, reference, and score checks
-reasoning-graph stop state.json --reason "CS1 answers G1 and rests on O1" --outcome solved --draft answer.md -o state.stopped.json
+reasoning-graph stop state.json --reason "CS1 answers G1 and rests on O1" --outcome solved --answer CS1 --draft answer.md -o state.stopped.json
 reasoning-graph validate state.stopped.json
 reasoning-graph audit state.stopped.json           # event trace and stop gates
 reasoning-graph mermaid state.json                 # emit Mermaid source
@@ -130,7 +130,7 @@ Stop outcomes: `solved`, `candidate_count_met`, `budget_exhausted`, `blocked`, `
 `stop` checks every gate before writing anything:
 
 - candidate-bearing outcomes (`solved`, `candidate_count_met`) need every accepted, non-optional goal answered (`docs/schema/goals.md`) and any `min_viable_candidates`
-- they also need the reported answer to be in the graph: `summary.answer`, `report.answer`, and the `--draft` file each name the answer candidate of every accepted goal, by id as a whole word or by exact text. A goal's only candidate is its answer; among several it is the one `summary.answer` or `report.answer` names, and naming more than one is rejected. The draft may mention rivals. An empty answer is not checked
+- they also need the reported answer to be in the graph: `summary.answer`, `report.answer`, and the `--draft` file each name the answer candidate of every accepted goal, by id as a whole word or by exact text. A goal's only candidate is its answer; among several it is the one `summary.answer` or `report.answer` names, and naming more than one is rejected. The draft may mention rivals. `stop --answer <text>` sets `summary.answer`, so naming the answer needs no hand edit. An empty answer is not checked
 - `solved` also needs the grounding gates in `../SKILL.md`: a grounded answer candidate and test results. When several candidates answer a goal and no answer names one, `solved` fails and asks `summary.answer` to name one
 
 A failed gate names what is missing. Non-candidate outcomes only write the stop event. Nothing may be appended after `stop`.
