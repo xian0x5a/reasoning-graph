@@ -53,21 +53,5 @@
       "to": "G1",
       "type": "answers"
     }
-  ],
-  "events": [
-    {
-      "step": 1,
-      "action": "record",
-      "reason": "Worked Q1",
-      "add_nodes": [
-        "CS1"
-      ],
-      "add_edges": [
-        "E1",
-        "E2"
-      ],
-      "update_factors": [],
-      "graph_digest": "aa8f3cca14e5374f"
-    }
   ]
 }

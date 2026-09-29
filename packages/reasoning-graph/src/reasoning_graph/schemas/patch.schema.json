@@ -4,10 +4,8 @@
   "title": "Reasoning Graph Record Patch",
   "type": "object",
   "additionalProperties": false,
+  "minProperties": 1,
   "properties": {
-    "reason": {
-      "type": "string"
-    },
     "answer": {
       "type": "string",
       "description": "Sets summary.answer, the claim audit checks; an empty string withdraws it."

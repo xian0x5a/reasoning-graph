@@ -100,6 +100,7 @@ Last record: Asked the cook
 - `remove_nodes`, `remove_edges`, `remove_factors` take id lists; each id must exist. Removing a node also removes every edge touching it, and the event lists those edges. Groups are never removed implicitly: a group left naming a removed edge fails validation, so remove or replace it in the same patch.
 - `update_nodes` and `update_edges` take items `{"id": ..., "set": {...}, "unset": [...]}` with at least one of `set` or `unset`. `set` replaces top-level fields; `unset` deletes fields the item has. A node's `id` and `type` and an edge's `id`, `from`, and `to` are immutable. Use `update_nodes` to keep one node per claim as evidence arrives.
 - `nodes` and `edges` are insert-only; an id that exists after the removals is rejected. An id removed earlier in the same patch may be added again.
+- The list order of `nodes` and `edges` is the order they were recorded in: `record` appends and never reorders, and nothing else records that order.
 - `factors` adds or replaces correlation groups by id.
 - `belief` is rejected in `nodes` and `update_nodes`.
 - Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.

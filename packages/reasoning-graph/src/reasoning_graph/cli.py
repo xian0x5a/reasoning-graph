@@ -9,7 +9,6 @@ from typing import Any
 
 from .audit import audit_state
 from .index import index_document
-from .events import RECORD_CLAIM_FIELDS, graph_digest, last_graph_change, live_record_claims, next_event_step
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
@@ -69,7 +68,6 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 RECORD_PATCH_FIELDS = {
-    "reason",
     "answer",
     "nodes", "update_nodes", "remove_nodes",
     "edges", "update_edges", "remove_edges",
@@ -77,8 +75,19 @@ RECORD_PATCH_FIELDS = {
 }
 
 
-def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
-    """Apply removals, then updates, then additions; return the event fields that make the change auditable."""
+def removed_patch_field_errors(patch: dict[str, Any]) -> list[str]:
+    if "reason" not in patch:
+        return []
+    # A sentence per record that only the index read, and only the last one (issue #38).
+    return ["reason was removed: the state keeps no log; put what is worth keeping in a note on the node or edge it concerns"]
+
+
+def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
+    """Apply removals, then updates, then additions.
+
+    Additions are appended and nothing is reordered: the list order is the order of the work,
+    and nothing else records it.
+    """
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     factors_to_upsert = _object_list(patch.get("factors"), "factors")
@@ -92,11 +101,11 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str
         for edge in state.get("edges", [])
         if isinstance(edge, dict) and (edge.get("from") in removed_node_ids or edge.get("to") in removed_node_ids)
     ]
-    removed_edge_ids = _remove_by_id(state, "edges", [*(patch.get("remove_edges") or []), *incident_edge_ids])
-    removed_factor_ids = _remove_by_id(state, "factors", patch.get("remove_factors") or [])
+    _remove_by_id(state, "edges", [*(patch.get("remove_edges") or []), *incident_edge_ids])
+    _remove_by_id(state, "factors", patch.get("remove_factors") or [])
 
-    updated_nodes = _apply_field_updates(state.get("nodes", []), node_updates, "update_nodes")
-    updated_edges = _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
+    _apply_field_updates(state.get("nodes", []), node_updates, "update_nodes")
+    _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
 
     existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
     existing_edges = {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict) and edge.get("id")}
@@ -123,32 +132,6 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str
         else:
             factor_indexes[factor_id] = len(factors)
             factors.append(factor)
-    optional_fields = {
-        "updated_nodes": updated_nodes,
-        "updated_edges": updated_edges,
-        "remove_nodes": removed_node_ids,
-        "remove_edges": removed_edge_ids,
-        "remove_factors": removed_factor_ids,
-    }
-    return {
-        "add_nodes": [node["id"] for node in nodes_to_add],
-        "add_edges": [edge["id"] for edge in edges_to_add],
-        "update_factors": [factor["id"] for factor in factors_to_upsert],
-        **{field: value for field, value in optional_fields.items() if value},
-    }
-
-
-def _hand_edit_event(state: dict[str, Any]) -> dict[str, Any] | None:
-    """Describe edits made outside the CLI since the last record or refresh as refresh event fields.
-
-    Callers append the event only after the edited graph passes the checks a patch would, so the
-    trace records the edit.
-    """
-    last_change = last_graph_change(state)
-    digest = graph_digest(state)
-    if last_change is None or last_change.get("graph_digest") == digest:
-        return None
-    return {"action": "refresh", **_objects_removed_outside_record(state), "graph_digest": digest}
 
 
 def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
@@ -170,24 +153,6 @@ def _passes_quote_and_graph_checks(state: dict[str, Any], state_path: str) -> bo
     return graph_valid and not quote_errors
 
 
-def _objects_removed_outside_record(state: dict[str, Any]) -> dict[str, list[str]]:
-    """Name, by event removal field, objects an earlier record added that the state no longer holds.
-
-    Only a hand edit removes an object without a record; logging the removal keeps `audit` consistent.
-    Objects added by hand stay untraced, like the goal `init` writes.
-    """
-    existing_ids = {
-        "node": {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)},
-        "edge": {edge.get("id") for edge in state.get("edges", []) if isinstance(edge, dict)},
-        "factor": {factor.get("id") for factor in state.get("factors", []) or [] if isinstance(factor, dict)},
-    }
-    removed: dict[str, list[str]] = {}
-    for kind, object_id in live_record_claims(state.get("events")):
-        if object_id not in existing_ids[kind]:
-            removed.setdefault(RECORD_CLAIM_FIELDS[kind][1], []).append(object_id)
-    return removed
-
-
 def passes_validation(state: dict[str, Any]) -> bool:
     """Validate the graph; report errors and return False if invalid."""
     result = validate_state(state)
@@ -203,7 +168,7 @@ def passes_validation(state: dict[str, Any]) -> bool:
 def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
     """Refresh the two views beside the written state: <state>.html for a human watching
     progress, <state>.index.md for the agent to reread instead of the whole state."""
-    target = args.output or args.state
+    target = getattr(args, "output", None) or args.state
     if target == "-":
         return
     views = {
@@ -220,14 +185,14 @@ def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
 
 
 def cmd_record(args: argparse.Namespace) -> int:
-    """Append graph progress, then refresh the views beside the state."""
+    """Apply a patch to the graph, then refresh the views beside the state."""
     state = load_state(args.state)
     patch = load_state(args.patch)
     if not isinstance(patch, dict):
         raise ValueError("record patch must be a JSON object")
     added = {field: patch[field] if isinstance(patch.get(field), list) else [] for field in ("nodes", "edges")}
     # Listed first: the schema rejects a removed field too, but does not say what replaced it.
-    patch_errors = authored_field_errors(added["nodes"], added["edges"]) + patch_schema_errors(patch)
+    patch_errors = removed_patch_field_errors(patch) + authored_field_errors(added["nodes"], added["edges"]) + patch_schema_errors(patch)
     if patch_errors:
         for error in patch_errors:
             print(f"error: {error}", file=sys.stderr)
@@ -236,32 +201,12 @@ def cmd_record(args: argparse.Namespace) -> int:
     if unsupported_fields:
         print(f"error: record patch field(s) not allowed: {', '.join(unsupported_fields)}", file=sys.stderr)
         return 1
-    reason = str(patch.get("reason") or "").strip()
-    if not reason:
-        print("error: record patch requires reason: what this step did", file=sys.stderr)
-        return 1
-
-    # Validation and quote checks below judge the patched graph, so a patch may repair a hand edit.
-    hand_edit = _hand_edit_event(state)
-    patch_trace = _apply_graph_patch(state, patch)
+    _apply_graph_patch(state, patch)
     if "answer" in patch:
         # The claim `audit` judges. An empty answer withdraws it.
         state.setdefault("summary", {})["answer"] = patch["answer"].strip()
-    events = state.setdefault("events", [])
-    if not isinstance(events, list):
-        raise ValueError("events must be a list before record can append")
-    if hand_edit:
-        events.append({"step": next_event_step(state), **hand_edit})
-    events.append(
-        {
-            "step": next_event_step(state),
-            "action": "record",
-            "reason": reason,
-            **patch_trace,
-            "graph_digest": graph_digest(state),
-        }
-    )
 
+    # The checks judge the patched graph, so a patch may repair a hand edit.
     if not _passes_quote_and_graph_checks(state, args.state):
         return 1
     dump_state(state, args.output, default_in_place_source(args))
@@ -270,21 +215,11 @@ def cmd_record(args: argparse.Namespace) -> int:
 
 
 def cmd_refresh(args: argparse.Namespace) -> int:
-    """Take in a hand-edited state: validate it, recheck every quote, log removed objects, and refresh the view."""
+    """Take in a hand-edited state: validate it, recheck every quote, and refresh the views."""
     state = load_state(args.state)
-    hand_edit = _hand_edit_event(state)
     if not _passes_quote_and_graph_checks(state, args.state):
         return 1
-    if hand_edit is None:
-        print("ok: no edits outside the CLI")
-    else:
-        step = next_event_step(state)
-        state.setdefault("events", []).append({"step": step, **hand_edit})
-        print(f"ok: logged the hand edit as refresh step {step}")
-        for _, remove_field in RECORD_CLAIM_FIELDS.values():
-            if hand_edit.get(remove_field):
-                print(f"{remove_field}: {', '.join(hand_edit[remove_field])}")
-    dump_state(state, args.output, default_in_place_source(args))
+    print("ok")
     write_views(state, args)
     return 0
 
@@ -342,10 +277,9 @@ def _field_update_list(value: Any, field: str) -> list[dict[str, Any]]:
     return updates
 
 
-def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
-    """Set and unset fields on existing items by id; return each item's changed field names for the event."""
+def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field: str) -> None:
+    """Set and unset fields on existing items by id."""
     items_by_id = {item["id"]: item for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)}
-    specs: list[dict[str, Any]] = []
     for update in updates:
         item_id = str(update["id"])
         item = items_by_id.get(item_id)
@@ -357,8 +291,6 @@ def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field:
                 raise ValueError(f"{field} id {item_id} has no {name} to unset")
             del item[name]
         item.update(changes)
-        specs.append({"id": item_id, "fields": sorted({*changes, *removals})})
-    return specs
 
 
 def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
@@ -408,15 +340,14 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
 
-    record = sub.add_parser("record", help="append graph progress and refresh <state>.html and <state>.index.md")
+    record = sub.add_parser("record", help="apply a patch to the graph and refresh <state>.html and <state>.index.md")
     record.add_argument("state", help="state JSON path, or - for stdin")
-    record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: reason plus any add, update, or remove operations")
+    record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: any add, update, or remove operations, and the answer")
     record.add_argument("-o", "--output", help="write updated state to path")
     record.set_defaults(func=cmd_record)
 
-    refresh = sub.add_parser("refresh", help="after a hand edit: validate, recheck quotes, and log the edit")
+    refresh = sub.add_parser("refresh", help="after a hand edit: validate, recheck quotes, and refresh the views")
     refresh.add_argument("state", help="state JSON path")
-    refresh.add_argument("-o", "--output", help="write updated state to path")
     refresh.set_defaults(func=cmd_refresh)
 
     schema = sub.add_parser("schema", help="emit a packaged JSON Schema")

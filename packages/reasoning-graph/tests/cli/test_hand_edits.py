@@ -1,7 +1,7 @@
 """A hand-edited state passes the checks a patch would before anything builds on it.
 
-Agents edited state.json with Python in 15 of 22 #34 runs. A hand edit went unlogged and
-unchecked."""
+Agents edited state.json with Python in 15 of 22 #34 runs, and a hand edit went unchecked.
+It is checked, not logged: the state keeps no trace (issue #38)."""
 
 import json
 import subprocess
@@ -35,7 +35,6 @@ def observation(node_id: str, quote: str) -> dict:
 def story_patch(hypothesis_score: int) -> dict:
     """A graph whose candidate rests on one hypothesis, claimed as the answer."""
     return {
-        "reason": "Read the story",
         "answer": "CS1",
         "nodes": [
             observation("O1", "The butler left at nine"),
@@ -85,7 +84,7 @@ class HandEditTests(unittest.TestCase):
         edit(state)
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
-    def test_refresh_logs_hand_removals(self) -> None:
+    def test_refresh_checks_a_hand_edit_and_rewrites_the_views(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
@@ -94,16 +93,13 @@ class HandEditTests(unittest.TestCase):
                 self.node(state, "O2")["score"] = 3
 
             self.hand_edit(state_path, drop_edge_and_lower_score)
+            edited = state_path.read_text(encoding="utf-8")
             self.ok(run_cli("refresh", str(state_path)))
 
-            state = self.load(state_path)
-            event = state["events"][-1]
-            self.assertEqual(event["action"], "refresh")
-            self.assertEqual(event["remove_edges"], ["O1-H2"])
-            self.ok(run_cli("audit", str(state_path)))
-            # A second refresh finds nothing new and adds no event.
-            self.ok(run_cli("refresh", str(state_path)))
-            self.assertEqual(len(self.load(state_path)["events"]), len(state["events"]))
+            self.assertEqual(state_path.read_text(encoding="utf-8"), edited)
+            index = state_path.with_suffix(".index.md").read_text(encoding="utf-8")
+            self.assertNotIn("O1 -contradicts", index)
+            self.assertIn("O2 observation (score 3)", index)
 
     def test_refresh_rejects_a_hand_edited_quote_that_is_not_verbatim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -114,22 +110,16 @@ class HandEditTests(unittest.TestCase):
             self.fails(run_cli("refresh", str(state_path)), "O1", "problem.md")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-    def test_record_logs_a_hand_edit_before_its_patch(self) -> None:
+    def test_record_builds_on_a_hand_edit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
+            self.hand_edit(state_path, lambda state: self.node(state, "H2").update({"score": 2}))
 
-            def drop_edge_and_lower_score(state: dict) -> None:
-                state["edges"] = [item for item in state["edges"] if item["id"] != "O1-H2"]
-                self.node(state, "H2")["score"] = 1
-
-            self.hand_edit(state_path, drop_edge_and_lower_score)
-            self.ok(self.record(state_path, {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "Only his word"}}]}))
+            self.ok(self.record(state_path, {"update_nodes": [{"id": "H1", "set": {"note": "Only his word"}}]}))
 
             state = self.load(state_path)
-            hand_edit, record = state["events"][-2:]
-            self.assertEqual((hand_edit["action"], hand_edit["remove_edges"]), ("refresh", ["O1-H2"]))
-            self.assertEqual(record["action"], "record")
-            self.ok(run_cli("audit", str(state_path)))
+            self.assertEqual(self.node(state, "H2")["score"], 2)
+            self.assertEqual(self.node(state, "H1")["note"], "Only his word")
 
     def test_record_and_audit_recheck_a_hand_edited_quote(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -137,7 +127,7 @@ class HandEditTests(unittest.TestCase):
             self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
             before = state_path.read_text(encoding="utf-8")
 
-            self.fails(self.record(state_path, {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "x"}}]}), "O1", "problem.md")
+            self.fails(self.record(state_path, {"update_nodes": [{"id": "H1", "set": {"note": "x"}}]}), "O1", "problem.md")
             self.fails(run_cli("audit", str(state_path)), "O1", "problem.md")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
@@ -145,7 +135,7 @@ class HandEditTests(unittest.TestCase):
         # Fixing a quote only to learn of a failed answer check on the next run cost the agent a turn.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
+            self.ok(self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
             self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
 
             self.fails(run_cli("audit", str(state_path)), "O1", "problem.md", "without a recorded result observation: T1")

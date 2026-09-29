@@ -36,7 +36,6 @@ def valid_patch() -> dict:
             {"id": "A2-D1", "from": "A2", "to": "D1", "type": "leads_to"},
             {"id": "E2-D1", "from": "E2", "to": "D1", "type": "leads_to"},
         ],
-        "reason": "Derive the conclusion",
     }
 
 

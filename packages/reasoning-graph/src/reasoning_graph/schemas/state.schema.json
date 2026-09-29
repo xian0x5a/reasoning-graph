@@ -29,13 +29,6 @@
       },
       "default": []
     },
-    "events": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/event"
-      },
-      "default": []
-    },
     "goal_policy": {
       "$ref": "#/$defs/goalPolicy"
     },
@@ -406,170 +399,6 @@
         ]
       }
     },
-    "event": {
-      "type": "object",
-      "additionalProperties": true,
-      "required": [
-        "step",
-        "action"
-      ],
-      "properties": {
-        "step": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "action": {
-          "enum": [
-            "record",
-            "refresh"
-          ]
-        },
-        "reason": {
-          "type": "string"
-        },
-        "add_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "add_edges": {
-          "$ref": "#/$defs/stringList"
-        },
-        "update_factors": {
-          "$ref": "#/$defs/stringList"
-        },
-        "updated_nodes": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/id"
-              },
-              {
-                "type": "object",
-                "additionalProperties": true,
-                "required": [
-                  "id"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/$defs/id"
-                  },
-                  "fields": {
-                    "$ref": "#/$defs/stringList"
-                  }
-                }
-              }
-            ]
-          }
-        },
-        "remove_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "remove_edges": {
-          "$ref": "#/$defs/stringList"
-        },
-        "remove_factors": {
-          "$ref": "#/$defs/stringList"
-        },
-        "updated_edges": {
-          "type": "array",
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/id"
-              },
-              {
-                "type": "object",
-                "additionalProperties": true,
-                "required": [
-                  "id"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/$defs/id"
-                  },
-                  "fields": {
-                    "$ref": "#/$defs/stringList"
-                  }
-                }
-              }
-            ]
-          }
-        },
-        "graph_digest": {
-          "type": "string",
-          "minLength": 1,
-          "description": "fingerprint of the graph the event left or judged"
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "record"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "reason",
-              "add_nodes",
-              "add_edges",
-              "graph_digest"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
-                "const": "refresh"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "graph_digest"
-            ]
-          }
-        }
-      ],
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "update_premise_groups"
-            ]
-          },
-          {
-            "required": [
-              "add_premise_groups"
-            ]
-          },
-          {
-            "required": [
-              "add_factors"
-            ]
-          },
-          {
-            "required": [
-              "no_reopen_reason"
-            ]
-          },
-          {
-            "required": [
-              "exhaustion_reason"
-            ]
-          }
-        ]
-      }
-    },
     "goalPolicy": {
       "type": "object",
       "additionalProperties": true,
@@ -734,6 +563,11 @@
           {
             "required": [
               "stop_policy"
+            ]
+          },
+          {
+            "required": [
+              "events"
             ]
           }
         ]

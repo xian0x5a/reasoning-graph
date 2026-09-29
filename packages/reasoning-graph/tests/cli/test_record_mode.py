@@ -43,7 +43,6 @@ class RecordModeTests(unittest.TestCase):
 
     def solved_trail(self, state_path: Path, observation_score: int) -> None:
         self.ok(self.record(state_path, {
-            "reason": "Ran the probe",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
                 {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "note": "Only the last run was logged", "score": observation_score},
@@ -51,21 +50,16 @@ class RecordModeTests(unittest.TestCase):
             "edges": [edge("T1", "O1", "leads_to")],
         }))
         self.ok(self.record(state_path, {
-            "reason": "Concluded from the probe",
             "answer": "CS1",
             "nodes": [{"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}],
             "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers")],
         }))
 
-    def test_record_logs_progress_and_renders_live_view(self) -> None:
+    def test_record_renders_live_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
 
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            records = [event for event in state["events"] if event["action"] == "record"]
-            self.assertEqual([event["reason"] for event in records], ["Ran the probe", "Concluded from the probe"])
-            self.assertEqual(records[0]["add_nodes"], ["T1", "O1"])
             live_view = state_path.with_suffix(".html").read_text(encoding="utf-8")
             self.assertIn("CS1", live_view)
             self.assertIn("exit 3", live_view)
@@ -78,11 +72,11 @@ class RecordModeTests(unittest.TestCase):
             live_view_path = state_path.with_suffix(".html")
             before = live_view_path.stat()
 
-            self.ok(self.record(state_path, {"reason": "Re-read the probe log; nothing new"}))
+            self.ok(self.record(state_path, {"update_nodes": [{"id": "O1", "set": {"score": 5}}]}))
             unchanged = live_view_path.stat()
             self.assertEqual((unchanged.st_ino, unchanged.st_mtime_ns), (before.st_ino, before.st_mtime_ns))
 
-            self.ok(self.record(state_path, {"reason": "Noted a constraint", "nodes": [{"id": "C1", "type": "constraint", "text": "Keep the API", "source": "user prompt"}]}))
+            self.ok(self.record(state_path, {"nodes": [{"id": "C1", "type": "constraint", "text": "Keep the API", "source": "user prompt"}]}))
             self.assertIn("Keep the API", live_view_path.read_text(encoding="utf-8"))
 
     def test_record_checks_quotes_against_a_local_source_file(self) -> None:
@@ -102,35 +96,31 @@ class RecordModeTests(unittest.TestCase):
                 return {"id": node_id, "type": "observation", "text": "Seen in the case file", "source": source, "quote": quote, "score": 5}
 
             # Line breaks, blockquote markers, quote-mark style, and ellipsis-joined fragments are not edits.
-            self.ok(self.record(state_path, {"reason": "Read the case file", "nodes": [
+            self.ok(self.record(state_path, {"nodes": [
                 observation("O1", "Four bells argue, three bells lie, two bells swear"),
                 observation("O2", "Railing screws partly sawed or filed ... then 'checking sedatives' until 20:43"),
             ]}))
             # A source that is not a local file cannot be checked and stays free-form.
-            self.ok(self.record(state_path, {"reason": "Noted a report", "nodes": [
+            self.ok(self.record(state_path, {"nodes": [
                 observation("O3", "anything", source="https://example.com/report"),
             ]}))
 
-            events_before = len(json.loads(state_path.read_text(encoding="utf-8"))["events"])
-            trimmed_hedge = self.record(state_path, {"reason": "r", "nodes": [observation("O4", "Railing screws partly sawed or filed; bright metal visible")]})
-            stitched_update = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "O1", "set": {"quote": "Section 8: Railing screws partly sawed"}}]})
+            before = state_path.read_text(encoding="utf-8")
+            trimmed_hedge = self.record(state_path, {"nodes": [observation("O4", "Railing screws partly sawed or filed; bright metal visible")]})
+            stitched_update = self.record(state_path, {"update_nodes": [{"id": "O1", "set": {"quote": "Section 8: Railing screws partly sawed"}}]})
 
             for rejected, node_id in ((trimmed_hedge, "O4"), (stitched_update, "O1")):
                 self.assertEqual(rejected.returncode, 1, rejected.stdout)
                 self.assertIn(node_id, rejected.stderr)
                 self.assertIn("case.md", rejected.stderr)
-            self.assertEqual(len(json.loads(state_path.read_text(encoding="utf-8"))["events"]), events_before)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-    def test_record_requires_reason_and_takes_no_frontier(self) -> None:
+    def test_record_takes_no_frontier(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            node = {"id": "T1", "type": "test", "text": "Probe"}
 
-            missing_reason = self.record(state_path, {"nodes": [node]})
-            with_frontier = self.record(state_path, {"reason": "r", "nodes": [node], "frontier": [{"id": "Q1", "node": "T1"}]})
+            with_frontier = self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Probe"}], "frontier": [{"id": "Q1", "node": "T1"}]})
 
-            self.assertEqual(missing_reason.returncode, 1)
-            self.assertIn("reason", missing_reason.stderr)
             self.assertEqual(with_frontier.returncode, 1)
             self.assertIn("frontier", with_frontier.stderr)
 
@@ -157,7 +147,7 @@ class RecordModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
-            self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T2", "type": "test", "text": "Check the config"}]}))
+            self.ok(self.record(state_path, {"nodes": [{"id": "T2", "type": "test", "text": "Check the config"}]}))
 
             audit = run_cli("audit", str(state_path))
 
@@ -169,7 +159,7 @@ class RecordModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
-            self.ok(self.record(state_path, {"reason": "Noted a decisive check nobody can run here", "nodes": [
+            self.ok(self.record(state_path, {"nodes": [
                 {"id": "T2", "type": "test", "text": "Compare dental records", "not_run": "The case file has no dental records"},
             ]}))
 
@@ -183,27 +173,13 @@ class RecordModeTests(unittest.TestCase):
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
 
-            on_hypothesis = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "score": 3, "not_run": "x"}]})
-            blank_reason = self.record(state_path, {"reason": "r", "nodes": [{"id": "T2", "type": "test", "text": "Check", "not_run": " "}]})
-            with_result = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "T1", "set": {"not_run": "Could not run it"}}]})
+            on_hypothesis = self.record(state_path, {"nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "score": 3, "not_run": "x"}]})
+            blank_reason = self.record(state_path, {"nodes": [{"id": "T2", "type": "test", "text": "Check", "not_run": " "}]})
+            with_result = self.record(state_path, {"update_nodes": [{"id": "T1", "set": {"not_run": "Could not run it"}}]})
 
             for rejected in (on_hypothesis, blank_reason, with_result):
                 self.assertEqual(rejected.returncode, 1, rejected.stdout)
                 self.assertIn("not_run", rejected.stderr)
-
-    def test_removed_review_event_fails_validation(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 5)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            state["events"].append({"step": 99, "action": "review", "reviewer": "r", "verdict": "pass", "findings": "ok", "graph_digest": "x"})
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-
-            rejected = run_cli("audit", str(state_path))
-
-            self.assertEqual(rejected.returncode, 1, rejected.stdout)
-            self.assertIn("review event", rejected.stderr)
-            self.assertIn("removed", rejected.stderr)
 
     def test_review_commands_are_gone(self) -> None:
         for command in ("review", "stop-review"):

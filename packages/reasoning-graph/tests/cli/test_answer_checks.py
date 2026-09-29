@@ -38,7 +38,6 @@ ROOM_SEED = {
         {"id": "E1-A1", "from": "E1", "to": "A1", "type": "supports", "score": 3},
         {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
     ],
-    "reason": "Read room 1",
 }
 
 ROOM_ONE_SOLVED = {
@@ -58,7 +57,6 @@ ROOM_ONE_SOLVED = {
         {"id": "E3-A2", "from": "E3", "to": "A2", "type": "supports", "score": 2},
         {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts"},
     ],
-    "reason": "Solved room 1 and read room 2",
     "answer": "TwoSigns",
 }
 
@@ -84,7 +82,6 @@ class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
         "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft"}],
         "edges": [{"id": "T2-E4", "from": "T2", "to": "E4", "type": "leads_to"}],
-        "reason": "Profiled the room 2 waveform",
     }
 
     def test_answer_fails_while_an_accepted_goal_is_unanswered(self) -> None:
@@ -98,7 +95,7 @@ class UnansweredGoalTests(SpookyManorFlow):
             self.assertIn("accepted goal G2", audit.stderr)
             self.assertIn("unanswered", audit.stderr)
 
-            self.ok(self.record(tmp_dir, state_path, "withdraw", {"reason": "Room 2 decode unfinished", "answer": ""}))
+            self.ok(self.record(tmp_dir, state_path, "withdraw", {"answer": ""}))
             self.ok(run_cli("audit", str(state_path)))
 
     def test_parent_goal_is_not_answered_until_required_sub_goal_is(self) -> None:
@@ -200,7 +197,6 @@ class StrictTestResultTests(SpookyManorFlow):
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
             self.ok(self.record(tmp_dir, state_path, "conclusion", {
-                "reason": "Concluded from the decode attempt",
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "score": 5}],
                 "edges": [
                     {"id": "T2-H1", "from": "T2", "to": "H1", "type": "leads_to"},
@@ -225,7 +221,6 @@ class GroundedPathTests(unittest.TestCase):
         state_path = Path(tmp_dir) / "state.json"
         self.ok(run_cli("init", "--goal", "Explain the failure", "-o", str(state_path)))
         patch = {
-            "reason": "Probed the system",
             "answer": "CS1",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
@@ -269,7 +264,7 @@ class GroundedPathTests(unittest.TestCase):
     def test_score_only_path_passes_once_the_claim_is_withdrawn(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
-            patch_path = write_json(Path(tmp_dir) / "withdraw.json", {"reason": "Evidence is missing", "answer": ""})
+            patch_path = write_json(Path(tmp_dir) / "withdraw.json", {"answer": ""})
             self.ok(run_cli("record", str(state_path), "--patch", str(patch_path)))
 
             self.ok(self.audit(state_path))

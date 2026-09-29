@@ -135,13 +135,9 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "edge-label": {**modern_state, "edges": [{"from": "G1", "to": "G1", "label": "supports"}]},
             "frontier": {**modern_state, "frontier": []},
             "search-policy": {**modern_state, "search_policy": {}},
-            "event-pop-action": {**modern_state, "events": [{"step": 1, "action": "pop", "item": "Q1", "cost": 0}]},
             "premise-groups": {**modern_state, "premise_groups": []},
             "stop-policy": {**modern_state, "stop_policy": {"severity": "error"}},
-            "event-stop-action": {**modern_state, "events": [{"step": 1, "action": "stop", "reason": "done", "outcome": "solved", "graph_digest": "x"}]},
-            "event-solution-action": {**modern_state, "events": [{"step": 1, "action": "solution", "item": "Q1", "node": "CS1", "cost": 0}]},
-            "event-update-premise-groups": {**modern_state, "events": [{"step": 1, "action": "record", "reason": "r", "add_nodes": [], "add_edges": [], "update_premise_groups": ["PG1"]}]},
-            "event-add-factors": {**modern_state, "events": [{"step": 1, "action": "record", "reason": "r", "add_nodes": [], "add_edges": [], "add_factors": ["F1"]}]},
+            "events": {**modern_state, "events": []},
         }
         for name, state in legacy_state_variants.items():
             with self.subTest(state=name), self.assertRaises(jsonschema.ValidationError):
@@ -160,6 +156,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "frontier": {**modern_patch, "frontier": []},
             "no-new-work-reason": {**modern_patch, "no_new_work_reason": "legacy"},
             "stop-alias": {**modern_patch, "stop": "legacy stop", "outcome": "user_stopped"},
+            "reason": {"reason": "Read the log", "nodes": []},
+            "empty": {},
             "outcome": {"answer": "CS1", "outcome": "solved"},
         }
         for name, patch in legacy_patch_variants.items():

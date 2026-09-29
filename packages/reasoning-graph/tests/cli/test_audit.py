@@ -35,7 +35,6 @@ def candidate(node_id: str, text: str) -> dict:
 
 # CS1 rests on a quoted observation. CS2 rests on nothing.
 STORY_PATCH = {
-    "reason": "Read the story",
     "nodes": [
         {"id": "O1", "type": "observation", "text": "The gardener signed in at nine", "source": "problem.md", "quote": "The gardener signed in at nine"},
         candidate("CS1", "The gardener"),
@@ -82,7 +81,7 @@ class AuditStatusTests(AuditCase):
     def test_state_without_an_answer_passes_and_lists_what_an_answer_needs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
+            self.ok(self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
 
             audit = run_cli("audit", str(state_path))
 
@@ -95,7 +94,7 @@ class AuditStatusTests(AuditCase):
         # A half-finished graph with one candidate would otherwise count as a claim.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
-            self.ok(self.record(state_path, {"reason": "Dropped the butler", "remove_nodes": ["CS2"]}))
+            self.ok(self.record(state_path, {"remove_nodes": ["CS2"]}))
 
             audit = run_cli("audit", str(state_path))
 
@@ -114,7 +113,7 @@ class AuditStatusTests(AuditCase):
     def test_failed_answer_checks_are_counted_and_fail_the_audit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, answer="CS2")
-            self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
+            self.ok(self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
 
             audit = run_cli("audit", str(state_path))
 
@@ -185,11 +184,11 @@ class AnswerIsSetByThePatchTests(AuditCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
-            self.ok(self.record(state_path, {"reason": "r", "answer": " CS1 "}))
+            self.ok(self.record(state_path, {"answer": " CS1 "}))
             self.assertEqual(self.load(state_path)["summary"]["answer"], "CS1")
             self.assertIn("Answer: CS1", state_path.with_suffix(".index.md").read_text(encoding="utf-8"))
 
-            self.ok(self.record(state_path, {"reason": "r", "answer": ""}))
+            self.ok(self.record(state_path, {"answer": ""}))
             self.assertEqual(self.load(state_path)["summary"]["answer"], "")
 
     def test_work_continues_after_an_answer(self) -> None:
@@ -199,7 +198,6 @@ class AnswerIsSetByThePatchTests(AuditCase):
             self.ok(run_cli("audit", str(state_path)))
 
             self.ok(self.record(state_path, {
-                "reason": "The user rejected the answer",
                 "nodes": [
                     {"id": "O2", "type": "observation", "text": "The user says the gardener was abroad", "source": "user"},
                     {"id": "T1", "type": "test", "text": "Check who else had the key"},
@@ -236,14 +234,14 @@ class RemovedStopCertificateTests(AuditCase):
             state_path = self.start(tmp_dir)
             self.edit(state_path, lambda state: state.update({"stop_policy": {"severity": "error"}}))
 
-            for rejected in (run_cli("audit", str(state_path)), run_cli("refresh", str(state_path)), self.record(state_path, {"reason": "r", "answer": "CS1"})):
+            for rejected in (run_cli("audit", str(state_path)), run_cli("refresh", str(state_path)), self.record(state_path, {"answer": "CS1"})):
                 self.fails(rejected, "stop_policy was removed")
 
     def test_patch_takes_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
-            self.fails(self.record(state_path, {"reason": "r", "answer": "CS1", "outcome": "solved"}), "outcome")
+            self.fails(self.record(state_path, {"answer": "CS1", "outcome": "solved"}), "outcome")
 
 
 if __name__ == "__main__":

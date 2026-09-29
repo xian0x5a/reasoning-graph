@@ -126,43 +126,5 @@
       "type": "leads_to"
     }
   ],
-  "factors": [],
-  "events": [
-    {
-      "step": 1,
-      "action": "record",
-      "reason": "Worked Q1",
-      "add_nodes": [
-        "E2",
-        "CS1",
-        "G2",
-        "E3",
-        "A2",
-        "T2"
-      ],
-      "add_edges": [
-        "T1-E2",
-        "E2-CS1",
-        "CS1-G1",
-        "G1-G2",
-        "E3-A2",
-        "A2-T2"
-      ],
-      "update_factors": [],
-      "graph_digest": "e6689d6f8d6292a3"
-    },
-    {
-      "step": 2,
-      "action": "record",
-      "reason": "Profile recorded; decode reasoning continues off-graph.",
-      "add_nodes": [
-        "E4"
-      ],
-      "add_edges": [
-        "T2-E4"
-      ],
-      "update_factors": [],
-      "graph_digest": "e6689d6f8d6292a3"
-    }
-  ]
+  "factors": []
 }

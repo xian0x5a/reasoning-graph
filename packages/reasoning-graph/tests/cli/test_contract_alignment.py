@@ -49,7 +49,7 @@ class ContractAlignmentTests(unittest.TestCase):
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
             state_path.write_text(json.dumps(base_state()), encoding="utf-8")
-            patch_path.write_text(json.dumps({"reason": "Test step", **patch}), encoding="utf-8")
+            patch_path.write_text(json.dumps({**patch}), encoding="utf-8")
             return run_cli("record", str(state_path), "--patch", str(patch_path))
 
     # --- #12 edge identity ---
@@ -107,20 +107,6 @@ class ContractAlignmentTests(unittest.TestCase):
                 result = self.record(patch)
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn("error: schema $", result.stderr)
-
-    def test_update_nodes_patch_field_is_recorded_in_event(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            patch_path = Path(tmp_dir) / "patch.json"
-            state_path.write_text(json.dumps(base_state()), encoding="utf-8")
-            patch_path.write_text(
-                json.dumps({"update_nodes": [{"id": "A1", "set": {"score": 4}}], "reason": "Calibration only."}),
-                encoding="utf-8",
-            )
-            result = run_cli("record", str(state_path), "--patch", str(patch_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            event = json.loads(state_path.read_text(encoding="utf-8"))["events"][-1]
-            self.assertEqual(event["updated_nodes"], [{"id": "A1", "fields": ["score"]}])
 
     # --- #10 presentation/view references ---
 

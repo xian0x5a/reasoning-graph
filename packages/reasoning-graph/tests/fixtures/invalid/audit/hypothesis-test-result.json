@@ -72,21 +72,5 @@
       "type": "answers"
     }
   ],
-  "factors": [],
-  "events": [
-    {
-      "step": 1,
-      "action": "record",
-      "reason": "Fixture records a conclusion where an observation belongs.",
-      "add_nodes": [
-        "H2"
-      ],
-      "add_edges": [
-        "T1-H2",
-        "H2-H1"
-      ],
-      "update_factors": [],
-      "graph_digest": "109b4f36aa47891a"
-    }
-  ]
+  "factors": []
 }

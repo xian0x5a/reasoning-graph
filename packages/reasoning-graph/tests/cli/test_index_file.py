@@ -27,7 +27,6 @@ def edge(source: str, target: str, edge_type: str, **extra: object) -> dict:
 
 
 STORY_PATCH = {
-    "reason": "Read the story",
     "nodes": [
         {"id": "O1", "type": "observation", "text": "The butler left at nine", "source": "problem.md", "quote": "The butler left at nine"},
         {"id": "O2", "type": "observation", "text": "The gardener says he stayed late", "source": "problem.md", "quote": "stayed late, or so he said", "score": 3},
@@ -80,14 +79,12 @@ class IndexFileTests(unittest.TestCase):
             self.assertNotIn("The cook saw nothing", self.index(state_path))
 
             self.ok(self.record(state_path, {
-                "reason": "Asked the cook",
                 "nodes": [{"id": "O4", "type": "observation", "text": "The cook saw nothing", "source": "interview"}],
                 "edges": [edge("T2", "O4", "leads_to")],
             }))
 
             index = self.index(state_path)
             self.assertIn("- O4 observation: The cook saw nothing [interview]", index)
-            self.assertIn("Last record: Asked the cook", index)
 
     def test_goals_come_first_then_what_is_open_then_the_rest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -156,7 +153,7 @@ class IndexFileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             before = self.index(state_path)
-            note = {"reason": "Noted a doubt", "update_nodes": [{"id": "H2", "set": {"note": "No motive"}}]}
+            note = {"update_nodes": [{"id": "H2", "set": {"note": "No motive"}}]}
 
             self.ok(self.record(state_path, note, "-o", str(Path(tmp_dir) / "next.json")))
             self.assertIn("No motive", Path(tmp_dir, "next.index.md").read_text(encoding="utf-8"))

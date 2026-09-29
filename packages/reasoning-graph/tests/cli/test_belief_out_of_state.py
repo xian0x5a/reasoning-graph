@@ -36,7 +36,6 @@ def candidate(node_id: str, text: str) -> dict:
 
 # CS1 rests on a probe result and ranks first. CS2 rests on a weaker clue. CS3 rests on nothing.
 STORY_PATCH = {
-    "reason": "Read the story and ran the probe",
     "nodes": [
         {"id": "T1", "type": "test", "text": "Check the greenhouse log"},
         {"id": "O1", "type": "observation", "text": "The gardener signed in at nine", "source": "greenhouse log"},
@@ -107,8 +106,8 @@ class BeliefOutOfStateTests(StateCase):
             state_path = self.start(tmp_dir)
             before = state_path.read_text(encoding="utf-8")
 
-            added = self.record(state_path, {"reason": "r", "nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "belief": 0.9}]})
-            updated = self.record(state_path, {"reason": "r", "update_nodes": [{"id": "O1", "set": {"belief": 0.9}}]})
+            added = self.record(state_path, {"nodes": [{"id": "H1", "type": "hypothesis", "text": "Guess", "belief": 0.9}]})
+            updated = self.record(state_path, {"update_nodes": [{"id": "O1", "set": {"belief": 0.9}}]})
             for rejected in (added, updated):
                 self.fails(rejected, "belief was removed")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
@@ -140,14 +139,6 @@ class BeliefOutOfStateTests(StateCase):
             for word in ("belief", "rank"):
                 self.assertNotIn(word, shown)
             self.assertIsNone(NUMBER.search(shown), shown)
-
-    def test_rank_event_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            rank = {"step": 9, "action": "rank", "best": "CS1", "belief": 0.9, "candidates": [{"node": "CS1", "belief": 0.9, "effective_truth_cost": 0.105361}]}
-            self.edit(state_path, lambda state: state["events"].append(rank))
-
-            self.fails(run_cli("audit", str(state_path)), "rank event", "removed")
 
 
 class AnswerNamesACandidateTests(StateCase):

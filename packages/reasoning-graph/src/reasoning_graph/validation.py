@@ -180,12 +180,9 @@ def validate_state(state: Any) -> ValidationResult:
     if str(report.get("answer") or "").strip() and not str(summary.get("answer") or "").strip():
         # The view shows either answer, so a report answer without the claim would be shown unchecked.
         errors.append("report.answer is set while summary.answer is empty; summary.answer is the claim, set it with the patch key answer")
-    events = state.get("events")
-    for i, event in enumerate(events if isinstance(events, list) else []):
-        if isinstance(event, dict) and event.get("action") == "review":
-            errors.append(f"events[{i}] is a review event, which was removed: no review gates a stop; delete the event")
-        if isinstance(event, dict) and event.get("action") == "rank":
-            errors.append(f"events[{i}] is a rank event, which was removed: the state holds no computed belief; delete the event")
+    if "events" in state:
+        # The trace was verified to guard the stop certificate; nothing else read it (issue #38).
+        errors.append("events was removed: the state keeps no trace; the list order of nodes and edges is the order of the work; delete the field")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}

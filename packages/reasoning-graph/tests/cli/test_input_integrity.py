@@ -60,7 +60,7 @@ class MalformedStateInputTests(unittest.TestCase):
 
 def record_step(state_path: Path, patch_path: Path | None = None) -> subprocess.CompletedProcess[str]:
     patch_path = patch_path or state_path.with_name("patch.json")
-    patch_path.write_text(json.dumps({"reason": "Rewrite the state in place"}), encoding="utf-8")
+    patch_path.write_text(json.dumps({"answer": ""}), encoding="utf-8")
     return run_cli("record", str(state_path), "--patch", str(patch_path))
 
 

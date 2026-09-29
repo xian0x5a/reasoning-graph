@@ -75,12 +75,9 @@ def index_document(state: dict[str, Any]) -> str:
     other_nodes = [node for node in nodes if node.get("type") != "goal" and not is_open(node)]
 
     summary = state.get("summary") if isinstance(state.get("summary"), dict) else {}
-    events = state.get("events") if isinstance(state.get("events"), list) else []
-    record_reasons = [event.get("reason") for event in events if isinstance(event, dict) and event.get("action") == "record"]
     header = [
         *lines_of(goals),
         *([f"Answer: {_one_line(summary['answer'])}"] if summary.get("answer") else []),
-        *([f"Last record: {_one_line(record_reasons[-1])}"] if record_reasons else []),
     ]
     sections = [
         ("# Reasoning graph index", header),

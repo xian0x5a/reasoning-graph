@@ -28,7 +28,6 @@ PATCH_SCHEMA = PACKAGE_SRC_ROOT / "reasoning_graph" / "schemas" / "patch.schema.
 
 # A valid record patch against the fixture: one new observation supporting A1.
 FIXTURE_RECORD_PATCH = {
-    "reason": "Recorded a second symptom report",
     "nodes": [{"id": "O2", "type": "observation", "text": "Second symptom report", "score": 5}],
     "edges": [{"id": "E3", "from": "O2", "to": "A1", "type": "supports", "score": 3}],
 }
@@ -73,23 +72,21 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_json_schemas_parse_and_cover_core_enums(self) -> None:
         state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
-        event_actions = state_schema["$defs"]["event"]["properties"]["action"]["enum"]
 
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
-        self.assertEqual(set(event_actions), {"record", "refresh"})
-        self.assertNotIn("outcome", state_schema["$defs"]["event"]["properties"])
+        self.assertNotIn("event", state_schema["$defs"])
         self.assertNotIn("stop_policy", state_schema["properties"])
         self.assertIn("answer", patch_schema["properties"])
         self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
-        self.assertIn("reason", patch_schema["properties"])
+        self.assertNotIn("reason", patch_schema["properties"])
+        self.assertNotIn("events", state_schema["properties"])
         serialized_schemas = json.dumps({"state": state_schema, "patch": patch_schema})
         self.assertNotIn('"deprecated"', serialized_schemas)
         self.assertNotIn('"solutions"', state_schema["properties"])
         self.assertNotIn("frontier", state_schema["properties"])
         self.assertNotIn('"label"', state_schema["$defs"]["edge"]["properties"])
-        self.assertNotIn("solution", event_actions)
         self.assertNotIn("frontier", patch_schema["properties"])
         self.assertNotIn("stop_outcome", patch_schema["properties"])
         self.assertNotIn('"solution_node"', patch_schema["properties"])
@@ -108,7 +105,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         emitted_schema = json.loads(result.stdout)
         patch = {
-            "reason": "Added two hypotheses and a grouped premise",
             "nodes": [
                 {"score": 3, "id": "A1", "type": "hypothesis", "text": "First"},
                 {"score": 3, "id": "A2", "type": "hypothesis", "text": "Second"},
@@ -140,7 +136,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
             state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual(state["events"][-1]["action"], "record")
             self.assertIn("O2", {node["id"] for node in state["nodes"]})
 
     def test_output_path_overrides_default_in_place(self) -> None:
@@ -153,7 +148,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             recorded = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(recorded["events"][-1]["action"], "record")
+            self.assertIn("O2", {node["id"] for node in recorded["nodes"]})
 
     def test_output_dash_emits_stdout_without_mutating_input(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -164,7 +159,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), original)
             state = json.loads(result.stdout)
-            self.assertEqual(state["events"][-1]["action"], "record")
+            self.assertIn("O2", {node["id"] for node in state["nodes"]})
 
     def test_record_stdin_emits_mutated_state_to_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -189,7 +184,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
         fixture_state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         patch = {
-            "reason": "Added a third cause",
             "nodes": [{"id": "A3", "type": "hypothesis", "text": "Third cause", "score": 1}],
             "update_nodes": [{"id": "A1", "set": {"score": 4}}],
             "edges": [{"id": "E3", "from": "A3", "to": "CS1", "type": "supports"}],
@@ -212,7 +206,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             patch_validator = jsonschema.Draft202012Validator(patch_schema, resolver=resolver)
         patch_validator.validate(patch)
         with self.assertRaises(jsonschema.ValidationError):
-            patch_validator.validate({"reason": "stop via patch", "stop_reason": "done", "stop_outcome": "solved"})
+            patch_validator.validate({"stop_reason": "done", "stop_outcome": "solved"})
 
         with self.assertRaises(jsonschema.ValidationError):
             patch_validator.validate({"update_nodes": [{"id": "A1", "set": {"id": "A2"}}]})
@@ -230,7 +224,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             )
             patch_path.write_text(
                 json.dumps({
-                    "reason": "Cheap checks on A1 complete; only its score changed.",
                     "update_nodes": [{"id": "A1", "set": {"score": 4, "exhausted": True, "exhaustion_reason": "cheap checks complete"}}],
                 }),
                 encoding="utf-8",
@@ -243,10 +236,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(updated["nodes"][0]["score"], 4)
             self.assertTrue(updated["nodes"][0]["exhausted"])
             self.assertEqual(updated["nodes"][0]["exhaustion_reason"], "cheap checks complete")
-            self.assertEqual(
-                updated["events"][-1]["updated_nodes"],
-                [{"id": "A1", "fields": ["exhausted", "exhaustion_reason", "score"]}],
-            )
 
     def test_record_patch_rejects_missing_or_identity_node_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -260,12 +249,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            patch_path.write_text(json.dumps({"reason": "update A2", "update_nodes": [{"id": "A2", "set": {"score": 3}}]}), encoding="utf-8")
+            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A2", "set": {"score": 3}}]}), encoding="utf-8")
             missing = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(missing.returncode, 0, missing.stdout)
             self.assertIn("update_nodes id A2 does not exist", missing.stderr)
 
-            patch_path.write_text(json.dumps({"reason": "retype A1", "update_nodes": [{"id": "A1", "set": {"type": "hypothesis"}}]}), encoding="utf-8")
+            patch_path.write_text(json.dumps({"update_nodes": [{"id": "A1", "set": {"type": "hypothesis"}}]}), encoding="utf-8")
             identity = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertNotEqual(identity.returncode, 0, identity.stdout)
             self.assertIn("update_nodes[0].set cannot change type", identity.stderr)
@@ -283,7 +272,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("audit", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_record_enables_fresh_init_flow_and_requires_reason(self) -> None:
+    def test_record_enables_fresh_init_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             patch_path = Path(tmp_dir) / "patch.json"
@@ -301,21 +290,11 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "A1-T1", "from": "A1", "to": "T1", "type": "prompts"},
                 ],
             }
-            patch_path.write_text(json.dumps({**patch, "reason": "   "}), encoding="utf-8")
-            before_rejected_record = state_path.read_text(encoding="utf-8")
-            missing_reason = self.run_cli("record", str(state_path), "--patch", str(patch_path))
-            self.assertNotEqual(missing_reason.returncode, 0, missing_reason.stdout)
-            self.assertIn("requires reason", missing_reason.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before_rejected_record)
-
-            patch_path.write_text(json.dumps({**patch, "reason": "Framed the outage from the first report"}), encoding="utf-8")
+            patch_path.write_text(json.dumps(patch), encoding="utf-8")
             recorded = self.run_cli("record", str(state_path), "--patch", str(patch_path))
             self.assertEqual(recorded.returncode, 0, recorded.stderr)
             recorded_state = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual([event["action"] for event in recorded_state["events"]], ["record"])
-            self.assertEqual(recorded_state["events"][0]["reason"], "Framed the outage from the first report")
-            self.assertEqual(recorded_state["events"][0]["add_nodes"], ["E1", "A1", "T1"])
-            self.assertEqual(recorded_state["events"][0]["add_edges"], ["E1-A1", "A1-T1"])
+            self.assertEqual([node["id"] for node in recorded_state["nodes"]], ["G1", "E1", "A1", "T1"])
             self.assertTrue(state_path.with_suffix(".html").is_file())
 
             valid = self.run_cli("audit", str(state_path))
@@ -524,7 +503,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 "edges": [{"id": "E1A", "from": "E1", "to": "A1", "type": "supports"}],
             }
             patch = {
-                "reason": "E2 shares E1's source, so their evidence is grouped.",
                 "edges": [{"id": "E2A", "from": "E2", "to": "A1", "type": "supports"}],
                 "factors": [{"id": "F1", "edges": ["E1A", "E2A"], "score": 4, "note": "E1 and E2 share source."}],
             }
@@ -535,7 +513,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             recorded = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(recorded["factors"][0]["id"], "F1")
-            self.assertEqual(recorded["events"][-1]["update_factors"], ["F1"])
             # Group score 4 is ratio 3, replacing the two member ratios of 2 => odds 3 => -ln(0.75).
             self.assertAlmostEqual(truth_cost(recorded, "A1"), 0.287682, places=6)
 

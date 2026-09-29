@@ -34,7 +34,6 @@ def observation(node_id: str, quote: str) -> dict:
 
 
 BASE_PATCH = {
-    "reason": "Read the story",
     "nodes": [
         observation("O1", "The butler left at nine"),
         observation("O2", "The gardener stayed late, or so he said"),
@@ -76,7 +75,6 @@ class PatchOperationTests(unittest.TestCase):
             state_path = self.start(tmp_dir)
 
             self.ok(self.record(state_path, {
-                "reason": "Fold the review fixes into one patch",
                 "update_nodes": [{"id": "CS1", "unset": ["score"]}, {"id": "H1", "set": {"note": "Only his word"}}],
                 "update_edges": [{"id": "O2-H1", "set": {"score": 2}}, {"id": "O1-H1", "unset": ["score"]}],
                 "remove_nodes": ["H2"],
@@ -92,19 +90,14 @@ class PatchOperationTests(unittest.TestCase):
             self.assertNotIn("score", edges["O1-H1"])
             # Removing a node takes its edges with it.
             self.assertNotIn("O1-H2", edges)
-            event = state["events"][-1]
-            self.assertEqual(event["remove_nodes"], ["H2"])
-            self.assertEqual(event["remove_edges"], ["O1-H2"])
-            self.assertEqual(event["updated_nodes"], [{"id": "CS1", "fields": ["score"]}, {"id": "H1", "fields": ["note"]}])
-            self.assertEqual(event["updated_edges"], [{"id": "O2-H1", "fields": ["score"]}, {"id": "O1-H1", "fields": ["score"]}])
             self.ok(run_cli("audit", str(state_path)))
 
     def test_an_object_removed_may_be_added_again(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
-            self.ok(self.record(state_path, {"reason": "Drop the weak link", "remove_edges": ["O1-H2"]}))
-            self.ok(self.record(state_path, {"reason": "Restore it", "edges": [edge("O1", "H2", "supports", score=2)]}))
+            self.ok(self.record(state_path, {"remove_edges": ["O1-H2"]}))
+            self.ok(self.record(state_path, {"edges": [edge("O1", "H2", "supports", score=2)]}))
 
             self.ok(run_cli("audit", str(state_path)))
 
@@ -112,7 +105,6 @@ class PatchOperationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.ok(self.record(state_path, {
-                "reason": "Both clues come from the gardener",
                 "nodes": [observation("O3", "or so he said")],
                 "edges": [edge("O3", "H1", "supports")],
                 "update_edges": [{"id": "O2-H1", "unset": ["score"]}],
@@ -120,15 +112,15 @@ class PatchOperationTests(unittest.TestCase):
             }))
             before = state_path.read_text(encoding="utf-8")
 
-            orphaned = self.record(state_path, {"reason": "Drop O3", "remove_nodes": ["O3"]})
+            orphaned = self.record(state_path, {"remove_nodes": ["O3"]})
             self.assertEqual(orphaned.returncode, 1, orphaned.stdout)
             self.assertIn("O3", orphaned.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-            self.ok(self.record(state_path, {"reason": "Drop O3 and its factor", "remove_nodes": ["O3"], "remove_factors": ["F1"]}))
-            event = self.load(state_path)["events"][-1]
-            self.assertEqual(event["remove_factors"], ["F1"])
-            self.assertEqual(event["remove_edges"], ["O3-H1"])
+            self.ok(self.record(state_path, {"remove_nodes": ["O3"], "remove_factors": ["F1"]}))
+            state = self.load(state_path)
+            self.assertEqual(state["factors"], [])
+            self.assertNotIn("O3-H1", {item["id"] for item in state["edges"]})
 
     def test_patch_cannot_change_identity_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -141,7 +133,7 @@ class PatchOperationTests(unittest.TestCase):
                 ("node type", {"update_nodes": [{"id": "H1", "unset": ["type"]}]}, "type"),
             ):
                 with self.subTest(label):
-                    result = self.record(state_path, {"reason": "r", **patch})
+                    result = self.record(state_path, {**patch})
                     self.assertEqual(result.returncode, 1, result.stdout)
                     self.assertIn(field, result.stderr)
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
@@ -154,7 +146,6 @@ class PatchOperationTests(unittest.TestCase):
             before = state_path.read_text(encoding="utf-8")
 
             result = self.record(state_path, {
-                "reason": "r",
                 "nodes": [observation("O3", "The butler left at ten")],
                 "edges": [edge("O3", "H9", "supports")],
             })
