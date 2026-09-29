@@ -52,7 +52,7 @@ For the answer of each answered goal. Nothing is shown while no answer is claime
 | Against it | `contradicts` edges into the answer or into any node of its why-tree, with the same detail |
 | Tests | test nodes linked by `prompts`/`tested_by`/`tests` to a node of the why-tree, with each result observation (`test leads_to observation`) or the `not_run` reason |
 | Rivals | the other candidates of the same goal, by computed belief, each with its contradicting edges |
-| Weak spots | mechanical only: a test of the why-tree that was not run; an observation of the why-tree without a quote; a claim of the why-tree that rests on one premise |
+| Weak spots | mechanical only: a test of the why-tree that was not run; an observation of the why-tree without a quote; a claim of the why-tree that rests on one input (`leads_to` or `supports`, a group counts once) or on none |
 
 These are the edges belief flows through (`costs.truth_inputs`), so the outline and the computed belief tell the same story.
 
@@ -76,7 +76,7 @@ Commit after each step.
 
 - [x] 1. Shared visual graph (96cd100). Mermaid output unchanged except the unused `bad` class; the offline SVG now paints from the shared palette.
 - [x] 2. Split `render.py`. Mermaid, markup, CSS and page data unchanged on the fixtures and two real states; the script reads its data from `#page-data`.
-- [ ] 3. The case
+- [x] 3. The case. `case.py` `answer_cases(state)`; `tests/integration/test_case.py`. Checked by hand on sweat-it-out r3 and the-anonymous-bank-robber r4.
 - [ ] 4. Case-first page
 - [ ] 5. Legible graph
 
@@ -97,5 +97,7 @@ Commit after each step.
 
 2. #18 goes first. Every shape needs the same node facts, so the shared model does not depend on the page design.
 3. Weak spots are mechanical. A judgment such as "a weak clue scored 5" is the reader's to make, and the eval measures whether the page helps them make it.
+4. A claim with no input at all is a weak spot too (`no_input`), next to one resting on a single input. Both are counts, so the rule stays mechanical.
+5. Tests are listed in node order, and linked either way: a why-tree node prompts or is checked by the test, or the test produced a why-tree observation (`test leads_to observation`).
 
 ## Outcomes & Retrospective
