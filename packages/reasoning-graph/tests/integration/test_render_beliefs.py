@@ -17,7 +17,7 @@ from reasoning_graph.render import html_document, node_detail_cards, to_mermaid
 from reasoning_graph.validation import validate_state
 
 
-RENDERERS = ("mermaid", "grouped-mermaid", "offline")
+RENDERERS = ("mermaid", "offline")
 
 
 def report_state(*, support=False):
@@ -36,8 +36,6 @@ def report_state(*, support=False):
             {"from": "D1", "to": "CS1", "type": "leads_to"},
             {"from": "CS1", "to": "G1", "type": "answers"},
         ],
-        "report": {"candidates": [{"id": "CS1", "name": "Answer"}]},
-        "presentation": {"include_nodes": ["D1", "CS1", "G1"]},
     }
     if support:
         state["edges"].append({
@@ -47,9 +45,9 @@ def report_state(*, support=False):
     return state
 
 
-def graph_labels(state, renderer, include_nodes=None):
+def graph_labels(state, renderer):
     if renderer == "offline":
-        svg = ET.fromstring(offline_graph_svg(state, include_nodes))
+        svg = ET.fromstring(offline_graph_svg(state))
         ns = {"svg": "http://www.w3.org/2000/svg"}
         return {
             node.attrib["data-node-id"]: "\n".join(
@@ -57,7 +55,7 @@ def graph_labels(state, renderer, include_nodes=None):
             )
             for node in svg.findall(".//svg:g[@class='node']", ns)
         }
-    source = to_mermaid(state, include_nodes, group_by_type=renderer == "grouped-mermaid")
+    source = to_mermaid(state)
     return {
         node_id: html.unescape(label.replace("<br/>", "\n"))
         for node_id, label in re.findall(r'^\s+(\w+)\["(.*?)"\]', source, re.MULTILINE)
@@ -71,39 +69,34 @@ def detail_card(document, node_id):
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
-@pytest.mark.parametrize("filtered", [False, True])
 @pytest.mark.parametrize("support,expected", [
     (False, "0.63"),
     (True, "0.773"),  # 0.63 base and ratio 2 give 126/163.
 ])
-def test_graph_labels_use_full_graph_belief(renderer, filtered, support, expected):
+def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
     state = report_state(support=support)
     original = deepcopy(state)
-    selected = {"D1", "CS1", "G1", "C1", "T1"} if filtered else None
-    labels = graph_labels(state, renderer, selected)
+    labels = graph_labels(state, renderer)
     assert labels["D1"] == f"D1\nhypothesis\nbelief {expected}"
     assert labels["CS1"] == f"CS1\ncandidate\nbelief {expected}"
     for node_id, node_type in (("G1", "goal"), ("C1", "constraint"), ("T1", "test")):
         assert labels[node_id] == f"{node_id}\n{node_type}"
-    if filtered:
-        assert set(labels) == selected
-    else:
-        assert labels["E1"] == "E1\nobservation\nbelief 0.7"
+    assert labels["E1"] == "E1\nobservation\nbelief 0.7"
     assert state == original
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
-def test_filtered_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
+def test_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
         "from": "E2", "to": "D1", "type": "leads_to",
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
-    assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.45"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 0.45"
     state["factors"][0]["score"] = 5
     del state["nodes"][2]["score"]
-    assert graph_labels(state, renderer, {"CS1"})["CS1"] == "CS1\ncandidate\nbelief 0.9"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 0.9"
     assert all("belief" not in node for node in state["nodes"])
 
 

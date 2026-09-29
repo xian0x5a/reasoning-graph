@@ -12,7 +12,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.audit import audit_state
-from reasoning_graph.policy import answer_candidates, sorted_report_candidates
+from reasoning_graph.policy import answer_candidates, ranked_candidates
 from reasoning_graph.schema_validation import patch_schema_errors, state_schema_errors
 from reasoning_graph.validation import validate_state
 
@@ -26,13 +26,12 @@ def load_fixture(*parts: str) -> dict:
 class ReadOnlyApiTests(unittest.TestCase):
     def test_audit_state_leaves_state_unchanged(self) -> None:
         state = load_fixture("valid", "reasoning-graph-strict-good.json")
-        state.setdefault("report", {"candidates": [{"id": "CS1", "name": "Candidate"}]})
         before = json.dumps(state, sort_keys=True)
 
         result = audit_state(state)
         validate_state(state)
         answer_candidates(state)
-        sorted_report_candidates(state)
+        ranked_candidates(state)
 
         self.assertTrue(result.ok, result.errors)
         self.assertEqual(json.dumps(state, sort_keys=True), before)

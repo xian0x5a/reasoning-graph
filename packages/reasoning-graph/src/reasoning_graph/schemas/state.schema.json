@@ -37,15 +37,6 @@
       "items": {
         "$ref": "#/$defs/goalGroup"
       }
-    },
-    "report": {
-      "$ref": "#/$defs/report"
-    },
-    "presentation": {
-      "$ref": "#/$defs/presentation"
-    },
-    "view": {
-      "$ref": "#/$defs/view"
     }
   },
   "$defs": {
@@ -437,111 +428,6 @@
           "type": "boolean"
         }
       }
-    },
-    "report": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "title": {
-          "type": "string"
-        },
-        "answer": {
-          "type": "string"
-        },
-        "candidates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/reportCandidate"
-          }
-        },
-        "winning_path": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "next_verification": {
-          "type": "string"
-        }
-      }
-    },
-    "reportCandidate": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
-        "name": {
-          "type": "string"
-        },
-        "path_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "why": {
-          "type": "string"
-        },
-        "next_test": {
-          "type": "string"
-        }
-      },
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "belief"
-            ]
-          },
-          {
-            "required": [
-              "truth_cost"
-            ]
-          },
-          {
-            "required": [
-              "effective_truth_cost"
-            ]
-          },
-          {
-            "required": [
-              "weight"
-            ]
-          }
-        ]
-      }
-    },
-    "presentation": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "include_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "highlight_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "dim_nodes": {
-          "$ref": "#/$defs/stringList"
-        },
-        "title": {
-          "type": "string"
-        },
-        "layout_hint": {
-          "type": "string"
-        }
-      }
-    },
-    "view": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "winning_path": {
-          "$ref": "#/$defs/stringList"
-        },
-        "dimmed_branches": {
-          "$ref": "#/$defs/stringList"
-        }
-      }
     }
   },
   "allOf": [
@@ -576,6 +462,21 @@
           {
             "required": [
               "events"
+            ]
+          },
+          {
+            "required": [
+              "report"
+            ]
+          },
+          {
+            "required": [
+              "presentation"
+            ]
+          },
+          {
+            "required": [
+              "view"
             ]
           }
         ]

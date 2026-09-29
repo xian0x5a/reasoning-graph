@@ -18,12 +18,11 @@ from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
 from .schema_validation import state_schema_errors
 from .state import edge_id
-from .utils import as_string_list
 
 
-# Computed numbers the state used to hold. They are computed when the graph is rendered, for
-# the reader: an agent that sees them tunes scores until a number moves (issue #37).
-REMOVED_REPORT_CANDIDATE_FIELDS = ("belief", "truth_cost", "effective_truth_cost", "weight")
+# Sections that held a second copy of the graph for the reader. No agent wrote one in 42
+# benchmark states, and the rendered view derives all of it from the graph (issue #39).
+REMOVED_GRAPH_COPIES = ("report", "presentation", "view")
 
 
 def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
@@ -175,10 +174,12 @@ def validate_state(state: Any) -> ValidationResult:
     if "stop_policy" in state:
         # It configured the stop gate, which went with the stop certificate (issue #38).
         errors.append("stop_policy was removed: nothing gates a stop; audit checks the answer summary.answer claims; delete the field")
-    summary, report = (state.get(section) if isinstance(state.get(section), dict) else {} for section in ("summary", "report"))
-    if str(report.get("answer") or "").strip() and not str(summary.get("answer") or "").strip():
-        # The view shows either answer, so a report answer without the claim would be shown unchecked.
-        errors.append("report.answer is set while summary.answer is empty; summary.answer is the claim, set it with the patch key answer")
+    errors.extend(
+        f"{section} was removed: the state is the graph; the answer is summary.answer, a reason is a note on the node or edge, "
+        "a next check is a test node; delete the field"
+        for section in REMOVED_GRAPH_COPIES
+        if section in state
+    )
     if "events" in state:
         # The trace was verified to guard the stop certificate; nothing else read it (issue #38).
         errors.append("events was removed: the state keeps no trace; the list order of nodes and edges is the order of the work; delete the field")
@@ -287,49 +288,6 @@ def validate_state(state: Any) -> ValidationResult:
         assert_acyclic_premise_dependencies({goal_id: sorted(subs) for goal_id, subs in goal_requirements(state).items()})
     except ValueError as exc:
         errors.append(f"goal requires {exc}")
-
-    report = state.get("report")
-    if report is not None and not isinstance(report, dict):
-        errors.append("report must be object when present")
-    elif isinstance(report, dict):
-        node_texts = {str(node.get("text") or "").strip() for node in nodes_by_id.values()}
-        report_candidates = report.get("candidates")
-        if report_candidates is not None and not isinstance(report_candidates, list):
-            errors.append("report.candidates must be a list when present")
-        for index, row in enumerate(report_candidates if isinstance(report_candidates, list) else []):
-            if not isinstance(row, dict):
-                errors.append(f"report.candidates[{index}] must be object")
-                continue
-            errors.extend(
-                f"report.candidates[{index}].{field} was removed; ranking is computed when the graph is rendered; delete the field"
-                for field in REMOVED_REPORT_CANDIDATE_FIELDS
-                if field in row
-            )
-            row_id = row.get("id")
-            if row_id is not None and row_id not in candidate_ids:
-                errors.append(f"report.candidates[{index}].id references missing candidate_solution {row_id!r}")
-            if "path_nodes" in row:
-                for path_index, path_node in enumerate(as_string_list(row.get("path_nodes"), f"report.candidates[{index}].path_nodes", errors)):
-                    if path_node not in node_ids:
-                        errors.append(f"report.candidates[{index}].path_nodes[{path_index}] references missing node {path_node!r}")
-        if "winning_path" in report:
-            for index, step in enumerate(as_string_list(report.get("winning_path"), "report.winning_path", errors)):
-                if step not in node_ids and step.strip() not in node_texts:
-                    errors.append(f"report.winning_path[{index}] {step!r} matches no node id or exact node text")
-
-    for section, keys in (("presentation", ("include_nodes", "highlight_nodes", "dim_nodes")), ("view", ("winning_path", "dimmed_branches"))):
-        metadata = state.get(section)
-        if metadata is None:
-            continue
-        if not isinstance(metadata, dict):
-            errors.append(f"{section} must be object when present")
-            continue
-        for key in keys:
-            if key not in metadata:
-                continue
-            for index, node_ref in enumerate(as_string_list(metadata.get(key), f"{section}.{key}", errors)):
-                if node_ref not in node_ids:
-                    errors.append(f"{section}.{key}[{index}] references missing node {node_ref!r}")
 
     solution_node_ids = {s.get("node") if isinstance(s, dict) else s for s in solutions_raw}
     for node_id in solution_node_ids:

@@ -584,7 +584,6 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"from": "A.B", "to": "A B", "type": "answers"},
                 {"from": "A_B", "to": "A B", "type": "answers"},
             ],
-            "report": {"candidates": [{"id": "A.B"}, {"id": "A_B"}]},
         }
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"

@@ -1,4 +1,4 @@
-"""Candidate answer_kind, patch field, and presentation reference contracts (#17, #16, #10)."""
+"""Candidate answer_kind and patch field contracts (#17, #16)."""
 
 import json
 import subprocess
@@ -82,40 +82,6 @@ class ContractAlignmentTests(unittest.TestCase):
                 result = self.record(patch)
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn("error: schema $", result.stderr)
-
-    # --- #10 presentation/view references ---
-
-    def test_presentation_and_view_references_must_resolve(self) -> None:
-        collections = {
-            "presentation.include_nodes": ("presentation", "include_nodes"),
-            "presentation.highlight_nodes": ("presentation", "highlight_nodes"),
-            "presentation.dim_nodes": ("presentation", "dim_nodes"),
-            "view.winning_path": ("view", "winning_path"),
-            "view.dimmed_branches": ("view", "dimmed_branches"),
-        }
-        for label, (section, key) in collections.items():
-            with self.subTest(collection=label):
-                state = base_state()
-                state[section] = {key: ["A1", "MISSING"]}
-                result = self.validate(state)
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn(f"{label}[1] references missing node 'MISSING'", result.stderr)
-
-        state = base_state()
-        state["presentation"] = {"include_nodes": ["A1", "CS1", "G1"], "highlight_nodes": ["CS1"], "dim_nodes": ["A1"]}
-        state["view"] = {"winning_path": ["A1", "CS1", "G1"], "dimmed_branches": ["A2"]}
-        ok = self.validate(state)
-        self.assertEqual(ok.returncode, 0, ok.stderr)
-
-    def test_html_refuses_unresolved_presentation_selection(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state = base_state()
-            state["presentation"] = {"include_nodes": ["MISSING"]}
-            state_path.write_text(json.dumps(state), encoding="utf-8")
-            result = run_cli("html", str(state_path), "-o", str(Path(tmp_dir) / "graph.html"))
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("presentation.include_nodes[0] references missing node 'MISSING'", result.stderr)
 
 
 if __name__ == "__main__":

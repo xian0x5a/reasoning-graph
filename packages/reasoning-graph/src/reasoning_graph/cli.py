@@ -9,7 +9,7 @@ from typing import Any
 
 from .audit import audit_state
 from .index import index_document
-from .render import html_document, presentation_node_ids, to_mermaid
+from .render import html_document, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
 from .state import dump_state, edge_id, load_state, strict_json_dumps, write_output_text
@@ -178,7 +178,7 @@ def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
     if target == "-":
         return
     views = {
-        ".html": html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid"),
+        ".html": html_document(state, to_mermaid(state), "default", "mermaid"),
         ".index.md": index_document(state),
     }
     for suffix, document in views.items():
@@ -320,9 +320,7 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
 
 def cmd_mermaid(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    include_nodes = presentation_node_ids(state) if args.view == "presentation" else None
-    source = to_mermaid(state, include_nodes, group_by_type=args.grouped or args.view == "audit")
-    write_output_text(source, args.output)
+    write_output_text(to_mermaid(state), args.output)
     return 0
 
 
@@ -335,7 +333,7 @@ def cmd_html(args: argparse.Namespace) -> int:
         print(f"error: {error}", file=sys.stderr)
     if not result.ok:
         return 1
-    source = to_mermaid(state, group_by_type=True)
+    source = to_mermaid(state)
     render_mode = "offline" if args.offline else "mermaid"
     document = html_document(state, source, args.spacing, render_mode, _quote_errors(state, args.state))
     write_output_text(document, args.output)
@@ -373,8 +371,6 @@ def build_parser() -> argparse.ArgumentParser:
     mermaid = sub.add_parser("mermaid", help="render Mermaid source")
     mermaid.add_argument("state", help="state JSON path, or - for stdin")
     mermaid.add_argument("-o", "--output", help="write Mermaid source to path")
-    mermaid.add_argument("--view", choices=("audit", "presentation"), default="audit", help="render full audit graph or curated presentation graph")
-    mermaid.add_argument("--grouped", action="store_true", help="group nodes into Mermaid subgraphs by node type")
     mermaid.set_defaults(func=cmd_mermaid)
 
     html_cmd = sub.add_parser("html", help="render Mermaid HTML report")

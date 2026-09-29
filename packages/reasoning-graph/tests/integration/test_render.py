@@ -78,7 +78,6 @@ class RenderIdentityTests(unittest.TestCase):
                 {"from": "A.B", "to": "A B", "type": "answers"},
                 {"from": "A_B", "to": "A B", "type": "answers"},
             ],
-            "report": {"candidates": [{"id": "A.B"}, {"id": "A_B"}]},
         }
         identities = render_identity_map(state)
         document = html_document(state, to_mermaid(state, identities=identities), render_mode="offline")
@@ -133,9 +132,7 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertEqual(set(focus_map["CS1"]), {"CS1", "H3", "O4", "O5", "T3", "T1", "H1", "O1"})
         self.assertEqual(set(focus_map["CS2"]), {"CS2", "H4", "O4", "T1", "H1", "O1"})
 
-    def test_html_candidates_come_from_graph_without_report_metadata(self) -> None:
-        """`report` is optional: the focus dropdown and candidate table must list live
-        graph candidates even when no report metadata was written."""
+    def test_html_candidates_come_from_the_graph(self) -> None:
         state = {
             "nodes": [
                 {"id": "CS1", "type": "candidate_solution", "text": "First answer", "score": 3, "answer_kind": "exact_answer"},
@@ -154,15 +151,6 @@ class RenderIdentityTests(unittest.TestCase):
             self.assertIn(f'option value="{identities.node_ids[raw_id]}">{raw_id}</option>', document)
         self.assertNotIn("No viable answer candidates recorded.", document)
         self.assertIn("First answer", document)
-
-    def test_filtered_mermaid_view_keeps_full_graph_identities(self) -> None:
-        state = self.state()
-        identities = render_identity_map(state)
-        source = to_mermaid(state, {"A.B", "A B"}, identities=identities)
-
-        self.assertIn(f'click {identities.node_ids["A.B"]} "#details-{identities.node_ids["A.B"]}"', source)
-        self.assertIn(f'click {identities.node_ids["A B"]} "#details-{identities.node_ids["A B"]}"', source)
-        self.assertNotIn(f'click {identities.node_ids["A_B"]} ', source)
 
     def test_offline_svg_renders_factors_and_replaces_member_edges(self) -> None:
         fixture = Path(__file__).resolve().parents[1] / "fixtures" / "valid" / "factors-state.json"
@@ -254,35 +242,6 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertEqual(node_group.get("id"), node_id)
         self.assertEqual(factor_group.get("id"), factor_id)
         self.assertNotEqual(node_position, factor_position)
-
-    def test_offline_presentation_omits_factors_with_unselected_members(self) -> None:
-        state = {
-            "nodes": [
-                {"id": "E1", "type": "observation", "score": 5},
-                {"id": "E2", "type": "observation", "score": 5},
-                {"id": "A1", "type": "hypothesis", "score": 3},
-            ],
-            "edges": [
-                {"from": "E1", "to": "A1", "type": "supports"},
-                {"from": "E2", "to": "A1", "type": "supports"},
-            ],
-            "factors": [{"id": "F1", "edges": ["E1-A1", "E2-A1"], "score": 4}],
-        }
-        identities = render_identity_map(state)
-        presentation_svg = offline_graph_svg(state, {"E1", "A1"}, identities=identities)
-        audit_svg = offline_graph_svg(state, identities=identities)
-        presentation_mermaid = to_mermaid(state, {"E1", "A1"}, identities=identities)
-        audit_mermaid = to_mermaid(state, identities=identities)
-
-        self.assertNotIn('data-factor-id="F1"', presentation_svg)
-        self.assertIn('data-factor-id="F1"', audit_svg)
-        self.assertNotIn(f"LE-{identities.factor('F1')}", presentation_svg)
-        self.assertNotIn("grouped supports", presentation_mermaid)
-        self.assertIn("grouped supports", audit_mermaid)
-        # Hidden factor members still contribute to the target's final belief.
-        self.assertIn("belief 0.75", presentation_svg)
-        self.assertIn("belief 0.75", presentation_mermaid)
-
 
 class GraphCanvasLayoutTests(unittest.TestCase):
     def test_mermaid_wrapper_fills_canvas_and_view_stays_clamped(self) -> None:

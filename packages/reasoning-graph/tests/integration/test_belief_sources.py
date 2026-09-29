@@ -10,7 +10,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.costs import node_effective_truth_costs, probability_from_cost
-from reasoning_graph.policy import sorted_report_candidates
+from reasoning_graph.policy import ranked_candidates
 from reasoning_graph.validation import validate_state
 
 
@@ -141,7 +141,7 @@ def test_candidate_ranking_uses_inherited_belief():
     ])
     state["edges"].extend([edge("O1", "N1"), edge("CS2", "G1", "answers")])
     assert validate_state(state).ok
-    ranked = sorted_report_candidates(state)
+    ranked = ranked_candidates(state)
     assert [(item["id"], item["belief"]) for item in ranked] == [("N1", 0.9), ("CS2", 0.7)]
 
 
@@ -157,7 +157,7 @@ def test_computed_belief_recalculates_without_writing_node_scores():
     assert validate_state(state).ok
     # Local 0.9 times inherited 0.7 gives 0.63; ratio 2 gives odds 126/37.
     assert belief(state) == pytest.approx(126 / 163)
-    assert sorted_report_candidates(state)[0]["belief"] == pytest.approx(126 / 163, abs=1e-6)
+    assert ranked_candidates(state)[0]["belief"] == pytest.approx(126 / 163, abs=1e-6)
     assert state == original
 
     state["nodes"][2]["score"] = 3

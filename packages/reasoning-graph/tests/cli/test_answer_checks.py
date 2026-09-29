@@ -133,44 +133,6 @@ class UnansweredGoalTests(SpookyManorFlow):
             self.assertIn("goal -> goal must use requires", result.stderr)
 
 
-class AnswerMatchesCandidateTests(unittest.TestCase):
-    def fixture_state(self) -> dict:
-        return json.loads(FIXTURE.read_text(encoding="utf-8"))
-
-    def test_report_answer_names_the_candidate_the_claim_names(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.fixture_state()
-            state["report"] = {"answer": "The trail ends at Photophone."}
-
-            result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("report.answer does not name candidate CS1", result.stderr)
-            self.assertIn("The trail ends at Photophone.", result.stderr)
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.fixture_state()
-            state["summary"] = {"answer": "Candidate from A1 wins."}
-            state["report"] = {"answer": "CS1 wins."}
-            result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_report_rows_and_winning_path_must_resolve_to_graph_nodes(self) -> None:
-        cases = {
-            "unknown-candidate-row": ({"candidates": [{"id": "CS9", "name": "Ghost"}]}, "report.candidates[0].id references missing candidate_solution 'CS9'"),
-            "non-candidate-row": ({"candidates": [{"id": "A1", "name": "Route"}]}, "report.candidates[0].id references missing candidate_solution 'A1'"),
-            "unknown-path-node": ({"candidates": [{"id": "CS1", "path_nodes": ["A1", "X9"]}]}, "report.candidates[0].path_nodes[1] references missing node 'X9'"),
-            "unmatched-winning-path": ({"winning_path": ["Likely cause", "Photophone"]}, "report.winning_path[1] 'Photophone' matches no node id or exact node text"),
-        }
-        for label, (report, expected) in cases.items():
-            with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp_dir:
-                state = self.fixture_state()
-                state["report"] = report
-                result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn(expected, result.stderr)
-
-
 class StrictTestResultTests(SpookyManorFlow):
     def test_answer_fails_on_a_hypothesis_as_a_test_result(self) -> None:
         # A conclusion drawn from a probe is not what was seen; the observation must be recorded first.

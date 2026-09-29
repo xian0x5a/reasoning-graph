@@ -132,20 +132,6 @@ class AuditStatusTests(AuditCase):
             with self.subTest(answer=answer), tempfile.TemporaryDirectory() as tmp_dir:
                 self.fails(run_cli("audit", str(self.start(tmp_dir, answer=answer))), expected)
 
-    def test_report_answer_must_name_the_candidate_the_claim_names(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir, answer="CS1")
-            self.edit(state_path, lambda state: state.update({"report": {"answer": "The butler"}}))
-
-            self.fails(run_cli("audit", str(state_path)), "report.answer does not name candidate CS1")
-
-    def test_report_answer_alone_is_not_a_claim(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.edit(state_path, lambda state: state.update({"report": {"answer": "CS1"}}))
-
-            self.fails(run_cli("audit", str(state_path)), "report.answer is set while summary.answer is empty")
-
     def test_audit_takes_no_draft(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir, answer="CS1")
@@ -270,6 +256,20 @@ class RemovedStopCertificateTests(AuditCase):
 
             for rejected in (run_cli("audit", str(state_path)), run_cli("refresh", str(state_path)), self.record(state_path, {"answer": "CS1"})):
                 self.fails(rejected, "stop_policy was removed")
+
+    def test_state_carrying_a_copy_of_the_graph_is_rejected(self) -> None:
+        copies = {
+            "report": {"answer": "CS1", "candidates": [{"id": "CS1", "why": "The boots."}]},
+            "presentation": {"highlight_nodes": ["CS1"]},
+            "view": {"winning_path": ["O1", "CS1"]},
+        }
+        for section, content in copies.items():
+            with self.subTest(section=section), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = self.start(tmp_dir)
+                self.edit(state_path, lambda state: state.update({section: content}))
+
+                for rejected in (run_cli("audit", str(state_path)), run_cli("refresh", str(state_path)), self.record(state_path, {"answer": "CS1"})):
+                    self.fails(rejected, f"{section} was removed")
 
     def test_patch_takes_no_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

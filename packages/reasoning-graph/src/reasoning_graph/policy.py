@@ -190,25 +190,15 @@ def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
     return {candidate_id for candidate_id, goal_targets in targets.items() if goal_targets & accepted}
 
 
-def sorted_report_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
+def ranked_candidates(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Candidates ranked by computed belief, for the rendered view only."""
 
-    report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
-    report_candidates = report.get("candidates") if isinstance(report.get("candidates"), list) else []
-    metadata_by_id = {
-        str(candidate.get("id")): candidate
-        for candidate in report_candidates
-        if isinstance(candidate, dict) and candidate.get("id") is not None
-    }
     nodes = by_id(state.get("nodes", []), "node")
     node_truth_costs = node_effective_truth_costs(state)
-    # The graph is the source of candidates; `report` is optional metadata that can
-    # lag behind the graph, so it only annotates live candidates and never adds any.
     ranked = [
         {
             "id": candidate_id,
             "name": nodes.get(candidate_id, {}).get("text"),
-            **metadata_by_id.get(candidate_id, {}),
             "effective_truth_cost": round(node_truth_costs[candidate_id], 6),
             "belief": round(math.exp(-node_truth_costs[candidate_id]), 6),
         }
@@ -324,26 +314,21 @@ def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:
     """Name each answer text that does not stand for one candidate of each required goal.
 
     `summary.answer` names the answer candidate by id or exact text; any candidate may be the
-    answer. `report.answer`, when set, names the same candidate.
+    answer.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
     claim = claimed_answer(state)
-    report = state.get("report") if isinstance(state.get("report"), dict) else {}
-    report_answer = str(report.get("answer") or "").strip()
     answers = answer_candidates(state)
     messages = []
     for goal_id, candidates in sorted(goal_candidates(state).items()):
         if goal_id not in answers:
             continue
-        answer = answers[goal_id]
-        if answer is None:
-            named = _named_in(claim, nodes, candidates)
-            if named:
-                messages.append(f"summary.answer names several candidates for goal {goal_id}: {', '.join(named)}; name the one answer")
-            else:
-                messages.append(f"summary.answer names no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}")
+        if answers[goal_id] is not None:
             continue
-        if report_answer and not _names(report_answer, answer, _candidate_text(nodes, answer)):
-            messages.append(f"report.answer does not name candidate {answer} ({_candidate_text(nodes, answer)!r}) for goal {goal_id}; answer: {report_answer!r}")
+        named = _named_in(claim, nodes, candidates)
+        if named:
+            messages.append(f"summary.answer names several candidates for goal {goal_id}: {', '.join(named)}; name the one answer")
+        else:
+            messages.append(f"summary.answer names no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}")
     return messages

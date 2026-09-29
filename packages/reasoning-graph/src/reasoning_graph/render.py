@@ -16,7 +16,7 @@ from .costs import (
 from .identities import RenderIdentityMap, render_identity_map
 from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .offline_render import offline_graph_svg
-from .policy import accepted_goal_ids, answer_candidates, candidate_goal_targets, goal_best_candidates, preferred_goal_ids, sorted_report_candidates
+from .policy import accepted_goal_ids, answer_candidates, candidate_goal_targets, goal_best_candidates, preferred_goal_ids, ranked_candidates
 from .state import by_id
 from .utils import finite_float
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
@@ -58,49 +58,7 @@ def class_assignments(state: dict[str, Any]) -> dict[str, set[str]]:
         cls = node_render_class(node)
         node_id = str(node.get("id"))
         classes.setdefault(cls, set()).add(node_id)
-    view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
-    presentation = state.get("presentation", {}) if isinstance(state.get("presentation"), dict) else {}
-    for cls_name, key in (("winning", "winning_path"), ("dim", "dimmed_branches")):
-        for node_id in view.get(key, []) if isinstance(view.get(key, []), list) else []:
-            classes.setdefault(cls_name, set()).add(str(node_id))
-    for node_id in presentation.get("highlight_nodes", []) if isinstance(presentation.get("highlight_nodes", []), list) else []:
-        classes.setdefault("winning", set()).add(str(node_id))
-    for node_id in presentation.get("dim_nodes", []) if isinstance(presentation.get("dim_nodes", []), list) else []:
-        classes.setdefault("dim", set()).add(str(node_id))
     return classes
-
-
-def presentation_node_ids(state: dict[str, Any]) -> set[str]:
-    nodes = by_id(state.get("nodes", []), "node")
-    presentation = state.get("presentation", {}) if isinstance(state.get("presentation"), dict) else {}
-    explicit = presentation.get("include_nodes")
-    if isinstance(explicit, list) and explicit:
-        return {str(node_id) for node_id in explicit if str(node_id) in nodes}
-
-    view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
-    winning = view.get("winning_path")
-    if isinstance(winning, list) and winning:
-        ids = {str(node_id) for node_id in winning if str(node_id) in nodes}
-        for edge in state.get("edges", []):
-            if not isinstance(edge, dict):
-                continue
-            if str(edge.get("from")) in ids or str(edge.get("to")) in ids:
-                ids.add(str(edge.get("from")))
-                ids.add(str(edge.get("to")))
-        if ids:
-            return ids
-
-    candidate_ids = {
-        str(node.get("id"))
-        for node in state.get("nodes", [])
-        if isinstance(node, dict) and node.get("type") in {"candidate_solution", "goal"}
-    }
-    evidence_ids = [
-        str(node.get("id"))
-        for node in state.get("nodes", [])
-        if isinstance(node, dict) and node.get("type") in {"observation", "constraint", "hypothesis"}
-    ][:10]
-    return {node_id for node_id in set(evidence_ids) | candidate_ids if node_id in nodes}
 
 
 GRAPH_GROUPS = (
@@ -137,27 +95,21 @@ def grouped_nodes(nodes: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]
 
 def to_mermaid(
     state: dict[str, Any],
-    include_nodes: set[str] | None = None,
     *,
-    group_by_type: bool = False,
     direction: str = "TD",
     identities: RenderIdentityMap | None = None,
 ) -> str:
-    # Presentation filtering hides premises, not their contribution to belief.
     node_truth_costs = node_effective_truth_costs(state)
     safe_direction = direction if direction in {"TD", "TB", "BT", "LR", "RL"} else "TD"
     lines = [f"flowchart {safe_direction}"]
     identities = identities or render_identity_map(state)
     node_id_map: dict[str, str] = {}
     factor_id_map: dict[str, str] = {}
-    allowed = include_nodes
     selected_nodes: list[dict[str, Any]] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
             continue
         raw_id = str(node.get("id"))
-        if allowed is not None and raw_id not in allowed:
-            continue
         mid = identities.node(raw_id)
         if mid is None:
             continue
@@ -174,33 +126,22 @@ def to_mermaid(
         factor_id_map[factor.raw_id] = factor_mid
         selected_factors.append((factor, factor.raw_id))
 
-    if group_by_type:
-        groups = grouped_nodes(selected_nodes)
-        group_titles = {group_id: title for group_id, title, _ in GRAPH_GROUPS}
-        group_titles["cluster_other"] = "Other"
-        for group_id, title, _ in (*GRAPH_GROUPS, ("cluster_other", "Other", set())):
-            group_nodes = groups.get(group_id, [])
-            if not group_nodes:
-                continue
-            lines.append(f"  subgraph {group_id}[{title}]")
-            for node in group_nodes:
-                raw_id = str(node.get("id"))
-                lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
-            lines.append("  end")
-    else:
-        for node in selected_nodes:
+    groups = grouped_nodes(selected_nodes)
+    for group_id, title, _ in (*GRAPH_GROUPS, ("cluster_other", "Other", set())):
+        group_nodes = groups.get(group_id, [])
+        if not group_nodes:
+            continue
+        lines.append(f"  subgraph {group_id}[{title}]")
+        for node in group_nodes:
             raw_id = str(node.get("id"))
-            lines.append(f"  {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
+            lines.append(f"    {mermaid_node_definition(node_id_map[raw_id], node, node_truth_costs[raw_id])}")
+        lines.append("  end")
 
     if selected_factors:
-        if group_by_type:
-            lines.append("  subgraph cluster_factors[Factors]")
-            for factor, raw_factor_id in selected_factors:
-                lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
-            lines.append("  end")
-        else:
-            for factor, raw_factor_id in selected_factors:
-                lines.append(f"  {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
+        lines.append("  subgraph cluster_factors[Factors]")
+        for factor, raw_factor_id in selected_factors:
+            lines.append(f"    {mermaid_factor_definition(factor_id_map[raw_factor_id], factor)}")
+        lines.append("  end")
 
     styled_edge_indexes: list[int] = []
     rendered_edge_index = 0
@@ -209,8 +150,6 @@ def to_mermaid(
             continue
         src_raw = str(edge.get("from"))
         dst_raw = str(edge.get("to"))
-        if allowed is not None and (src_raw not in allowed or dst_raw not in allowed):
-            continue
         src = node_id_map.get(src_raw)
         dst = node_id_map.get(dst_raw)
         if not src or not dst:
@@ -248,26 +187,18 @@ def to_mermaid(
             "  classDef test fill:#e0f2fe,stroke:#0284c7;",
             "  classDef not_run fill:#f8fafc,stroke:#94a3b8,stroke-dasharray:5 4,color:#64748b;",
             "  classDef candidate fill:#dbeafe,stroke:#2563eb,stroke-width:2px;",
-            "  classDef winning fill:#dcfce7,stroke:#16a34a,stroke-width:3px;",
-            "  classDef dim fill:#f3f4f6,stroke:#9ca3af,color:#9ca3af;",
             "  classDef bad fill:#fee2e2,stroke:#dc2626,stroke-width:2px;",
             "  classDef factor fill:#f1f5f9,stroke:#475569,stroke-dasharray: 3 3;",
             "",
+            "  style cluster_goal fill:#fffbeb,stroke:#fde68a,stroke-width:1px;",
+            "  style cluster_observations fill:#f8fafc,stroke:#bae6fd,stroke-width:1px;",
+            "  style cluster_hypotheses fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
+            "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
+            "  style cluster_factors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3;",
+            "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
+            "",
         ]
     )
-
-    if group_by_type:
-        lines.extend(
-            [
-                "  style cluster_goal fill:#fffbeb,stroke:#fde68a,stroke-width:1px;",
-                "  style cluster_observations fill:#f8fafc,stroke:#bae6fd,stroke-width:1px;",
-                "  style cluster_hypotheses fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px;",
-                "  style cluster_candidates fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px;",
-                "  style cluster_factors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3;",
-                "  style cluster_other fill:#fafafa,stroke:#e5e7eb,stroke-width:1px;",
-                "",
-            ]
-        )
 
     for edge_index in styled_edge_indexes:
         lines.append(f"  linkStyle {edge_index} stroke:#d97706,stroke-dasharray:5 5;")
@@ -317,15 +248,8 @@ def ledger_rows(state: dict[str, Any], node_type: str) -> str:
     )
 
 
-def html_list(items: Any) -> str:
-    if not isinstance(items, list) or not items:
-        return '<p class="empty">None recorded.</p>'
-    lis = "".join(f"<li>{html.escape(str(item))}</li>" for item in items)
-    return f"<ul>{lis}</ul>"
-
-
 def candidate_rows(state: dict[str, Any]) -> str:
-    sorted_candidates = sorted_report_candidates(state)
+    sorted_candidates = ranked_candidates(state)
     if not sorted_candidates:
         return '<p class="empty">No viable answer candidates recorded.</p>'
     nodes = by_id(state.get("nodes", []), "node")
@@ -356,18 +280,16 @@ def candidate_rows(state: dict[str, Any]) -> str:
             belief_html = f"{belief_html} <small>(truth cost {html.escape(str(truth_value))}; +{html.escape(str(penalty))} contradicting evidence)</small>"
         weight = candidate.get("weight", candidate.get("relative_weight", candidate.get("relative_weight_among_explored", "n/a")))
         weight_html = html.escape(str(weight))
-        why = html.escape(str(candidate.get("why", "")))
-        next_test = html.escape(str(candidate.get("next_test", "")))
         rows.append(
             "<tr>"
             f"<th scope=\"row\">#{index}</th>"
             f"<td><code>{cid}</code></td><td>{name}</td><td>{targets_html}</td>"
-            f"<td>{belief_html}</td><td>{weight_html}</td><td>{why}</td><td>{next_test}</td>"
+            f"<td>{belief_html}</td><td>{weight_html}</td>"
             "</tr>"
         )
     return (
         "<table>"
-        "<thead><tr><th>Rank</th><th>ID</th><th>Candidate</th><th>Goal(s)</th><th>Belief</th><th>Weight</th><th>Why</th><th>Next test</th></tr></thead>"
+        "<thead><tr><th>Rank</th><th>ID</th><th>Candidate</th><th>Goal(s)</th><th>Belief</th><th>Weight</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
     )
@@ -419,7 +341,7 @@ def node_detail_cards(state: dict[str, Any], identities: RenderIdentityMap | Non
 def candidate_focus_options(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> str:
     identities = identities or render_identity_map(state)
     options = ['<option value="">None</option>']
-    for index, candidate in enumerate(sorted_report_candidates(state), 1):
+    for index, candidate in enumerate(ranked_candidates(state), 1):
         raw_cid = str(candidate.get("id", index))
         key = html.escape(identities.node(raw_cid) or "", quote=True)
         text = html.escape(raw_cid)
@@ -442,13 +364,11 @@ def graph_panel(
     title: str,
     mermaid_source: str,
     graph_id: str,
-    canvas_kind: str = "audit",
     focus_options: str = "",
     svg_graph: str | None = None,
 ) -> str:
     mermaid_escaped = html.escape(mermaid_source)
     section_id = html_anchor(graph_id, "section")
-    kind_class = "graph-canvas-presentation" if canvas_kind == "presentation" else "graph-canvas-audit"
     focus_control = ""
     if focus_options:
         focus_control = (
@@ -472,7 +392,7 @@ def graph_panel(
       <span>Click the canvas to capture the wheel; Esc releases it. Canvas mode: wheel zooms, drag pans. Otherwise hold Ctrl/⌘.</span>
     </div>
   </div>
-  <div id="{graph_id}" class="mermaid-wrap graph-canvas {kind_class}" tabindex="0" role="region" aria-label="{html.escape(title)} canvas">
+  <div id="{graph_id}" class="mermaid-wrap graph-canvas graph-canvas-audit" tabindex="0" role="region" aria-label="{html.escape(title)} canvas">
     {graph_markup}
   </div>
   {source_details}
@@ -498,19 +418,15 @@ def detail_filter_buttons() -> str:
 
 def graph_edge_connections(
     state: dict[str, Any],
-    include_nodes: set[str] | None = None,
     identities: RenderIdentityMap | None = None,
 ) -> list[dict[str, str]]:
     identities = identities or render_identity_map(state)
     connections: list[dict[str, str]] = []
-    allowed = include_nodes
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
         src = str(edge.get("from"))
         dst = str(edge.get("to"))
-        if allowed is not None and (src not in allowed or dst not in allowed):
-            continue
         source_id = identities.node(src)
         target_id = identities.node(dst)
         if source_id is None or target_id is None:
@@ -533,12 +449,6 @@ def candidate_focus_nodes(
     identities = identities or render_identity_map(state)
     raw_id = str(candidate.get("id") or "")
     node_ids: list[str] = [raw_id] if raw_id else []
-    explicit = False
-    for key in ("path_nodes", "support_nodes", "supporting_nodes", "nodes"):
-        values = candidate.get(key)
-        if isinstance(values, list) and values:
-            explicit = True
-            node_ids.extend(str(value) for value in values)
 
     nodes_by_id = by_id(state.get("nodes", []), "node")
     # Derivation edges point premise -> conclusion; `requires` points the other way
@@ -554,12 +464,6 @@ def candidate_focus_nodes(
             premises_by_node.setdefault(target, []).append(source)
         elif edge_type == "requires":
             premises_by_node.setdefault(source, []).append(target)
-
-    if not explicit:
-        view = state.get("view", {}) if isinstance(state.get("view"), dict) else {}
-        winning_path = [str(value) for value in view.get("winning_path", [])] if isinstance(view.get("winning_path"), list) else []
-        if raw_id and raw_id in winning_path:
-            node_ids.extend(winning_path)
 
     # Focus is the candidate's full derivation: every transitive premise, including the
     # tests and hypotheses that produced its evidence. Rival branches stay dim because
@@ -589,7 +493,7 @@ def candidate_focus_nodes(
 def candidate_focus_map(state: dict[str, Any], identities: RenderIdentityMap | None = None) -> dict[str, list[str]]:
     identities = identities or render_identity_map(state)
     focus: dict[str, list[str]] = {}
-    for candidate in sorted_report_candidates(state):
+    for candidate in ranked_candidates(state):
         if "id" not in candidate:
             continue
         candidate_id = identities.node(str(candidate["id"]))
@@ -655,39 +559,14 @@ def html_document(
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
     # Computed here, not read from the state, so the reader never sees a stale status.
     status = html.escape(audit_state(state, quote_errors).status)
-    report = state.get("report", {}) if isinstance(state.get("report"), dict) else {}
-    title = html.escape(str(summary.get("title") or report.get("title") or "Reasoning Graph"))
-    answer = html.escape(str(summary.get("answer") or report.get("answer") or "See report sections."))
+    title = html.escape(str(summary.get("title") or "Reasoning Graph"))
+    answer = html.escape(str(summary.get("answer") or "See report sections."))
     identities = render_identity_map(state)
     offline_mode = render_mode == "offline"
-    audit_svg = offline_graph_svg(state, None, spacing, "audit-graph", identities=identities) if offline_mode else None
+    audit_svg = offline_graph_svg(state, spacing, "audit-graph", identities=identities) if offline_mode else None
     candidates_html = candidate_rows(state)
     focus_options = candidate_focus_options(state, identities)
     goal_policy_section = goal_policy_html(state)
-
-    def nonempty_list(value: Any) -> bool:
-        return isinstance(value, list) and any(str(item).strip() for item in value)
-
-    insight_cards: list[str] = []
-    for heading, key in (
-        ("Strongly supported", "strongly_supported"),
-        ("Speculative", "speculative"),
-        ("Unresolved", "unresolved"),
-    ):
-        items = report.get(key)
-        if nonempty_list(items):
-            insight_cards.append(f"<div><h2>{heading}</h2>{html_list(items)}</div>")
-    insights_section = f'<section class="two-col">{"".join(insight_cards)}</section>' if insight_cards else ""
-
-    next_verification_value = report.get("best_next_verification") or report.get("next_verification")
-    next_verification_section = ""
-    if isinstance(next_verification_value, str) and next_verification_value.strip():
-        next_verification = html.escape(next_verification_value.strip())
-        next_verification_section = f"""
-  <section>
-    <h2>Best next verification</h2>
-    <p>{next_verification}</p>
-  </section>"""
 
     details_html = node_detail_cards(state, identities)
     filters_html = detail_filter_buttons()
@@ -728,7 +607,6 @@ def html_document(
     .status {{ padding: 0.75rem 1rem; background: #f8fafc; border-left: 4px solid var(--line); border-radius: 12px; }}
     .answer-rank-note {{ padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }}
     section {{ padding: 1.2rem; margin: 1rem 0; }}
-    .two-col {{ display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }}
     table {{ width: 100%; border-collapse: collapse; font-size: .92rem; table-layout: fixed; }}
     th, td {{ padding: .55rem .65rem; border: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }}
     th {{ background: var(--soft); text-align: left; }}
@@ -877,11 +755,7 @@ def html_document(
     {candidates_html}
   </section>
 
-  {insights_section}
-
-  {next_verification_section}
-
-  {graph_panel("Full audit graph", mermaid_source, "audit-graph", "audit", focus_options, audit_svg)}
+  {graph_panel("Full audit graph", mermaid_source, "audit-graph", focus_options, audit_svg)}
 
   <section id="node-details-section">
     <h2>Node details</h2>

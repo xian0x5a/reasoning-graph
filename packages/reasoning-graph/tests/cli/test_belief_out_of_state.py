@@ -115,14 +115,6 @@ class BeliefOutOfStateTests(StateCase):
             self.edit(state_path, lambda state: state["nodes"][2].update({"belief": 0.9}))
             self.fails(run_cli("audit", str(state_path)), "node O1: belief was removed")
 
-    def test_report_rows_carry_no_computed_numbers(self) -> None:
-        for field in ("belief", "truth_cost", "effective_truth_cost", "weight"):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = self.start(tmp_dir)
-                self.edit(state_path, lambda state: state.update({"report": {"candidates": [{"id": "CS1", field: 0.5}]}}))
-
-                self.fails(run_cli("audit", str(state_path)), f"report.candidates[0].{field} was removed")
-
     def test_beliefs_command_is_gone(self) -> None:
         result = run_cli("beliefs", "state.json")
         self.assertEqual(result.returncode, 2, result.stdout)

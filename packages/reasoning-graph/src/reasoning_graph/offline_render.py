@@ -83,14 +83,12 @@ def _label_tspans(label: str, x: int, y: int) -> str:
 
 def offline_graph_svg(
     state: dict[str, Any],
-    include_nodes: set[str] | None = None,
     spacing: str = "default",
     graph_id: str = "graph",
     *,
     identities: RenderIdentityMap | None = None,
 ) -> str:
     """Render a deterministic inline SVG fallback without network or browser-side layout."""
-    # Compute from the full graph so hidden premises and factors still count.
     node_truth_costs = node_effective_truth_costs(state)
     identities = identities or render_identity_map(state)
     metrics = _spacing_metrics(spacing)
@@ -106,8 +104,6 @@ def offline_graph_svg(
         if not isinstance(node, dict):
             continue
         raw_id = str(node.get("id"))
-        if include_nodes is not None and raw_id not in include_nodes:
-            continue
         node_ranks[raw_id] = _node_rank(node)
         selected_nodes.append(node)
 
