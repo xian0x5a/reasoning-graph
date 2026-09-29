@@ -101,7 +101,7 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 
 ## Progress
 
-- [ ] 1. Calls per command
+- [x] 1. Calls per command. Baseline saved outside git at `test-results/exact-answer/true-detective/loop-usage-s55-loop-r1.txt`
 - [ ] 2. `audit` replaces `stop`, `validate`, `doctor`
 - [ ] 3. Trace removed
 - [ ] 4. Edge ids derived
@@ -115,8 +115,9 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 
 - **The duplicate-id failures were not a memory problem.** All 12 are `nodes id G1 already exists` in round 1. `init` creates the goal and prints nothing, and the first patch adds it again. 9 cost one extra call, 3 cost three.
-- **The 1.3 times target of #38 is probably out of reach by removing friction alone.** A round of the notes-file arm takes 2.1 tool calls. A round of the graph arm takes 5.7 in round 1 and 4.6 later. One of them loads the skill, and at least two are `record` and the final check. Agents already chain the final checks: 41 of the 42 calls that ran `stop` also ran `validate` and `audit`, and 28 of them ran `record` too. So folding the three checks into one saves output tokens more than calls.
-- **`refresh` ran 14 times**, 8 of them in round 1. Step 1 shows why.
+- **The 1.3 times target of #38 is probably out of reach by removing friction alone.** Counting the feedback turn, a round of the notes-file arm takes 3.5 tool calls in round 1 and 2.6 later. A round of the graph arm takes 8.1 and 5.3. One of them loads the skill, and at least two are `record` and the final check. Agents already chain the final checks: 41 of the 42 calls that ran `stop` also ran `validate` and `audit`, and 28 of them ran `record` too. So folding the three checks into one saves output tokens more than calls.
+- **50 CLI calls failed** in the graph arm, out of about 150. 34 were refused writes after a stop and 12 were `G1`.
+- **`score_ab.py` measures the precision of `solved` stops**, the target #37 dropped. With no stop it prints `no-stop` for every new run. It still scores the old runs, and `score_loop.py` imports its McNemar test. Left alone here; a follow-up can cut it down.
 
 ## Decisions
 
