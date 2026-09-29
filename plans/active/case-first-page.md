@@ -74,13 +74,16 @@ Commit after each step.
 
 ## Progress
 
-- [ ] 1. Shared visual graph
-- [ ] 2. Split `render.py`
+- [x] 1. Shared visual graph (96cd100). Mermaid output unchanged except the unused `bad` class; the offline SVG now paints from the shared palette.
+- [x] 2. Split `render.py`. Mermaid, markup, CSS and page data unchanged on the fixtures and two real states; the script reads its data from `#page-data`.
 - [ ] 3. The case
 - [ ] 4. Case-first page
 - [ ] 5. Legible graph
 
 ## Surprises & Discoveries
+
+- Moving the JS out of a Python f-string kept its doubled backslashes (`/\\s+/`). No test caught it; the golden diff of the script text did. The page now runs identically in headless Chrome (same edge hitbox count, both modes).
+- A local `uv build` reuses the ignored `packages/reasoning-graph/build/`, so a wheel can carry a deleted module. A git install starts clean.
 
 ## Decisions
 

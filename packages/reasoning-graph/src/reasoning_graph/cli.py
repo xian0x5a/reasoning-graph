@@ -9,7 +9,8 @@ from typing import Any
 
 from .audit import audit_state
 from .index import index_document
-from .render import html_document, to_mermaid
+from .mermaid import to_mermaid
+from .page import html_document
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
 from .state import dump_state, edge_id, load_state, strict_json_dumps, write_output_text

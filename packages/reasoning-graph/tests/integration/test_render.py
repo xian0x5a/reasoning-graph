@@ -9,8 +9,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.identities import render_identity_map
+from reasoning_graph.mermaid import to_mermaid
 from reasoning_graph.offline_render import offline_graph_svg
-from reasoning_graph.render import html_document, to_mermaid
+from reasoning_graph.page import html_document
 
 
 class RenderIdentityTests(unittest.TestCase):
@@ -127,7 +128,8 @@ class RenderIdentityTests(unittest.TestCase):
             ],
         }
         document = html_document(state, to_mermaid(state), render_mode="offline")
-        focus_map = json.loads(re.search(r"candidateFocusMap = (\{.*?\});", document).group(1))
+        page_data = re.search(r'<script type="application/json" id="page-data">(.*?)</script>', document, re.DOTALL)
+        focus_map = json.loads(page_data.group(1))["candidateFocusMap"]
 
         self.assertEqual(set(focus_map["CS1"]), {"CS1", "H3", "O4", "O5", "T3", "T1", "H1", "O1"})
         self.assertEqual(set(focus_map["CS2"]), {"CS2", "H4", "O4", "T1", "H1", "O1"})

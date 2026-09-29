@@ -13,7 +13,8 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.offline_render import offline_graph_svg
-from reasoning_graph.render import html_document, node_detail_cards, to_mermaid
+from reasoning_graph.mermaid import to_mermaid
+from reasoning_graph.page import html_document, node_detail_cards
 from reasoning_graph.validation import validate_state
 
 

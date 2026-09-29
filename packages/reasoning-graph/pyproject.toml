@@ -19,7 +19,7 @@ reasoning-graph = "reasoning_graph.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-reasoning_graph = ["schemas/*.json"]
+reasoning_graph = ["schemas/*.json", "page_assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

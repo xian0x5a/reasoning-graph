@@ -5,14 +5,14 @@ import json
 import re
 import sys
 import unittest
-import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+from xml.etree import ElementTree
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
+from reasoning_graph.mermaid import to_mermaid
 from reasoning_graph.offline_render import offline_graph_svg
-from reasoning_graph.render import to_mermaid
 
 FIXTURES = PACKAGE_ROOT / "tests" / "fixtures" / "valid"
 SVG = "{http://www.w3.org/2000/svg}"

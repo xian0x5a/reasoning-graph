@@ -10,7 +10,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
 from reasoning_graph.models import EDGE_TYPES
-from reasoning_graph.render import node_detail_cards
+from reasoning_graph.page import node_detail_cards
 from reasoning_graph.schema_validation import patch_schema_errors, state_schema_errors
 from reasoning_graph.validation import validate_state
 

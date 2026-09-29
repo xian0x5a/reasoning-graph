@@ -1,0 +1,131 @@
+:root { color-scheme: light; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --panel:#ffffff; --soft:#f8fafc; --brand:#2563eb; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; color: var(--ink); background: #f1f5f9; }
+main { max-width: 1320px; margin: 0 auto; padding: 2rem; }
+h1, h2, h3 { line-height: 1.15; }
+.hero, section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06); scroll-margin-top: 5rem; }
+.hero { padding: 1.4rem 1.6rem; margin-bottom: 1rem; }
+.answer { padding: 1rem; background: #eff6ff; border-left: 4px solid var(--brand); border-radius: 12px; }
+.status { padding: 0.75rem 1rem; background: #f8fafc; border-left: 4px solid var(--line); border-radius: 12px; }
+.answer-rank-note { padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }
+section { padding: 1.2rem; margin: 1rem 0; }
+.empty, .hint, .source { color: var(--muted); }
+a { color: #1d4ed8; }
+.section-head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.graph-controls { display: flex; gap: .75rem; align-items: center; color: var(--muted); font-size: .9rem; }
+/* Keep the controls clear of the canvas edge, and keep their labels on one line:
+   a growing label would otherwise wrap the button into two rows. */
+.graph-section .section-head { margin-bottom: .75rem; }
+.graph-controls button { white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .08s ease; }
+/* A press must read even when the action has no immediate visual result. The ring
+   and sink live on :active, so they never linger after the click. */
+.graph-controls button:active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; box-shadow: 0 0 0 3px rgba(147, 197, 253, .38), inset 0 1px 2px rgba(15, 23, 42, .12); transform: translateY(1px); }
+button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 999px; padding: .4rem .8rem; cursor: pointer; }
+.focus-control { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); }
+.focus-control span { white-space: nowrap; }
+.focus-control select { max-width: min(9rem, 32vw); color: var(--ink); cursor: pointer; }
+.mermaid-wrap { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: .75rem; }
+.graph-canvas { overflow: hidden; cursor: default; touch-action: pan-y; position: relative; user-select: none; -webkit-user-select: none; }
+/* Dotted canvas sheet. The graph svg is transparent, so the dots read as the
+   surface the drawing sits on instead of a plain white card. */
+.graph-canvas { background-color: #fbfcfe; background-image: radial-gradient(circle, #a9b8cc 1.4px, transparent 1.4px); background-size: 18px 18px; }
+/* Hover invites the click that captures the wheel: the sheet wakes up and the
+   border tints, while the solid focus ring stays reserved for the captured state
+   so the two are never confused. */
+.graph-canvas:hover:not(:focus-within) { border-color: #bfdbfe; background-image: radial-gradient(circle, #8296b1 1.4px, transparent 1.4px); }
+/* Focus is functional here: the wheel only zooms while focus is inside the canvas
+   (the canvas itself, or a node link clicked in it; hence :focus-within), so the
+   ring tells the user which surface will consume the scroll. The negative
+   offset registers the ring with the canvas border instead of ringing around it. */
+.graph-canvas:focus-within { outline: 2px solid #60a5fa; outline-offset: -2px; border-color: #60a5fa; }
+.graph-canvas.canvas-mode { cursor: grab; touch-action: none; }
+.graph-canvas svg, .graph-canvas svg * { user-select: none; -webkit-user-select: none; }
+.graph-canvas.panning { cursor: grabbing; }
+[data-canvas-mode][aria-pressed="true"] { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
+.graph-canvas-audit { height: min(78vh, 860px); min-height: 560px; }
+.graph-canvas .offline-graph { width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }
+/* Mermaid renders inside its own <pre class="mermaid"> wrapper, so that wrapper
+   has to carry the canvas height. Otherwise the svg's height:100% resolves
+   against an auto height and the graph collapses to its intrinsic aspect strip,
+   leaving the panel half empty and clipping any panned view inside that strip. */
+.graph-canvas .mermaid { height: 100%; margin: 0; display: block; }
+.graph-canvas svg { width: 100% !important; height: 100% !important; max-width: none !important; display: block; }
+.graph-source { margin-top: .6rem; color: var(--muted); }
+.graph-source pre { white-space: pre-wrap; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: .75rem; color: var(--ink); }
+.graph-canvas a { cursor: pointer; }
+.graph-canvas svg .edgePath, .graph-canvas svg .edge-path, .graph-canvas svg .flowchart-link { cursor: crosshair; pointer-events: stroke; outline: none; }
+.graph-canvas svg .edge-hitbox { stroke: transparent !important; stroke-width: 14px !important; fill: none !important; pointer-events: stroke; cursor: crosshair; outline: none; }
+.graph-canvas svg .edgePath.edge-hover path:not(.edge-hitbox),
+.graph-canvas svg .edge-path.edge-hover path:not(.edge-hitbox),
+.graph-canvas svg path.flowchart-link.edge-hover:not(.edge-hitbox),
+.graph-canvas svg path.edge-hover:not(.edge-hitbox) { stroke: #fb923c !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px rgba(249,115,22,.55)); }
+.graph-canvas svg .edgePath.edge-pinned path:not(.edge-hitbox),
+.graph-canvas svg .edge-path.edge-pinned path:not(.edge-hitbox),
+.graph-canvas svg path.flowchart-link.edge-pinned:not(.edge-hitbox),
+.graph-canvas svg path.edge-pinned:not(.edge-hitbox) { stroke: #ea580c !important; stroke-width: 5px !important; filter: drop-shadow(0 0 7px rgba(234,88,12,.7)); }
+.graph-canvas svg .node.node-connected rect,
+.graph-canvas svg .node.node-connected circle,
+.graph-canvas svg .node.node-connected ellipse,
+.graph-canvas svg .node.node-connected polygon,
+.graph-canvas svg .node.node-connected path { stroke: #f97316 !important; stroke-width: 3px !important; filter: drop-shadow(0 0 3px rgba(249,115,22,.35)); }
+.graph-canvas svg .edgeLabel.edge-connected { color: #9a3412 !important; font-weight: 600; }
+.graph-canvas.focus-active { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96,165,250,.25); }
+.graph-canvas.focus-active svg .node:not(.node-focused) { opacity: .36 !important; }
+.graph-canvas.focus-active svg .edgePath:not(.edge-focused),
+.graph-canvas.focus-active svg .edge-path:not(.edge-focused),
+.graph-canvas.focus-active svg path.flowchart-link:not(.edge-focused):not(.edge-hitbox) { opacity: .22 !important; }
+.graph-canvas.focus-active svg .edgeLabels > .edgeLabel:not(.edge-focused) { opacity: .18 !important; }
+.graph-canvas.focus-active svg .edgeLabels > .edgeLabel.edge-focused { opacity: 1 !important; }
+.graph-canvas svg .node.node-focused,
+.graph-canvas svg .node.node-focused * { opacity: 1 !important; }
+.graph-canvas svg .node.node-focused text,
+.graph-canvas svg .node.node-focused tspan,
+.graph-canvas svg .node.node-focused .nodeLabel,
+.graph-canvas svg .node.node-focused .label,
+.graph-canvas svg .node.node-focused foreignObject,
+.graph-canvas svg .node.node-focused foreignObject * { fill: var(--ink) !important; color: var(--ink) !important; opacity: 1 !important; }
+.graph-canvas svg .node.node-focused rect,
+.graph-canvas svg .node.node-focused circle,
+.graph-canvas svg .node.node-focused ellipse,
+.graph-canvas svg .node.node-focused polygon,
+.graph-canvas svg .node.node-focused path { stroke: #2563eb !important; stroke-width: 4px !important; filter: drop-shadow(0 0 6px rgba(37,99,235,.45)); }
+.graph-canvas svg .edgePath.edge-focused path:not(.edge-hitbox),
+.graph-canvas svg .edge-path.edge-focused path:not(.edge-hitbox),
+.graph-canvas svg path.flowchart-link.edge-focused:not(.edge-hitbox),
+.graph-canvas svg path.edge-focused:not(.edge-hitbox) { stroke: #2563eb !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px rgba(37,99,235,.5)); opacity: 1 !important; }
+.detail-filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0 1rem; }
+.detail-filters button.active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: .75rem; }
+.detail-card { min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: .75rem; background: var(--soft); scroll-margin-top: 5rem; overflow-wrap: anywhere; word-break: break-word; }
+.detail-card p, .detail-card header, .detail-card .source, .detail-card .extras { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.detail-card[hidden] { display: none; }
+.detail-card:target { outline: 3px solid #60a5fa; background: #eff6ff; }
+.detail-card header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }
+.pill { border-radius: 999px; padding: .15rem .5rem; background: #e2e8f0; color: #334155; font-size: .78rem; font-weight: 400; }
+.extras { display: flex; flex-direction: column; gap: .15rem; }
+.extras span { color: var(--muted); }
+.floating-nav { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; font-size: .86rem; }
+.nav-toggle { width: 2.45rem; height: 2.45rem; border-radius: 999px; display: grid; place-items: center; background: rgba(255,255,255,.96); box-shadow: 0 10px 28px rgba(15,23,42,.18); }
+.floating-nav .nav-menu { position: absolute; right: 0; bottom: calc(100% + .45rem); display: none; flex-direction: column; gap: .35rem; min-width: 9rem; padding: .5rem; background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 28px rgba(15,23,42,.16); }
+.floating-nav.open .nav-menu { display: flex; }
+.floating-nav a { text-decoration: none; padding: .35rem .55rem; border-radius: 999px; background: #eff6ff; white-space: nowrap; }
+.node-modal { width: min(720px, calc(100vw - 2rem)); max-height: min(82vh, 760px); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; overscroll-behavior: contain; }
+.node-modal::backdrop { background: rgba(15,23,42,.48); backdrop-filter: blur(2px); }
+.modal-shell { padding: 1rem; max-height: calc(min(82vh, 760px) - 64px); overflow: auto; overscroll-behavior: contain; }
+.modal-bar { display: flex; justify-content: flex-start; align-items: center; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding: .75rem 1rem; background: var(--soft); }
+.modal-title { display: flex; align-items: center; gap: .55rem; margin: 0; font-size: 1rem; }
+.modal-title code { font-size: .95rem; }
+.modal-close { font-size: 1.2rem; line-height: 1; padding: .35rem .65rem; margin-left: auto; }
+.node-modal .detail-card { border: 1px solid var(--line); background: var(--soft); padding: .85rem; border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+.node-modal .detail-card p:first-child { margin-top: 0; }
+.node-modal .detail-card p:last-child { margin-bottom: 0; }
+.node-modal .detail-card .edge-block ul { margin: 0; padding-left: 0; list-style: none; }
+.node-modal .detail-card .edge-block li { margin-bottom: .4rem; }
+.node-modal .detail-card .edge-block li:last-child { margin-bottom: 0; }
+.detail-grid .edge-block { display: none; }
+.modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
+.modal-tabs button.active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
+.modal-tabpanel[hidden] { display: none; }
+@media (max-width: 720px) { main { padding: 1rem; } .graph-canvas-audit { min-height: 460px; } .floating-nav { right: .75rem; bottom: .75rem; } }
