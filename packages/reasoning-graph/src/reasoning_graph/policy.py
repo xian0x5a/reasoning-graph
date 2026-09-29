@@ -132,9 +132,11 @@ def goal_candidates(state: dict[str, Any]) -> dict[str, list[str]]:
     """Candidates answering each accepted goal that has any, in node order."""
 
     accepted = accepted_goal_ids(state)
+    targets = candidate_goal_targets(state)
     by_goal: dict[str, list[str]] = {}
-    for candidate_id, goal_targets in candidate_goal_targets(state).items():
-        for goal_id in sorted(goal_targets & accepted):
+    # Walk the nodes, not the target map: its order follows a set and changes between runs.
+    for candidate_id in by_id(state.get("nodes", []), "node"):
+        for goal_id in sorted(targets.get(candidate_id, set()) & accepted):
             by_goal.setdefault(goal_id, []).append(candidate_id)
     return by_goal
 
