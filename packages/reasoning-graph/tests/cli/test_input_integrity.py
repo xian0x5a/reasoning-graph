@@ -77,7 +77,7 @@ class AtomicStateWriteTests(unittest.TestCase):
             result = record_step(state_path)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["patch.json", "state.html", "state.json"])
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["patch.json", "state.html", "state.index.md", "state.json"])
             self.assertEqual(os.stat(state_path).st_mode & 0o777, 0o640)
             json.loads(state_path.read_text(encoding="utf-8"))
 

@@ -13,9 +13,9 @@ Use this skill when a messy task is worth keeping what you have seen, suspected,
 
 The graph does three jobs:
 
-- **Memory:** `state.json` holds observations, hypotheses, tests, and candidate answers, so progress survives long runs and lost context. Read it to recall where you are.
+- **Memory:** `state.json` holds observations, hypotheses, tests, and candidate answers, so progress survives long runs and lost context. To recall where you are, read `state.index.md` first: one line per node and edge, with what is still open on top. Open `state.json` only for a quote or a field the index leaves out.
 - **Stop gate:** `stop` accepts a `solved` answer only when it rests on recorded observations and every test has a result.
-- **Progress view:** every `record` refreshes `state.html` beside the state for a human to follow.
+- **Progress view:** every `record` refreshes `state.html` beside the state for a human to follow, and `state.index.md` for you.
 
 The graph does not choose your next step. Work the problem however you judge best; the graph keeps the record.
 
@@ -32,7 +32,7 @@ Mutating commands rewrite the input state file by default; use `-o <path>` for a
 
 ```bash
 reasoning-graph init --goal "<goal>" --strict -o state.json
-# once per checkpoint; refreshes state.html
+# once per checkpoint; refreshes state.html and state.index.md
 reasoning-graph record state.json --patch - <<'JSON'
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
@@ -79,7 +79,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 
 ## Subagents
 
-Delegation is optional: bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent owns the graph: it reviews each child's report and records accepted results itself. Ask children for observations with source refs and quotes, and for every interpretation they tried, failures included.
+Delegation is optional: bounded probes (source research, file inspection, test runs, verification) when that saves context or time; independent probes can run in parallel. The main agent is the only writer of the graph: it reviews each child's report and records accepted results itself. Point children at `state.index.md` to read what is known and open. Ask them for observations with source refs and quotes, and for every interpretation they tried, failures included. A check handed to a child is a `test` node; mark it `not_run` if it does not come back.
 
 ## Stop gates
 
@@ -149,7 +149,7 @@ Report (`docs/schema/reporting.md`): `summary.answer`, `report.answer`, and the 
 
 ## Output
 
-Default final response: the answer, a concise proof path citing sources, open hypotheses relied on, alternatives when the task asks for them or ambiguity matters, and the next test if uncertainty remains. Present a user-facing proof path, not raw graph state. Include the path to `state.html`.
+Default final response: the answer, a concise proof path citing sources, open hypotheses relied on, alternatives when the task asks for them or ambiguity matters, and the next test if uncertainty remains. Present a user-facing proof path, not raw graph state or the index. Include the path to `state.html`.
 
 ## Reference docs
 
@@ -158,6 +158,6 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/factors.md` — correlation groups
 - `docs/schema/reporting.md` — report and presentation metadata
 - `docs/cost-model.md` — score tables, defaults, and the belief math behind the rendered view
-- `docs/driver.md` — CLI commands, state JSON, events, and audit
+- `docs/driver.md` — CLI commands, state JSON, the index file, events, and audit
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install

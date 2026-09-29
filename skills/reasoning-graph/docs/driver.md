@@ -1,6 +1,6 @@
 # Reasoning Graph CLI Reference
 
-State shape, commands, events, and audit checks. The workflow and the record patch live in `../SKILL.md`.
+State shape, the index file, commands, events, and audit checks. The workflow and the record patch live in `../SKILL.md`.
 
 ## Commands
 
@@ -8,7 +8,7 @@ Mutating commands rewrite the input state file by default; use `-o <path>` for a
 
 ```bash
 reasoning-graph init --goal "Diagnose outage" --strict -o state.json
-reasoning-graph record state.json --patch - <<'JSON'   # append progress with a reason; refreshes state.html
+reasoning-graph record state.json --patch - <<'JSON'   # append progress with a reason; refreshes state.html and state.index.md
 {"reason": "...", "nodes": [...], "edges": [...]}
 JSON
 reasoning-graph refresh state.json                 # take in a hand edit now: validate, recheck quotes, log it
@@ -60,6 +60,39 @@ Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_g
 
 `belief_threshold` and `require_review` were removed; a state that carries either fails validation, as does a `review` or `rank` event.
 
+## Index file
+
+`record` and `refresh` write `<state>.index.md` beside the state they write (`state.json` gives `state.index.md`; with `-o next.json`, `next.index.md`). It is the compact read view: reread it after a context reset, and hand it to a subagent, instead of the whole state.
+
+```md
+# Reasoning graph index
+- G1 goal: Who did it?
+Answer: CS1
+Last record: Asked the cook
+
+## Open
+- H2 hypothesis: The butler did it
+- T2 test (no result): Ask the cook
+- T3 test (not run: The case file has none): Compare dental records
+
+## Nodes
+- O2 observation (score 3): The gardener says he stayed late [problem.md]
+- CS1 candidate_solution: The gardener
+
+## Edges
+- O1 -contradicts(5)-> H2 | note: Nine is before the theft
+- H1 -leads_to-> CS1 [E9]
+
+## Groups
+- F1 [O2-H1, O3-H1] score 4 | note: Both place him on site
+```
+
+- Goals come first, with `summary.answer` and the reason of the last record.
+- **Open** lists hypotheses that rest on no claim premise yet, tests without a result, and tests marked `not_run`.
+- A line gives id, type, text, and the source ref in brackets. A score shows only where it departs from the default. Notes follow `| note:`.
+- An edge id shows in brackets only when it is not `from-to`.
+- The index holds no quote and nothing computed. It is a view: edit the state through a patch, never the index.
+
 ## Record patch
 
 `record` applies `reason` plus any of these operations, in this order: removals, then updates, then additions.
@@ -79,7 +112,7 @@ The patch is applied atomically: if the merged graph fails validation (a removed
 
 - A state whose digest differs from the latest `record` or `refresh` event was edited by hand. `refresh`, `record`, and `stop` take such an edit in: the graph must validate and every quote must match its source, and a `refresh` event is logged. `record` runs those checks on the patched graph, so a patch can repair a hand edit, and logs the `refresh` event just before its own.
 - The `refresh` event lists as removals any object an earlier event added that the state no longer has, so `audit` stays consistent. Objects added by hand stay untraced, like the goal `init` writes.
-- `refresh` also rewrites `state.html`; with no hand edit it logs nothing.
+- `refresh` also rewrites `state.html` and `state.index.md`; with no hand edit it logs nothing.
 - `stop` validates the graph before the gates. It then reports quote failures and gate failures together, so one run lists everything to fix. The stop event's digest lets `audit` detect an edit made after `stop`.
 
 ## Events

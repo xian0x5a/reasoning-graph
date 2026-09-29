@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit import audit_state
+from .index import index_document
 from .events import RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
 from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
 from .policy import candidate_stop_messages, grounded_stop_messages, unnamed_answer_messages
@@ -224,22 +225,27 @@ def passes_validation(state: dict[str, Any]) -> bool:
     return True
 
 
-def write_live_view(state: dict[str, Any], args: argparse.Namespace) -> None:
-    """Refresh <state>.html beside the written state so a human can watch progress."""
+def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
+    """Refresh the two views beside the written state: <state>.html for a human watching
+    progress, <state>.index.md for the agent to reread instead of the whole state."""
     target = args.output or args.state
     if target == "-":
         return
-    document = html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid")
-    live_view_path = Path(target).with_suffix(".html")
-    # The view omits the event log, so a record can leave it byte-identical; skipping
-    # the rewrite saves the disk write and keeps the file's mtime a real change signal.
-    if live_view_path.is_file() and live_view_path.read_text(encoding="utf-8") == document:
-        return
-    write_output_text(document, str(live_view_path))
+    views = {
+        ".html": html_document(state, to_mermaid(state, group_by_type=True), "default", "mermaid"),
+        ".index.md": index_document(state),
+    }
+    for suffix, document in views.items():
+        view_path = Path(target).with_suffix(suffix)
+        # A record can leave a view byte-identical; skipping the rewrite saves the disk
+        # write and keeps the file's mtime a real change signal.
+        if view_path.is_file() and view_path.read_text(encoding="utf-8") == document:
+            continue
+        write_output_text(document, str(view_path))
 
 
 def cmd_record(args: argparse.Namespace) -> int:
-    """Append graph progress, then refresh the human-facing view."""
+    """Append graph progress, then refresh the views beside the state."""
     state = load_state(args.state)
     if is_stopped(state):
         print("error: search already has a stop event; record cannot append work", file=sys.stderr)
@@ -284,7 +290,7 @@ def cmd_record(args: argparse.Namespace) -> int:
     if not _passes_quote_and_graph_checks(state, args.state):
         return 1
     dump_state(state, args.output, default_in_place_source(args))
-    write_live_view(state, args)
+    write_views(state, args)
     return 0
 
 
@@ -307,7 +313,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
             if hand_edit.get(remove_field):
                 print(f"{remove_field}: {', '.join(hand_edit[remove_field])}")
     dump_state(state, args.output, default_in_place_source(args))
-    write_live_view(state, args)
+    write_views(state, args)
     return 0
 
 
@@ -547,7 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
 
-    record = sub.add_parser("record", help="append graph progress and refresh <state>.html")
+    record = sub.add_parser("record", help="append graph progress and refresh <state>.html and <state>.index.md")
     record.add_argument("state", help="state JSON path, or - for stdin")
     record.add_argument("--patch", required=True, help="patch JSON path, or - for stdin: reason plus any add, update, or remove operations")
     record.add_argument("-o", "--output", help="write updated state to path")
