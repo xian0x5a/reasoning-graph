@@ -10,8 +10,5 @@
       "text": "Solve the problem"
     }
   ],
-  "edges": [],
-  "stop_policy": {
-    "severity": "error"
-  }
+  "edges": []
 }

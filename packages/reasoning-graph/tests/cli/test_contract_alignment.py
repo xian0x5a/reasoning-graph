@@ -42,7 +42,7 @@ class ContractAlignmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
             state_path.write_text(json.dumps(state), encoding="utf-8")
-            return run_cli("validate", str(state_path))
+            return run_cli("audit", str(state_path))
 
     def record(self, patch: dict) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -78,14 +78,12 @@ class ContractAlignmentTests(unittest.TestCase):
 
     # --- #17 answer_kind ---
 
-    def test_candidate_without_answer_kind_is_rejected_regardless_of_policy(self) -> None:
-        for policy in ({}, {"stop_policy": {"severity": "warning"}}, {"stop_policy": {"severity": "error"}}):
-            with self.subTest(policy=policy):
-                state = {**base_state(), **policy}
-                del state["nodes"][3]["answer_kind"]
-                result = self.validate(state)
-                self.assertEqual(result.returncode, 1, result.stdout)
-                self.assertIn("answer_kind", result.stderr)
+    def test_candidate_without_answer_kind_is_rejected(self) -> None:
+        state = base_state()
+        del state["nodes"][3]["answer_kind"]
+        result = self.validate(state)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("answer_kind", result.stderr)
 
         patched = self.record({
             "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "score": 2}],

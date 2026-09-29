@@ -1,4 +1,4 @@
-"""Queue-free recording: the graph is memory, stop gate, and progress view, not a work queue.
+"""Queue-free recording: the graph is memory, answer check, and progress view, not a work queue.
 
 Countdown-island (Muse Spark, n=4 per arm) showed the pop/expand queue adding calls and seeded
 rival busywork without improving answers, so `record` writes graph progress directly."""
@@ -33,7 +33,7 @@ class RecordModeTests(unittest.TestCase):
 
     def start(self, tmp_dir: str) -> Path:
         state_path = Path(tmp_dir) / "state.json"
-        self.ok(run_cli("init", "--goal", "Explain the failure", "--strict", "-o", str(state_path)))
+        self.ok(run_cli("init", "--goal", "Explain the failure", "-o", str(state_path)))
         return state_path
 
     def record(self, state_path: Path, patch: dict) -> subprocess.CompletedProcess[str]:
@@ -52,12 +52,10 @@ class RecordModeTests(unittest.TestCase):
         }))
         self.ok(self.record(state_path, {
             "reason": "Concluded from the probe",
+            "answer": "CS1",
             "nodes": [{"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}],
             "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers")],
         }))
-
-    def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome)
 
     def test_record_logs_progress_and_renders_live_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -86,20 +84,6 @@ class RecordModeTests(unittest.TestCase):
 
             self.ok(self.record(state_path, {"reason": "Noted a constraint", "nodes": [{"id": "C1", "type": "constraint", "text": "Keep the API", "source": "user prompt"}]}))
             self.assertIn("Keep the API", live_view_path.read_text(encoding="utf-8"))
-
-    def test_doctor_accepts_a_working_state_and_audits_only_once_stopped(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.solved_trail(state_path, 5)
-
-            working = run_cli("doctor", str(state_path))
-            self.ok(working)
-            self.assertIn("audit skipped (not stopped)", working.stdout)
-
-            self.ok(self.stop(state_path))
-            stopped = run_cli("doctor", str(state_path))
-            self.ok(stopped)
-            self.assertIn("doctor: audit ok", stopped.stdout)
 
     def test_record_checks_quotes_against_a_local_source_file(self) -> None:
         # Issue #35: stitched or trimmed quotes went unnoticed, so the CLI checks them verbatim.
@@ -150,39 +134,37 @@ class RecordModeTests(unittest.TestCase):
             self.assertEqual(with_frontier.returncode, 1)
             self.assertIn("frontier", with_frontier.stderr)
 
-    def test_grounded_answer_stops_and_audits_without_queue_warnings(self) -> None:
+    def test_grounded_answer_audits_without_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
 
-            self.ok(self.stop(state_path))
             audit = run_cli("audit", str(state_path))
 
             self.assertEqual(audit.returncode, 0, audit.stderr)
             self.assertNotIn("warning", audit.stdout + audit.stderr)
 
-    def test_solved_stop_needs_no_belief_level_and_no_review(self) -> None:
+    def test_answer_needs_no_belief_level_and_no_review(self) -> None:
         # Issue #37: belief never separated right answers from wrong ones, and a same-model
-        # reviewer shared the misreading, so neither gates a stop.
+        # reviewer shared the misreading, so neither is checked.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 3)
 
-            self.ok(self.stop(state_path))
             self.ok(run_cli("audit", str(state_path)))
 
-    def test_solved_stop_needs_every_test_result_recorded(self) -> None:
+    def test_answer_needs_every_test_result_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)
             self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T2", "type": "test", "text": "Check the config"}]}))
 
-            stopped = self.stop(state_path)
+            audit = run_cli("audit", str(state_path))
 
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("T2", stopped.stderr)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("T2", audit.stderr)
 
-    def test_not_run_test_settles_the_result_gate_and_shows_in_the_view(self) -> None:
+    def test_not_run_test_settles_the_result_check_and_shows_in_the_view(self) -> None:
         # Issue #35: an unrunnable check was answered with an invented result; not_run records it honestly.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
@@ -191,7 +173,7 @@ class RecordModeTests(unittest.TestCase):
                 {"id": "T2", "type": "test", "text": "Compare dental records", "not_run": "The case file has no dental records"},
             ]}))
 
-            self.ok(self.stop(state_path))
+            self.ok(run_cli("audit", str(state_path)))
             view = state_path.with_suffix(".html").read_text(encoding="utf-8")
             self.assertIn("not run", view)
             self.assertIn("The case file has no dental records", view)
@@ -209,38 +191,19 @@ class RecordModeTests(unittest.TestCase):
                 self.assertEqual(rejected.returncode, 1, rejected.stdout)
                 self.assertIn("not_run", rejected.stderr)
 
-    def test_strict_profile_turns_stop_gate_violations_into_audit_errors(self) -> None:
+    def test_removed_review_event_fails_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state = json.loads(self.start(tmp_dir).read_text(encoding="utf-8"))
-
-            self.assertEqual(state["stop_policy"], {"severity": "error"})
-
-    def test_removed_review_and_threshold_fields_fail_validation(self) -> None:
-        def with_stop_policy(key: str, value: object):
-            return lambda state: state["stop_policy"].update({key: value})
-
-        def with_review_event(state: dict) -> None:
+            state_path = self.start(tmp_dir)
+            self.solved_trail(state_path, 5)
+            state = json.loads(state_path.read_text(encoding="utf-8"))
             state["events"].append({"step": 99, "action": "review", "reviewer": "r", "verdict": "pass", "findings": "ok", "graph_digest": "x"})
+            state_path.write_text(json.dumps(state), encoding="utf-8")
 
-        cases = {
-            "stop_policy.require_review": with_stop_policy("require_review", True),
-            "stop_policy.belief_threshold": with_stop_policy("belief_threshold", 0.8),
-            "review event": with_review_event,
-        }
-        for removed, edit in cases.items():
-            with self.subTest(removed=removed), tempfile.TemporaryDirectory() as tmp_dir:
-                state_path = self.start(tmp_dir)
-                self.solved_trail(state_path, 5)
-                state = json.loads(state_path.read_text(encoding="utf-8"))
-                edit(state)
-                state_path.write_text(json.dumps(state), encoding="utf-8")
+            rejected = run_cli("audit", str(state_path))
 
-                for command in ("validate", "stop"):
-                    arguments = ("--reason", "r", "--outcome", "solved") if command == "stop" else ()
-                    rejected = run_cli(command, str(state_path), *arguments)
-                    self.assertEqual(rejected.returncode, 1, rejected.stdout)
-                    self.assertIn(removed, rejected.stderr)
-                    self.assertIn("removed", rejected.stderr)
+            self.assertEqual(rejected.returncode, 1, rejected.stdout)
+            self.assertIn("review event", rejected.stderr)
+            self.assertIn("removed", rejected.stderr)
 
     def test_review_commands_are_gone(self) -> None:
         for command in ("review", "stop-review"):

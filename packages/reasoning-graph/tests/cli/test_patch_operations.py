@@ -59,7 +59,7 @@ class PatchOperationTests(unittest.TestCase):
     def start(self, tmp_dir: str) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         Path(tmp_dir, "problem.md").write_text(SOURCE_TEXT, encoding="utf-8")
-        self.ok(run_cli("init", "--goal", "Who did it?", "--strict", "-o", str(state_path)))
+        self.ok(run_cli("init", "--goal", "Who did it?", "-o", str(state_path)))
         self.ok(self.record(state_path, BASE_PATCH))
         return state_path
 
@@ -70,10 +70,6 @@ class PatchOperationTests(unittest.TestCase):
 
     def load(self, state_path: Path) -> dict:
         return json.loads(state_path.read_text(encoding="utf-8"))
-
-    def stop_and_audit(self, state_path: Path) -> subprocess.CompletedProcess[str]:
-        self.ok(run_cli("stop", str(state_path), "--reason", "Test ends here", "--outcome", "inconclusive"))
-        return run_cli("audit", str(state_path))
 
     def test_one_patch_updates_unsets_and_removes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -101,16 +97,16 @@ class PatchOperationTests(unittest.TestCase):
             self.assertEqual(event["remove_edges"], ["O1-H2"])
             self.assertEqual(event["updated_nodes"], [{"id": "CS1", "fields": ["score"]}, {"id": "H1", "fields": ["note"]}])
             self.assertEqual(event["updated_edges"], [{"id": "O2-H1", "fields": ["score"]}, {"id": "O1-H1", "fields": ["score"]}])
-            self.ok(run_cli("validate", str(state_path)))
+            self.ok(run_cli("audit", str(state_path)))
 
-    def test_audit_accepts_an_object_removed_and_added_again(self) -> None:
+    def test_an_object_removed_may_be_added_again(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
 
             self.ok(self.record(state_path, {"reason": "Drop the weak link", "remove_edges": ["O1-H2"]}))
             self.ok(self.record(state_path, {"reason": "Restore it", "edges": [edge("O1", "H2", "supports", score=2)]}))
 
-            self.ok(self.stop_and_audit(state_path))
+            self.ok(run_cli("audit", str(state_path)))
 
     def test_removing_a_factor_input_needs_the_factor_removed_too(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

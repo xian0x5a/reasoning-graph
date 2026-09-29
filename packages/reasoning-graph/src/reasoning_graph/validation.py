@@ -23,9 +23,6 @@ from .utils import as_string_list
 # Computed numbers the state used to hold. They are computed when the graph is rendered, for
 # the reader: an agent that sees them tunes scores until a number moves (issue #37).
 REMOVED_REPORT_CANDIDATE_FIELDS = ("belief", "truth_cost", "effective_truth_cost", "weight")
-# Belief did not separate right answers from wrong ones and a same-model reviewer shared the
-# author's misreading (issue #37), so neither gates a stop. A state that still asks for them fails.
-REMOVED_STOP_POLICY_KEYS = ("belief_threshold", "require_review")
 
 
 def edge_id_set(state: dict[str, Any]) -> set[str]:
@@ -176,20 +173,13 @@ def validate_state(state: Any) -> ValidationResult:
                 for i, goal_id in enumerate(values):
                     if goal_id not in goal_ids:
                         errors.append(f"goal_policy.{key}[{i}] references missing goal {goal_id!r}")
-    stop_policy = state.get("stop_policy", {})
-    if stop_policy is not None:
-        if not isinstance(stop_policy, dict):
-            errors.append("stop_policy must be object when present")
-            stop_policy = {}
-        if "min_viable_candidates" in stop_policy:
-            value = stop_policy.get("min_viable_candidates")
-            if not isinstance(value, int) or value < 0:
-                errors.append("stop_policy.min_viable_candidates must be a non-negative integer")
-        for removed_key in REMOVED_STOP_POLICY_KEYS:
-            if removed_key in stop_policy:
-                errors.append(f"stop_policy.{removed_key} was removed: no belief level or review gates a stop; delete the key")
-        if "severity" in stop_policy and stop_policy.get("severity") not in {"warning", "error"}:
-            errors.append("stop_policy.severity must be 'warning' or 'error' when present")
+    if "stop_policy" in state:
+        # It configured the stop gate, which went with the stop certificate (issue #38).
+        errors.append("stop_policy was removed: nothing gates a stop; audit checks the answer summary.answer claims; delete the field")
+    summary, report = (state.get(section) if isinstance(state.get(section), dict) else {} for section in ("summary", "report"))
+    if str(report.get("answer") or "").strip() and not str(summary.get("answer") or "").strip():
+        # The view shows either answer, so a report answer without the claim would be shown unchecked.
+        errors.append("report.answer is set while summary.answer is empty; summary.answer is the claim, set it with the patch key answer")
     events = state.get("events")
     for i, event in enumerate(events if isinstance(events, list) else []):
         if isinstance(event, dict) and event.get("action") == "review":
@@ -284,7 +274,7 @@ def validate_state(state: Any) -> ValidationResult:
         )
         if any(marker in candidate_text for marker in unresolved_markers) and not has_explicit_epistemic_goal:
             warnings.append(
-                f"candidate_solution {candidate_id} looks like an unresolved/stop outcome, not an answer candidate; use a hypothesis blocker plus stop event unless the goal is explicitly epistemic"
+                f"candidate_solution {candidate_id} looks like an unresolved outcome, not an answer candidate; record it as a hypothesis blocker and claim no answer, unless the goal is explicitly epistemic"
             )
         if answer_kind in ANSWER_KINDS:
             for goal_id in candidate_goal_targets.get(candidate_id, set()):

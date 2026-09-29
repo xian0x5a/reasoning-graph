@@ -6,10 +6,10 @@ import hashlib
 import json
 from typing import Any, Callable
 
-# Events that change the graph; a stop judges the graph the latest of them left.
+# Events that change the graph.
 GRAPH_CHANGE_ACTIONS = ("record", "refresh")
-# Top-level state fields the stop gates read besides nodes, edges, and factors.
-DIGEST_POLICY_FIELDS = ("stop_policy", "goal_policy", "goal_groups")
+# Top-level state fields the answer checks read besides nodes, edges, and factors.
+DIGEST_POLICY_FIELDS = ("goal_policy", "goal_groups")
 
 
 def next_event_step(state: dict[str, Any]) -> int:
@@ -23,7 +23,7 @@ def next_event_step(state: dict[str, Any]) -> int:
 def graph_digest(state: dict[str, Any]) -> str:
     """Fingerprint everything the gates judge: nodes, edges, factors, and policies.
 
-    Events store it so `record` and `stop` can tell when the state was edited outside the CLI.
+    Events store it so `record` and `refresh` can tell when the state was edited outside the CLI.
     Lists are sorted by id, so reordering alone is not a change.
     """
 
@@ -48,11 +48,6 @@ def last_graph_change(state: dict[str, Any]) -> dict[str, Any] | None:
         return None
     changes = [event for event in events if isinstance(event, dict) and event.get("action") in GRAPH_CHANGE_ACTIONS]
     return changes[-1] if changes else None
-
-
-def is_stopped(state: dict[str, Any]) -> bool:
-    events = state.get("events")
-    return isinstance(events, list) and any(isinstance(event, dict) and event.get("action") == "stop" for event in events)
 
 
 # Event fields through which graph-change events add and remove each kind of graph object.

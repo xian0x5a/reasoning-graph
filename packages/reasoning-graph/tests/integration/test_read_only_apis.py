@@ -29,7 +29,7 @@ class ReadOnlyApiTests(unittest.TestCase):
         state.setdefault("report", {"candidates": [{"id": "CS1", "name": "Candidate"}]})
         before = json.dumps(state, sort_keys=True)
 
-        result, _ = audit_state(state)
+        result = audit_state(state)
         validate_state(state)
         answer_candidates(state)
         sorted_report_candidates(state)

@@ -33,9 +33,10 @@ def observation(node_id: str, quote: str) -> dict:
 
 
 def story_patch(hypothesis_score: int) -> dict:
-    """A graph whose candidate rests on one hypothesis."""
+    """A graph whose candidate rests on one hypothesis, claimed as the answer."""
     return {
         "reason": "Read the story",
+        "answer": "CS1",
         "nodes": [
             observation("O1", "The butler left at nine"),
             observation("O2", "The gardener stayed late, or so he said"),
@@ -64,7 +65,7 @@ class HandEditTests(unittest.TestCase):
     def start(self, tmp_dir: str, hypothesis_score: int = 4) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         Path(tmp_dir, "problem.md").write_text(SOURCE_TEXT, encoding="utf-8")
-        self.ok(run_cli("init", "--goal", "Who did it?", "--strict", "-o", str(state_path)))
+        self.ok(run_cli("init", "--goal", "Who did it?", "-o", str(state_path)))
         self.ok(self.record(state_path, story_patch(hypothesis_score)))
         return state_path
 
@@ -72,9 +73,6 @@ class HandEditTests(unittest.TestCase):
         patch_path = state_path.with_name("patch.json")
         patch_path.write_text(json.dumps(patch), encoding="utf-8")
         return run_cli("record", str(state_path), "--patch", str(patch_path))
-
-    def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome)
 
     def load(self, state_path: Path) -> dict:
         return json.loads(state_path.read_text(encoding="utf-8"))
@@ -102,7 +100,7 @@ class HandEditTests(unittest.TestCase):
             event = state["events"][-1]
             self.assertEqual(event["action"], "refresh")
             self.assertEqual(event["remove_edges"], ["O1-H2"])
-            self.ok(run_cli("validate", str(state_path)))
+            self.ok(run_cli("audit", str(state_path)))
             # A second refresh finds nothing new and adds no event.
             self.ok(run_cli("refresh", str(state_path)))
             self.assertEqual(len(self.load(state_path)["events"]), len(state["events"]))
@@ -131,43 +129,26 @@ class HandEditTests(unittest.TestCase):
             hand_edit, record = state["events"][-2:]
             self.assertEqual((hand_edit["action"], hand_edit["remove_edges"]), ("refresh", ["O1-H2"]))
             self.assertEqual(record["action"], "record")
-            self.ok(run_cli("validate", str(state_path)))
+            self.ok(run_cli("audit", str(state_path)))
 
-    def test_record_and_stop_recheck_a_hand_edited_quote(self) -> None:
+    def test_record_and_audit_recheck_a_hand_edited_quote(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
             before = state_path.read_text(encoding="utf-8")
 
             self.fails(self.record(state_path, {"reason": "Note", "update_nodes": [{"id": "H1", "set": {"note": "x"}}]}), "O1", "problem.md")
-            self.fails(self.stop(state_path, "inconclusive"), "O1", "problem.md")
+            self.fails(run_cli("audit", str(state_path)), "O1", "problem.md")
             self.assertEqual(state_path.read_text(encoding="utf-8"), before)
 
-    def test_stop_reports_quote_and_gate_failures_together(self) -> None:
-        # Fixing a quote only to learn of an unmet gate on the next stop cost the agent a turn.
+    def test_audit_reports_quote_and_answer_failures_together(self) -> None:
+        # Fixing a quote only to learn of a failed answer check on the next run cost the agent a turn.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.ok(self.record(state_path, {"reason": "Planned a check", "nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
             self.hand_edit(state_path, lambda state: self.node(state, "O1").update({"quote": "The butler left at ten"}))
 
-            self.fails(self.stop(state_path), "O1", "problem.md", "without a recorded result observation: T1")
-
-    def test_stop_logs_a_hand_edit_before_it_stops(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.hand_edit(state_path, lambda state: self.node(state, "H1").update({"score": 5}))
-
-            self.ok(self.stop(state_path))
-            self.assertEqual([event["action"] for event in self.load(state_path)["events"]][-2:], ["refresh", "stop"])
-            self.ok(run_cli("audit", str(state_path)))
-
-    def test_audit_catches_an_edit_after_stop(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir)
-            self.ok(self.stop(state_path))
-            self.hand_edit(state_path, lambda state: self.node(state, "CS1").update({"text": "The butler"}))
-
-            self.fails(run_cli("audit", str(state_path)), "changed after stop")
+            self.fails(run_cli("audit", str(state_path)), "O1", "problem.md", "without a recorded result observation: T1")
 
 
 if __name__ == "__main__":

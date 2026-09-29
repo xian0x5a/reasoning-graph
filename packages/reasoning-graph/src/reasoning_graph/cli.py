@@ -9,28 +9,12 @@ from typing import Any
 
 from .audit import audit_state
 from .index import index_document
-from .events import RECORD_CLAIM_FIELDS, graph_digest, is_stopped, last_graph_change, live_record_claims, next_event_step
-from .models import CANDIDATE_STOP_OUTCOMES, EVIDENCE_GROUNDED_STOP_OUTCOMES, STOP_OUTCOMES
-from .policy import candidate_stop_messages, grounded_stop_messages, unnamed_answer_messages
+from .events import RECORD_CLAIM_FIELDS, graph_digest, last_graph_change, live_record_claims, next_event_step
 from .render import html_document, presentation_node_ids, to_mermaid
 from .schema_validation import patch_schema_errors, standalone_schema
 from .source_quotes import quote_mismatch_messages
 from .state import dump_state, load_state, strict_json_dumps, write_output_text
 from .validation import authored_field_errors, validate_state
-
-
-def cmd_validate(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
-    result = validate_state(state)
-    for warning in result.warnings:
-        print(f"warning: {warning}", file=sys.stderr)
-    for error in result.errors:
-        print(f"error: {error}", file=sys.stderr)
-    if result.ok:
-        print("ok")
-        print(f"nodes={len(state.get('nodes', []))} edges={len(state.get('edges', []))}")
-        return 0
-    return 1
 
 
 def cmd_schema(args: argparse.Namespace) -> int:
@@ -41,36 +25,27 @@ def cmd_schema(args: argparse.Namespace) -> int:
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
+    """Read-only: report the status first, then what failed or what an answer still needs."""
     state = load_state(args.state)
-    result, stats = audit_state(state)
-    for warning in result.warnings:
+    draft = Path(args.draft).read_text(encoding="utf-8") if args.draft else None
+    quote_errors = _quote_errors(state, args.state) if isinstance(state, dict) else []
+    report = audit_state(state, quote_errors, draft)
+    print(report.status)
+    for need in report.needs:
+        print(f"needs: {need}")
+    for warning in report.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    for error in result.errors:
+    for error in report.errors:
         print(f"error: {error}", file=sys.stderr)
-    if result.ok:
-        print("ok")
-        print("events={events} records={records}".format(**stats))
-        return 0
-    return 1
+    return 0 if report.ok else 1
 
 
-# Strict makes audit report an unmet stop gate as an error instead of a warning. It sets no
-# minimum-candidate gate: that pushed agents into seeding rivals they never needed
-# (countdown-island benchmark).
-STRICT_STOP_POLICY = {
-    "severity": "error",
-}
-
-
-def starter_state(profile: str, goal: str = "Solve the problem") -> dict[str, Any]:
-    state: dict[str, Any] = {
+def starter_state(goal: str = "Solve the problem") -> dict[str, Any]:
+    return {
         "summary": {"title": "Reasoning Graph", "answer": ""},
         "nodes": [{"id": "G1", "type": "goal", "text": goal}],
         "edges": [],
     }
-    if profile == "strict":
-        state["stop_policy"] = dict(STRICT_STOP_POLICY)
-    return state
 
 
 def default_in_place_source(args: argparse.Namespace) -> str | None:
@@ -88,14 +63,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     if not goal:
         print("error: --goal must be non-empty", file=sys.stderr)
         return 1
-    profile = "strict" if args.strict else args.profile
-    state = starter_state(profile, goal)
+    state = starter_state(goal)
     dump_state(state, args.output)
     return 0
 
 
 RECORD_PATCH_FIELDS = {
     "reason",
+    "answer",
     "nodes", "update_nodes", "remove_nodes",
     "edges", "update_edges", "remove_edges",
     "factors", "remove_factors",
@@ -247,9 +222,6 @@ def write_views(state: dict[str, Any], args: argparse.Namespace) -> None:
 def cmd_record(args: argparse.Namespace) -> int:
     """Append graph progress, then refresh the views beside the state."""
     state = load_state(args.state)
-    if is_stopped(state):
-        print("error: search already has a stop event; record cannot append work", file=sys.stderr)
-        return 1
     patch = load_state(args.patch)
     if not isinstance(patch, dict):
         raise ValueError("record patch must be a JSON object")
@@ -272,6 +244,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     # Validation and quote checks below judge the patched graph, so a patch may repair a hand edit.
     hand_edit = _hand_edit_event(state)
     patch_trace = _apply_graph_patch(state, patch)
+    if "answer" in patch:
+        # The claim `audit` judges. An empty answer withdraws it.
+        state.setdefault("summary", {})["answer"] = patch["answer"].strip()
     events = state.setdefault("events", [])
     if not isinstance(events, list):
         raise ValueError("events must be a list before record can append")
@@ -297,9 +272,6 @@ def cmd_record(args: argparse.Namespace) -> int:
 def cmd_refresh(args: argparse.Namespace) -> int:
     """Take in a hand-edited state: validate it, recheck every quote, log removed objects, and refresh the view."""
     state = load_state(args.state)
-    if is_stopped(state):
-        print("error: search already has a stop event; refresh cannot append", file=sys.stderr)
-        return 1
     hand_edit = _hand_edit_event(state)
     if not _passes_quote_and_graph_checks(state, args.state):
         return 1
@@ -314,44 +286,6 @@ def cmd_refresh(args: argparse.Namespace) -> int:
                 print(f"{remove_field}: {', '.join(hand_edit[remove_field])}")
     dump_state(state, args.output, default_in_place_source(args))
     write_views(state, args)
-    return 0
-
-
-def cmd_doctor(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
-    result = validate_state(state)
-    for warning in result.warnings:
-        print(f"warning: {warning}", file=sys.stderr)
-    for error in result.errors:
-        print(f"error: {error}", file=sys.stderr)
-    if not result.ok:
-        print("doctor: validation failed")
-        return 1
-
-    print("doctor: validation ok")
-    print(
-        "doctor: nodes={nodes} edges={edges} stopped={stopped}".format(
-            nodes=len(state.get("nodes", [])),
-            edges=len(state.get("edges", [])),
-            stopped=str(is_stopped(state)).lower(),
-        )
-    )
-
-    # audit judges a finished trace; a working state is healthy once it validates.
-    if not is_stopped(state):
-        print("doctor: audit skipped (not stopped)")
-        return 0
-
-    audit_result, stats = audit_state(state)
-    for warning in audit_result.warnings:
-        print(f"warning: {warning}", file=sys.stderr)
-    for error in audit_result.errors:
-        print(f"error: {error}", file=sys.stderr)
-    print("doctor: audit events={events} records={records}".format(**stats))
-    if not audit_result.ok:
-        print("doctor: audit failed")
-        return 1
-    print("doctor: audit ok")
     return 0
 
 
@@ -441,85 +375,6 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
     return ids
 
 
-def _stop_preflight(state: dict[str, Any], reason: str, outcome: str, draft: str | None = None) -> int:
-    """Reject a stop whose outcome the recorded graph does not support, or whose answer is not the graph's."""
-    reason = reason.strip()
-    if not reason:
-        print("error: stop reason must be non-empty", file=sys.stderr)
-        return 1
-    if outcome not in STOP_OUTCOMES:
-        print(f"error: --outcome must be one of {sorted(STOP_OUTCOMES)}, got {outcome!r}", file=sys.stderr)
-        return 1
-
-    events = state.get("events")
-    if events is not None and not isinstance(events, list):
-        print("error: events must be a list before stop can append", file=sys.stderr)
-        return 1
-    if is_stopped(state):
-        print("error: search already has a stop event", file=sys.stderr)
-        return 1
-    if outcome in CANDIDATE_STOP_OUTCOMES:
-        unmet = candidate_stop_messages(state)
-        for message in unmet:
-            print(f"error: stop outcome {outcome!r} is not met; {message}", file=sys.stderr)
-        if unmet:
-            print(
-                "error: add a candidate_solution with an answers edge, list the goal in goal_policy.optional_goals, "
-                "or stop with a non-candidate outcome such as inconclusive or budget_exhausted",
-                file=sys.stderr,
-            )
-            return 1
-        unnamed = unnamed_answer_messages(state, draft)
-        for message in unnamed:
-            print(f"error: stop outcome {outcome!r} reports an answer the graph does not hold; {message}", file=sys.stderr)
-        if unnamed:
-            return 1
-    if outcome in EVIDENCE_GROUNDED_STOP_OUTCOMES:
-        unmet = grounded_stop_messages(state)
-        for message in unmet:
-            print(f"error: stop outcome {outcome!r} requires a grounded answer; {message}", file=sys.stderr)
-        if unmet:
-            print(
-                "error: record the missing results or supporting observations, "
-                "or stop with an outcome such as inconclusive or budget_exhausted and report the open hypotheses",
-                file=sys.stderr,
-            )
-            return 1
-    return 0
-
-
-def append_stop_event(state: dict[str, Any], reason: str, outcome: str, draft: str | None = None) -> int:
-    if _stop_preflight(state, reason, outcome, draft) != 0:
-        return 1
-    events = state.setdefault("events", [])
-    events.append({"step": next_event_step(state), "action": "stop", "reason": reason.strip(), "outcome": outcome, "graph_digest": graph_digest(state)})
-    return 0
-
-
-def cmd_stop(args: argparse.Namespace) -> int:
-    state = load_state(args.state)
-    hand_edit = _hand_edit_event(state)
-    if args.answer:
-        state.setdefault("summary", {})["answer"] = args.answer.strip()
-    # The gates need a valid graph.
-    if not passes_validation(state):
-        return 1
-    # Quote and gate failures are independent, so report both in one run instead of one per retry.
-    quote_errors = _quote_errors(state, args.state)
-    for message in quote_errors:
-        print(f"error: {message}", file=sys.stderr)
-    draft = Path(args.draft).read_text(encoding="utf-8") if args.draft else None
-    if _stop_preflight(state, args.reason, args.outcome, draft) != 0 or quote_errors:
-        return 1
-    # Logged only once every check passes, and before stop, since nothing may follow stop.
-    if hand_edit:
-        state.setdefault("events", []).append({"step": next_event_step(state), **hand_edit})
-    if append_stop_event(state, args.reason, args.outcome, draft) != 0:
-        return 1
-    dump_state(state, args.output, default_in_place_source(args))
-    return 0
-
-
 def cmd_mermaid(args: argparse.Namespace) -> int:
     state = load_state(args.state)
     include_nodes = presentation_node_ids(state) if args.view == "presentation" else None
@@ -550,8 +405,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     init = sub.add_parser("init", help="emit a starter state for a goal")
     init.add_argument("--goal", required=True, help="goal text for G1")
-    init.add_argument("--profile", choices=("minimal", "strict"), default="minimal", help="starter profile")
-    init.add_argument("--strict", action="store_true", help="shortcut for --profile strict")
     init.add_argument("-o", "--output", help="write result to path instead of stdout")
     init.set_defaults(func=cmd_init)
 
@@ -566,32 +419,15 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("-o", "--output", help="write updated state to path")
     refresh.set_defaults(func=cmd_refresh)
 
-    validate = sub.add_parser("validate", help="validate graph state")
-    validate.add_argument("state", help="state JSON path, or - for stdin")
-    validate.set_defaults(func=cmd_validate)
-
     schema = sub.add_parser("schema", help="emit a packaged JSON Schema")
     schema.add_argument("name", choices=("state", "patch"), help="schema to emit")
     schema.add_argument("-o", "--output", help="write schema JSON to path instead of stdout")
     schema.set_defaults(func=cmd_schema)
 
-    doctor = sub.add_parser("doctor", help="validate state and audit a stopped trace")
-    doctor.add_argument("state", help="state JSON path, or - for stdin")
-    doctor.set_defaults(func=cmd_doctor)
-
-    audit = sub.add_parser("audit", help="audit the event trace and stop gates")
+    audit = sub.add_parser("audit", help="read-only check of the graph, the quotes, and the claimed answer")
     audit.add_argument("state", help="state JSON path, or - for stdin")
+    audit.add_argument("--draft", help="final answer draft; it must mention the answer candidate of each goal")
     audit.set_defaults(func=cmd_audit)
-
-    stop = sub.add_parser("stop", help="check stop gates, then append a stop event")
-    stop.add_argument("state", help="state JSON path, or - for stdin")
-    stop.add_argument("--reason", required=True, help="why search is stopping")
-    stop.add_argument("--outcome", required=True, choices=sorted(STOP_OUTCOMES), help="structured stop outcome")
-    stop.add_argument("--answer", help="the answer, naming its candidate by id or exact text; stored as summary.answer")
-    stop.add_argument("--draft", help="final answer draft; a candidate-bearing stop needs it to name the answer candidate of each accepted goal")
-    stop.add_argument("-o", "--output", help="write mutated state to path")
-    stop.add_argument("-i", "--in-place", action="store_true", help="optional; default already rewrites input file")
-    stop.set_defaults(func=cmd_stop)
 
     mermaid = sub.add_parser("mermaid", help="render Mermaid source")
     mermaid.add_argument("state", help="state JSON path, or - for stdin")

@@ -1,4 +1,4 @@
-"""Goal, candidate, and stop-policy helper predicates."""
+"""Goal, candidate, and answer-check helper predicates."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def accepted_goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def optional_goal_ids(state: dict[str, Any]) -> set[str]:
-    """Goals that a candidate-bearing stop may leave unanswered."""
+    """Goals that a claimed answer may leave unanswered."""
 
     goals = goal_ids(state)
     policy = state.get("goal_policy") if isinstance(state.get("goal_policy"), dict) else {}
@@ -107,7 +107,7 @@ def _goal_brief(state: dict[str, Any], goal_id: str) -> str:
 
 
 def unanswered_goal_messages(state: dict[str, Any]) -> list[str]:
-    """Explain each accepted, non-optional goal that a candidate-bearing stop would leave open."""
+    """Explain each accepted, non-optional goal that a claimed answer would leave open."""
 
     answered = answered_goal_ids(state)
     directly = directly_answered_goal_ids(state)
@@ -239,24 +239,15 @@ def ungrounded_claims_by_candidate(state: dict[str, Any], candidate_ids: set[str
     return {candidate_id: sorted(ungrounded_roots(candidate_id)) for candidate_id in sorted(candidate_ids) if candidate_id not in grounded}
 
 
-def ungrounded_goal_answer_messages(state: dict[str, Any]) -> list[str]:
-    """Explain each answer to an accepted, non-optional goal that is not named or lacks evidence grounding.
+def ungrounded_answer_messages(state: dict[str, Any]) -> list[str]:
+    """Explain each named answer candidate that lacks evidence grounding.
 
-    The gate judges the candidate the answer names, never the top-ranked one: the agent is not
+    The check judges the candidate the answer names, never the top-ranked one: the agent is not
     steered by computed belief (issue #37).
     """
 
-    nodes = by_id(state.get("nodes", []), "node")
-    required_goals = accepted_goal_ids(state) - optional_goal_ids(state)
-    answers = answer_candidates(state)
-    messages = [
-        f"goal {goal_id} has {len(candidates)} candidates and no answer names one; "
-        f"name the one answer in summary.answer, by id or exact text: {_candidate_listing(nodes, candidates)}"
-        for goal_id, candidates in sorted(goal_candidates(state).items())
-        if goal_id in required_goals and answers[goal_id] is None and not _named_in_state(state, nodes, candidates)
-    ]
-    named = {candidate_id for goal_id, candidate_id in answers.items() if goal_id in required_goals and candidate_id}
-    return messages + [
+    named = {candidate_id for candidate_id in answer_candidates(state).values() if candidate_id}
+    return [
         f"answer candidate {candidate_id} is not evidence-grounded; claims resting on scores alone: {', '.join(claims)}"
         for candidate_id, claims in ungrounded_claims_by_candidate(state, named).items()
     ]
@@ -283,31 +274,6 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
     return [f"test(s) without a recorded result observation: {', '.join(missing)}"]
 
 
-def too_few_candidates_messages(state: dict[str, Any]) -> list[str]:
-    """Opt-in breadth gate for when the user asked for alternatives; strict init never sets it."""
-
-    policy = state.get("stop_policy") if isinstance(state.get("stop_policy"), dict) else {}
-    minimum = policy.get("min_viable_candidates")
-    if not isinstance(minimum, int) or minimum <= 0:
-        return []
-    viable = len(viable_candidate_ids(state))
-    if viable >= minimum:
-        return []
-    return [f"viable candidates {viable} < stop_policy.min_viable_candidates {minimum}"]
-
-
-def candidate_stop_messages(state: dict[str, Any]) -> list[str]:
-    """Everything a candidate-bearing stop must satisfy: each accepted goal answered, and requested breadth."""
-
-    return unanswered_goal_messages(state) + too_few_candidates_messages(state)
-
-
-def grounded_stop_messages(state: dict[str, Any]) -> list[str]:
-    """Everything a solved stop must satisfy beyond answering each goal and naming the answer."""
-
-    return ungrounded_goal_answer_messages(state) + unrecorded_test_messages(state)
-
-
 def _names(text: str, candidate_id: str, candidate_text: str) -> bool:
     """Whether an answer text names the candidate, by id as a whole word or by its exact text."""
 
@@ -324,67 +290,62 @@ def _candidate_listing(nodes: dict[str, dict[str, Any]], candidate_ids: list[str
     return ", ".join(f"{candidate_id} ({_candidate_text(nodes, candidate_id)!r})" for candidate_id in candidate_ids)
 
 
-def state_answer_texts(state: dict[str, Any]) -> dict[str, str]:
-    """The non-empty answer texts the state holds, by field."""
+def claimed_answer(state: dict[str, Any]) -> str:
+    """The claim: `summary.answer`, empty while no answer is claimed."""
 
-    texts = {
-        f"{section}.answer": str(state[section].get("answer") or "").strip()
-        for section in ("summary", "report")
-        if isinstance(state.get(section), dict)
-    }
-    return {field: text for field, text in texts.items() if text}
+    summary = state.get("summary") if isinstance(state.get("summary"), dict) else {}
+    return str(summary.get("answer") or "").strip()
 
 
-def _named_in_state(state: dict[str, Any], nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> list[str]:
-    texts = state_answer_texts(state).values()
-    return [
-        candidate_id
-        for candidate_id in candidate_ids
-        if any(_names(text, candidate_id, _candidate_text(nodes, candidate_id)) for text in texts)
-    ]
+def _named_in(text: str, nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> list[str]:
+    return [candidate_id for candidate_id in candidate_ids if _names(text, candidate_id, _candidate_text(nodes, candidate_id))]
 
 
 def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
-    """The candidate the answer stands for, per accepted goal that has candidates.
+    """The candidate the answer names, per required goal that has candidates.
 
-    A goal's only candidate is its answer. Among several, it is the one `summary.answer` or
-    `report.answer` names; None when they name none or more than one.
+    The answer is always named, in `summary.answer`: a goal's only candidate is not its answer,
+    or a half-finished graph with one candidate would count as a claim (issue #38). None when
+    the answer names no candidate of the goal, or more than one.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
+    required_goals = accepted_goal_ids(state) - optional_goal_ids(state)
     answers: dict[str, str | None] = {}
     for goal_id, candidates in goal_candidates(state).items():
-        named = candidates if len(candidates) == 1 else _named_in_state(state, nodes, candidates)
+        if goal_id not in required_goals:
+            continue
+        named = _named_in(claimed_answer(state), nodes, candidates)
         answers[goal_id] = named[0] if len(named) == 1 else None
     return answers
 
 
 def unnamed_answer_messages(state: dict[str, Any], draft: str | None = None) -> list[str]:
-    """Name each answer text that does not stand for a candidate of an accepted goal.
+    """Name each answer text that does not stand for one candidate of each required goal.
 
-    `summary.answer`, `report.answer`, and the draft each name the answer candidate by id or exact
-    text; any candidate may be the answer. An empty text is not checked.
+    `summary.answer` names the answer candidate by id or exact text; any candidate may be the
+    answer. `report.answer` and the draft, when given, name the same candidate.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
-    texts = state_answer_texts(state)
-    if draft:
-        texts["draft"] = draft
+    claim = claimed_answer(state)
+    report = state.get("report") if isinstance(state.get("report"), dict) else {}
+    other_texts = {"report.answer": str(report.get("answer") or "").strip(), "draft": draft or ""}
     answers = answer_candidates(state)
     messages = []
     for goal_id, candidates in sorted(goal_candidates(state).items()):
+        if goal_id not in answers:
+            continue
         answer = answers[goal_id]
-        named_in_state = _named_in_state(state, nodes, candidates)
-        if answer is None and len(named_in_state) > 1:
-            messages.append(
-                f"{' and '.join(state_answer_texts(state))} names several candidates for goal {goal_id}: "
-                f"{', '.join(named_in_state)}; name the one answer"
-            )
-        for field, text in texts.items():
-            verb = "mention" if field == "draft" else "name"
-            quoted = "" if field == "draft" else f"; answer: {text!r}"
-            if answer is not None and not _names(text, answer, _candidate_text(nodes, answer)):
+        if answer is None:
+            named = _named_in(claim, nodes, candidates)
+            if named:
+                messages.append(f"summary.answer names several candidates for goal {goal_id}: {', '.join(named)}; name the one answer")
+            else:
+                messages.append(f"summary.answer names no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}")
+            continue
+        for field, text in other_texts.items():
+            if text and not _names(text, answer, _candidate_text(nodes, answer)):
+                verb, quoted = ("mention", "") if field == "draft" else ("name", f"; answer: {text!r}")
                 messages.append(f"{field} does not {verb} candidate {answer} ({_candidate_text(nodes, answer)!r}) for goal {goal_id}{quoted}")
-            elif answer is None and not any(_names(text, candidate_id, _candidate_text(nodes, candidate_id)) for candidate_id in candidates):
-                messages.append(f"{field} {verb}s no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}{quoted}")
     return messages

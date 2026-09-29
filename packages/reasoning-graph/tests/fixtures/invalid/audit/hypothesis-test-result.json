@@ -1,7 +1,7 @@
 {
   "summary": {
     "title": "Reasoning Graph",
-    "answer": ""
+    "answer": "CS1"
   },
   "nodes": [
     {
@@ -25,6 +25,18 @@
       "type": "hypothesis",
       "text": "The keypad rejects the room number",
       "score": 5
+    },
+    {
+      "id": "O1",
+      "type": "observation",
+      "text": "The door label shows the room number",
+      "source": "door"
+    },
+    {
+      "id": "CS1",
+      "type": "candidate_solution",
+      "text": "The room number",
+      "answer_kind": "exact_answer"
     }
   ],
   "edges": [
@@ -46,12 +58,20 @@
       "to": "H1",
       "type": "contradicts",
       "score": 5
+    },
+    {
+      "id": "O1-CS1",
+      "from": "O1",
+      "to": "CS1",
+      "type": "leads_to"
+    },
+    {
+      "id": "CS1-G1",
+      "from": "CS1",
+      "to": "G1",
+      "type": "answers"
     }
   ],
-  "stop_policy": {
-    "min_viable_candidates": 3,
-    "severity": "error"
-  },
   "factors": [],
   "events": [
     {
@@ -66,13 +86,6 @@
         "H2-H1"
       ],
       "update_factors": [],
-      "graph_digest": "109b4f36aa47891a"
-    },
-    {
-      "step": 2,
-      "action": "stop",
-      "reason": "The keypad settled it",
-      "outcome": "solved",
       "graph_digest": "109b4f36aa47891a"
     }
   ]

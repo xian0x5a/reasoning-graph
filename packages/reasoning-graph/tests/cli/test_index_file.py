@@ -61,7 +61,7 @@ class IndexFileTests(unittest.TestCase):
     def start(self, tmp_dir: str) -> Path:
         state_path = Path(tmp_dir) / "state.json"
         Path(tmp_dir, "problem.md").write_text(SOURCE_TEXT, encoding="utf-8")
-        self.ok(run_cli("init", "--goal", "Who did it?", "--strict", "-o", str(state_path)))
+        self.ok(run_cli("init", "--goal", "Who did it?", "-o", str(state_path)))
         self.ok(self.record(state_path, STORY_PATCH))
         return state_path
 

@@ -45,9 +45,6 @@
         "$ref": "#/$defs/goalGroup"
       }
     },
-    "stop_policy": {
-      "$ref": "#/$defs/stopPolicy"
-    },
     "report": {
       "$ref": "#/$defs/report"
     },
@@ -88,7 +85,8 @@
           "type": "string"
         },
         "answer": {
-          "type": "string"
+          "type": "string",
+          "description": "The claim audit checks: it names one candidate per goal, by id or exact text. Empty while no answer is claimed."
         }
       }
     },
@@ -423,22 +421,11 @@
         "action": {
           "enum": [
             "record",
-            "refresh",
-            "stop"
+            "refresh"
           ]
         },
         "reason": {
           "type": "string"
-        },
-        "outcome": {
-          "enum": [
-            "solved",
-            "candidate_count_met",
-            "budget_exhausted",
-            "blocked",
-            "user_stopped",
-            "inconclusive"
-          ]
         },
         "add_nodes": {
           "$ref": "#/$defs/stringList"
@@ -539,25 +526,6 @@
           "if": {
             "properties": {
               "action": {
-                "const": "stop"
-              }
-            },
-            "required": [
-              "action"
-            ]
-          },
-          "then": {
-            "required": [
-              "reason",
-              "outcome",
-              "graph_digest"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "action": {
                 "const": "refresh"
               }
             },
@@ -630,22 +598,6 @@
         },
         "exclusive": {
           "type": "boolean"
-        }
-      }
-    },
-    "stopPolicy": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "min_viable_candidates": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "severity": {
-          "enum": [
-            "warning",
-            "error"
-          ]
         }
       }
     },
@@ -777,6 +729,11 @@
           {
             "required": [
               "search_policy"
+            ]
+          },
+          {
+            "required": [
+              "stop_policy"
             ]
           }
         ]

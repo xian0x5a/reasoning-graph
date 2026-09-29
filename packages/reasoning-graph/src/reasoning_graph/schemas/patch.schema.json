@@ -8,6 +8,10 @@
     "reason": {
       "type": "string"
     },
+    "answer": {
+      "type": "string",
+      "description": "Sets summary.answer, the claim audit checks; an empty string withdraws it."
+    },
     "nodes": {
       "type": "array",
       "items": {

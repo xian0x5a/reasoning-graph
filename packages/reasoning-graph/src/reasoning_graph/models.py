@@ -37,32 +37,6 @@ FACTOR_RELATIONS = {
 }
 
 
-AUDIT_EVENT_ACTIONS = {
-    "record",
-    "refresh",
-    "stop",
-}
-
-
-STOP_OUTCOMES = {
-    "solved",
-    "candidate_count_met",
-    "budget_exhausted",
-    "blocked",
-    "user_stopped",
-    "inconclusive",
-}
-
-
-CANDIDATE_STOP_OUTCOMES = {
-    "solved",
-    "candidate_count_met",
-}
-
-# This outcome claims the answer holds, so it must rest on observations; candidate_count_met measures breadth.
-EVIDENCE_GROUNDED_STOP_OUTCOMES = {"solved"}
-
-
 # A test result is what was observed; a conclusion drawn from it is a separate hypothesis
 # linked by leads_to from the observation.
 RESULT_NODE_TYPES = {"observation"}

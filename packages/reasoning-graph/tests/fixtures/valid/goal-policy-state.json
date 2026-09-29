@@ -1,7 +1,7 @@
 {
   "summary": {
     "title": "Goal policy state",
-    "answer": "Accepted goal answered."
+    "answer": "CS1 answers the accepted goal."
   },
   "nodes": [
     {
@@ -13,6 +13,12 @@
       "id": "G2",
       "type": "goal",
       "text": "Explain likely method"
+    },
+    {
+      "id": "O1",
+      "type": "observation",
+      "text": "Signal matching the primary route",
+      "source": "user report"
     },
     {
       "id": "A1",
@@ -46,6 +52,12 @@
     ]
   },
   "edges": [
+    {
+      "id": "O1A1",
+      "from": "O1",
+      "to": "A1",
+      "type": "leads_to"
+    },
     {
       "id": "A1CS1",
       "from": "A1",

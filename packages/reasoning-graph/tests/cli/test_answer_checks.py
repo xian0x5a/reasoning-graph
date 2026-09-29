@@ -1,13 +1,12 @@
-"""Stop gates learned from the Spooky Manor run: unanswered goals (#29), answer-to-candidate
-matching (#30), and strict test results (#31)."""
+"""Checks on a claimed answer, learned from the Spooky Manor run: unanswered goals (#29),
+answer-to-candidate matching (#30), and strict test results (#31). `audit` runs them once
+`summary.answer` is set (issue #38)."""
 
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-
-from reasoning_graph.events import graph_digest
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -60,15 +59,16 @@ ROOM_ONE_SOLVED = {
         {"id": "A2-T2", "from": "A2", "to": "T2", "type": "prompts"},
     ],
     "reason": "Solved room 1 and read room 2",
+    "answer": "TwoSigns",
 }
 
 
 class SpookyManorFlow(unittest.TestCase):
-    """Drive a strict two-room trail up to the room 2 decode."""
+    """Drive a two-room trail up to the room 2 decode, with room 1 claimed as the answer."""
 
     def start_trail(self, tmp_dir: str) -> Path:
         state_path = Path(tmp_dir) / "state.json"
-        self.assertEqual(run_cli("init", "--goal", "Find the URL path into the manor", "--strict", "-o", str(state_path)).returncode, 0)
+        self.assertEqual(run_cli("init", "--goal", "Find the URL path into the manor", "-o", str(state_path)).returncode, 0)
         self.ok(self.record(tmp_dir, state_path, "room1", ROOM_SEED))
         self.ok(self.record(tmp_dir, state_path, "room2", ROOM_ONE_SOLVED))
         return state_path
@@ -87,21 +87,19 @@ class UnansweredGoalTests(SpookyManorFlow):
         "reason": "Profiled the room 2 waveform",
     }
 
-    def test_solved_stop_is_rejected_while_an_accepted_goal_is_unanswered(self) -> None:
+    def test_answer_fails_while_an_accepted_goal_is_unanswered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
             self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
-            before = state_path.read_text(encoding="utf-8")
 
-            stopped = run_cli("stop", str(state_path), "--reason", "all rooms solved", "--outcome", "solved")
+            audit = run_cli("audit", str(state_path))
 
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("accepted goal G2", stopped.stderr)
-            self.assertIn("unanswered", stopped.stderr)
-            self.assertEqual(state_path.read_text(encoding="utf-8"), before)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("accepted goal G2", audit.stderr)
+            self.assertIn("unanswered", audit.stderr)
 
-            inconclusive = run_cli("stop", str(state_path), "--reason", "room 2 decode unfinished", "--outcome", "inconclusive", "-o", str(Path(tmp_dir) / "stopped.json"))
-            self.ok(inconclusive)
+            self.ok(self.record(tmp_dir, state_path, "withdraw", {"reason": "Room 2 decode unfinished", "answer": ""}))
+            self.ok(run_cli("audit", str(state_path)))
 
     def test_parent_goal_is_not_answered_until_required_sub_goal_is(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -111,13 +109,13 @@ class UnansweredGoalTests(SpookyManorFlow):
             state["goal_policy"] = {"accepted_goals": ["G1"]}
             write_json(state_path, state)
 
-            stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
+            audit = run_cli("audit", str(state_path))
 
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("accepted goal G1", stopped.stderr)
-            self.assertIn("requires unanswered goal G2", stopped.stderr)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("accepted goal G1", audit.stderr)
+            self.assertIn("requires unanswered goal G2", audit.stderr)
 
-    def test_optional_goal_does_not_block_solved_stop(self) -> None:
+    def test_optional_goal_does_not_block_the_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
             self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
@@ -125,88 +123,57 @@ class UnansweredGoalTests(SpookyManorFlow):
             state["goal_policy"] = {"optional_goals": ["G2"]}
             write_json(state_path, state)
 
-            stopped = run_cli("stop", str(state_path), "--reason", "G1 answered; G2 optional", "--outcome", "solved", "-o", str(Path(tmp_dir) / "stopped.json"))
-
-            self.ok(stopped)
-
-    def test_audit_names_the_unanswered_goal(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start_trail(tmp_dir)
-            self.ok(self.record(tmp_dir, state_path, "profile", self.PROFILE_ONLY))
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            # Forge the terminal events by hand to bypass the CLI preflight.
-            step = state["events"][-1]["step"]
-            state["events"].append(
-                {"step": step + 1, "action": "stop", "reason": "systematically solved stage by stage", "outcome": "solved", "graph_digest": graph_digest(state)},
-            )
-            write_json(state_path, state)
-
-            audit = run_cli("audit", str(state_path))
-
-            self.assertEqual(audit.returncode, 1, audit.stdout)
-            self.assertIn("accepted goal G2", audit.stderr)
+            self.ok(run_cli("audit", str(state_path)))
 
     def test_goal_to_goal_edges_must_be_requires(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["nodes"].append({"id": "G2", "type": "goal", "text": "Sub goal"})
             state["edges"].append({"id": "G1-G2", "from": "G1", "to": "G2", "type": "leads_to"})
-            result = run_cli("validate", str(write_json(Path(tmp_dir) / "state.json", state)))
+            result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
             self.assertEqual(result.returncode, 1, result.stdout)
             self.assertIn("goal -> goal must use requires", result.stderr)
 
 
 class AnswerMatchesCandidateTests(unittest.TestCase):
-    def stopped_state(self) -> dict:
+    def fixture_state(self) -> dict:
         return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    def unstopped_state(self) -> dict:
-        state = self.stopped_state()
-        state["events"] = [event for event in state["events"] if event["action"] != "stop"]
-        return state
+    def test_report_answer_names_the_candidate_the_claim_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state = self.fixture_state()
+            state["report"] = {"answer": "The trail ends at Photophone."}
 
-    def stop(self, tmp_dir: str, state: dict, *extra: str) -> subprocess.CompletedProcess[str]:
-        state_path = write_json(Path(tmp_dir) / "state.json", state)
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", "solved", *extra)
+            result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
-    def test_answer_fields_must_name_the_candidate_for_each_accepted_goal(self) -> None:
-        for field in ("summary", "report"):
-            for command, state in (("stop", self.unstopped_state()), ("audit", self.stopped_state())):
-                with self.subTest(field=field, command=command), tempfile.TemporaryDirectory() as tmp_dir:
-                    state[field] = {**state.get(field, {}), "answer": "The trail ends at Photophone."}
-
-                    if command == "stop":
-                        result = self.stop(tmp_dir, state)
-                    else:
-                        result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
-
-                    self.assertEqual(result.returncode, 1, result.stdout)
-                    self.assertIn(f"{field}.answer does not name candidate CS1", result.stderr)
-                    self.assertIn("The trail ends at Photophone.", result.stderr)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("report.answer does not name candidate CS1", result.stderr)
+            self.assertIn("The trail ends at Photophone.", result.stderr)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.stopped_state()
+            state = self.fixture_state()
             state["summary"] = {"answer": "Candidate from A1 wins."}
             state["report"] = {"answer": "CS1 wins."}
             result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_draft_must_name_the_answer_candidate_for_the_resolved_goal(self) -> None:
+    def test_draft_must_name_the_answer_candidate_among_several(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state = self.unstopped_state()
+            state = self.fixture_state()
             state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "Stale alternative", "answer_kind": "exact_answer", "score": 1})
             state["edges"].append({"id": "CS2-G1", "from": "CS2", "to": "G1", "type": "answers"})
+            state_path = write_json(Path(tmp_dir) / "state.json", state)
             draft_path = Path(tmp_dir) / "answer.md"
             draft_path.write_text("Final answer: Stale alternative.", encoding="utf-8")
 
-            rejected = self.stop(tmp_dir, state, "--draft", str(draft_path))
+            rejected = run_cli("audit", str(state_path), "--draft", str(draft_path))
 
             self.assertEqual(rejected.returncode, 1, rejected.stdout)
             self.assertIn("draft does not mention candidate CS1", rejected.stderr)
 
             draft_path.write_text("Final answer: Candidate from A1.", encoding="utf-8")
-            self.assertEqual(self.stop(tmp_dir, state, "--draft", str(draft_path)).returncode, 0)
+            self.assertEqual(run_cli("audit", str(state_path), "--draft", str(draft_path)).returncode, 0)
 
     def test_report_rows_and_winning_path_must_resolve_to_graph_nodes(self) -> None:
         cases = {
@@ -217,15 +184,15 @@ class AnswerMatchesCandidateTests(unittest.TestCase):
         }
         for label, (report, expected) in cases.items():
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp_dir:
-                state = self.stopped_state()
+                state = self.fixture_state()
                 state["report"] = report
-                result = run_cli("validate", str(write_json(Path(tmp_dir) / "state.json", state)))
+                result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn(expected, result.stderr)
 
 
 class StrictTestResultTests(SpookyManorFlow):
-    def test_solved_stop_rejects_a_hypothesis_as_a_test_result(self) -> None:
+    def test_answer_fails_on_a_hypothesis_as_a_test_result(self) -> None:
         # A conclusion drawn from a probe is not what was seen; the observation must be recorded first.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
@@ -241,18 +208,14 @@ class StrictTestResultTests(SpookyManorFlow):
                 ],
             }))
 
-            stopped = run_cli("stop", str(state_path), "--reason", "G1 answered", "--outcome", "solved")
+            audit = run_cli("audit", str(state_path))
 
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("without a recorded result observation: T2", stopped.stderr)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("without a recorded result observation: T2", audit.stderr)
 
 
 class GroundedPathTests(unittest.TestCase):
-    """A solved stop needs an answer candidate that rests on observations,
+    """A claimed answer needs a candidate that rests on observations,
     not on hand-set scores on the claims under it."""
 
     def ok(self, result: subprocess.CompletedProcess[str]) -> None:
@@ -260,9 +223,10 @@ class GroundedPathTests(unittest.TestCase):
 
     def recorded_state(self, tmp_dir: str, nodes: list[dict], edges: list[dict], candidate_score: int | None = None) -> Path:
         state_path = Path(tmp_dir) / "state.json"
-        self.ok(run_cli("init", "--goal", "Explain the failure", "--strict", "-o", str(state_path)))
+        self.ok(run_cli("init", "--goal", "Explain the failure", "-o", str(state_path)))
         patch = {
             "reason": "Probed the system",
+            "answer": "CS1",
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
                 {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe", "score": 5},
@@ -279,8 +243,8 @@ class GroundedPathTests(unittest.TestCase):
         self.ok(run_cli("record", str(state_path), "--patch", str(write_json(Path(tmp_dir) / "record.json", patch))))
         return state_path
 
-    def stop(self, state_path: Path, outcome: str = "solved") -> subprocess.CompletedProcess[str]:
-        return run_cli("stop", str(state_path), "--reason", "CS1 is grounded", "--outcome", outcome, "-o", str(state_path.with_name("stopped.json")))
+    def audit(self, state_path: Path) -> subprocess.CompletedProcess[str]:
+        return run_cli("audit", str(state_path))
 
     @staticmethod
     def hypothesis(node_id: str, score: int | None = None) -> dict:
@@ -293,40 +257,30 @@ class GroundedPathTests(unittest.TestCase):
     def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
         return {"id": f"{source}-{target}", "from": source, "to": target, "type": edge_type, **extra}
 
-    def test_score_only_hypothesis_blocks_solved_stop(self) -> None:
+    def test_score_only_hypothesis_fails_the_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
 
-            stopped = self.stop(state_path)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H1", stopped.stderr)
-            self.assertIn("grounded", stopped.stderr)
+            audit = self.audit(state_path)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("H1", audit.stderr)
+            self.assertIn("grounded", audit.stderr)
 
-    def test_threshold_outcome_was_removed_with_the_threshold(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(
-                tmp_dir,
-                [self.hypothesis("H1", 3)],
-                [self.edge("O1", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
-            )
-
-            stopped = self.stop(state_path, "candidate_threshold_met")
-            self.assertNotEqual(stopped.returncode, 0, stopped.stdout)
-            self.assertIn("candidate_threshold_met", stopped.stderr)
-            self.ok(self.stop(state_path, "solved"))
-
-    def test_score_only_path_may_stop_as_budget_exhausted(self) -> None:
+    def test_score_only_path_passes_once_the_claim_is_withdrawn(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
-            self.ok(self.stop(state_path, "budget_exhausted"))
+            patch_path = write_json(Path(tmp_dir) / "withdraw.json", {"reason": "Evidence is missing", "answer": ""})
+            self.ok(run_cli("record", str(state_path), "--patch", str(patch_path)))
 
-    def test_score_only_candidate_blocks_solved_stop(self) -> None:
+            self.ok(self.audit(state_path))
+
+    def test_score_only_candidate_fails_the_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.recorded_state(tmp_dir, [], [], candidate_score=5)
 
-            stopped = self.stop(state_path)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("CS1", stopped.stderr)
+            audit = self.audit(state_path)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("CS1", audit.stderr)
 
     def test_contradiction_alone_does_not_ground_a_hypothesis(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -335,9 +289,9 @@ class GroundedPathTests(unittest.TestCase):
                 [self.hypothesis("H1", 5)],
                 [self.edge("O1", "H1", "contradicts", score=1), self.edge("H1", "CS1", "leads_to")],
             )
-            stopped = self.stop(state_path)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H1", stopped.stderr)
+            audit = self.audit(state_path)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("H1", audit.stderr)
 
     def test_net_supporting_evidence_grounds_a_hypothesis_despite_a_contradiction(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -350,7 +304,7 @@ class GroundedPathTests(unittest.TestCase):
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )
-            self.ok(self.stop(state_path))
+            self.ok(self.audit(state_path))
 
     def test_elimination_recorded_as_support_grounds_the_survivor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -363,12 +317,12 @@ class GroundedPathTests(unittest.TestCase):
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )
-            self.ok(self.stop(state_path))
+            self.ok(self.audit(state_path))
 
     def test_premise_chain_is_grounded_only_when_every_premise_is(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             grounded = self.recorded_state(tmp_dir, [self.hypothesis("H1")], [self.edge("O1", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")])
-            self.ok(self.stop(grounded))
+            self.ok(self.audit(grounded))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             mixed = self.recorded_state(
@@ -376,9 +330,9 @@ class GroundedPathTests(unittest.TestCase):
                 [self.hypothesis("H0", 5), self.hypothesis("H1")],
                 [self.edge("O1", "H1", "leads_to"), self.edge("H0", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")],
             )
-            stopped = self.stop(mixed)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H0", stopped.stderr)
+            audit = self.audit(mixed)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("H0", audit.stderr)
 
     def test_support_from_an_ungrounded_hypothesis_does_not_ground_its_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -387,9 +341,9 @@ class GroundedPathTests(unittest.TestCase):
                 [self.hypothesis("H1", 3), self.hypothesis("H2", 5)],
                 [self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
             )
-            stopped = self.stop(state_path)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H1", stopped.stderr)
+            audit = self.audit(state_path)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("H1", audit.stderr)
 
     def test_support_from_a_grounded_hypothesis_grounds_its_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -398,7 +352,7 @@ class GroundedPathTests(unittest.TestCase):
                 [self.hypothesis("H1", 3), self.hypothesis("H2")],
                 [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
             )
-            self.ok(self.stop(state_path))
+            self.ok(self.audit(state_path))
 
     def test_contradiction_from_an_ungrounded_source_still_weighs_against_grounding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -411,6 +365,10 @@ class GroundedPathTests(unittest.TestCase):
                     self.edge("H1", "CS1", "leads_to"),
                 ],
             )
-            stopped = self.stop(state_path)
-            self.assertEqual(stopped.returncode, 1, stopped.stdout)
-            self.assertIn("H1", stopped.stderr)
+            audit = self.audit(state_path)
+            self.assertEqual(audit.returncode, 1, audit.stdout)
+            self.assertIn("H1", audit.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

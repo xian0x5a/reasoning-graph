@@ -126,10 +126,6 @@
       "type": "leads_to"
     }
   ],
-  "stop_policy": {
-    "min_viable_candidates": 3,
-    "severity": "error"
-  },
   "factors": [],
   "events": [
     {
@@ -166,13 +162,6 @@
         "T2-E4"
       ],
       "update_factors": [],
-      "graph_digest": "e6689d6f8d6292a3"
-    },
-    {
-      "step": 3,
-      "action": "stop",
-      "reason": "systematically solved stage by stage",
-      "outcome": "solved",
       "graph_digest": "e6689d6f8d6292a3"
     }
   ]

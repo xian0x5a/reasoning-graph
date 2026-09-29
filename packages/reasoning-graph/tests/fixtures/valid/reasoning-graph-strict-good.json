@@ -68,13 +68,6 @@
       ],
       "update_factors": [],
       "graph_digest": "aa8f3cca14e5374f"
-    },
-    {
-      "step": 2,
-      "action": "stop",
-      "reason": "CS1 answers G1 and its premise chain is recorded",
-      "outcome": "solved",
-      "graph_digest": "aa8f3cca14e5374f"
     }
   ]
 }

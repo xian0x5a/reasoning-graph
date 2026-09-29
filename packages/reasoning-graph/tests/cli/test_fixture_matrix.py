@@ -15,16 +15,17 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parents[1]
 FIXTURES = PACKAGE_ROOT / "tests" / "fixtures"
 VALID_FIXTURES = sorted((FIXTURES / "valid").glob("*.json"))
-VALIDATE_INVALID_FIXTURES = {
+# `audit` fails on these whether or not an answer is claimed: the graph itself is malformed.
+MALFORMED_FIXTURES = {
     "removed-likelihood-ratio.json": "likelihood_ratio was removed; use score",
     "bad-node-type.json": "invalid type 'fact'",
     "candidate-missing-answers.json": "must connect to a goal with an answers edge",
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
-    "invalid-stop-policy.json": "stop_policy.min_viable_candidates must be a non-negative integer",
+    "removed-stop-policy.json": "stop_policy was removed",
     "overlapping-factors.json": "edge E2A1 is already grouped by F_SUPPORTS_A1",
 }
-AUDIT_INVALID_FIXTURES = {
-    "duplicate-report-candidate.json": "viable candidates 1 < stop_policy.min_viable_candidates 3",
+# The graph is well-formed; the answer these claim fails its checks.
+FAILED_ANSWER_FIXTURES = {
     "hypothesis-test-result.json": "test(s) without a recorded result observation: T1",
     "unanswered-accepted-goal.json": "accepted goal G2",
 }
@@ -42,10 +43,10 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             **kwargs,
         )
 
-    def test_installed_console_entrypoint_validates_fixture(self) -> None:
+    def test_installed_console_entrypoint_audits_fixture(self) -> None:
         try:
             result = subprocess.run(
-                ["uv", "--project", str(PACKAGE_ROOT), "run", "reasoning-graph", "validate", str(FIXTURES / "valid" / "minimal-state.json")],
+                ["uv", "--project", str(PACKAGE_ROOT), "run", "reasoning-graph", "audit", str(FIXTURES / "valid" / "minimal-state.json")],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,
@@ -55,32 +56,35 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
         if result.returncode == 127 or "No such file" in result.stderr:
             self.skipTest("uv is not on PATH")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("ok", result.stdout)
+        self.assertIn("no answer claimed", result.stdout)
 
-    def test_valid_fixture_matrix_validates(self) -> None:
+    def test_valid_fixture_matrix_passes_audit(self) -> None:
         self.assertGreaterEqual(len(VALID_FIXTURES), 5)
         for fixture in VALID_FIXTURES:
             with self.subTest(fixture=fixture.name):
-                result = self.run_cli("validate", str(fixture))
+                result = self.run_cli("audit", str(fixture))
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("ok", result.stdout)
 
-    def test_invalid_validate_fixture_matrix_fails_with_expected_errors(self) -> None:
-        for fixture_name, expected in VALIDATE_INVALID_FIXTURES.items():
+    def test_malformed_fixture_matrix_fails_with_expected_errors(self) -> None:
+        for fixture_name, expected in MALFORMED_FIXTURES.items():
             with self.subTest(fixture=fixture_name):
-                result = self.run_cli("validate", str(FIXTURES / "invalid" / "validate" / fixture_name))
+                result = self.run_cli("audit", str(FIXTURES / "invalid" / "validate" / fixture_name))
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn(expected, result.stderr)
 
-    def test_invalid_audit_fixture_matrix_validates_then_fails_audit(self) -> None:
-        for fixture_name, expected in AUDIT_INVALID_FIXTURES.items():
+    def test_failed_answer_fixture_matrix_passes_once_the_claim_is_withdrawn(self) -> None:
+        for fixture_name, expected in FAILED_ANSWER_FIXTURES.items():
             fixture = FIXTURES / "invalid" / "audit" / fixture_name
-            with self.subTest(fixture=fixture_name):
-                valid = self.run_cli("validate", str(fixture))
-                self.assertEqual(valid.returncode, 0, valid.stderr)
+            with self.subTest(fixture=fixture_name), tempfile.TemporaryDirectory() as tmp_dir:
                 audit = self.run_cli("audit", str(fixture))
                 self.assertNotEqual(audit.returncode, 0, audit.stdout)
                 self.assertIn(expected, audit.stderr)
+
+                unclaimed = json.loads(fixture.read_text(encoding="utf-8"))
+                unclaimed["summary"]["answer"] = ""
+                unclaimed_path = Path(tmp_dir) / "state.json"
+                unclaimed_path.write_text(json.dumps(unclaimed), encoding="utf-8")
+                self.assertEqual(self.run_cli("audit", str(unclaimed_path)).returncode, 0)
 
     def schema_validators(self) -> tuple[object, object]:
         state_schema = json.loads(STATE_SCHEMA.read_text(encoding="utf-8"))
@@ -106,7 +110,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             with self.subTest(patch=fixture.name):
                 patch_validator.validate(json.loads(fixture.read_text(encoding="utf-8")))
 
-    def test_cli_validate_rejects_a_frontier_queue(self) -> None:
+    def test_cli_audit_rejects_a_frontier_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "legacy-frontier.json"
             state_path.write_text(
@@ -117,7 +121,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
-            result = self.run_cli("validate", str(state_path))
+            result = self.run_cli("audit", str(state_path))
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("schema $", result.stderr)
             self.assertIn("{'required': ['frontier']}", result.stderr)
@@ -133,6 +137,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "search-policy": {**modern_state, "search_policy": {}},
             "event-pop-action": {**modern_state, "events": [{"step": 1, "action": "pop", "item": "Q1", "cost": 0}]},
             "premise-groups": {**modern_state, "premise_groups": []},
+            "stop-policy": {**modern_state, "stop_policy": {"severity": "error"}},
+            "event-stop-action": {**modern_state, "events": [{"step": 1, "action": "stop", "reason": "done", "outcome": "solved", "graph_digest": "x"}]},
             "event-solution-action": {**modern_state, "events": [{"step": 1, "action": "solution", "item": "Q1", "node": "CS1", "cost": 0}]},
             "event-update-premise-groups": {**modern_state, "events": [{"step": 1, "action": "record", "reason": "r", "add_nodes": [], "add_edges": [], "update_premise_groups": ["PG1"]}]},
             "event-add-factors": {**modern_state, "events": [{"step": 1, "action": "record", "reason": "r", "add_nodes": [], "add_edges": [], "add_factors": ["F1"]}]},
@@ -154,6 +160,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
             "frontier": {**modern_patch, "frontier": []},
             "no-new-work-reason": {**modern_patch, "no_new_work_reason": "legacy"},
             "stop-alias": {**modern_patch, "stop": "legacy stop", "outcome": "user_stopped"},
+            "outcome": {"answer": "CS1", "outcome": "solved"},
         }
         for name, patch in legacy_patch_variants.items():
             with self.subTest(patch=name), self.assertRaises(jsonschema.ValidationError):
@@ -161,8 +168,8 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
 
     def test_golden_cli_outputs_stay_stable(self) -> None:
         commands = {
-            "init-strict.json": ("init", "--goal", "Solve the problem", "--strict"),
-            "doctor-strict-driver.txt": ("doctor", str(FIXTURES / "valid" / "strict-driver-state.json")),
+            "init.json": ("init", "--goal", "Solve the problem"),
+            "audit-strict-good.txt": ("audit", str(FIXTURES / "valid" / "reasoning-graph-strict-good.json")),
         }
         for golden_name, args in commands.items():
             with self.subTest(golden=golden_name):
@@ -185,7 +192,7 @@ class ReasoningGraphFixtureTests(unittest.TestCase):
                 state_path.write_text(json.dumps(base_state), encoding="utf-8")
                 recorded = self.run_cli("record", str(state_path), "--patch", str(patch))
                 self.assertEqual(recorded.returncode, 0, recorded.stderr)
-                valid = self.run_cli("validate", str(state_path))
+                valid = self.run_cli("audit", str(state_path))
                 self.assertEqual(valid.returncode, 0, valid.stderr)
 
 
