@@ -22,6 +22,13 @@ from reasoning_graph.validation import validate_state
 RENDERERS = ("mermaid", "offline")
 
 
+
+def decode_mermaid_entities(label: str) -> str:
+    """Read a label as Mermaid does: `#lt;` and `#35;` are its entity codes for `&lt;` and `&#35;`."""
+    entities = re.sub(r"#([a-z]+);", r"&\1;", re.sub(r"#(\d+);", r"&#\1;", label))
+    return html.unescape(entities.replace("<br/>", "\n"))
+
+
 def report_state(*, support=False):
     state = {
         "nodes": [
@@ -59,7 +66,7 @@ def graph_labels(state, renderer):
         }
     source = to_mermaid(state)
     return {
-        node_id: html.unescape(label.replace("<br/>", "\n"))
+        node_id: decode_mermaid_entities(label)
         for node_id, label in re.findall(r'^\s+(\w+)\["(.*?)"\]', source, re.MULTILINE)
     }
 
@@ -79,11 +86,12 @@ def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
     state = report_state(support=support)
     original = deepcopy(state)
     labels = graph_labels(state, renderer)
-    assert labels["D1"] == f"D1\nhypothesis\nbelief {expected}"
-    assert labels["CS1"] == f"CS1\ncandidate\nbelief {expected}"
-    for node_id, node_type in (("G1", "goal"), ("C1", "constraint"), ("T1", "test")):
-        assert labels[node_id] == f"{node_id}\n{node_type}"
-    assert labels["E1"] == "E1\nobservation\nbelief 70%"
+    assert labels["D1"] == f"D1\nConclusion\nbelief {expected}"
+    assert labels["CS1"] == f"CS1\nThe answer is 42\nbelief {expected}"
+    assert labels["G1"] == "G1\nFind the answer\ngoal"
+    assert labels["C1"] == "C1\nUse the observed data\nconstraint"
+    assert labels["T1"] == "T1\nCheck the premise\ntest"
+    assert labels["E1"] == "E1\nObserved premise\nbelief 70%"
     assert state == original
 
 
@@ -95,10 +103,10 @@ def test_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
-    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 45%"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\nThe answer is 42\nbelief 45%"
     state["factors"][0]["score"] = 5
     del state["nodes"][2]["score"]
-    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 90%"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\nThe answer is 42\nbelief 90%"
     assert all("belief" not in node for node in state["nodes"])
 
 
@@ -183,10 +191,25 @@ def test_html_header_has_no_answer_line_while_none_is_claimed():
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
+def test_graph_labels_shorten_the_claim_and_keep_its_characters(renderer):
+    state = report_state()
+    state["nodes"][2]["text"] = "Tom & <Jerry> left through the kitchen door before the clock struck nine that night"
+    state["nodes"][3]["short_text"] = "Tom did it"
+    state["nodes"][0]["text"] = 'Roger\'s "#1" dish'
+
+    labels = graph_labels(state, renderer)
+
+    # Two lines at most, cut on a word, so a long claim cannot blow up its node.
+    assert labels["D1"] == "D1\nTom & <Jerry> left through\nthe kitchen door before…\nbelief 63%"
+    assert labels["CS1"] == "CS1\nTom did it\nbelief 63%"
+    assert labels["E1"] == 'E1\nRoger\'s "#1" dish\nbelief 70%'
+
+
+@pytest.mark.parametrize("renderer", RENDERERS)
 def test_graph_labels_the_answer_and_no_rival(renderer):
     labels = graph_labels(ranked_state("The butler did it."), renderer)
-    assert labels["CS2"].split("\n")[:2] == ["CS2 · ANSWER", "candidate"]
-    assert labels["CS1"].split("\n")[:2] == ["CS1", "candidate"]
+    assert labels["CS2"].split("\n")[:2] == ["CS2 · ANSWER", "The butler"]
+    assert labels["CS1"].split("\n")[:2] == ["CS1", "The gardener"]
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
@@ -246,3 +269,14 @@ def test_mermaid_styles_only_the_groups_it_draws():
 ])
 def test_belief_is_shown_as_a_whole_percent(probability, shown):
     assert format_belief(probability) == shown
+
+
+def test_mermaid_labels_use_its_own_entity_codes():
+    state = report_state()
+    state["nodes"][0]["text"] = """Roger's & "Tom's" <#1>"""
+
+    labels = re.findall(r'^\s+\w+\["(.*?)"\]', to_mermaid(state), re.MULTILINE)
+
+    # Mermaid reads "#...;" as its own entity code, so an HTML entity such as &#x27;
+    # reached the page as "&&x27;". Its own codes are all a label may carry.
+    assert labels and not any("&" in label for label in labels)

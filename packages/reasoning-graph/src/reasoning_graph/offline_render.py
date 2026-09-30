@@ -16,10 +16,11 @@ EDGE_LABEL_GAP = 2
 
 def _spacing_metrics(spacing: str) -> dict[str, int]:
     presets = {
-        "default": {"rank_gap": 260, "row_gap": 120, "node_width": 190, "node_height": 62},
-        "relaxed": {"rank_gap": 300, "row_gap": 145, "node_width": 210, "node_height": 70},
-        "wide": {"rank_gap": 350, "row_gap": 165, "node_width": 230, "node_height": 74},
-        "compact": {"rank_gap": 220, "row_gap": 96, "node_width": 170, "node_height": 58},
+        # A node holds up to four label lines: id, two of claim, belief.
+        "default": {"rank_gap": 290, "row_gap": 130, "node_width": 210, "node_height": 92},
+        "relaxed": {"rank_gap": 330, "row_gap": 155, "node_width": 220, "node_height": 96},
+        "wide": {"rank_gap": 380, "row_gap": 175, "node_width": 240, "node_height": 100},
+        "compact": {"rank_gap": 250, "row_gap": 110, "node_width": 200, "node_height": 88},
     }
     return presets.get(spacing, presets["default"])
 
@@ -40,7 +41,7 @@ def _label_tspans(label: str, x: int, y: int) -> str:
     lines = [line.strip() for line in str(label).split("\n") if line.strip()] or ["node"]
     start_y = y - (len(lines) - 1) * 9
     tspans = []
-    for index, line in enumerate(lines[:3]):
+    for index, line in enumerate(lines):
         weight = "600" if index == 0 else "400"
         line_y = start_y if index == 0 else start_y + index * 18
         tspans.append(f'<tspan x="{x}" y="{line_y}" font-weight="{weight}">{html.escape(line)}</tspan>')

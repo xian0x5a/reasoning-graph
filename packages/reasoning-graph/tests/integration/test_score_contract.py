@@ -165,9 +165,9 @@ def test_derived_belief_is_the_premise_product():
 
 
 def test_score_free_labels_carry_no_score_line():
-    assert compact_node_label(build_node("goal"), 0.0) == "N1\ngoal"
-    assert compact_node_label(build_node("constraint"), 0.0) == "N1\nconstraint"
-    assert compact_node_label(build_node("test"), 0.0) == "N1\ntest"
+    assert compact_node_label(build_node("goal"), 0.0) == "N1\nclaim\ngoal"
+    assert compact_node_label(build_node("constraint"), 0.0) == "N1\nclaim\nconstraint"
+    assert compact_node_label(build_node("test"), 0.0) == "N1\nclaim\ntest"
 
 
 @pytest.mark.parametrize("relation,expected", [

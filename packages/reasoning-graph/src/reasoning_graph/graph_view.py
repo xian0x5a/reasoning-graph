@@ -7,6 +7,7 @@ in its own syntax, so the two outputs cannot drift apart (#18).
 
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass
 from typing import Any
 
@@ -42,14 +43,25 @@ DASHED_EDGE_TYPES = {"contradicts", "prompts", "tested_by", "tests"}
 FOLLOW_UP_EDGE_TYPES = {"prompts", "tested_by", "tests"}
 
 
+# A node shows its claim in at most this many lines of this many characters, cut on a
+# word; the full text lives in its detail card. Without the claim a reader had to open
+# every node to follow the graph, and without the cut one long claim blows up its node.
+CLAIM_LINE_CHARS = 26
+CLAIM_MAX_LINES = 2
+
+
 def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
-    # Keep graph labels stable and tiny. Full text lives in modal/detail cards;
-    # long labels are hard to navigate and can expose HTML entity noise.
+    """The node's id, its claim cut short, then its belief, or its type when it has no belief.
+
+    The type of a claim is already given by its lane and colour; its belief is not.
+    """
     node_id = str(node.get("id") or "node")
     # The answer is labelled, not highlighted: the focus control lights a path when the reader asks.
     id_line = f"{node_id} · {answer_label}" if answer_label else node_id
-    parts = (id_line, node_type_label(node), node_belief_label(node, effective_truth_cost))
-    return "\n".join(part for part in parts if part)
+    claim = " ".join(str(node.get("short_text") or node.get("text") or "").split())
+    claim_lines = textwrap.wrap(claim, width=CLAIM_LINE_CHARS, max_lines=CLAIM_MAX_LINES, placeholder="…")
+    last_line = node_belief_label(node, effective_truth_cost) or node_type_label(node)
+    return "\n".join([id_line, *claim_lines, last_line])
 
 
 def edge_type(edge: dict[str, Any]) -> str:

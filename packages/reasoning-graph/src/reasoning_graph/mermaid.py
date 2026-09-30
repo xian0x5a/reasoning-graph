@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-import html
 from typing import Any
 
 from .graph_view import GRAPH_GROUPS, NODE_COLORS, OTHER_GROUP, ViewEdge, graph_view
 from .identities import RenderIdentityMap
 
 
+# Mermaid's own entity codes. An HTML entity will not do: Mermaid reads "#x27;" in
+# "&#x27;" as a code of its own, and the page showed "Roger&&x27;s".
+MERMAID_ENTITIES = str.maketrans({"&": "#amp;", "<": "#lt;", ">": "#gt;", '"': "#quot;", "#": "#35;"})
+
+
 def mermaid_label(text: str) -> str:
-    # Mermaid node labels are HTML-ish; keep labels compact and safe.
-    escaped = html.escape(text, quote=True)
-    return escaped.replace("\n", "<br/>")
+    """A label safe inside Mermaid's quoted node text, one line per newline."""
+    return text.translate(MERMAID_ENTITIES).replace("\n", "<br/>")
 
 
 # Left to right: observations, the widest rank of a real graph, stack in a column the

@@ -143,8 +143,9 @@ Canvas rules:
 - The graph is laid out left to right, so the observations, the widest rank of a real graph, stack in a column instead of one row wider than any screen. The canvas opens with the graph fitted to its width, never above natural size, and grows as tall as that takes, up to two screens; past that the graph fits the capped height. The page scroll still passes over the canvas, so a tall canvas reads like a tall figure. The offline SVG moves an edge label down until it clears the labels placed before it.
 - The canvas view is fitted to the graph, then wheel zoom stays between the fitted view and a 50x zoom-in. Drag panning is unbounded, so the graph can be dragged off the canvas like a document can be scrolled away; every canvas keeps a "Reset view" control that restores the fit. The canvas clips at its own edges, which is why the graph must fill the canvas box rather than sit in a short strip: Mermaid renders inside its own `pre.mermaid` wrapper, so that wrapper carries the canvas height.
 - Wheel zoom is opt-in per canvas: the canvas must hold focus (click it or Tab into it) before the wheel zooms, otherwise the wheel keeps scrolling the page normally. The focused canvas is outlined and sits on a dotted sheet background so it is obvious which surface owns the scroll.
-- Keep graph labels to ID/type plus effective belief on claims; keep full text and authored inputs in node-detail cards/modals.
-- Use `short_text` only for small bespoke presentation graphs where the label is clearly readable and does not risk escaping/entity noise.
+- A node label is its id, its claim cut on a word to two lines of 26 characters, and its belief, or its type when it has no belief. A reader can follow the graph without opening every node, and a long claim cannot blow up its node. The full text and authored inputs stay in the node-detail cards/modals.
+- Set `short_text` on a node whose text does not cut well; the label shows it in place of the text.
+- Mermaid labels escape with Mermaid's own entity codes (`#lt;`, `#quot;`, `#35;`), never HTML entities: Mermaid reads the `#x27;` of `&#x27;` as its own code and prints `&&x27;`.
 - Prefer click-to-details anchors over huge node labels.
 - Mermaid supports node click links with tooltips, e.g. `click E15 "#details-E15" "Full detail"`; default UX should intercept clicks and open a popup/modal card so the user stays near the canvas. Keep anchor targets as no-JS fallback.
 - If using Mermaid click links/callbacks, initialize with `securityLevel: "loose"` when needed.
@@ -157,7 +158,7 @@ Mermaid styling pattern:
 flowchart TD
   O1["observation: input is sorted"] --> H2["hypothesis: two-pointer is viable"]
   C1["constraint: O(n) time"] --> H2
-  H1["H1<br/>hypothesis<br/>belief 0.5"] --> CS1["CS1<br/>candidate<br/>belief 0.5"]
+  H1["H1<br/>Two-pointer is viable<br/>belief 50%"] --> CS1["CS1<br/>Scan from both ends<br/>belief 50%"]
   CS1 -- answers --> G
   O2["observation: violates O(n)"] -. contradicts .-> H1
 
@@ -173,7 +174,7 @@ HTML report design guidance:
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
 - Put the answer before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.
-- Keep graph labels compact using the belief display above; route observation text to filterable detail cards and modal popups.
+- Keep graph labels compact as described above; route full observation text to filterable detail cards and modal popups.
 - Do not add a separate observations/constraints section if the node details list already covers observations and constraints with sources.
 - Use `reasoning-graph html --spacing relaxed|wide|compact|default` when dense graphs look compressed; compare against default spacing first.
 - Use `reasoning-graph html --offline` when generated HTML must not require network access. Keep Mermaid source as source/fallback text in offline mode, not as a CDN runtime dependency.

@@ -97,7 +97,8 @@ def candidate_focus_options(state: dict[str, Any], identities: RenderIdentityMap
 
 
 def mermaid_flowchart_config(spacing: str) -> str:
-    base = 'htmlLabels: true, useMaxWidth: false'
+    # Wider than the default 200px, so Mermaid does not wrap a claim line the label already cut.
+    base = 'htmlLabels: true, useMaxWidth: false, wrappingWidth: 260'
     presets = {
         "default": base,
         "relaxed": base + ', nodeSpacing: 70, rankSpacing: 90, curve: "basis"',
@@ -373,7 +374,9 @@ def html_document(
     else:
         bootstrap = f"""<script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
+  // The graph takes the page's typeface, read from the stylesheet so it is set in one place.
+  const fontFamily = getComputedStyle(document.body).fontFamily;
+  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", fontFamily, themeVariables: {{ fontFamily }}, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
   mermaid.run({{ querySelector: ".mermaid" }}).then(setupGraphs).catch((error) => {{
     console.error("Mermaid render failed", error);
     setupGraphs();

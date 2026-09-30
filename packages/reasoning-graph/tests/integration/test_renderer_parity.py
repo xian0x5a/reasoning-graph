@@ -45,6 +45,12 @@ MERMAID_CLASS_DEF = re.compile(r"^\s+classDef (\w+) fill:(#\w+),stroke:(#\w+)")
 MERMAID_CLASS = re.compile(r"^\s+class ([\w,]+) (\w+);$")
 
 
+def decode_mermaid_entities(label: str) -> str:
+    """Read a label as Mermaid does: `#lt;` and `#35;` are its entity codes for `&lt;` and `&#35;`."""
+    entities = re.sub(r"#([a-z]+);", r"&\1;", re.sub(r"#(\d+);", r"&#\1;", label))
+    return html.unescape(entities.replace("<br/>", "\n"))
+
+
 def mermaid_graph(source: str) -> tuple[dict[str, str], set[tuple[str, str, str]], dict[str, tuple[str, str]]]:
     labels: dict[str, str] = {}
     edges: set[tuple[str, str, str]] = set()
@@ -55,7 +61,7 @@ def mermaid_graph(source: str) -> tuple[dict[str, str], set[tuple[str, str, str]
             edges.add((match[1], match[4], match[2] or match[3]))
         elif match := MERMAID_NODE.match(line):
             raw_label = match[2] if match[2] is not None else match[3]
-            labels[match[1]] = html.unescape(raw_label.replace("<br/>", "\n"))
+            labels[match[1]] = decode_mermaid_entities(raw_label)
         elif match := MERMAID_CLASS_DEF.match(line):
             class_colors[match[1]] = (match[2], match[3])
         elif match := MERMAID_CLASS.match(line):
