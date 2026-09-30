@@ -125,6 +125,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .node-modal .detail-card .edge-block li { margin-bottom: .4rem; }
 .node-modal .detail-card .edge-block li:last-child { margin-bottom: 0; }
 .detail-grid .edge-block { display: none; }
+.detail-grid .detail-card { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
+.detail-grid .detail-card:hover { border-color: #93c5fd; box-shadow: 0 0 0 2px rgba(147, 197, 253, .35); }
 .modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
 .modal-tabs button.active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
 .modal-tabpanel[hidden] { display: none; }

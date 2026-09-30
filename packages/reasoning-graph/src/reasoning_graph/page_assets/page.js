@@ -133,6 +133,18 @@ function installDetailClicks(section) {
   });
 }
 
+function installCardClicks() {
+  const grid = document.querySelector("#node-details-section .detail-grid");
+  if (!grid) return;
+  grid.addEventListener("click", (event) => {
+    const card = event.target.closest(".detail-card");
+    // Links inside a card (a source file) keep their own click, and a drag that
+    // selects text is a copy, not a request for the popup.
+    if (!card || event.target.closest("a") || String(window.getSelection())) return;
+    showNodeModal(card.id);
+  });
+}
+
 function normalizeMermaidKey(value) {
   return String(value || "").replace(/^flowchart-/, "").replace(/-\d+$/, "");
 }
@@ -541,6 +553,7 @@ function runSetup(label, callback) {
 
 function setupPage() {
   document.querySelectorAll(".case-section").forEach((section) => runSetup("case links", () => installDetailClicks(section)));
+  runSetup("card clicks", installCardClicks);
   runSetup("filters", setupFilters);
   runSetup("modal", setupModal);
   runSetup("floating nav", setupFloatingNav);
