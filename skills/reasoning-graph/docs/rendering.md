@@ -132,7 +132,7 @@ Candidates are ranked only under Rivals in the case. The belief of each claim is
 
 Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 0.63` and details `Score: 5`. Compact labels use three significant digits; beliefs in the details are rounded to six decimal places. Rendering never writes these computed values into the state.
+Node details separate **Effective belief** from **Score**, which shows only when authored. For example, premise `0.7` and score 5 give a graph label `belief 63%` and details `Score: 5`. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
 
 When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 

@@ -63,9 +63,9 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertIn('"from": "A_B_2", "to": "A_B_3"', document)
         self.assertIn('"from": "A_B", "to": "A_B_2"', document)
         # Score 2 gives odds 3/7; the supporting ratio 2 gives 6/13.
-        self.assertIn("belief 0.462", source)
-        self.assertIn("belief 0.462", svg)
-        self.assertIn("Effective belief: 0.461538", document)
+        self.assertIn("belief 46%", source)
+        self.assertIn("belief 46%", svg)
+        self.assertIn("Effective belief: 46%", document)
         self.assertIn("Score: 2", document)
 
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:

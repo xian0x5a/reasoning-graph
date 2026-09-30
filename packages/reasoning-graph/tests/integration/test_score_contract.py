@@ -160,8 +160,8 @@ def test_derived_belief_is_the_premise_product():
     assert validate_state(state).ok
     assert probability_from_cost(node_effective_truth_costs(state)["D1"]) == pytest.approx(0.63)
 
-    assert "belief 0.63" in to_mermaid(state)
-    assert "belief 0.63" in offline_graph_svg(state)
+    assert "belief 63%" in to_mermaid(state)
+    assert "belief 63%" in offline_graph_svg(state)
 
 
 def test_score_free_labels_carry_no_score_line():

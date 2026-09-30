@@ -194,11 +194,24 @@ def truth_cost_from_log_odds(log_odds: float) -> float:
     return -log_odds + math.log1p(math.exp(log_odds))
 
 
+def format_belief(probability: float) -> str:
+    """A belief as a whole percent, for a reader comparing claims at a glance.
+
+    The ends are clamped, not rounded: a belief never reaches certainty, so 100% and 0% would mislead.
+    """
+    percent = round(probability * 100)
+    if percent >= 100:
+        return ">99%"
+    if percent <= 0:
+        return "<1%"
+    return f"{percent}%"
+
+
 def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     """Label a claim's effective belief; objectives/actions have no truth score."""
     if node.get("type") not in BELIEF_NODE_TYPES:
         return ""
-    return f"belief {probability_from_cost(effective_truth_cost):.3g}"
+    return f"belief {format_belief(probability_from_cost(effective_truth_cost))}"
 
 
 def node_local_truth_cost(node: dict[str, Any] | None, premise_backed: bool = False) -> float:

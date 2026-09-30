@@ -12,6 +12,7 @@ import pytest
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
+from reasoning_graph.costs import format_belief
 from reasoning_graph.offline_render import offline_graph_svg
 from reasoning_graph.mermaid import to_mermaid
 from reasoning_graph.page import html_document, node_detail_cards
@@ -71,8 +72,8 @@ def detail_card(document, node_id):
 
 @pytest.mark.parametrize("renderer", RENDERERS)
 @pytest.mark.parametrize("support,expected", [
-    (False, "0.63"),
-    (True, "0.773"),  # 0.63 base and ratio 2 give 126/163.
+    (False, "63%"),
+    (True, "77%"),  # 0.63 base and ratio 2 give 126/163.
 ])
 def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
     state = report_state(support=support)
@@ -82,7 +83,7 @@ def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
     assert labels["CS1"] == f"CS1\ncandidate\nbelief {expected}"
     for node_id, node_type in (("G1", "goal"), ("C1", "constraint"), ("T1", "test")):
         assert labels[node_id] == f"{node_id}\n{node_type}"
-    assert labels["E1"] == "E1\nobservation\nbelief 0.7"
+    assert labels["E1"] == "E1\nobservation\nbelief 70%"
     assert state == original
 
 
@@ -94,10 +95,10 @@ def test_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
-    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 0.45"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 45%"
     state["factors"][0]["score"] = 5
     del state["nodes"][2]["score"]
-    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 0.9"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\ncandidate\nbelief 90%"
     assert all("belief" not in node for node in state["nodes"])
 
 
@@ -106,10 +107,10 @@ def test_details_separate_effective_belief_from_authored_inputs():
     original = deepcopy(state)
     cards = node_detail_cards(state)
     derived = detail_card(cards, "D1")
-    assert "Effective belief: 0.773006" in derived
+    assert "Effective belief: 77%" in derived
     assert "Score: 5" in derived
     candidate = detail_card(cards, "CS1")
-    assert "Effective belief: 0.773006" in candidate
+    assert "Effective belief: 77%" in candidate
     assert "Score" not in candidate
     for node_id in ("G1", "C1", "T1"):
         assert "Effective belief" not in detail_card(cards, node_id)
@@ -121,8 +122,8 @@ def test_html_report_keeps_labels_and_details_consistent(render_mode):
     state = report_state(support=True)
     original_nodes = deepcopy(state["nodes"])
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
-    assert "belief 0.773" in document
-    assert "Effective belief: 0.773006" in detail_card(document, "CS1")
+    assert "belief 77%" in document
+    assert "Effective belief: 77%" in detail_card(document, "CS1")
     assert "Score: 5" in detail_card(document, "D1")
     assert state["nodes"] == original_nodes
 
@@ -235,3 +236,13 @@ def test_mermaid_styles_only_the_groups_it_draws():
     assert "style cluster_candidates" in source
     for absent in ("cluster_hypotheses", "cluster_factors", "cluster_other"):
         assert absent not in source
+
+
+@pytest.mark.parametrize("probability,shown", [
+    (0.741, "74%"),
+    (0.5, "50%"),
+    (0.996, ">99%"),  # never "100%": no belief is certain
+    (0.004, "<1%"),  # never "0%": no belief is ruled out
+])
+def test_belief_is_shown_as_a_whole_percent(probability, shown):
+    assert format_belief(probability) == shown

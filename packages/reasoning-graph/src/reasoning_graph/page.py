@@ -10,6 +10,7 @@ from typing import Any
 from .audit import audit_state
 from .case_section import case_id_styles, case_section_html
 from .costs import (
+    format_belief,
     node_effective_truth_costs,
     probability_from_cost,
 )
@@ -56,8 +57,7 @@ def node_detail_cards(
         source_text = source_html(str(node["source"]), linked_sources) if node.get("source") else ""
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
-            belief = round(probability_from_cost(node_truth_costs[raw_id]), 6)
-            extras.append(f"<span>Effective belief: {belief}</span>")
+            extras.append(f"<span>Effective belief: {format_belief(probability_from_cost(node_truth_costs[raw_id]))}</span>")
             if "score" in node:
                 extras.append(f"<span>Score: {html.escape(str(node['score']))}</span>")
         edge_notes = []
@@ -331,7 +331,7 @@ def answer_rank_notes(state: dict[str, Any]) -> str:
         top_id = top_ranked.get(goal_id)
         if answer_id is None or top_id is None or not truth_costs[top_id] < truth_costs[answer_id]:
             continue
-        top_belief, answer_belief = (f"{probability_from_cost(truth_costs[node_id]):.3g}" for node_id in (top_id, answer_id))
+        top_belief, answer_belief = (format_belief(probability_from_cost(truth_costs[node_id])) for node_id in (top_id, answer_id))
         notes.append(
             f'<p class="answer-rank-note">Answer <code>{html.escape(answer_id)}</code> is not the top-ranked candidate for '
             f"<code>{html.escape(goal_id)}</code>: <code>{html.escape(top_id)}</code> ranks higher "

@@ -10,6 +10,7 @@ import html
 from typing import Any
 
 from .case import Case, CaseLink, CaseNode, CaseRival, CaseTest, WeakSpot, answer_cases
+from .costs import format_belief
 from .graph_view import NODE_COLORS
 from .identities import RenderIdentityMap
 from .models import node_render_class
@@ -46,7 +47,7 @@ class _CaseMarkup:
 
     def node_facts(self, node: CaseNode) -> str:
         """The node's text, its belief when it is a claim, and an observation's quote."""
-        belief = f' <span class="case-belief">belief {node.belief:.3g}</span>' if node.belief is not None and node.type != "observation" else ""
+        belief = f' <span class="case-belief">belief {format_belief(node.belief)}</span>' if node.belief is not None and node.type != "observation" else ""
         quote = ""
         if node.quote:
             source = f" <cite>{source_html(node.source, self.linked_sources)}</cite>" if node.source else ""
