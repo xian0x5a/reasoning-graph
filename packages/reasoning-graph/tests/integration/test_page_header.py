@@ -27,7 +27,7 @@ STATE = {
 
 
 def header(document: str) -> str:
-    match = re.search(r'<header class="hero">.*?</header>', document, re.DOTALL)
+    match = re.search(r'<header class="hero"[^>]*>.*?</header>', document, re.DOTALL)
     assert match, "the page has no header"
     return match[0]
 

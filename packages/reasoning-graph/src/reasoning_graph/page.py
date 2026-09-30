@@ -394,15 +394,16 @@ def html_document(
 </head>
 <body>
 <nav class="floating-nav" aria-label="Graph navigation">
-  <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="floating-nav-menu" title="Open navigation">☰</button>
+  <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="floating-nav-menu"><span aria-hidden="true">☰</span> Sections</button>
   <div id="floating-nav-menu" class="nav-menu">
+    <a href="#top">Top</a>
     {case_nav}
-    <a href="#section-audit-graph">Audit canvas</a>
+    <a href="#section-audit-graph">Graph</a>
     <a href="#node-details-section">Details</a>
   </div>
 </nav>
 <main>
-  <header class="hero">
+  <header class="hero" id="top">
     {heading_html}
     {answer_lines(state)}
     {status_badge(state, quote_errors)}
