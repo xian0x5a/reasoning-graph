@@ -376,7 +376,9 @@ def html_document(
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
   // The graph takes the page's typeface, read from the stylesheet so it is set in one place.
   const fontFamily = getComputedStyle(document.body).fontFamily;
-  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", fontFamily, themeVariables: {{ fontFamily }}, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
+  // Edges, edge labels and lane titles follow the page theme; node colours come from the source.
+  const theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
+  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", theme, fontFamily, themeVariables: {{ fontFamily }}, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
   mermaid.run({{ querySelector: ".mermaid" }}).then(setupGraphs).catch((error) => {{
     console.error("Mermaid render failed", error);
     setupGraphs();

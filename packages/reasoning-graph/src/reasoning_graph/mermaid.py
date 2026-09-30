@@ -22,19 +22,26 @@ def mermaid_label(text: str) -> str:
 # page canvas grows down to fit. Top down lays them in one row wider than any screen.
 LAYOUT_DIRECTION = "LR"
 
+# Lanes are a translucent tint of their hue, so one source reads on the light and the
+# dark canvas alike: Mermaid inlines these with !important, past any page stylesheet.
 GROUP_STYLES = {
-    "cluster_goal": "fill:#fffbeb,stroke:#fde68a,stroke-width:1px",
-    "cluster_observations": "fill:#f8fafc,stroke:#bae6fd,stroke-width:1px",
-    "cluster_hypotheses": "fill:#faf5ff,stroke:#ddd6fe,stroke-width:1px",
-    "cluster_candidates": "fill:#eff6ff,stroke:#bfdbfe,stroke-width:1px",
-    "cluster_factors": "fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3",
-    "cluster_other": "fill:#fafafa,stroke:#e5e7eb,stroke-width:1px",
+    "cluster_goal": "fill:#f59e0b,fill-opacity:0.08,stroke:#f59e0b,stroke-opacity:0.4,stroke-width:1px",
+    "cluster_observations": "fill:#64748b,fill-opacity:0.04,stroke:#0ea5e9,stroke-opacity:0.35,stroke-width:1px",
+    "cluster_hypotheses": "fill:#8b5cf6,fill-opacity:0.06,stroke:#8b5cf6,stroke-opacity:0.3,stroke-width:1px",
+    "cluster_candidates": "fill:#3b82f6,fill-opacity:0.07,stroke:#3b82f6,stroke-opacity:0.3,stroke-width:1px",
+    "cluster_factors": "fill:#64748b,fill-opacity:0.04,stroke:#64748b,stroke-opacity:0.4,stroke-dasharray:3 3",
+    "cluster_other": "fill:#64748b,fill-opacity:0.03,stroke:#64748b,stroke-opacity:0.25,stroke-width:1px",
 }
+
+# Node text is set, not left to the theme: the fills are pastel in the dark theme too,
+# where the theme's own light text would vanish into them.
+NODE_INK = "#0f172a"
+NODE_TEXT_COLORS = {"not_run": "#64748b"}
 
 # Mermaid-only touches on top of the shared colours.
 CLASS_EXTRAS = {
     "goal": ",stroke-width:2px",
-    "not_run": ",stroke-dasharray:5 4,color:#64748b",
+    "not_run": ",stroke-dasharray:5 4",
     "candidate": ",stroke-width:2px",
     "factor": ",stroke-dasharray: 3 3",
 }
@@ -75,7 +82,8 @@ def to_mermaid(
 
     lines.append("")
     lines.extend(
-        f"  classDef {cls} fill:{fill},stroke:{stroke}{CLASS_EXTRAS.get(cls, '')};" for cls, (fill, stroke) in NODE_COLORS.items()
+        f"  classDef {cls} fill:{fill},stroke:{stroke},color:{NODE_TEXT_COLORS.get(cls, NODE_INK)}{CLASS_EXTRAS.get(cls, '')};"
+        for cls, (fill, stroke) in NODE_COLORS.items()
     )
     lines.append("")
     # Mermaid draws a node for a styled group that does not exist, so only drawn groups are styled.

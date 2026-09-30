@@ -171,6 +171,7 @@ flowchart TD
 
 HTML report design guidance:
 
+- The page follows the reader's light or dark colour scheme. Its colours are tokens on `:root`, redefined for dark; graph nodes and id chips keep their pastel fills in both themes, with dark text, and Mermaid's lanes are translucent tints, since Mermaid inlines their styles past any stylesheet.
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
 - Put the answer before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.
