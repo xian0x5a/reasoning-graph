@@ -42,6 +42,6 @@ uv run tests/scenarios/exact-answer/score_reader.py <item-dir>... --by-item
 | Spurious findings | 139 | 93 | 236 |
 
 - **The graph record beats a notes file for a reader.** Notes hold no quotes, so a reader can trace almost nothing and cries wolf most.
-- **The page does not beat the transcript.** It matches catch at a sixth of the reading, but raises more spurious findings. The transcript's reader can check a quote against the story, and the page's cannot.
-- **The edge score does not make a wrong weight easy to spot on the page.** The planted weight ranked first in 4 of 15 page reads, against 9 of 15 on the transcript.
+- **The page does not beat the transcript.** It matches catch at a sixth of the reading, but raises more spurious findings. The gap is in findings that argue with a quote (about 106 to 58; other spurious findings are about even): a node's text often draws on story the page does not quote, and the page's reader, holding no story, flags it. The transcript's reader can check the whole story. Source links give a human reader that story; the model reader here had none.
+- **On the page, a quote gap outranks a wrong weight.** The planted weight was caught in all 15 page reads but ranked first in 4, against 9 of 15 on the transcript. What ranked above it was mostly quote-based (23 of 29 findings) and mostly real (17 of 29). Each quote sits beside its node's text, so a gap between them is the first thing a reader lists.
 - Both tasks hit a ceiling on page and transcript, and n is 11. Differences show in rank and false alarms, not in hit rates.

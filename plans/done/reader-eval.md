@@ -109,7 +109,7 @@ Catch's two plant kinds give a first read on the open question of #39, whether t
 - [x] 3. Plants (e6baa8d; 11 drafted, all checked by hand, one written by hand)
 - [x] 4. Catch (pilot on 3 items, read by hand; then 97e89ae, dffbaf2 for refusals)
 - [x] 5. Full run (11 items × 3 repeats: 99 trace reads, 198 catch reads)
-- [ ] 6. Human check: moved to the source-link work. Links to the story are what a human reader gains over the model reader, so the check waits for them.
+- [x] 6. Human check: skipped, the user's call. A 4-item pack was built with source links; the user looked it over and did not run it.
 
 ## Surprises & Discoveries
 
@@ -156,8 +156,8 @@ By plant kind, where the plant ranks among the five findings:
 **Against the decision rule:**
 
 - Against notes, the page wins on everything: it traces 95% of key points to 17%, catches every plant to 85%, finds 2.4× the real flaws and raises 40% fewer spurious ones. The graph record earns its cost from the reader over a notes file, which is the question #37 left.
-- Against the transcript, the page does not meet the rule. It ties on catch rate but raises more spurious findings (139 to 93), and traces 94 to 99. It does that at a sixth of the reading. The transcript's edge is the story it holds: its reader checks a quote against the text, so its doubts are real flaws, not guesses.
-- **The score does not help a reader catch a wrong weight on the page.** The page shows `score 5` on the planted edge, yet the plant ranked first in 4 of 15 reads. Findings above it were 17 real and 12 spurious. On the transcript only real flaws outranked it. A hint only: the transcript and notes plants are a sentence that says "strong support" out loud, which stands out more than an edge in a tree.
+- Against the transcript, the page does not meet the rule. It ties on catch rate but raises more spurious findings (139 to 93), and traces 94 to 99. It does that at a sixth of the reading. The transcript's edge is the story it holds: its reader checks a quote against the text, so its doubts are real flaws, not guesses. The spurious gap is all in findings that argue with a quote (about 106 to 58, by keyword; the rest are about even): a node's text often draws on story the page does not quote.
+- **On the page, a quote gap outranks a wrong weight.** The page shows `score 5` on the planted edge and every read caught it, but it ranked first in 4 of 15. Findings above it were 17 real and 12 spurious, and 23 of the 29 argue with a quote: each quote sits beside its node's text, so a gap between them is what a reader lists first. On the transcript only real flaws outranked it. Whether the score helps stays open: the transcript and notes plants are a sentence that says "strong support" out loud, which stands out more than an edge in a tree.
 
 **What the numbers do not say:**
 
