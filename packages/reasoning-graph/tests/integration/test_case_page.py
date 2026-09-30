@@ -66,10 +66,20 @@ def test_every_id_in_the_case_opens_its_node_card(render_mode: str) -> None:
 def test_the_case_shows_each_part_with_quotes_escaped() -> None:
     case = case_section(html_document(STATE, to_mermaid(STATE)))
 
-    for heading in ("Why believe it", "Against it", "Tests", "Rivals", "Weak spots"):
+    for heading in ("Why believe it", "Tests", "Rivals", "Weak spots"):
         assert f">{heading}" in case
     assert "The butler had &lt;the&gt; key." in case
     assert "no access" in case
+
+
+def test_empty_parts_of_the_case_share_one_line() -> None:
+    state = {**STATE, "edges": [edge for edge in STATE["edges"] if edge["type"] != "prompts"]}
+    case = case_section(html_document(state, to_mermaid(state)))
+
+    headings = re.findall(r"<h3>([^<]+)", case)
+    assert [heading.strip() for heading in headings] == ["Why believe it", "Rivals", "Weak spots"]
+    empty = re.search(r'<p class="case-empty">(.*?)</p>', case)
+    assert empty and empty[1] == "Nothing against it · No tests"
 
 
 def test_no_case_is_shown_while_no_answer_is_claimed() -> None:

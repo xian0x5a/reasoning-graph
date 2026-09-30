@@ -62,11 +62,16 @@ class _CaseMarkup:
             weight = f' <span class="case-score">group {html.escape(link.group)} · score {link.score}</span>'
         elif link.score is not None:
             weight = f' <span class="case-score">score {link.score}</span>'
-        head = f'{target}<span class="case-rel">{html.escape(link.relation)}</span> {self.node_link(link.node.id)}{weight}'
+        head = f'{target}{self.relation(link.relation)} {self.node_link(link.node.id)}{weight}'
         if link.reference:
             return f'<li class="case-line case-ref">{head} <span class="case-note">shown above</span></li>'
         reasons = self.link_list(link.reasons) if link.reasons else ""
         return f'<li class="case-line">{head}{self.node_facts(link.node)}{reasons}</li>'
+
+    @staticmethod
+    def relation(name: str) -> str:
+        # data-rel lets the stylesheet colour for and against apart.
+        return f'<span class="case-rel" data-rel="{html.escape(name, quote=True)}">{html.escape(name)}</span>'
 
     def link_list(self, links: tuple[CaseLink, ...], show_target: bool = False) -> str:
         return '<ul class="case-tree">' + "".join(self.link_line(link, show_target) for link in links) + "</ul>"
@@ -77,7 +82,7 @@ class _CaseMarkup:
             outcome = f'<p class="case-outcome">Not run: {html.escape(test.node.not_run)}</p>'
         elif test.results:
             outcome = '<ul class="case-tree">' + "".join(
-                f'<li class="case-line"><span class="case-rel">result</span> {self.node_link(result.id)}{self.node_facts(result)}</li>'
+                f'<li class="case-line">{self.relation("result")} {self.node_link(result.id)}{self.node_facts(result)}</li>'
                 for result in test.results
             ) + "</ul>"
         else:
@@ -94,22 +99,28 @@ class _CaseMarkup:
     def weak_spot_line(self, spot: WeakSpot) -> str:
         return f"<li>{self.node_link(spot.node_id)} {html.escape(WEAK_SPOT_TEXT[spot.kind])}</li>"
 
-    @staticmethod
-    def part(title: str, count: int, body: str, empty: str) -> str:
-        content = body if count else f'<p class="empty">{html.escape(empty)}</p>'
-        return f'<div class="case-part"><h3>{html.escape(title)} <span class="case-count">{count}</span></h3>{content}</div>'
-
     def case(self, case: Case, several: bool) -> str:
         goal = f' <span class="case-note">answer to</span> {self.node_link(case.goal.id)}' if several else ""
+        # (heading, count, body, what an empty part says). An empty part is not worth a
+        # heading of its own, so the empty ones share one line after the rest.
+        parts = (
+            ("Why believe it", len(case.why), lambda: self.link_list(case.why), "Nothing supports it"),
+            ("Against it", len(case.against), lambda: self.link_list(case.against, show_target=True), "Nothing against it"),
+            ("Tests", len(case.tests), lambda: '<ul class="case-tree">' + "".join(map(self.test_line, case.tests)) + "</ul>", "No tests"),
+            ("Rivals", len(case.rivals), lambda: '<ol class="case-tree">' + "".join(map(self.rival_line, case.rivals)) + "</ol>", "No rivals"),
+            ("Weak spots", len(case.weak_spots), lambda: "<ul>" + "".join(map(self.weak_spot_line, case.weak_spots)) + "</ul>", "No weak spots"),
+        )
+        filled = "".join(
+            f'<div class="case-part"><h3>{html.escape(title)} <span class="case-count">{count}</span></h3>{body()}</div>'
+            for title, count, body, _ in parts
+            if count
+        )
+        empty = " · ".join(html.escape(note) for _, count, _, note in parts if not count)
+        empty_line = f'<p class="case-empty">{empty}</p>' if empty else ""
         return (
             f'<div class="case"><h2>The case for {self.node_link(case.answer.id)}{goal}</h2>'
             f'<p class="case-answer">{self.node_facts(case.answer)}</p>'
-            + self.part("Why believe it", len(case.why), self.link_list(case.why), "Nothing leads to or supports the answer.")
-            + self.part("Against it", len(case.against), self.link_list(case.against, show_target=True), "Nothing contradicts the answer or its reasons.")
-            + self.part("Tests", len(case.tests), '<ul class="case-tree">' + "".join(map(self.test_line, case.tests)) + "</ul>", "No test checks the answer or its reasons.")
-            + self.part("Rivals", len(case.rivals), '<ol class="case-tree">' + "".join(map(self.rival_line, case.rivals)) + "</ol>", "No other candidate answers this goal.")
-            + self.part("Weak spots", len(case.weak_spots), "<ul>" + "".join(map(self.weak_spot_line, case.weak_spots)) + "</ul>", "None found.")
-            + "</div>"
+            f"{filled}{empty_line}</div>"
         )
 
 

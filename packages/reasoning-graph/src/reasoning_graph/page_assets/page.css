@@ -152,8 +152,13 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .case-tree .case-tree { padding-left: 1rem; border-left: 2px solid var(--line); margin: .3rem 0 .3rem .35rem; }
 ol.case-tree { list-style: decimal; padding-left: 1.5rem; }
 .case-line { margin: .3rem 0; overflow-wrap: anywhere; }
-.case-rel { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; color: var(--muted); }
-.case-id { display: inline-block; padding: 0 .4rem; border: 1px solid var(--line); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; font-weight: 600; color: var(--ink); text-decoration: none; }
+.case-rel { display: inline-block; padding: 0 .4rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; color: var(--muted); background: var(--soft); }
+/* For and against are the first thing a reader scans for, so they get colour. */
+.case-rel[data-rel="supports"], .case-rel[data-rel="leads_to"] { color: #166534; background: #dcfce7; }
+.case-rel[data-rel="contradicts"] { color: #991b1b; background: #fee2e2; }
+.case-empty { border-top: 1px solid var(--line); padding-top: .6rem; margin: .6rem 0 0; color: var(--muted); font-size: .9rem; }
+/* Ids use the text face: in monospace, the O of O2 reads as a zero. */
+.case-id { display: inline-block; padding: 0 .4rem; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; font-weight: 700; color: var(--ink); text-decoration: none; }
 .case-id:hover { box-shadow: 0 0 0 2px #93c5fd; }
 .case-score, .case-belief { font-size: .75rem; color: #334155; background: #f1f5f9; border-radius: 999px; padding: 0 .45rem; white-space: nowrap; }
 .case-note, .case-ref, .case-outcome { color: var(--muted); }
