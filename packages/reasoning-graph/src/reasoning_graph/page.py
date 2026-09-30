@@ -20,6 +20,7 @@ from .policy import (
     accepted_goal_ids,
     answer_candidates,
     answer_labels,
+    claimed_answer,
     goal_best_candidates,
     preferred_goal_ids,
     ranked_candidates,
@@ -272,6 +273,36 @@ def goal_policy_html(state: dict[str, Any]) -> str:
   </section>"""
 
 
+def goal_nodes(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [node for node in state.get("nodes", []) if isinstance(node, dict) and node.get("type") == "goal"]
+
+
+def page_heading(state: dict[str, Any]) -> tuple[str, str]:
+    """The page's plain-text title, and the header markup that names what was asked.
+
+    A single goal is the question the page answers, so it is the heading. Several goals
+    sit under the summary title, each with its id so the answer lines can name it.
+    """
+    summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
+    title = str(summary.get("title") or "Reasoning graph")
+    goals = goal_nodes(state)
+    if len(goals) == 1:
+        question = str(goals[0].get("text") or goals[0].get("id"))
+        return question, f'<p class="eyebrow">{html.escape(title)}</p><h1>{html.escape(question)}</h1>'
+    goal_items = "".join(
+        f'<li><code>{html.escape(str(goal.get("id")))}</code> {html.escape(str(goal.get("text") or ""))}</li>' for goal in goals
+    )
+    goal_list = f'<ul class="goal-list">{goal_items}</ul>' if goal_items else ""
+    return title, f"<h1>{html.escape(title)}</h1>{goal_list}"
+
+
+def status_badge(state: dict[str, Any], quote_errors: list[str] | None) -> str:
+    # Computed here, not read from the state, so the reader never sees a stale status.
+    report = audit_state(state, quote_errors)
+    outcome = "fail" if not report.ok else "pass" if claimed_answer(state) else "open"
+    return f'<p class="status" data-outcome="{outcome}"><span class="status-label">Status</span> {html.escape(report.status)}</p>'
+
+
 def answer_lines(state: dict[str, Any]) -> str:
     """One header line per answered goal, resolved from the graph: the candidate's id and text."""
 
@@ -318,10 +349,7 @@ def html_document(
     linked_sources: dict[str, SourceLink] | None = None,
 ) -> str:
     linked_sources = linked_sources or {}
-    summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
-    # Computed here, not read from the state, so the reader never sees a stale status.
-    status = html.escape(audit_state(state, quote_errors).status)
-    title = html.escape(str(summary.get("title") or "Reasoning Graph"))
+    page_title, heading_html = page_heading(state)
     identities = render_identity_map(state)
     offline_mode = render_mode == "offline"
     audit_svg = offline_graph_svg(state, spacing, "audit-graph", identities=identities) if offline_mode else None
@@ -357,7 +385,7 @@ def html_document(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{title}</title>
+  <title>{html.escape(page_title)}</title>
   <style>
 {page_asset("page.css")}{case_id_styles()}  </style>
 </head>
@@ -372,9 +400,9 @@ def html_document(
 </nav>
 <main>
   <header class="hero">
-    <h1>{title}</h1>
+    {heading_html}
     {answer_lines(state)}
-    <p class="status"><strong>Status:</strong> {status}</p>
+    {status_badge(state, quote_errors)}
     {answer_rank_notes(state)}
   </header>
 

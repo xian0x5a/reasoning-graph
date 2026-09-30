@@ -6,9 +6,20 @@ main { max-width: 1320px; margin: 0 auto; padding: 2rem; }
 h1, h2, h3 { line-height: 1.15; }
 .hero, section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06); scroll-margin-top: 5rem; }
 .hero { padding: 1.4rem 1.6rem; margin-bottom: 1rem; }
-.answer { padding: 1rem; background: #eff6ff; border-left: 4px solid var(--brand); border-radius: 12px; }
-.status { padding: 0.75rem 1rem; background: #f8fafc; border-left: 4px solid var(--line); border-radius: 12px; }
-.answer-rank-note { padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }
+.hero h1 { margin: .15rem 0 .9rem; font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2rem); text-wrap: balance; }
+.eyebrow { margin: 0; color: var(--muted); font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.goal-list { margin: 0 0 .9rem; padding: 0; list-style: none; display: grid; gap: .25rem; }
+.goal-list code { margin-right: .35rem; font-weight: 600; }
+.answer { margin: 0 0 .6rem; padding: .85rem 1rem; background: #eff6ff; border-left: 4px solid var(--brand); border-radius: 12px; font-size: 1.1rem; }
+/* The status is a badge: its colour says whether the claimed answer holds. */
+.status { display: inline-flex; align-items: center; gap: .5rem; margin: 0; padding: .25rem .75rem .25rem .6rem; border-radius: 999px; font-size: .9rem; background: #f1f5f9; color: #334155; }
+.status::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: #94a3b8; }
+.status-label { font-weight: 600; }
+.status[data-outcome="pass"] { background: #dcfce7; color: #14532d; }
+.status[data-outcome="pass"]::before { background: #16a34a; }
+.status[data-outcome="fail"] { background: #fee2e2; color: #7f1d1d; }
+.status[data-outcome="fail"]::before { background: #dc2626; }
+.answer-rank-note { margin: .6rem 0 0; padding: 0.75rem 1rem; background: #fffbeb; border-left: 4px solid #d97706; border-radius: 12px; }
 section { padding: 1.2rem; margin: 1rem 0; }
 .empty, .hint, .source { color: var(--muted); }
 a { color: #1d4ed8; }

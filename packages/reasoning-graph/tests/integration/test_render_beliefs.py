@@ -178,7 +178,7 @@ def test_html_header_has_no_answer_line_while_none_is_claimed():
     state = ranked_state("")
     document = html_document(state, to_mermaid(state))
     assert '<p class="answer">' not in document
-    assert "<strong>Status:</strong> no answer claimed" in document
+    assert '<span class="status-label">Status</span> no answer claimed' in document
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)

@@ -172,7 +172,7 @@ class ViewShowsTheStatusTests(AuditCase):
     """The reader sees the status `audit` prints, computed when the view is rendered."""
 
     def view_status(self, view: Path) -> str:
-        return html.unescape(re.search(r'<p class="status"><strong>Status:</strong> (.*?)</p>', view.read_text(encoding="utf-8")).group(1))
+        return html.unescape(re.search(r'<p class="status"[^>]*><span class="status-label">Status</span> (.*?)</p>', view.read_text(encoding="utf-8")).group(1))
 
     def test_live_view_follows_the_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
