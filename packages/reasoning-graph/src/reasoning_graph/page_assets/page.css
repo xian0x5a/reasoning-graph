@@ -13,10 +13,11 @@ section { padding: 1.2rem; margin: 1rem 0; }
 .empty, .hint, .source { color: var(--muted); }
 a { color: #1d4ed8; }
 .section-head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
-.graph-controls { display: flex; gap: .75rem; align-items: center; color: var(--muted); font-size: .9rem; }
+.graph-controls { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; color: var(--muted); font-size: .9rem; }
+.graph-hint { margin: 0 0 .6rem; color: var(--muted); font-size: .85rem; }
 /* Keep the controls clear of the canvas edge, and keep their labels on one line:
    a growing label would otherwise wrap the button into two rows. */
-.graph-section .section-head { margin-bottom: .75rem; }
+.graph-section .section-head { margin-bottom: .35rem; }
 .graph-controls button { white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .08s ease; }
 /* A press must read even when the action has no immediate visual result. The ring
    and sink live on :active, so they never linger after the click. */
@@ -43,7 +44,7 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-canvas svg, .graph-canvas svg * { user-select: none; -webkit-user-select: none; }
 .graph-canvas.panning { cursor: grabbing; }
 [data-canvas-mode][aria-pressed="true"] { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
-.graph-canvas-audit { height: min(78vh, 860px); min-height: 560px; }
+.graph-canvas-audit { height: min(78vh, 860px); min-height: 320px; }
 .graph-canvas .offline-graph { width: 100%; height: 100%; margin: 0; display: block; overflow: visible; }
 /* Mermaid renders inside its own <pre class="mermaid"> wrapper, so that wrapper
    has to carry the canvas height. Otherwise the svg's height:100% resolves
@@ -130,7 +131,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
 .modal-tabs button.active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
 .modal-tabpanel[hidden] { display: none; }
-@media (max-width: 720px) { main { padding: 1rem; } .graph-canvas-audit { min-height: 460px; } .floating-nav { right: .75rem; bottom: .75rem; } }
+@media (max-width: 720px) { main { padding: 1rem; } .graph-canvas-audit { min-height: 240px; } .floating-nav { right: .75rem; bottom: .75rem; } }
 .case-section h2 { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; margin: .1rem 0 .4rem; }
 .case-answer { margin: 0 0 .5rem; }
 .case-part { border-top: 1px solid var(--line); padding-top: .6rem; margin-top: .6rem; }

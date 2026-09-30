@@ -134,9 +134,9 @@ def graph_panel(
       <button type="button" data-canvas-mode="{graph_id}" aria-pressed="false">Canvas mode</button>
       <button type="button" data-reset="{graph_id}">Reset view</button>
       {focus_control}
-      <span>Click the canvas to capture the wheel; Esc releases it. Canvas mode: wheel zooms, drag pans. Otherwise hold Ctrl/⌘.</span>
     </div>
   </div>
+  <p class="graph-hint">Click the canvas and the wheel zooms it; Esc lets go. To pan, drag in Canvas mode or hold Ctrl/⌘.</p>
   <div id="{graph_id}" class="mermaid-wrap graph-canvas graph-canvas-audit" tabindex="0" role="region" aria-label="{html.escape(title)} canvas">
     {graph_markup}
   </div>
