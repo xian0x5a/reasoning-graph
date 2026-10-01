@@ -73,7 +73,7 @@ def graph_labels(state, renderer):
 
 
 def detail_card(document, node_id):
-    match = re.search(rf'<article\b[^>]*id="details-{node_id}">(.*?)</article>', document, re.DOTALL)
+    match = re.search(rf'<article\b[^>]*id="details-{node_id}"[^>]*>(.*?)</article>', document, re.DOTALL)
     assert match is not None
     return match.group(1)
 

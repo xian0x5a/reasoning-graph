@@ -150,7 +150,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .node-modal .detail-card .edge-block li:last-child { margin-bottom: 0; }
 .detail-grid .edge-block { display: none; }
 .detail-grid .detail-card { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
-.detail-grid .detail-card:hover { border-color: var(--selected-line); box-shadow: 0 0 0 2px rgba(147, 197, 253, .35); }
+.detail-grid .detail-card:hover, .detail-grid .detail-card:focus-visible { border-color: var(--selected-line); box-shadow: 0 0 0 2px rgba(147, 197, 253, .35); outline: none; }
 .modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
 .modal-tabs button.active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); }
 .modal-tabpanel[hidden] { display: none; }

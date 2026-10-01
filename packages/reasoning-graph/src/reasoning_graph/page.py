@@ -69,7 +69,7 @@ def node_detail_cards(
         edges_html = ('<div class="edge-block"><ul>' + "".join(edge_notes) + "</ul></div>") if edge_notes else ""
         type_class = html.escape(raw_type)
         cards.append(
-            f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}">'
+            f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}" tabindex="0">'
             f'<header><code>{html.escape(raw_id)}</code><span class="pill">{html.escape(pill_text)}</span></header>'
             f'<p>{text}</p>'
             f'{"<p class=\"source\">Source: " + source_text + "</p>" if source_text else ""}'

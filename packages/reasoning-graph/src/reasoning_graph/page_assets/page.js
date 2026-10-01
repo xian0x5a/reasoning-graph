@@ -48,6 +48,7 @@ function showNodeModal(detailId) {
   if (!modal || !content || !card) return;
   const clone = card.cloneNode(true);
   clone.removeAttribute("id");
+  clone.removeAttribute("tabindex");
   const header = clone.querySelector("header");
   const code = header?.querySelector("code")?.textContent?.trim();
   const type = header?.querySelector(".pill")?.textContent?.trim();
@@ -142,6 +143,13 @@ function installCardClicks() {
     // selects text is a copy, not a request for the popup.
     if (!card || event.target.closest("a") || String(window.getSelection())) return;
     showNodeModal(card.id);
+  });
+  // Enter or Space on a focused card opens it too; the dialog hands focus back on close.
+  grid.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (!event.target.classList.contains("detail-card")) return;
+    event.preventDefault();
+    showNodeModal(event.target.id);
   });
 }
 
