@@ -563,6 +563,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("https://cdn.jsdelivr.net", html_text)
             self.assertIn("type=\"module\"", html_text)
             self.assertIn("class=\"mermaid\"", html_text)
+            self.assertIn("Mermaid source", html_text)
 
             offline_path = Path(tmp_dir) / "graph-offline.html"
             offline = self.run_cli("html", str(FIXTURE), "--offline", "-o", str(offline_path))

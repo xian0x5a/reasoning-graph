@@ -125,9 +125,7 @@ def graph_panel(
             '</div>'
         )
     graph_markup = svg_graph if svg_graph is not None else f'<pre class="mermaid">{mermaid_escaped}</pre>'
-    source_details = ""
-    if svg_graph is not None:
-        source_details = f'<details class="graph-source"><summary>Mermaid source</summary><pre>{mermaid_escaped}</pre></details>'
+    source_details = f'<details class="graph-source"><summary>Mermaid source</summary><pre>{mermaid_escaped}</pre></details>'
     return f"""
 <section id="{section_id}" class="graph-section">
   <div class="section-head">
