@@ -91,7 +91,8 @@ class RenderIdentityTests(unittest.TestCase):
     def test_html_focus_map_covers_full_candidate_derivation(self) -> None:
         """Focusing a candidate must light its whole derivation chain (tests, the
         observations they produced, and the hypotheses that prompted them), not stop
-        at the first observation, while leaving rival and contradicting branches dim."""
+        at the first observation, plus the evidence that directly contradicts that chain,
+        while leaving rival branches and the contradicting evidence's own chain dim."""
 
         def edge(source: str, edge_type: str, target: str) -> dict:
             return {"from": source, "to": target, "type": edge_type}
@@ -108,8 +109,11 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "O5", "type": "observation", "text": "decoding A works"},
                 {"id": "CS1", "type": "candidate_solution", "text": "answer A", "answer_kind": "exact_answer"},
                 {"id": "H4", "type": "hypothesis", "text": "decoding B", "score": 2},
+                {"id": "T6", "type": "test", "text": "decode with B"},
                 {"id": "O6", "type": "observation", "text": "decoding B fails"},
                 {"id": "CS2", "type": "candidate_solution", "text": "answer B", "score": 1, "answer_kind": "exact_answer"},
+                {"id": "O7", "type": "observation", "text": "answer C is ruled out"},
+                {"id": "CS3", "type": "candidate_solution", "text": "answer C", "score": 1, "answer_kind": "exact_answer"},
             ],
             "edges": [
                 edge("O1", "supports", "H1"),
@@ -122,9 +126,12 @@ class RenderIdentityTests(unittest.TestCase):
                 edge("H3", "leads_to", "CS1"),
                 edge("CS1", "answers", "G1"),
                 edge("O4", "leads_to", "H4"),
+                edge("T6", "leads_to", "O6"),
                 edge("O6", "contradicts", "H4"),
                 edge("H4", "leads_to", "CS2"),
                 edge("CS2", "answers", "G1"),
+                edge("O7", "contradicts", "CS3"),
+                edge("CS3", "answers", "G1"),
             ],
         }
         document = html_document(state, to_mermaid(state), render_mode="offline")
@@ -132,7 +139,9 @@ class RenderIdentityTests(unittest.TestCase):
         focus_map = json.loads(page_data.group(1))["candidateFocusMap"]
 
         self.assertEqual(set(focus_map["CS1"]), {"CS1", "H3", "O4", "O5", "T3", "T1", "H1", "O1"})
-        self.assertEqual(set(focus_map["CS2"]), {"CS2", "H4", "O4", "T1", "H1", "O1"})
+        self.assertEqual(set(focus_map["CS2"]), {"CS2", "H4", "O4", "T1", "H1", "O1", "O6"})
+        # A rival with no support still shows why it was ruled out.
+        self.assertEqual(set(focus_map["CS3"]), {"CS3", "O7"})
 
     def test_html_candidates_come_from_the_graph(self) -> None:
         state = {

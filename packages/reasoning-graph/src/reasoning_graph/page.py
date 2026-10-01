@@ -200,6 +200,7 @@ def candidate_focus_nodes(
     # (dependent -> dependency). `contradicts` and `answers` are not derivation.
     forward_derivation_edges = {"supports", "leads_to", "prompts", "tested_by", "tests"}
     premises_by_node: dict[str, list[str]] = {}
+    contradictors_by_node: dict[str, list[str]] = {}
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
@@ -209,6 +210,8 @@ def candidate_focus_nodes(
             premises_by_node.setdefault(target, []).append(source)
         elif edge_type == "requires":
             premises_by_node.setdefault(source, []).append(target)
+        elif edge_type == "contradicts":
+            contradictors_by_node.setdefault(target, []).append(source)
 
     # Focus is the candidate's full derivation: every transitive premise, including the
     # tests and hypotheses that produced its evidence. Rival branches stay dim because
@@ -221,6 +224,13 @@ def candidate_focus_nodes(
                 seen_raw.add(premise)
                 node_ids.append(premise)
                 pending.append(premise)
+    # Then one hop of counter-evidence, without its own chain: a ruled-out rival often has
+    # no premises at all, and the evidence against it is the reason it lost.
+    for node_id in list(node_ids):
+        for contradictor in contradictors_by_node.get(node_id, []):
+            if contradictor not in seen_raw:
+                seen_raw.add(contradictor)
+                node_ids.append(contradictor)
     seen: set[str] = set()
     result: list[str] = []
     for node_id in node_ids:
