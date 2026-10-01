@@ -46,9 +46,10 @@ MERMAID_CLASS = re.compile(r"^\s+class ([\w,]+) (\w+);$")
 
 
 def decode_mermaid_entities(label: str) -> str:
-    """Read a label as Mermaid does: `#lt;` and `#35;` are its entity codes for `&lt;` and `&#35;`."""
+    """Read a label's text as Mermaid shows it: `#lt;` and `#35;` are its entity codes for
+    `&lt;` and `&#35;`, so any literal tag is the renderer's own markup."""
     entities = re.sub(r"#([a-z]+);", r"&\1;", re.sub(r"#(\d+);", r"&#\1;", label))
-    return html.unescape(entities.replace("<br/>", "\n"))
+    return html.unescape(re.sub(r"<[^>]+>", "", entities.replace("<br/>", "\n")))
 
 
 def mermaid_graph(source: str) -> tuple[dict[str, str], set[tuple[str, str, str]], dict[str, tuple[str, str]]]:

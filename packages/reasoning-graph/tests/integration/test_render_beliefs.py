@@ -24,9 +24,10 @@ RENDERERS = ("mermaid", "offline")
 
 
 def decode_mermaid_entities(label: str) -> str:
-    """Read a label as Mermaid does: `#lt;` and `#35;` are its entity codes for `&lt;` and `&#35;`."""
+    """Read a label's text as Mermaid shows it: `#lt;` and `#35;` are its entity codes for
+    `&lt;` and `&#35;`, so any literal tag is the renderer's own markup."""
     entities = re.sub(r"#([a-z]+);", r"&\1;", re.sub(r"#(\d+);", r"&#\1;", label))
-    return html.unescape(entities.replace("<br/>", "\n"))
+    return html.unescape(re.sub(r"<[^>]+>", "", entities.replace("<br/>", "\n")))
 
 
 def report_state(*, support=False):
@@ -280,3 +281,14 @@ def test_mermaid_labels_use_its_own_entity_codes():
     # Mermaid reads "#...;" as its own entity code, so an HTML entity such as &#x27;
     # reached the page as "&&x27;". Its own codes are all a label may carry.
     assert labels and not any("&" in label for label in labels)
+
+
+def test_mermaid_node_labels_lead_with_the_id_in_bold():
+    state = report_state()
+
+    labels = re.findall(r'^\s+\w+\["(.*?)"\]', to_mermaid(state), re.MULTILINE)
+
+    assert labels
+    for label in labels:
+        first_line = label.split("<br/>")[0]
+        assert re.fullmatch(r"<b>[^<]+</b>", first_line), label

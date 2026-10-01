@@ -18,6 +18,12 @@ def mermaid_label(text: str) -> str:
     return text.translate(MERMAID_ENTITIES).replace("\n", "<br/>")
 
 
+def mermaid_node_label(text: str) -> str:
+    """A node label whose first line, the node's id, is bold."""
+    id_line, _, rest = text.partition("\n")
+    return f"<b>{mermaid_label(id_line)}</b>" + (f"<br/>{mermaid_label(rest)}" if rest else "")
+
+
 # Left to right: observations, the widest rank of a real graph, stack in a column the
 # page canvas grows down to fit. Top down lays them in one row wider than any screen.
 LAYOUT_DIRECTION = "LR"
@@ -68,7 +74,7 @@ def to_mermaid(
             continue
         drawn_groups.append(group_id)
         lines.append(f"  subgraph {group_id}[{title}]")
-        lines.extend(f'    {node.render_id}["{mermaid_label(node.label)}"]' for node in group_nodes)
+        lines.extend(f'    {node.render_id}["{mermaid_node_label(node.label)}"]' for node in group_nodes)
         lines.append("  end")
 
     if view.factors:
