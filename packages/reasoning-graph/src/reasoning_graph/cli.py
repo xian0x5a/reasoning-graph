@@ -42,7 +42,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
 
 def starter_state(goal: str = "Solve the problem") -> dict[str, Any]:
     return {
-        "summary": {"title": "Reasoning Graph", "answer": ""},
+        "summary": {"answer": ""},
         "nodes": [{"id": "G1", "type": "goal", "text": goal}],
         "edges": [],
     }

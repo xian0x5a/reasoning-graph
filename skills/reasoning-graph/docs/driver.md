@@ -24,7 +24,7 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
 
 ```json
 {
-  "summary": {"title": "Reasoning Graph", "answer": "CS1"},
+  "summary": {"answer": "CS1"},
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
     {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired"},

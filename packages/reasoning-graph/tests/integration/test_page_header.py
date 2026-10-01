@@ -45,6 +45,18 @@ def test_a_single_goal_is_the_page_heading_and_title() -> None:
     assert title and text_of(title[1]) == "Who took the <key>?"
 
 
+def test_a_summary_title_sits_above_the_question_only_when_one_is_given() -> None:
+    def eyebrow(state: dict) -> str | None:
+        match = re.search(r'<p class="eyebrow">(.*?)</p>', header(html_document(state, to_mermaid(state))))
+        return text_of(match[1]) if match else None
+
+    titled = copy.deepcopy(STATE)
+    titled["summary"]["title"] = "The missing key"
+
+    assert eyebrow(titled) == "The missing key"
+    assert eyebrow(STATE) is None
+
+
 def test_each_of_several_goals_is_named_in_the_header() -> None:
     state = copy.deepcopy(STATE)
     state["nodes"].append({"id": "G2", "type": "goal", "text": "When was the door opened?"})

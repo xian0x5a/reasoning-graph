@@ -283,11 +283,13 @@ def page_heading(state: dict[str, Any]) -> tuple[str, str]:
     sit under the summary title, each with its id so the answer lines can name it.
     """
     summary = state.get("summary", {}) if isinstance(state.get("summary"), dict) else {}
-    title = str(summary.get("title") or "Reasoning graph")
+    given_title = str(summary.get("title") or "")
     goals = goal_nodes(state)
     if len(goals) == 1:
         question = str(goals[0].get("text") or goals[0].get("id"))
-        return question, f'<p class="eyebrow">{html.escape(title)}</p><h1>{html.escape(question)}</h1>'
+        eyebrow = f'<p class="eyebrow">{html.escape(given_title)}</p>' if given_title else ""
+        return question, f"{eyebrow}<h1>{html.escape(question)}</h1>"
+    title = given_title or "Reasoning graph"
     goal_items = "".join(
         f'<li><code>{html.escape(str(goal.get("id")))}</code> {html.escape(str(goal.get("text") or ""))}</li>' for goal in goals
     )
