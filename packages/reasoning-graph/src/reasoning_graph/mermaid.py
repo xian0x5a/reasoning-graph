@@ -31,18 +31,18 @@ LAYOUT_DIRECTION = "LR"
 # Lanes are a translucent tint of their hue, so one source reads on the light and the
 # dark canvas alike: Mermaid inlines these with !important, past any page stylesheet.
 GROUP_STYLES = {
-    "cluster_goal": "fill:#f59e0b,fill-opacity:0.08,stroke:#f59e0b,stroke-opacity:0.4,stroke-width:1px",
-    "cluster_observations": "fill:#64748b,fill-opacity:0.04,stroke:#0ea5e9,stroke-opacity:0.35,stroke-width:1px",
-    "cluster_hypotheses": "fill:#8b5cf6,fill-opacity:0.06,stroke:#8b5cf6,stroke-opacity:0.3,stroke-width:1px",
-    "cluster_candidates": "fill:#3b82f6,fill-opacity:0.07,stroke:#3b82f6,stroke-opacity:0.3,stroke-width:1px",
-    "cluster_factors": "fill:#64748b,fill-opacity:0.04,stroke:#64748b,stroke-opacity:0.4,stroke-dasharray:3 3",
-    "cluster_other": "fill:#64748b,fill-opacity:0.03,stroke:#64748b,stroke-opacity:0.25,stroke-width:1px",
+    "cluster_goal": "fill:#d79921,fill-opacity:0.08,stroke:#d79921,stroke-opacity:0.45,stroke-width:1px",
+    "cluster_observations": "fill:#928374,fill-opacity:0.05,stroke:#689d6a,stroke-opacity:0.45,stroke-width:1px",
+    "cluster_hypotheses": "fill:#b16286,fill-opacity:0.07,stroke:#b16286,stroke-opacity:0.4,stroke-width:1px",
+    "cluster_candidates": "fill:#458588,fill-opacity:0.08,stroke:#458588,stroke-opacity:0.4,stroke-width:1px",
+    "cluster_factors": "fill:#928374,fill-opacity:0.05,stroke:#928374,stroke-opacity:0.5,stroke-dasharray:3 3",
+    "cluster_other": "fill:#928374,fill-opacity:0.04,stroke:#928374,stroke-opacity:0.35,stroke-width:1px",
 }
 
 # Node text is set, not left to the theme: the fills are pastel in the dark theme too,
 # where the theme's own light text would vanish into them.
-NODE_INK = "#0f172a"
-NODE_TEXT_COLORS = {"not_run": "#64748b"}
+NODE_INK = "#3c3836"
+NODE_TEXT_COLORS = {"not_run": "#7c6f64"}
 
 # Mermaid-only touches on top of the shared colours.
 CLASS_EXTRAS = {
@@ -97,7 +97,7 @@ def to_mermaid(
     lines.append("")
 
     lines.extend(
-        f"  linkStyle {index} stroke:#d97706,stroke-dasharray:5 5;" for index, edge in enumerate(drawn_edges) if edge.follow_up
+        f"  linkStyle {index} stroke:#d79921,stroke-dasharray:5 5;" for index, edge in enumerate(drawn_edges) if edge.follow_up
     )
 
     if view.factors:

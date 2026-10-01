@@ -17,16 +17,19 @@ from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .policy import answer_labels
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
-# Render class -> (fill, stroke). Both renderers paint from this one table.
+# Render class -> (fill, stroke). Both renderers paint from this one table. Gruvbox:
+# fills are its accents tinted into its light background, strokes its darker accents.
+# Its blue and purple are tinted into a neutral light instead: into the cream they turn
+# green and salmon, and candidates would read as observations.
 NODE_COLORS = {
-    "goal": ("#fef3c7", "#d97706"),
-    "observation": ("#ecfeff", "#0891b2"),
-    "constraint": ("#fff7ed", "#ea580c"),
-    "hypothesis": ("#f5f3ff", "#7c3aed"),
-    "test": ("#e0f2fe", "#0284c7"),
-    "not_run": ("#f8fafc", "#94a3b8"),
-    "candidate": ("#dbeafe", "#2563eb"),
-    "factor": ("#f1f5f9", "#475569"),
+    "goal": ("#f9dc8b", "#b57614"),
+    "observation": ("#d9e5bc", "#427b58"),
+    "constraint": ("#fad8a8", "#af3a03"),
+    "hypothesis": ("#e1cace", "#8f3f71"),
+    "test": ("#d8e1da", "#458588"),
+    "not_run": ("#f2eccf", "#a89984"),
+    "candidate": ("#bccfcb", "#076678"),
+    "factor": ("#e7e0c3", "#7c6f64"),
 }
 
 # (group id, title, node types). Mermaid draws each as a subgraph box.

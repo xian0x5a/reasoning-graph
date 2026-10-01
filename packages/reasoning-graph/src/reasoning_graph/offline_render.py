@@ -142,7 +142,7 @@ def offline_graph_svg(
         edge_parts.append(
             f'<path id="edge-{len(edge_parts)}" class="flowchart-link LS-{html.escape(edge.source)} LE-{html.escape(edge.target)}" '
             f'd="M {start_x} {start_y} C {c1x} {start_y}, {c2x} {end_y}, {end_x} {end_y}" '
-            f'fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#{marker_id})"/>'
+            f'fill="none" stroke="#928374" stroke-width="2" marker-end="url(#{marker_id})"/>'
         )
         labels.append((edge.label, mid_x, mid_y))
 
@@ -186,7 +186,7 @@ def offline_graph_svg(
         )
 
     return f'''<svg class="offline-graph" viewBox="0 0 {width} {height}" role="img" aria-label="Reasoning graph" xmlns="http://www.w3.org/2000/svg">
-  <defs><marker id="{marker_id}" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M 0 0 L 10 4 L 0 8 z" fill="#64748b"/></marker></defs>
+  <defs><marker id="{marker_id}" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M 0 0 L 10 4 L 0 8 z" fill="#928374"/></marker></defs>
   <g class="edges">{''.join(edge_parts)}</g>
   <g class="edgeLabels">{''.join(label_parts)}</g>
   <g class="nodes">{''.join(node_parts)}</g>

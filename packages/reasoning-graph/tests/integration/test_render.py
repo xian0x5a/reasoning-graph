@@ -272,7 +272,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
         self.assertIn("radial-gradient(circle", document)
         self.assertIn("if (!canvas.contains(document.activeElement)) return;", document)
         # Hover only tints the sheet and border; the solid ring stays focus-only.
-        self.assertIn(".graph-canvas:hover:not(:focus-within) { border-color: #bfdbfe;", document)
+        self.assertIn(".graph-canvas:hover:not(:focus-within) { border-color: var(--selected-line);", document)
         # Control buttons acknowledge the press with a tint, a ring, and a sink.
         self.assertIn(".graph-controls button:active {", document)
         self.assertIn("transform: translateY(1px);", document)

@@ -162,8 +162,8 @@ flowchart TD
   CS1 -- answers --> G
   O2["observation: violates O(n)"] -. contradicts .-> H1
 
-  classDef candidate fill:#dbeafe,stroke:#2563eb;
-  classDef bad fill:#fee2e2,stroke:#dc2626;
+  classDef candidate fill:#bccfcb,stroke:#076678;
+  classDef bad fill:#f2c9c0,stroke:#9d0006;
 
   class CS1 candidate;
   class O2 bad;
@@ -171,7 +171,7 @@ flowchart TD
 
 HTML report design guidance:
 
-- The page follows the reader's light or dark colour scheme. Its colours are tokens on `:root`, redefined for dark; graph nodes and id chips keep their pastel fills in both themes, with dark text, and Mermaid's lanes are translucent tints, since Mermaid inlines their styles past any stylesheet.
+- The page uses the Gruvbox palette and follows the reader's light or dark colour scheme; there is one theme, and no theme picker. Its colours are tokens on `:root`, redefined for dark; graph nodes and id chips keep their light fills in both modes, with dark text, and Mermaid's lanes are translucent tints, since Mermaid inlines their styles past any stylesheet. Mermaid's own colours (edges, edge labels, lane titles) are read from the page tokens at load time, so those tokens stay plain hex.
 - Avoid rigid, generic templates. Make the report serve the reasoning object.
 - Put the answer before the graph so users know what they are looking at.
 - Use a small explanation view for the main story when the full graph is dense; use the full audit graph as an inspectable canvas.

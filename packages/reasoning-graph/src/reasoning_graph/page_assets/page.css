@@ -1,20 +1,23 @@
 :root {
+  /* Gruvbox light. Colours Mermaid reads (ink, muted, canvas-bg) must stay plain hex. */
   color-scheme: light;
-  --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --panel: #ffffff; --soft: #f8fafc; --page: #f1f5f9; --brand: #2563eb; --link: #1d4ed8;
-  --accent-soft: #eff6ff; --selected-bg: #dbeafe; --selected-line: #93c5fd; --selected-ink: #1e3a8a;
-  --chip-bg: #f1f5f9; --chip-ink: #334155; --float-bg: rgba(255,255,255,.96);
-  --quote-bg: #f0fdff; --quote-ink: #164e63; --warn-bg: #fffbeb;
-  --good-bg: #dcfce7; --good-ink: #166534; --bad-bg: #fee2e2; --bad-ink: #991b1b;
-  --canvas-bg: #fbfcfe; --canvas-dot: #a9b8cc; --canvas-dot-strong: #8296b1; --edge-hot-ink: #9a3412;
-  /* Nodes and id chips keep their pastel fills in both themes, so their text stays dark. */
-  --node-ink: #0f172a;
+  --ink: #3c3836; --muted: #7c6f64; --line: #e5d6ae; --panel: #f9f5d7; --soft: #fbf1c7; --page: #f2e5bc; --brand: #076678; --link: #076678;
+  --accent-soft: rgba(7,102,120,.07); --selected-bg: rgba(7,102,120,.13); --selected-line: #83a598; --selected-ink: #076678;
+  --chip-bg: #ebdbb2; --chip-ink: #504945; --float-bg: rgba(249,245,215,.96);
+  --quote-bg: rgba(66,123,88,.08); --quote-ink: #427b58; --quote-line: #689d6a; --warn-bg: rgba(181,118,20,.1); --warn-line: #d79921;
+  --good-bg: rgba(121,116,14,.14); --good-ink: #79740e; --bad-bg: rgba(157,0,6,.09); --bad-ink: #9d0006;
+  --canvas-bg: #fbf1c7; --canvas-dot: #d5c4a1; --canvas-dot-strong: #bdae93;
+  /* Focus marks what the reader chose; hot marks what the pointer touches. */
+  --focus: #076678; --hot: #af3a03; --shadow: #3c3836;
+  /* Nodes and id chips keep their light fills in both themes, so their text stays dark. */
+  --node-ink: #3c3836;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; color: var(--ink); background: var(--page); }
 main { max-width: 1320px; margin: 0 auto; padding: 2rem; }
 h1, h2, h3 { line-height: 1.15; }
-.hero, section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .06); scroll-margin-top: 5rem; }
+.hero, section { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow) 6%, transparent); scroll-margin-top: 5rem; }
 .hero { padding: 1.4rem 1.6rem; margin-bottom: 1rem; }
 .hero h1 { margin: .15rem 0 .9rem; font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2rem); text-wrap: balance; }
 .eyebrow { margin: 0; color: var(--muted); font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
@@ -23,13 +26,13 @@ h1, h2, h3 { line-height: 1.15; }
 .answer { margin: 0 0 .6rem; padding: .85rem 1rem; background: var(--accent-soft); border-left: 4px solid var(--brand); border-radius: 12px; font-size: 1.1rem; }
 /* The status is a badge: its colour says whether the claimed answer holds. */
 .status { display: inline-flex; align-items: center; gap: .5rem; margin: 0; padding: .25rem .75rem .25rem .6rem; border-radius: 999px; font-size: .9rem; background: var(--chip-bg); color: var(--chip-ink); }
-.status::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: #94a3b8; }
+.status::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: var(--muted); }
 .status-label { font-weight: 600; }
 .status[data-outcome="pass"] { background: var(--good-bg); color: var(--good-ink); }
-.status[data-outcome="pass"]::before { background: #16a34a; }
+.status[data-outcome="pass"]::before { background: var(--good-ink); }
 .status[data-outcome="fail"] { background: var(--bad-bg); color: var(--bad-ink); }
-.status[data-outcome="fail"]::before { background: #dc2626; }
-.answer-rank-note { margin: .6rem 0 0; padding: 0.75rem 1rem; background: var(--warn-bg); border-left: 4px solid #d97706; border-radius: 12px; }
+.status[data-outcome="fail"]::before { background: var(--bad-ink); }
+.answer-rank-note { margin: .6rem 0 0; padding: 0.75rem 1rem; background: var(--warn-bg); border-left: 4px solid var(--warn-line); border-radius: 12px; }
 section { padding: 1.2rem; margin: 1rem 0; }
 .empty, .hint, .source { color: var(--muted); }
 a { color: var(--link); }
@@ -42,7 +45,7 @@ a { color: var(--link); }
 .graph-controls button { white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .08s ease; }
 /* A press must read even when the action has no immediate visual result. The ring
    and sink live on :active, so they never linger after the click. */
-.graph-controls button:active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); box-shadow: 0 0 0 3px rgba(147, 197, 253, .38), inset 0 1px 2px rgba(15, 23, 42, .12); transform: translateY(1px); }
+.graph-controls button:active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--selected-line) 38%, transparent), inset 0 1px 2px color-mix(in srgb, var(--shadow) 12%, transparent); transform: translateY(1px); }
 button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 999px; padding: .4rem .8rem; cursor: pointer; }
 .focus-control { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); }
 .focus-control span { white-space: nowrap; }
@@ -55,12 +58,12 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 /* Hover invites the click that captures the wheel: the sheet wakes up and the
    border tints, while the solid focus ring stays reserved for the captured state
    so the two are never confused. */
-.graph-canvas:hover:not(:focus-within) { border-color: #bfdbfe; background-image: radial-gradient(circle, var(--canvas-dot-strong) 1.4px, transparent 1.4px); }
+.graph-canvas:hover:not(:focus-within) { border-color: var(--selected-line); background-image: radial-gradient(circle, var(--canvas-dot-strong) 1.4px, transparent 1.4px); }
 /* Focus is functional here: the wheel only zooms while focus is inside the canvas
    (the canvas itself, or a node link clicked in it; hence :focus-within), so the
    ring tells the user which surface will consume the scroll. The negative
    offset registers the ring with the canvas border instead of ringing around it. */
-.graph-canvas:focus-within { outline: 2px solid #60a5fa; outline-offset: -2px; border-color: #60a5fa; }
+.graph-canvas:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; border-color: var(--focus); }
 .graph-canvas.canvas-mode { cursor: grab; touch-action: none; }
 .graph-canvas svg, .graph-canvas svg * { user-select: none; -webkit-user-select: none; }
 .graph-canvas.panning { cursor: grabbing; }
@@ -83,18 +86,18 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-canvas svg .edgePath.edge-hover path:not(.edge-hitbox),
 .graph-canvas svg .edge-path.edge-hover path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-hover:not(.edge-hitbox),
-.graph-canvas svg path.edge-hover:not(.edge-hitbox) { stroke: #fb923c !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px rgba(249,115,22,.55)); }
+.graph-canvas svg path.edge-hover:not(.edge-hitbox) { stroke: var(--hot) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hot) 55%, transparent)); }
 .graph-canvas svg .edgePath.edge-pinned path:not(.edge-hitbox),
 .graph-canvas svg .edge-path.edge-pinned path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-pinned:not(.edge-hitbox),
-.graph-canvas svg path.edge-pinned:not(.edge-hitbox) { stroke: #ea580c !important; stroke-width: 5px !important; filter: drop-shadow(0 0 7px rgba(234,88,12,.7)); }
+.graph-canvas svg path.edge-pinned:not(.edge-hitbox) { stroke: var(--hot) !important; stroke-width: 5px !important; filter: drop-shadow(0 0 7px color-mix(in srgb, var(--hot) 70%, transparent)); }
 .graph-canvas svg .node.node-connected rect,
 .graph-canvas svg .node.node-connected circle,
 .graph-canvas svg .node.node-connected ellipse,
 .graph-canvas svg .node.node-connected polygon,
-.graph-canvas svg .node.node-connected path { stroke: #f97316 !important; stroke-width: 3px !important; filter: drop-shadow(0 0 3px rgba(249,115,22,.35)); }
-.graph-canvas svg .edgeLabel.edge-connected { color: var(--edge-hot-ink) !important; font-weight: 600; }
-.graph-canvas.focus-active { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96,165,250,.25); }
+.graph-canvas svg .node.node-connected path { stroke: var(--hot) !important; stroke-width: 3px !important; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--hot) 35%, transparent)); }
+.graph-canvas svg .edgeLabel.edge-connected { color: var(--hot) !important; font-weight: 600; }
+.graph-canvas.focus-active { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
 .graph-canvas.focus-active svg .node:not(.node-focused) { opacity: .36 !important; }
 .graph-canvas.focus-active svg .edgePath:not(.edge-focused),
 .graph-canvas.focus-active svg .edge-path:not(.edge-focused),
@@ -113,30 +116,30 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-canvas svg .node.node-focused circle,
 .graph-canvas svg .node.node-focused ellipse,
 .graph-canvas svg .node.node-focused polygon,
-.graph-canvas svg .node.node-focused path { stroke: #2563eb !important; stroke-width: 4px !important; filter: drop-shadow(0 0 6px rgba(37,99,235,.45)); }
+.graph-canvas svg .node.node-focused path { stroke: var(--focus) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--focus) 45%, transparent)); }
 .graph-canvas svg .edgePath.edge-focused path:not(.edge-hitbox),
 .graph-canvas svg .edge-path.edge-focused path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-focused:not(.edge-hitbox),
-.graph-canvas svg path.edge-focused:not(.edge-hitbox) { stroke: #2563eb !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px rgba(37,99,235,.5)); opacity: 1 !important; }
+.graph-canvas svg path.edge-focused:not(.edge-hitbox) { stroke: var(--focus) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--focus) 50%, transparent)); opacity: 1 !important; }
 .detail-filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0 1rem; }
 .detail-filters button.active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: .75rem; }
 .detail-card { min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: .75rem; background: var(--soft); scroll-margin-top: 5rem; overflow-wrap: anywhere; word-break: break-word; }
 .detail-card p, .detail-card header, .detail-card .source, .detail-card .extras { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 .detail-card[hidden] { display: none; }
-.detail-card:target { outline: 3px solid #60a5fa; background: var(--accent-soft); }
+.detail-card:target { outline: 3px solid var(--focus); background: var(--accent-soft); }
 .detail-card header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }
 .pill { border-radius: 999px; padding: .15rem .5rem; background: var(--line); color: var(--chip-ink); font-size: .78rem; font-weight: 400; }
 .extras { display: flex; flex-direction: column; gap: .15rem; }
 .extras span { color: var(--muted); }
 .floating-nav { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; font-size: .86rem; }
-.nav-toggle { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .95rem; font-size: .9rem; font-weight: 600; background: var(--float-bg); box-shadow: 0 10px 28px rgba(15,23,42,.18); }
-.floating-nav .nav-menu { position: absolute; right: 0; bottom: calc(100% + .45rem); display: none; flex-direction: column; gap: .35rem; min-width: 9rem; padding: .5rem; background: var(--float-bg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 28px rgba(15,23,42,.16); }
+.nav-toggle { display: inline-flex; align-items: center; gap: .4rem; padding: .5rem .95rem; font-size: .9rem; font-weight: 600; background: var(--float-bg); box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 18%, transparent); }
+.floating-nav .nav-menu { position: absolute; right: 0; bottom: calc(100% + .45rem); display: none; flex-direction: column; gap: .35rem; min-width: 9rem; padding: .5rem; background: var(--float-bg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 16%, transparent); }
 .floating-nav.open .nav-menu { display: flex; }
 .floating-nav a { text-decoration: none; padding: .35rem .55rem; border-radius: 999px; background: var(--accent-soft); white-space: nowrap; }
-.node-modal { background: var(--panel); color: var(--ink); width: min(720px, calc(100vw - 2rem)); max-height: min(82vh, 760px); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; overscroll-behavior: contain; }
-.node-modal::backdrop { background: rgba(15,23,42,.48); backdrop-filter: blur(2px); }
+.node-modal { background: var(--panel); color: var(--ink); width: min(720px, calc(100vw - 2rem)); max-height: min(82vh, 760px); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 30px 80px color-mix(in srgb, var(--shadow) 35%, transparent); overflow: hidden; overscroll-behavior: contain; }
+.node-modal::backdrop { background: color-mix(in srgb, var(--shadow) 48%, transparent); backdrop-filter: blur(2px); }
 .modal-shell { padding: 1rem; max-height: calc(min(82vh, 760px) - 64px); overflow: auto; overscroll-behavior: contain; }
 .modal-bar { display: flex; justify-content: flex-start; align-items: center; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding: .75rem 1rem; background: var(--soft); }
 .modal-title { display: flex; align-items: center; gap: .55rem; margin: 0; font-size: 1rem; }
@@ -150,7 +153,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .node-modal .detail-card .edge-block li:last-child { margin-bottom: 0; }
 .detail-grid .edge-block { display: none; }
 .detail-grid .detail-card { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
-.detail-grid .detail-card:hover, .detail-grid .detail-card:focus-visible { border-color: var(--selected-line); box-shadow: 0 0 0 2px rgba(147, 197, 253, .35); outline: none; }
+.detail-grid .detail-card:hover, .detail-grid .detail-card:focus-visible { border-color: var(--selected-line); box-shadow: 0 0 0 2px color-mix(in srgb, var(--selected-line) 35%, transparent); outline: none; }
 .modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
 .modal-tabs button.active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); }
 .modal-tabpanel[hidden] { display: none; }
@@ -174,21 +177,22 @@ ol.case-tree { list-style: decimal; padding-left: 1.5rem; }
 .case-id:hover { box-shadow: 0 0 0 2px var(--selected-line); }
 .case-score, .case-belief { font-size: .75rem; color: var(--chip-ink); background: var(--chip-bg); border-radius: 999px; padding: 0 .45rem; white-space: nowrap; }
 .case-note, .case-ref, .case-outcome { color: var(--muted); }
-.case-quote { margin: .25rem 0; padding: .3rem .6rem; border-left: 3px solid #0891b2; border-radius: 0 8px 8px 0; background: var(--quote-bg); color: var(--quote-ink); font-style: italic; }
+.case-quote { margin: .25rem 0; padding: .3rem .6rem; border-left: 3px solid var(--quote-line); border-radius: 0 8px 8px 0; background: var(--quote-bg); color: var(--quote-ink); font-style: italic; }
 .case-quote cite { margin-left: .3rem; color: var(--muted); font-size: .8rem; font-style: normal; }
 .case-outcome { margin: .2rem 0 0; font-size: .9rem; }
 .node-details > summary { cursor: pointer; }
 .node-details > summary h2 { display: inline; margin: 0; }
-/* Dark theme: the same tokens, redefined. Graph nodes keep their pastel fills, which
+/* Dark theme: the same tokens, redefined. Graph nodes keep their light fills, which
    read on a dark canvas; Mermaid's lanes are translucent, so they need nothing here. */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --ink: #e2e8f0; --muted: #94a3b8; --line: #2a3650; --panel: #131c2e; --soft: #1a2438; --page: #0b1220; --brand: #60a5fa; --link: #93c5fd;
-    --accent-soft: rgba(59,130,246,.14); --selected-bg: rgba(59,130,246,.28); --selected-line: #3b82f6; --selected-ink: #dbeafe;
-    --chip-bg: #1f2a40; --chip-ink: #cbd5e1; --float-bg: rgba(19,28,46,.96);
-    --quote-bg: rgba(8,145,178,.12); --quote-ink: #a5f3fc; --warn-bg: rgba(217,119,6,.14);
-    --good-bg: rgba(22,163,74,.18); --good-ink: #86efac; --bad-bg: rgba(220,38,38,.18); --bad-ink: #fca5a5;
-    --canvas-bg: #0e1626; --canvas-dot: #2a3a55; --canvas-dot-strong: #3d5275; --edge-hot-ink: #fdba74;
+    --ink: #ebdbb2; --muted: #a89984; --line: #45403d; --panel: #282828; --soft: #32302f; --page: #1d2021; --brand: #83a598; --link: #83a598;
+    --accent-soft: rgba(131,165,152,.1); --selected-bg: rgba(131,165,152,.22); --selected-line: #83a598; --selected-ink: #fbf1c7;
+    --chip-bg: #3c3836; --chip-ink: #d5c4a1; --float-bg: rgba(40,40,40,.96);
+    --quote-bg: rgba(142,192,124,.09); --quote-ink: #8ec07c; --quote-line: #8ec07c; --warn-bg: rgba(250,189,47,.1); --warn-line: #fabd2f;
+    --good-bg: rgba(184,187,38,.14); --good-ink: #b8bb26; --bad-bg: rgba(251,73,52,.14); --bad-ink: #fb4934;
+    --canvas-bg: #1d2021; --canvas-dot: #3c3836; --canvas-dot-strong: #504945;
+    --focus: #83a598; --hot: #fe8019; --shadow: #000000;
   }
 }

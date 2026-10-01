@@ -376,9 +376,23 @@ def html_document(
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
   // The graph takes the page's typeface, read from the stylesheet so it is set in one place.
   const fontFamily = getComputedStyle(document.body).fontFamily;
-  // Edges, edge labels and lane titles follow the page theme; node colours come from the source.
-  const theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
-  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", theme, fontFamily, themeVariables: {{ fontFamily }}, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
+  // Edges, edge labels and lane titles take the page's palette, light or dark; node colours
+  // come from the source. Mermaid derives shades from these, so they must be plain hex.
+  const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const themeVariables = {{
+    fontFamily,
+    darkMode: matchMedia("(prefers-color-scheme: dark)").matches,
+    background: token("--canvas-bg"),
+    lineColor: token("--muted"),
+    textColor: token("--ink"),
+    titleColor: token("--ink"),
+    edgeLabelBackground: token("--canvas-bg"),
+    primaryColor: token("--canvas-bg"),
+    // Mermaid also paints edge labels with this; nodes set their own text colour.
+    primaryTextColor: token("--ink"),
+    primaryBorderColor: token("--muted"),
+  }};
+  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", theme: "base", fontFamily, themeVariables, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
   mermaid.run({{ querySelector: ".mermaid" }}).then(setupGraphs).catch((error) => {{
     console.error("Mermaid render failed", error);
     setupGraphs();
