@@ -162,6 +162,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wra
 .modal-bar .modal-tabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0; }
 .modal-tabs button.active { background: var(--selected-bg); border-color: var(--selected-line); color: var(--selected-ink); }
 .modal-tabpanel[hidden] { display: none; }
+/* Both tabs share one grid cell and the hidden one keeps its space, so the popup holds the
+   taller tab's size: a centred dialog that shrank would move its tabs from under the pointer. */
+.modal-shell:has(> [role="tabpanel"]) { display: grid; }
+.modal-shell > [role="tabpanel"] { grid-area: 1 / 1; }
+.modal-shell > [role="tabpanel"][hidden] { display: block; visibility: hidden; }
 @media (max-width: 720px) { main { padding: 1rem; } .graph-canvas-audit { min-height: 240px; } .floating-nav { right: .75rem; bottom: .75rem; } }
 .case-section h2 { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; margin: .1rem 0 .4rem; }
 .case-answer { margin: 0 0 .5rem; }
