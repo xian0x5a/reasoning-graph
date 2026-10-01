@@ -179,7 +179,7 @@ def test_html_leaves_a_top_ranked_or_unnamed_answer_unmarked(answer):
 def test_html_header_names_the_answer_by_id_and_text(render_mode):
     state = ranked_state("CS2")
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
-    assert '<p class="answer"><strong>Answer:</strong> CS2, The butler</p>' in document
+    assert '<p class="answer"><strong>Answer</strong> <code>CS2</code> The butler</p>' in document
     assert "Candidate ranking" not in document
     assert "<th>Rank</th>" not in document
 
@@ -188,7 +188,7 @@ def test_html_header_has_no_answer_line_while_none_is_claimed():
     state = ranked_state("")
     document = html_document(state, to_mermaid(state))
     assert '<p class="answer">' not in document
-    assert '<span class="status-label">Status</span> no answer claimed' in document
+    assert 'data-outcome="open">no answer claimed</p>' in document
 
 
 @pytest.mark.parametrize("renderer", RENDERERS)
@@ -241,8 +241,8 @@ def test_answer_label_names_the_goal_when_there_are_several(renderer):
     assert labels["CS1"].split("\n")[0] == "CS1 · ANSWER to G1"
     assert labels["CS3"].split("\n")[0] == "CS3 · ANSWER to G2"
     document = html_document(state, to_mermaid(state))
-    assert '<p class="answer"><strong>Answer to G1:</strong> CS1, The gardener</p>' in document
-    assert '<p class="answer"><strong>Answer to G2:</strong> CS3, The shears</p>' in document
+    assert '<p class="answer"><strong>Answer to G1</strong> <code>CS1</code> The gardener</p>' in document
+    assert '<p class="answer"><strong>Answer to G2</strong> <code>CS3</code> The shears</p>' in document
 
 
 def test_focus_option_and_detail_card_say_which_candidate_is_the_answer():

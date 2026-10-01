@@ -169,10 +169,12 @@ class AuditStatusTests(AuditCase):
 
 
 class ViewShowsTheStatusTests(AuditCase):
-    """The reader sees the status `audit` prints, computed when the view is rendered."""
+    """The reader sees the result `audit` prints, computed when the view is rendered.
+
+    The header already names the answer, so the badge gives only whether it holds."""
 
     def view_status(self, view: Path) -> str:
-        return html.unescape(re.search(r'<p class="status"[^>]*><span class="status-label">Status</span> (.*?)</p>', view.read_text(encoding="utf-8")).group(1))
+        return html.unescape(re.search(r'<p class="status"[^>]*>(.*?)</p>', view.read_text(encoding="utf-8")).group(1))
 
     def test_live_view_follows_the_claim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -181,10 +183,10 @@ class ViewShowsTheStatusTests(AuditCase):
             self.assertEqual(self.view_status(view), "no answer claimed")
 
             self.ok(self.record(state_path, {"answer": "CS1"}))
-            self.assertEqual(self.view_status(view), "answer CS1: checks pass")
+            self.assertEqual(self.view_status(view), "checks pass")
 
             self.ok(self.record(state_path, {"nodes": [{"id": "T1", "type": "test", "text": "Ask the cook"}]}))
-            self.assertEqual(self.view_status(view), "answer CS1: 1 check fails")
+            self.assertEqual(self.view_status(view), "1 check fails")
 
     def test_html_command_shows_the_status_audit_prints(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -196,7 +198,7 @@ class ViewShowsTheStatusTests(AuditCase):
 
             audit = run_cli("audit", str(state_path))
             self.assertEqual(self.status(audit), "answer CS2: 2 checks fail")
-            self.assertEqual(self.view_status(view), self.status(audit))
+            self.assertEqual(self.status(audit), f"answer CS2: {self.view_status(view)}")
 
 
 class AnswerIsSetByThePatchTests(AuditCase):

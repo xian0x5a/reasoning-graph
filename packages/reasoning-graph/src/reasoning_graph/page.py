@@ -297,11 +297,23 @@ def page_heading(state: dict[str, Any]) -> tuple[str, str]:
     return title, f"<h1>{html.escape(title)}</h1>{goal_list}"
 
 
-def status_badge(state: dict[str, Any], quote_errors: list[str] | None) -> str:
+def status_badge(state: dict[str, Any], quote_errors: list[str] | None, answer_shown: bool) -> str:
+    """Whether the claimed answer holds. It names the answer only when no answer line does,
+    as for a claim that names no candidate in the graph."""
     # Computed here, not read from the state, so the reader never sees a stale status.
     report = audit_state(state, quote_errors)
     outcome = "fail" if not report.ok else "pass" if claimed_answer(state) else "open"
-    return f'<p class="status" data-outcome="{outcome}"><span class="status-label">Status</span> {html.escape(report.status)}</p>'
+    text = report.outcome if answer_shown else report.status
+    return f'<p class="status" data-outcome="{outcome}">{html.escape(text)}</p>'
+
+
+def verdict(state: dict[str, Any], quote_errors: list[str] | None) -> str:
+    """The answer and whether it holds, side by side."""
+    answers = answer_lines(state)
+    badge = status_badge(state, quote_errors, answer_shown=bool(answers))
+    if not answers:
+        return badge
+    return f'<div class="verdict"><div class="answers">{answers}</div>{badge}</div>'
 
 
 def answer_lines(state: dict[str, Any]) -> str:
@@ -313,9 +325,9 @@ def answer_lines(state: dict[str, Any]) -> str:
     for goal_id, answer_id in sorted(answers.items()):
         if answer_id is None:
             continue
-        lead = f"Answer to {goal_id}:" if len(answers) > 1 else "Answer:"
+        lead = f"Answer to {goal_id}" if len(answers) > 1 else "Answer"
         text = str(nodes[answer_id].get("text") or "")
-        lines.append(f'<p class="answer"><strong>{html.escape(lead)}</strong> {html.escape(answer_id)}, {html.escape(text)}</p>')
+        lines.append(f'<p class="answer"><strong>{html.escape(lead)}</strong> <code>{html.escape(answer_id)}</code> {html.escape(text)}</p>')
     return "".join(lines)
 
 
@@ -421,8 +433,7 @@ def html_document(
 <main>
   <header class="hero" id="top">
     {heading_html}
-    {answer_lines(state)}
-    {status_badge(state, quote_errors)}
+    {verdict(state, quote_errors)}
     {answer_rank_notes(state)}
   </header>
 

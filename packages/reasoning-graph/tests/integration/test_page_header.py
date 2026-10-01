@@ -84,3 +84,22 @@ def test_the_status_badge_says_whether_the_answer_holds() -> None:
     assert outcome(STATE) == "pass"
     assert outcome(unanswered) == "open"
     assert outcome(failing) == "fail"
+
+
+def test_the_badge_says_only_whether_the_answer_holds_when_the_answer_is_shown() -> None:
+    def verdict(state: dict) -> str:
+        match = re.search(r'<div class="verdict">.*?<p class="status"[^>]*>(.*?)</p>\s*</div>', header(html_document(state, to_mermaid(state))), re.DOTALL)
+        assert match, "the answer and its status are not on one line"
+        return text_of(match[1])
+
+    def badge(state: dict) -> str:
+        match = re.search(r'<p class="status"[^>]*>(.*?)</p>', header(html_document(state, to_mermaid(state))))
+        assert match, "the header has no status badge"
+        return text_of(match[1])
+
+    unresolved = copy.deepcopy(STATE)
+    unresolved["summary"]["answer"] = "CS9"
+
+    assert verdict(STATE) == "checks pass"
+    # No answer line names a candidate that is not in the graph, so the badge must.
+    assert badge(unresolved).startswith("answer CS9:")
