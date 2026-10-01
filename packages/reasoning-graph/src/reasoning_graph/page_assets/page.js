@@ -481,10 +481,9 @@ function setupPanZoom(canvas) {
     if (!canvasMode) endDrag();
   }
   if (modeToggle) modeToggle.addEventListener("click", () => setCanvasMode(!canvasMode));
-  // Default on for mouse/trackpad only: wheel zoom still waits for a click on the
-  // canvas, so the page is never hijacked. On touch screens canvas mode sets
-  // touch-action:none and would trap page swipes over the tall canvas.
-  setCanvasMode(window.matchMedia("(pointer: fine)").matches);
+  // Off by default: a plain drag over the graph selects text and scrolls as on the rest
+  // of the page, and on touch screens canvas mode's touch-action:none would trap swipes.
+  setCanvasMode(false);
   // Esc releases the captured wheel so the page scrolls again under the pointer.
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && canvas.contains(document.activeElement)) document.activeElement.blur();
