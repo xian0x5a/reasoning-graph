@@ -214,27 +214,54 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {format_belief(probability_from_cost(effective_truth_cost))}"
 
 
-def node_local_truth_cost(node: dict[str, Any] | None, premise_backed: bool = False) -> float:
-    """Cost of a claim's own score, or of its type default when nothing else gives it a belief.
+def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> float | None:
+    """Probability a claim's own score sets, or its type default when nothing else gives it a belief.
 
-    A premise-backed claim without a score adds no factor: a default on every derived claim
-    would halve belief at each step of a chain. Goals, constraints, and tests cost nothing.
+    None when no prior applies. A premise-backed claim without a score has none: a default on
+    every derived claim would halve belief at each step of a chain. Goals, constraints, and
+    tests have none either.
     """
 
     if not node:
-        return 0.0
+        return None
     # Direct cost consumers do not necessarily run validation first; reject removed
     # inputs rather than silently computing without them.
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
             raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
     if node.get("type") not in BELIEF_NODE_TYPES:
-        return 0.0
+        return None
     if "score" in node:
-        return probability_cost(CLAIM_SCORE_PROBABILITY[require_score(node["score"])])
+        return CLAIM_SCORE_PROBABILITY[require_score(node["score"])]
     if premise_backed:
-        return 0.0
-    return probability_cost(CLAIM_SCORE_PROBABILITY[DEFAULT_CLAIM_SCORE[str(node["type"])]])
+        return None
+    return CLAIM_SCORE_PROBABILITY[DEFAULT_CLAIM_SCORE[str(node["type"])]]
+
+
+def node_local_truth_cost(node: dict[str, Any] | None, premise_backed: bool = False) -> float:
+    """Cost of a claim's prior; nothing when no prior applies."""
+    prior = node_prior(node, premise_backed)
+    return 0.0 if prior is None else probability_cost(prior)
+
+
+def node_priors(state: dict[str, Any]) -> dict[str, float | None]:
+    """Each node's prior, as the belief computation applies it."""
+    inputs = truth_inputs(state)
+    return {node_id: node_prior(node, node_id in inputs.premise_backed_nodes) for node_id, node in inputs.nodes.items()}
+
+
+def edge_weight_label(relation: str, score: int | None) -> str:
+    """How far an edge or group moves its target, for a reader: the number the score stands for.
+
+    Evidence multiplies or divides the odds (`×2`, `÷5`), the default included. A premise
+    group counts as one joint probability. An ungrouped premise has no weight of its own.
+    """
+    if relation in EVIDENCE_EDGE_TYPES:
+        ratio = EVIDENCE_SCORE_RATIO[require_score(DEFAULT_EVIDENCE_SCORE if score is None else score)]
+        return f"{'÷' if relation == 'contradicts' else '×'}{ratio:g}"
+    if score is None:
+        return ""
+    return f"joint {format_belief(CLAIM_SCORE_PROBABILITY[require_score(score)])}"
 
 
 def assert_acyclic_premise_dependencies(premise_sources: dict[str, list[str]]) -> None:

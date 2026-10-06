@@ -188,7 +188,7 @@ ol.case-tree { list-style: decimal; padding-left: 1.5rem; }
 /* Ids use the text face: in monospace, the O of O2 reads as a zero. */
 .case-id { display: inline-block; padding: 0 .4rem; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; font-weight: 700; color: var(--node-ink); text-decoration: none; }
 .case-id:hover { box-shadow: 0 0 0 2px var(--selected-line); }
-.case-score, .case-belief { font-size: .75rem; color: var(--chip-ink); background: var(--chip-bg); border-radius: 999px; padding: 0 .45rem; white-space: nowrap; }
+.case-weight, .case-belief { font-size: .75rem; color: var(--chip-ink); background: var(--chip-bg); border-radius: 999px; padding: 0 .45rem; white-space: nowrap; }
 .case-note, .case-ref, .case-outcome { color: var(--muted); }
 .case-quote { margin: .25rem 0; padding: .3rem .6rem; border-left: 3px solid var(--quote-line); border-radius: 0 8px 8px 0; background: var(--quote-bg); color: var(--quote-ink); font-style: italic; }
 .case-quote cite { margin-left: .3rem; color: var(--muted); font-size: .8rem; font-style: normal; }

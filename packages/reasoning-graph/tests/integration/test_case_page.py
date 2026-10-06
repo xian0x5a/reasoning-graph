@@ -86,3 +86,28 @@ def test_no_case_is_shown_while_no_answer_is_claimed() -> None:
     state = {**STATE, "summary": {}}
 
     assert 'id="case-section"' not in html_document(state, to_mermaid(state))
+
+
+def node_card(document: str, node_id: str) -> str:
+    match = re.search(rf'<article class="detail-card[^"]*"[^>]* id="details-{node_id}".*?</article>', document, re.DOTALL)
+    assert match, f"no card for {node_id}"
+    return match[0]
+
+
+def test_a_card_shows_the_prior_a_claim_starts_from_even_by_default() -> None:
+    document = html_document(STATE, to_mermaid(STATE))
+
+    # H1 has no score: it starts from the hypothesis default, 50%.
+    assert "Prior: 50%" in node_card(document, "H1")
+    # CS1 takes its belief from its premise H1, so no prior of its own applies.
+    assert "Prior:" not in node_card(document, "CS1")
+
+
+def test_the_case_shows_how_far_each_piece_of_evidence_moves_its_claim() -> None:
+    state = {**STATE, "edges": [*STATE["edges"], {"from": "O2", "to": "H1", "type": "supports"}]}
+    case = case_section(html_document(state, to_mermaid(state)))
+
+    # Score 4 multiplies the odds by 3, the unscored default by 2; contradicting score 5 divides them by 5.
+    # The premise H1 → CS1 is not evidence and carries no weight.
+    assert sorted(re.findall(r'<span class="case-weight">([^<]+)</span>', case)) == ["×2", "×3", "÷5"]
+    assert "score" not in case

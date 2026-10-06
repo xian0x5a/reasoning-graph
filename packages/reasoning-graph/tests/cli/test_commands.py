@@ -629,7 +629,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("F1", mermaid.stdout)
             self.assertIn("grouped supports", mermaid.stdout)
             self.assertIn("supports factor", mermaid.stdout)
-            self.assertIn("supports group, score 4", mermaid.stdout)
+            self.assertIn("supports group, ×3", mermaid.stdout)
 
             html = self.run_cli("html", str(state_path), "--offline", "-o", str(html_path))
             self.assertEqual(html.returncode, 0, html.stderr)

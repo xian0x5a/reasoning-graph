@@ -10,7 +10,7 @@ import html
 from typing import Any
 
 from .case import Case, CaseLink, CaseNode, CaseRival, CaseTest, WeakSpot, answer_cases
-from .costs import format_belief
+from .costs import edge_weight_label, format_belief
 from .graph_view import NODE_COLORS
 from .identities import RenderIdentityMap
 from .models import node_render_class
@@ -57,11 +57,10 @@ class _CaseMarkup:
     def link_line(self, link: CaseLink, show_target: bool = False) -> str:
         # Against-it lines name the node they contradict; why-tree lines sit under it already.
         target = f"{self.node_link(link.target)} ← " if show_target else ""
-        weight = ""
+        weight_label = edge_weight_label(link.relation, link.score)
         if link.group:
-            weight = f' <span class="case-score">group {html.escape(link.group)} · score {link.score}</span>'
-        elif link.score is not None:
-            weight = f' <span class="case-score">score {link.score}</span>'
+            weight_label = f"group {link.group} · {weight_label}"
+        weight = f' <span class="case-weight">{html.escape(weight_label)}</span>' if weight_label else ""
         head = f'{target}{self.relation(link.relation)} {self.node_link(link.node.id)}{weight}'
         if link.reference:
             return f'<li class="case-line case-ref">{head} <span class="case-note">shown above</span></li>'

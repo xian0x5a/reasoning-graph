@@ -12,6 +12,7 @@ from .case_section import case_id_styles, case_section_html
 from .costs import (
     format_belief,
     node_effective_truth_costs,
+    node_priors,
     probability_from_cost,
 )
 from .identities import RenderIdentityMap, html_anchor, render_identity_map
@@ -42,6 +43,7 @@ def node_detail_cards(
 ) -> str:
     linked_sources = linked_sources or {}
     node_truth_costs = node_effective_truth_costs(state)
+    priors = node_priors(state)
     identities = identities or render_identity_map(state)
     labels = answer_labels(state)
     cards: list[str] = []
@@ -58,8 +60,8 @@ def node_detail_cards(
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
             extras.append(f"<span>Effective belief: {format_belief(probability_from_cost(node_truth_costs[raw_id]))}</span>")
-            if "score" in node:
-                extras.append(f"<span>Score: {html.escape(str(node['score']))}</span>")
+            if priors[raw_id] is not None:
+                extras.append(f"<span>Prior: {format_belief(priors[raw_id])}</span>")
         edge_notes = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):

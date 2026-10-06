@@ -66,7 +66,10 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertIn("belief 46%", source)
         self.assertIn("belief 46%", svg)
         self.assertIn("Effective belief: 46%", document)
-        self.assertIn("Score: 2", document)
+        # A claim's score is shown as the prior it sets: score 2 is 30%, score 3 is 50%.
+        self.assertIn("Prior: 30%", document)
+        self.assertIn("Prior: 50%", document)
+        self.assertNotIn("Score:", document)
 
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:
         state = {
@@ -174,7 +177,8 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertIn(f"LS-{identities.node('E1')} LE-{factor_id}", svg)
         self.assertIn(f"LS-{factor_id} LE-{identities.node('A1')}", svg)
         self.assertNotIn(f"LS-{identities.node('E1')} LE-{identities.node('A1')}", svg)
-        self.assertIn("supports group, score 4", svg)
+        # Score 4 on a supporting group multiplies the odds by 3.
+        self.assertIn("supports group, ×3", svg)
 
     def test_mermaid_preserves_declared_factor_and_input_order(self) -> None:
         state = {

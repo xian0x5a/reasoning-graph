@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Collection
 
-from .costs import resolve_edge_groups
+from .costs import edge_weight_label, resolve_edge_groups
 
 
 @dataclass(frozen=True)
@@ -59,4 +59,4 @@ def select_visual_factors(
 
 def compact_factor_label(factor: VisualFactor) -> str:
     """Return shared compact label for Mermaid and offline SVG factor nodes."""
-    return f"{factor.raw_id}\n{factor.relation} group, score {factor.record.get('score')}"
+    return f"{factor.raw_id}\n{factor.relation} group, {edge_weight_label(factor.relation, factor.record.get('score'))}"

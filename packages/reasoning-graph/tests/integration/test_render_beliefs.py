@@ -117,10 +117,10 @@ def test_details_separate_effective_belief_from_authored_inputs():
     cards = node_detail_cards(state)
     derived = detail_card(cards, "D1")
     assert "Effective belief: 77%" in derived
-    assert "Score: 5" in derived
+    assert "Prior: 90%" in derived
     candidate = detail_card(cards, "CS1")
     assert "Effective belief: 77%" in candidate
-    assert "Score" not in candidate
+    assert "Prior" not in candidate
     for node_id in ("G1", "C1", "T1"):
         assert "Effective belief" not in detail_card(cards, node_id)
     assert state == original
@@ -133,7 +133,7 @@ def test_html_report_keeps_labels_and_details_consistent(render_mode):
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert "belief 77%" in document
     assert "Effective belief: 77%" in detail_card(document, "CS1")
-    assert "Score: 5" in detail_card(document, "D1")
+    assert "Prior: 90%" in detail_card(document, "D1")
     assert state["nodes"] == original_nodes
 
 
