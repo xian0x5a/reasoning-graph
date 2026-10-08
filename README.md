@@ -4,6 +4,8 @@ An agent skill that makes the agent keep its reasoning as a graph: what it saw, 
 
 Use it for tasks where a linear chain of thought drifts: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty.
 
+![The live state.html view: the claimed answer passes its checks, backed by quoted evidence, with its rival and weak spots listed](docs/images/state-html-preview.png)
+
 ## Install
 
 ```bash
