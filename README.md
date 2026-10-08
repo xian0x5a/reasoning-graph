@@ -41,7 +41,7 @@ If the user rejects the answer, the agent records the rejection as evidence and 
 
 The page also draws the full graph. Focusing a candidate highlights the evidence it rests on:
 
-<img src="docs/images/state-html-canvas.png" width="600" alt="The audit graph with the answer CS1 focused: its supporting observations, test, and hypothesis are highlighted, and the rival branches fade">
+![The audit graph with the answer CS1 focused: its supporting observations, test, and hypothesis are highlighted, and the rival branches fade](docs/images/state-html-canvas.png)
 
 ## Usage
 
