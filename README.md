@@ -10,7 +10,7 @@ Use it for tasks where a linear chain of thought drifts: puzzles, root-cause ana
 npx skills add xian0x5a/reasoning-graph
 ```
 
-That is all the user installs. The agent runs the `reasoning-graph` helper CLI itself; it needs [uv](https://docs.astral.sh/uv/) on `PATH`.
+Requires [uv](https://docs.astral.sh/uv/) on `PATH`.
 
 ## How it works
 
