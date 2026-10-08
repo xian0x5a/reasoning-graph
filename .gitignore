@@ -18,3 +18,7 @@ build/
 .DS_Store
 *.swp
 *.swo
+
+# Third-party puzzle art we may not redistribute; download it from the source page
+# named in the scenario's problem.md.
+tests/scenarios/sea-shanty/assets/
