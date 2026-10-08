@@ -1,4 +1,4 @@
-"""Score the no-skill pilot by exact match and pick items for the A/B (issue #34).
+"""Score the no-skill pilot by exact match and pick items for the A/B.
 
     uv run tests/scenarios/exact-answer/score_pilot.py <items-root> <run-id>...
 

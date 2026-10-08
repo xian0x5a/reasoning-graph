@@ -1,7 +1,7 @@
-"""The state holds the graph and the claim, and no trace of how it got there (issue #38).
+"""The state holds the graph and the claim, and no trace of how it got there.
 
 The trace was verified to guard the stop certificate. Its only other reader was one line of the
-index, and in the resume loop of #37 it was 16% of the state file. The order of the work is the
+index, and in the resume loop it was 16% of the state file. The order of the work is the
 order of the lists."""
 
 import json

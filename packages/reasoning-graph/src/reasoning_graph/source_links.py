@@ -1,6 +1,6 @@
 """Link each source that names a local file, so a reader can open the context around a quote.
 
-The #39 reader eval found that a reader who cannot see the story doubts quotes it has no way
+The reader eval found that a reader who cannot see the story doubts quotes it has no way
 to check. The link is relative when the file sits under the page's directory, since the two
 then move together, and an absolute file URI otherwise, which survives moving the page alone.
 """

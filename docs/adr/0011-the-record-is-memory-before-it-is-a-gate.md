@@ -7,13 +7,13 @@ amends: 0006-graph-is-memory-and-stop-gate-not-a-work-queue.md
 
 ## Context
 
-ADR 0006 gave the graph three jobs: working memory, a gate on the final answer, and a live view. #34 and #36 tested the gate as an accuracy tool (Sonnet 5, 22 True Detective items):
+ADR 0006 gave the graph three jobs: working memory, a gate on the final answer, and a live view. The skill vs no-skill A/B and its follow-up runs tested the gate as an accuracy tool (Sonnet 5, 22 True Detective items):
 
 - Accuracy did not improve: 10 to 12 of 22 right, with or without the skill.
 - The skill cost 6.3 times a run without it. The review loop was the largest part at $0.20 per run.
 - A reviewer on the same model shared the agent's misreading of the sources.
 
-What the skill does reliably is keep a record. Issue #37 repositions it: a memory layer first, a presentation for a reader on top.
+What the skill does reliably is keep a record. This decision repositions it: a memory layer first, a presentation for a reader on top.
 
 ## Decision
 
@@ -29,5 +29,5 @@ The rest of ADR 0006 holds: the graph does not choose the agent's next step.
 ## Consequences
 
 - The final answer's trustworthiness rests on the mechanical checks and on a reader, not on a reviewer.
-- Whether the graph is a better memory than a plain notes file is measured by the resume loop under `tests/scenarios/exact-answer/`. The result is recorded on #37.
+- Whether the graph is a better memory than a plain notes file is measured by the resume loop under `tests/scenarios/exact-answer/`.
 - Open: subagents handing patch files to the main agent. Add it only if a measurement shows the main agent's writing is the bottleneck.

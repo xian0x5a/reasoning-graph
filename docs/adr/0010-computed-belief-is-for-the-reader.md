@@ -8,7 +8,7 @@ amends: 0008-one-patch-carries-every-graph-edit.md
 
 ## Context
 
-ADR 0007 stored the computed `belief` on every claim so the agent could read it back, and a `belief_threshold` gated the stop. In #34 and #36 this steered the agent the wrong way:
+ADR 0007 stored the computed `belief` on every claim so the agent could read it back, and a `belief_threshold` gated the stop. In the skill vs no-skill A/B and its follow-up runs this steered the agent the wrong way:
 
 - Belief did not track correctness (AUC 0.41 and 0.55), so a gate on it filtered nothing.
 - Agents tuned scores until the threshold passed: 0.64 tuning records per run.

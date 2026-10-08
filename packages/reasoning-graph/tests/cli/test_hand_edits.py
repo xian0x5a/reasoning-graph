@@ -1,7 +1,7 @@
 """A hand-edited state passes the checks a patch would before anything builds on it.
 
-Agents edited state.json with Python in 15 of 22 #34 runs, and a hand edit went unchecked.
-It is checked, not logged: the state keeps no trace (issue #38)."""
+Agents edited state.json with Python in 15 of 22 A/B runs, and a hand edit went unchecked.
+It is checked, not logged: the state keeps no trace."""
 
 import json
 import subprocess

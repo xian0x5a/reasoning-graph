@@ -1,4 +1,4 @@
-"""Count what the agents of a resume-loop arm did with their memory file (issue #37).
+"""Count what the agents of a resume-loop arm did with their memory file.
 
     uv run tests/scenarios/exact-answer/loop_usage.py <items-root> <run-id> <arm>...
 

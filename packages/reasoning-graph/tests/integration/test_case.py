@@ -1,4 +1,4 @@
-"""The case for the claimed answer: the argument a reader checks, taken from the graph alone (#39)."""
+"""The case for the claimed answer: the argument a reader checks, taken from the graph alone."""
 
 import sys
 from pathlib import Path

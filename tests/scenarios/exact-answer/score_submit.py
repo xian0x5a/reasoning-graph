@@ -1,4 +1,4 @@
-"""Grade one submit of the resume loop against an item's rubric (issue #37).
+"""Grade one submit of the resume loop against an item's rubric.
 
     uv run tests/scenarios/exact-answer/score_submit.py <item-dir> <answer.md> [--repeat 3] [--model <model-id>]
 

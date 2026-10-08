@@ -1,4 +1,4 @@
-"""Write the three views a reader checks an answer from, for the reader eval (issue #39).
+"""Write the three views a reader checks an answer from, for the reader eval.
 
     uv --project packages/reasoning-graph run python tests/scenarios/exact-answer/reader_views.py <item-dir>...
 

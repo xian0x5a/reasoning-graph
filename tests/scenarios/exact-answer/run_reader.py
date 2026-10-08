@@ -1,4 +1,4 @@
-"""The reader eval: a model checks an answer from one view of its reasoning (issue #39).
+"""The reader eval: a model checks an answer from one view of its reasoning.
 
     uv run tests/scenarios/exact-answer/run_reader.py trace <item-dir>... [--repeats 3]
     uv run tests/scenarios/exact-answer/run_reader.py catch <item-dir>... [--repeats 3]

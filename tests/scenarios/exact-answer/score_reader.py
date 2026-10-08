@@ -1,4 +1,4 @@
-"""Sum up the reader eval per view (issue #39).
+"""Sum up the reader eval per view.
 
     uv run tests/scenarios/exact-answer/score_reader.py <item-dir>... [--by-item]
 

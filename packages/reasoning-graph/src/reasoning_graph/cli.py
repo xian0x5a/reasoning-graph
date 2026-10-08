@@ -83,7 +83,7 @@ RECORD_PATCH_FIELDS = {
 def removed_patch_field_errors(patch: dict[str, Any]) -> list[str]:
     if "reason" not in patch:
         return []
-    # A sentence per record that only the index read, and only the last one (issue #38).
+    # A sentence per record that only the index read, and only the last one.
     return ["reason was removed: the state keeps no log; put what is worth keeping in a note on the node or edge it concerns"]
 
 

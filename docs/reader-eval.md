@@ -1,6 +1,6 @@
 # Reader eval
 
-Measures whether a record helps a reader check an answer (#39). The plan, with full tables and discoveries: `plans/done/reader-eval.md`.
+Measures whether a record helps a reader check an answer. The plan, with full tables and discoveries: `plans/done/reader-eval.md`.
 
 ## What it measures
 

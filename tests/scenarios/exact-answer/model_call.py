@@ -1,4 +1,4 @@
-"""One structured model call through the claude harness, for the rubric drafter, the scorer and the reader eval (issues #37, #39)."""
+"""One structured model call through the claude harness, for the rubric drafter, the scorer and the reader eval."""
 
 import json
 import subprocess

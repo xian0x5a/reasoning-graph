@@ -1,4 +1,4 @@
-"""Score the skill vs no-skill A/B on the items the pilot kept (issue #34).
+"""Score the skill vs no-skill A/B on the items the pilot kept.
 
     uv run tests/scenarios/exact-answer/score_ab.py <items-root> <run-id>
 

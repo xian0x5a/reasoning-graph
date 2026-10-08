@@ -1,4 +1,4 @@
-"""Candidate answer_kind and patch field contracts (#17, #16)."""
+"""Candidate answer_kind and patch field contracts."""
 
 import json
 import subprocess
@@ -51,7 +51,7 @@ class ContractAlignmentTests(unittest.TestCase):
             patch_path.write_text(json.dumps(patch), encoding="utf-8")
             return run_cli("record", str(state_path), "--patch", str(patch_path))
 
-    # --- #17 answer_kind ---
+    # --- answer_kind ---
 
     def test_candidate_without_answer_kind_is_rejected(self) -> None:
         state = base_state()
@@ -67,7 +67,7 @@ class ContractAlignmentTests(unittest.TestCase):
         self.assertEqual(patched.returncode, 1, patched.stdout)
         self.assertIn("answer_kind", patched.stderr)
 
-    # --- #16 patch fields ---
+    # --- patch fields ---
 
     def test_patch_rejects_unimplemented_or_ambiguous_fields(self) -> None:
         factor = {"id": "F1", "edges": ["A1-A2", "A2-CS1"], "score": 4, "note": "Shared source."}

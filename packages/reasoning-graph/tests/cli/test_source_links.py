@@ -1,5 +1,5 @@
 """A source that names a local file links to it from the page, so a reader can open the context
-around a quote (#39's reader eval: a reader who could not see the story raised more false alarms).
+around a quote (the reader eval: a reader who could not see the story raised more false alarms).
 
 The link is relative when the file sits under the page's directory, since the two then move
 together, and an absolute file URI otherwise."""

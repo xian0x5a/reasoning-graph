@@ -1,4 +1,4 @@
-"""Sample exact-answer benchmark items into problem packets (issue #34).
+"""Sample exact-answer benchmark items into problem packets.
 
     uv run tests/scenarios/exact-answer/build_items.py \
         [--true-detective <detective-puzzles.csv>] [--boardgame-qa <bbeh_boardgame_qa/task.json>] \
@@ -75,7 +75,7 @@ def true_detective_items(csv_path: Path) -> list[dict]:
                 answer_options="\n".join(f"- {option}" for option in options),
                 answer_slot=f"<one letter: {', '.join(letters)}>",
             ),
-            # The solution text is the source for the scorer rubric's key points and hints (issue #37).
+            # The solution text is the source for the scorer rubric's key points and hints.
             "gold": {"answer": option_letter(row["answer"]), "choices": letters,
                      "human_solve_rate": float(row["solve_rate"]), "solution": row["outcome"].strip()},
         })

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run one arm headless on exact-answer items, several at once (issue #34).
+# Run one arm headless on exact-answer items, several at once.
 #
 #   run.sh <harness> <model> <arm> <run-id> <item-dir>...
 #

@@ -1,4 +1,4 @@
-"""Draft the flaw the reader eval plants in each view of an item (issue #39).
+"""Draft the flaw the reader eval plants in each view of an item.
 
     uv run tests/scenarios/exact-answer/draft_plants.py <item-dir>... [--model <model-id>]
 

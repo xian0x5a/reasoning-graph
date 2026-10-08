@@ -1,7 +1,7 @@
 """The one read-only check: the graph, every quote, and the claimed answer.
 
 Nothing is stored about the outcome, so the status cannot go stale: `audit` and the rendered
-view compute it from the state they are given (issue #38).
+view compute it from the state they are given.
 """
 
 from __future__ import annotations

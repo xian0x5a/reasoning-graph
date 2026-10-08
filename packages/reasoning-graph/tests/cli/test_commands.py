@@ -273,8 +273,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
     def test_init_names_the_goal_it_created(self) -> None:
-        # All 12 duplicate-id failures of the #37 loop were a first patch adding G1 again:
-        # init created it and said nothing (issue #38).
+        # All 12 duplicate-id failures of the loop were a first patch adding G1 again:
+        # init created it and said nothing.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "state.json"
 

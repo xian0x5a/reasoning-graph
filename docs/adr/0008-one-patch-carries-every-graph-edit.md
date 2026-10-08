@@ -7,7 +7,7 @@ amends: 0007-state-stores-computed-belief.md
 
 ## Context
 
-In the #34 A/B (Sonnet 5, 22 True Detective items), each skill run averaged 5.5 `record` calls and 1.5 Python hand-edits of `state.json`. Every graph write is another turn that re-reads the whole context, and that turn count multiplied the skill's cost to about 6.3× the no-skill arm.
+In the A/B (Sonnet 5, 22 True Detective items), each skill run averaged 5.5 `record` calls and 1.5 Python hand-edits of `state.json`. Every graph write is another turn that re-reads the whole context, and that turn count multiplied the skill's cost to about 6.3× the no-skill arm.
 
 A patch could only add nodes, edges, and factors, and set node fields. Agents hand-edited the JSON for the changes a patch couldn't make: rewording or deleting an edge, dropping a prior, fixing a quote. Those hand-edits:
 

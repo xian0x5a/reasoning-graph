@@ -346,7 +346,7 @@ def answer_lines(state: dict[str, Any]) -> str:
 def answer_rank_notes(state: dict[str, Any]) -> str:
     """Tell the reader when the answer is not the candidate the graph ranks first.
 
-    Only the reader is told: no gate and no command shows the agent a ranking (issue #37).
+    Only the reader is told: no gate and no command shows the agent a ranking.
     """
 
     truth_costs = node_effective_truth_costs(state)

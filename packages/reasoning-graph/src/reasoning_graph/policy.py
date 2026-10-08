@@ -227,7 +227,7 @@ def ungrounded_answer_messages(state: dict[str, Any]) -> list[str]:
     """Explain each named answer candidate that lacks evidence grounding.
 
     The check judges the candidate the answer names, never the top-ranked one: the agent is not
-    steered by computed belief (issue #37).
+    steered by computed belief.
     """
 
     named = {candidate_id for candidate_id in answer_candidates(state).values() if candidate_id}
@@ -289,7 +289,7 @@ def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
     """The candidate the answer names, per required goal that has candidates.
 
     The answer is always named, in `summary.answer`: a goal's only candidate is not its answer,
-    or a half-finished graph with one candidate would count as a claim (issue #38). None when
+    or a half-finished graph with one candidate would count as a claim. None when
     the answer names no candidate of the goal, or more than one.
     """
 

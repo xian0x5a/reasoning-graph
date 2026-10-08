@@ -21,7 +21,7 @@ from .state import edge_id
 
 
 # Sections that held a second copy of the graph for the reader. No agent wrote one in 42
-# benchmark states, and the rendered view derives all of it from the graph (issue #39).
+# benchmark states, and the rendered view derives all of it from the graph.
 REMOVED_GRAPH_COPIES = ("report", "presentation", "view")
 
 
@@ -56,11 +56,11 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
             continue
         owner = f"edge {edge_id(edge)}"
         if "id" in edge:
-            # Agents wrote from-to as the id in 225 of 245 edges, the same thing twice (issue #38).
+            # Agents wrote from-to as the id in 225 of 245 edges, the same thing twice.
             errors.append(f"{owner}: id was removed; an edge is identified by its ends, as from-to; delete the field")
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_EDGE_SCORE_FIELDS if field in edge)
         if "reasoning" in edge:
-            # `reasoning` was 45% of edge bytes and mostly restated the two node texts (issue #37).
+            # `reasoning` was 45% of edge bytes and mostly restated the two node texts.
             errors.append(f"{owner}: reasoning was removed; use the optional note, or leave the link unexplained when the two texts make it obvious")
         if "score" not in edge:
             continue
@@ -172,7 +172,7 @@ def validate_state(state: Any) -> ValidationResult:
                     if goal_id not in goal_ids:
                         errors.append(f"goal_policy.{key}[{i}] references missing goal {goal_id!r}")
     if "stop_policy" in state:
-        # It configured the stop gate, which went with the stop certificate (issue #38).
+        # It configured the stop gate, which went with the stop certificate.
         errors.append("stop_policy was removed: nothing gates a stop; audit checks the answer summary.answer claims; delete the field")
     errors.extend(
         f"{section} was removed: the state is the graph; the answer is summary.answer, a reason is a note on the node or edge, "
@@ -181,7 +181,7 @@ def validate_state(state: Any) -> ValidationResult:
         if section in state
     )
     if "events" in state:
-        # The trace was verified to guard the stop certificate; nothing else read it (issue #38).
+        # The trace was verified to guard the stop certificate; nothing else read it.
         errors.append("events was removed: the state keeps no trace; the list order of nodes and edges is the order of the work; delete the field")
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)

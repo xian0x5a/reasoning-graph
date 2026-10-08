@@ -1,4 +1,4 @@
-"""Malformed input handling and atomic state writes (#8, #11)."""
+"""Malformed input handling and atomic state writes."""
 
 import json
 import os

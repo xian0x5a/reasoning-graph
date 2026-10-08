@@ -1,6 +1,6 @@
-"""`audit` is the one read-only check: the graph, every quote, and the claimed answer (issue #38).
+"""`audit` is the one read-only check: the graph, every quote, and the claimed answer.
 
-`stop` wrote a certificate and locked the state behind it. In the resume loop of #37 that lock
+`stop` wrote a certificate and locked the state behind it. In the resume loop that lock
 cost 38 refused writes and 23 hand edits, and the certificate guarded an accuracy gate that no
 longer exists. The claim is now `summary.answer`, and its status is computed on demand."""
 

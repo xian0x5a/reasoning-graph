@@ -8,7 +8,7 @@ status: accepted
 
 The skill drove reasoning as best-first search. Hypotheses and tests became frontier items with a search cost, the agent popped the cheapest one with `next --pop`, expanded it with `expand`, and `audit` checked that the pop order was best-first. Strict stops also required a minimum number of viable candidates or an empty frontier.
 
-The countdown-island scenario (issue #33) compared a no-skill arm against the skill on the same problem:
+The countdown-island scenario compared a no-skill arm against the skill on the same problem:
 
 | run set | arm | core | rubric pass | excellent | competitors | overclaims | mean wall | mean cost |
 |---|---|---|---|---|---|---|---|---|

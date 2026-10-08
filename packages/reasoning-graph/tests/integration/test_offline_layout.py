@@ -1,4 +1,4 @@
-"""The offline SVG keeps its edge labels readable: no two labels share space (#39)."""
+"""The offline SVG keeps its edge labels readable: no two labels share space."""
 
 import sys
 from itertools import combinations

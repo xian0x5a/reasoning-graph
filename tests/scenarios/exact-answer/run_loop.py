@@ -1,4 +1,4 @@
-"""Run one arm of the resume loop on exact-answer items, several at once (issue #37).
+"""Run one arm of the resume loop on exact-answer items, several at once.
 
     uv run tests/scenarios/exact-answer/run_loop.py <model> <arm> <run-id> <item-dir>...
 

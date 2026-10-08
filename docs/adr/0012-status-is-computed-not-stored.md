@@ -10,9 +10,9 @@ amends:
 
 ## Context
 
-`stop` wrote a certificate into the state: a stop event with an outcome. Everything after it was refused, and `audit` verified the event trace behind it. That guarded the `solved` stop of an accuracy gate, which #37 dropped.
+`stop` wrote a certificate into the state: a stop event with an outcome. Everything after it was refused, and `audit` verified the event trace behind it. That guarded the `solved` stop of an accuracy gate, which ADR 0011 dropped.
 
-The resume loop of #37 (Sonnet 5.5, 14 True Detective items) is the case the certificate did not plan for: the answer is rejected and the agent has to keep working.
+The resume loop (Sonnet 5.5, 14 True Detective items) is the case the certificate did not plan for: the answer is rejected and the agent has to keep working.
 
 - The graph arm passed as many items as a plain notes file, 12 of 14, at 1.8 times the cost: 246 tool calls against 115.
 - 13 of 14 loops hit the lock: 38 refused writes, 23 hand edits of the state, most of them to strip the stop event.

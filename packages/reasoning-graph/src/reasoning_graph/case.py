@@ -1,4 +1,4 @@
-"""The case for the claimed answer: what a reader checks before trusting it (#39).
+"""The case for the claimed answer: what a reader checks before trusting it.
 
 Plain data, taken from the graph alone. The why-tree follows the edges belief flows
 through (`leads_to` premises and `supports` evidence), so the case and the computed

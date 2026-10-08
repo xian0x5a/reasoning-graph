@@ -1,4 +1,4 @@
-"""Mermaid and the offline SVG draw one graph: same nodes, labels, edges and colours (#18)."""
+"""Mermaid and the offline SVG draw one graph: same nodes, labels, edges and colours."""
 
 import html
 import json

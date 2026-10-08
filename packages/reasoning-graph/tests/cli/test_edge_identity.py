@@ -1,6 +1,6 @@
-"""An edge is identified by its ends, written `from-to` (issue #38).
+"""An edge is identified by its ends, written `from-to`.
 
-In the final states of the #37 resume loop, 225 of 245 edge ids were exactly `from-to`: the agent
+In the final states of the resume loop, 225 of 245 edge ids were exactly `from-to`: the agent
 wrote the same thing twice. The id is derived, and two rules keep it unique: one edge per
 ordered pair, and no hyphen in a node id."""
 

@@ -1,6 +1,6 @@
-"""Checks on a claimed answer, learned from the Spooky Manor run: unanswered goals (#29),
-answer-to-candidate matching (#30), and strict test results (#31). `audit` runs them once
-`summary.answer` is set (issue #38)."""
+"""Checks on a claimed answer, learned from the Spooky Manor run: unanswered goals,
+answer-to-candidate matching, and strict test results. `audit` runs them once
+`summary.answer` is set."""
 
 import json
 import subprocess

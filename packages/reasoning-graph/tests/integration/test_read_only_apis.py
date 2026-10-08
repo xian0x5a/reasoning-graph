@@ -1,5 +1,5 @@
-"""Read-only inspection APIs must not mutate caller state (#9) and schema validation
-must not depend on deprecated resolver APIs (#13)."""
+"""Read-only inspection APIs must not mutate caller state and schema validation
+must not depend on deprecated resolver APIs."""
 
 import json
 import sys

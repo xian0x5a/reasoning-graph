@@ -1,4 +1,4 @@
-"""The page leads with the case: a reader checks the answer before meeting the graph (#39)."""
+"""The page leads with the case: a reader checks the answer before meeting the graph."""
 
 import re
 import sys

@@ -1,6 +1,6 @@
 """Check observation quotes verbatim against the local text file their source names.
 
-A reviewer model passed stitched and hedge-trimmed quotes (issue #35), so when `source` starts
+A reviewer model passed stitched and hedge-trimmed quotes, so when `source` starts
 with a readable local text file, every ellipsis-separated fragment of `quote` must appear in it.
 Other sources (URLs, commands, binary files, prose) stay free-form and unchecked.
 """

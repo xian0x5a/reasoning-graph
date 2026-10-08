@@ -9,7 +9,7 @@ supersedes:
 
 ## Context
 
-Claims carried a decimal `prior`, evidence edges a `likelihood` or `likelihood_ratio`, and every edge a required `reasoning` text. Three findings from #34 and #36 (Sonnet 5, 22 True Detective items):
+Claims carried a decimal `prior`, evidence edges a `likelihood` or `likelihood_ratio`, and every edge a required `reasoning` text. Three findings from the skill vs no-skill A/B and its follow-up runs (Sonnet 5, 22 True Detective items):
 
 - The decimals claimed a calibration that does not exist. Belief separated right from wrong answers with an AUC of 0.41 and 0.55.
 - Agents already wrote tiers. Across 262 recorded graphs, 93% of observation priors sat in 0.80–0.95, and edge ratios clustered on 1.2, 1.3, 1.5, 2 and 3.

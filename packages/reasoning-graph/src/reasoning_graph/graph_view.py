@@ -2,7 +2,7 @@
 
 Everything a renderer draws is decided here: which nodes and edges appear, their
 render ids, labels, groups, colours and line styles. A renderer only lays them out
-in its own syntax, so the two outputs cannot drift apart (#18).
+in its own syntax, so the two outputs cannot drift apart.
 """
 
 from __future__ import annotations

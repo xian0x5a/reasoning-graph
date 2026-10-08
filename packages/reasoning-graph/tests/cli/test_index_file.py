@@ -1,5 +1,5 @@
 """`record` keeps a compact index beside the state: what the agent rereads after a context
-reset, and what a subagent reads, instead of the whole JSON (issue #37)."""
+reset, and what a subagent reads, instead of the whole JSON."""
 
 import json
 import subprocess

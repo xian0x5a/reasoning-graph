@@ -1,4 +1,4 @@
-"""The case section of the page: the case for each answer, laid out for a reader to check (#39).
+"""The case section of the page: the case for each answer, laid out for a reader to check.
 
 Every line is a node or an edge of the graph. Each id links to the node's card, which
 the page opens as a popup.

@@ -1,4 +1,4 @@
-"""Draft a scorer rubric for each item the pilot kept (issue #37).
+"""Draft a scorer rubric for each item the pilot kept.
 
     uv run tests/scenarios/exact-answer/draft_rubrics.py <items-root> [--model <model-id>]
 

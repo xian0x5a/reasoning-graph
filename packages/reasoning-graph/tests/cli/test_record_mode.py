@@ -80,7 +80,7 @@ class RecordModeTests(unittest.TestCase):
             self.assertIn("Keep the API", live_view_path.read_text(encoding="utf-8"))
 
     def test_record_checks_quotes_against_a_local_source_file(self) -> None:
-        # Issue #35: stitched or trimmed quotes went unnoticed, so the CLI checks them verbatim.
+        # stitched or trimmed quotes went unnoticed, so the CLI checks them verbatim.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             Path(tmp_dir, "case.md").write_text(
@@ -135,7 +135,7 @@ class RecordModeTests(unittest.TestCase):
             self.assertNotIn("warning", audit.stdout + audit.stderr)
 
     def test_answer_needs_no_belief_level_and_no_review(self) -> None:
-        # Issue #37: belief never separated right answers from wrong ones, and a same-model
+        # belief never separated right answers from wrong ones, and a same-model
         # reviewer shared the misreading, so neither is checked.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
@@ -155,7 +155,7 @@ class RecordModeTests(unittest.TestCase):
             self.assertIn("T2", audit.stderr)
 
     def test_not_run_test_settles_the_result_check_and_shows_in_the_view(self) -> None:
-        # Issue #35: an unrunnable check was answered with an invented result; not_run records it honestly.
+        # an unrunnable check was answered with an invented result; not_run records it honestly.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start(tmp_dir)
             self.solved_trail(state_path, 5)

@@ -1,4 +1,4 @@
-"""Compare the arms of the resume loop (issue #37).
+"""Compare the arms of the resume loop.
 
     uv run tests/scenarios/exact-answer/score_loop.py <items-root> <run-id> <arm>...
 

@@ -1,8 +1,7 @@
 """One record patch carries any graph edit.
 
-In the #34 A/B, skill runs averaged 5.5 record calls and 1.5 Python hand-edits of state.json, because a
-patch could not change or remove an edge, remove a node or factor, or drop a field (issue #36 comment
-5861985148)."""
+In the A/B, skill runs averaged 5.5 record calls and 1.5 Python hand-edits of state.json, because a
+patch could not change or remove an edge, remove a node or factor, or drop a field."""
 
 import json
 import subprocess

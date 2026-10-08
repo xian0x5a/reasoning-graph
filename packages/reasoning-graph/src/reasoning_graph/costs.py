@@ -12,8 +12,8 @@ from .utils import require_finite_float, require_non_negative_float
 
 
 # Scores are tiers, not calibrated numbers: authored decimals claimed a precision that the
-# #36 runs showed does not exist. One table per kind turns a tier into the number the
-# belief math needs (issue #37).
+# A/B runs showed does not exist. One table per kind turns a tier into the number the
+# belief math needs.
 CLAIM_SCORE_PROBABILITY = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
 # The ratios agents wrote most often. `contradicts` uses the reciprocal.
 EVIDENCE_SCORE_RATIO = {1: 1.2, 2: 1.5, 3: 2.0, 4: 3.0, 5: 5.0}
@@ -22,7 +22,7 @@ DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
-# evidence (issue #37); belief always follows the recorded inputs.
+# evidence; belief always follows the recorded inputs.
 REMOVED_NODE_SCORE_FIELDS = ("prior", "confidence", "probability", "posterior")
 REMOVED_EDGE_SCORE_FIELDS = ("likelihood", "likelihood_ratio")
 # A group names its edges, which already carry the relation, the target, and the sources.

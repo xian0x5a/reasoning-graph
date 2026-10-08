@@ -1,5 +1,5 @@
 """Computed belief is for the reader of the rendered graph; the state and the agent-facing
-commands hold none of it (issue #37).
+commands hold none of it.
 
 Belief did not separate right answers from wrong ones, and an agent that sees it tunes scores
 until a number moves. So the state stores no belief, no command prints one, and `audit`
