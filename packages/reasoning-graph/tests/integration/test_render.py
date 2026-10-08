@@ -52,7 +52,8 @@ class RenderIdentityTests(unittest.TestCase):
         state = self.state()
         document = html_document(state, to_mermaid(state), render_mode="mermaid")
 
-        self.assertIn("@mermaid-js/layout-elk", document)
+        # Mermaid ships ELK from version 12; an older one would quietly fall back to dagre.
+        self.assertIn("mermaid@12/", document)
         self.assertIn('layout: "elk"', document)
 
     def test_mermaid_offline_and_html_share_node_identity_map(self) -> None:

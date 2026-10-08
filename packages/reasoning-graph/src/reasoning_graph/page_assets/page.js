@@ -168,7 +168,7 @@ function connectedNodeKeys(edge, fallback) {
   return fallback ? [normalizeMermaidKey(fallback.from), normalizeMermaidKey(fallback.to)] : [];
 }
 
-// Mermaid 11 (dagre or ELK) and the offline SVG both mark each edge's own path this way.
+// Mermaid (dagre or ELK) and the offline SVG both mark each edge's own path this way.
 // Group classes such as .edgePath are not used: under ELK they name the group of all edges.
 const EDGE_PATH_SELECTOR = "path.flowchart-link";
 
