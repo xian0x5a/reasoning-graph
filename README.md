@@ -78,5 +78,3 @@ uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-
 ```
 
 To rebuild the README screenshots after a page change, run `uv run scripts/readme-images/render.py` (needs Google Chrome).
-
-Generated reports, HTML, and Mermaid files go in `test-results/` or `/tmp`, not git.
