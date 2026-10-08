@@ -1,96 +1,74 @@
 # reasoning-graph
 
-An agent skill for solving messy reasoning tasks with an explicit graph instead of a hidden linear chain.
+An agent skill that makes the agent keep its reasoning as a graph: what it saw, what it suspects, what it tested, and which answer it claims.
 
-Use it when an agent needs durable working memory for a long task, an evidence-grounded answer, and a reviewable record of how it got there. Useful for puzzles, root-cause analysis, ambiguous debugging, and planning under uncertainty.
+Use it for tasks where a linear chain of thought drifts: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty.
 
-## Repository layout
-
-```text
-skills/reasoning-graph/          # installable skill instructions and reference docs
-packages/reasoning-graph/        # Python library, `reasoning-graph` CLI, schemas, and package tests
-tests/scenarios/                 # repository-level human/eval prompt packets
-```
-
-The skill directory is docs/instructions only. The Python project lives under `packages/reasoning-graph/`, with source under `packages/reasoning-graph/src/reasoning_graph/`.
-
-Installed-skill users should install the CLI when `reasoning-graph` is missing:
+## Install
 
 ```bash
-uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
+npx skills add xian0x5a/reasoning-graph
 ```
 
-Development commands should be explicit from the repo root:
-
-```bash
-uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
-```
+That is all the user installs. The agent runs the `reasoning-graph` helper CLI itself; it needs [uv](https://docs.astral.sh/uv/) on `PATH`.
 
 ## How it works
 
-The graph is the agent's working memory and the check on its claimed answer, not a scheduler:
+The graph does three jobs. It does not plan the work; the agent solves the problem its own way and keeps the record.
 
-1. `init` frames the goal as node `G1`.
-2. The agent works the problem its own way and `record`s what each step produced: observations (with `source` and verbatim `quote`), hypotheses, tests and their results, candidate answers. Every `record` refreshes `state.html` so a human can follow along, and `state.index.md`, the compact view the agent rereads after a context reset.
-3. The agent scores claims and evidence on a 1-5 scale, only where the default is wrong. Belief is computed from those scores when the graph is rendered, for the reader; the state holds none.
-4. The agent claims its answer with `answer` in a patch. `audit` passes the claim only when it names a candidate in the graph that is grounded in observations, and every test has a recorded result. `audit` writes nothing, and the state is never locked: after a rejected answer the agent records what the user said and keeps working.
+**1. Memory.** The agent writes what each step produced into `state.json`:
 
-The state holds the graph and the claim. It keeps no trace of how it got there and nothing computed.
+- `observation`: a fact, with its `source` and a verbatim `quote`
+- `hypothesis`: a claim not yet established
+- `test`: a check that would settle a claim, then its result
+- `candidate_solution`: a possible answer to the goal
 
-## Helper commands
+Edges say how they relate: `supports`, `contradicts`, `leads_to`, `prompts`, `requires`, `answers`.
 
-`record` rewrites the input state by default; use `-o <path>` for a separate file or `-o -` for stdout.
+After a context reset, the agent rereads `state.index.md`: one line per node and edge, with open work on top.
+
+**2. Answer check.** The agent names its answer, then runs `audit`. The claim passes only when:
+
+- the answer is a recorded candidate, grounded in observations rather than in scores
+- every quote appears verbatim in the file its `source` names
+- every test has a result, or a reason it was not run
+
+If the user rejects the answer, the agent records the rejection as evidence and keeps working in the same graph.
+
+**3. Progress view.** Every `record` refreshes `state.html`, so a human can follow along live. The agent scores claims and evidence on a 1–5 scale only where the default is wrong; the page turns those scores into a belief per claim, so a reader can see why one candidate outranks another and catch a weight that looks off. Belief is computed for the reader only: the state stores none and `audit` ignores it.
+
+## Usage
+
+The agent drives the CLI. A typical run:
 
 ```bash
-rg="uv --project packages/reasoning-graph run reasoning-graph"
+reasoning-graph init --goal "Diagnose outage" -o state.json
 
-$rg init --goal "Diagnose outage" -o state.json
-cat > step.json <<'JSON'
+# once per checkpoint: applies the patch, refreshes state.html and state.index.md
+reasoning-graph record state.json --patch - <<'JSON'
 {
   "nodes": [
-    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage", "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14"},
+    {"id": "O1", "type": "observation", "text": "Pump P2 restarted twice before the outage",
+     "source": "maintenance.log line 40", "quote": "P2 restarted 02:10, 02:14"},
     {"id": "T1", "type": "test", "text": "Compare the outage start with the restart times"}
   ],
-  "edges": [
-    {"from": "O1", "to": "T1", "type": "prompts"}
-  ]
+  "edges": [{"from": "O1", "to": "T1", "type": "prompts"}]
 }
 JSON
-$rg record state.json --patch step.json      # applies the patch, refreshes state.html and state.index.md
 
 # read-only check of the graph, the quotes, and the claimed answer
-$rg audit state.json
-
-# render artifacts
-$rg mermaid state.json > graph.mmd
-$rg html state.json -o graph.html
+reasoning-graph audit state.json
 ```
 
-A claimed answer needs every test to have a result `observation` linked by `leads_to`; record a failed or skipped check as a result too.
+The full contract lives in [`skills/reasoning-graph/SKILL.md`](skills/reasoning-graph/SKILL.md). JSON Schemas ship with the CLI: `reasoning-graph schema state`, `reasoning-graph schema patch`.
 
-## Schemas
+## Development
 
-Machine-readable JSON Schemas are packaged with the CLI. Print them from any install:
-
-```bash
-reasoning-graph schema state
-reasoning-graph schema patch
-```
-
-In this repository, source schemas live under `packages/reasoning-graph/src/reasoning_graph/schemas/`:
-
-- `state.schema.json` for graph state files
-- `patch.schema.json` for `record` patches
-
-Schemas describe the modern interchange contract and explicitly reject known legacy aliases. `record`, `refresh`, and `audit` run schema validation first, then semantic graph validation that JSON Schema cannot express.
-
-## Checks
+Skill instructions live in `skills/reasoning-graph/`; the Python package, CLI, and tests in `packages/reasoning-graph/`. From the repo root:
 
 ```bash
-uv --project packages/reasoning-graph run python -m py_compile packages/reasoning-graph/src/reasoning_graph/*.py
 uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
-uv build packages/reasoning-graph --out-dir /tmp/reasoning-graph-dist
 ```
 
-Generated reports, Mermaid files, and benchmark outputs belong in `test-results/` or `/tmp`, not git.
+Generated reports, HTML, and Mermaid files go in `test-results/` or `/tmp`, not git.
