@@ -7,7 +7,7 @@ Use the transcribed text below.
 Line 1:
 
 ```text
-/rRoSapsG0mYJtfMxKA3LigccFOy1L+ZL7stK8x1dk+43Z2sjXhINL+q1BtWBSCQBfnAJXRwYkBNGBxZyinKV+Iz3vSpfRLa6kj=
+/rRoSapsG0mYJtfMxKA3LigccFOylL+ZL7stK8x1dk+43Z2sjXhINL+q1BtWBSCQBfnAJXRwYkBNGBxZyinKV+Iz3vSpfRLa6kj=
 ```
 
 Line 2:
