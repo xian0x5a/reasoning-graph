@@ -5,7 +5,7 @@ Python library and CLI for building, auditing, and rendering reasoning graphs.
 ## Install
 
 ```bash
-uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"
+uv tool install "reasoning-graph @ git+https://github.com/xian0x5a/reasoning-graph.git#subdirectory=packages/reasoning-graph"
 ```
 
 Then verify the CLI:

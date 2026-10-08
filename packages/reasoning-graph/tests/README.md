@@ -5,7 +5,7 @@
 - `fixtures/` — reusable JSON states, patches, and golden outputs.
 - Root `tests/scenarios/` — human/eval prompt packets for skill evaluation, not package tests.
 
-Installed skill users should install the CLI with `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`; package tests use the explicit project commands below so they do not depend on ambient PATH state.
+Installed skill users should install the CLI with `uv tool install "reasoning-graph @ git+https://github.com/xian0x5a/reasoning-graph.git#subdirectory=packages/reasoning-graph"`; package tests use the explicit project commands below so they do not depend on ambient PATH state.
 
 From the repository root:
 

@@ -9,7 +9,7 @@ This repo contains the `reasoning-graph` skill and helper package.
 - Skill instructions and reference docs live under `skills/reasoning-graph/`.
 - Python package source, schemas, CLI, and package tests live under `packages/reasoning-graph/`.
 - Do not add skill-local shims, package source, `pyproject.toml`, or lockfiles under `skills/reasoning-graph/`.
-- Installed skill usage expects the `reasoning-graph` CLI from `uv tool install "reasoning-graph @ git+https://github.com/ewgdg/reasoning-graph.git#subdirectory=packages/reasoning-graph"`; do not add a skill-local wrapper for it.
+- Installed skill usage expects the `reasoning-graph` CLI from `uv tool install "reasoning-graph @ git+https://github.com/xian0x5a/reasoning-graph.git#subdirectory=packages/reasoning-graph"`; do not add a skill-local wrapper for it.
 
 ## Tests
 
