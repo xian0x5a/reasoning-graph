@@ -1,6 +1,6 @@
 # Case-first page
 
-The build half of #39, together with the refactor of #18. The reader eval of #39 is the last step and gets its own plan once the page exists.
+The build half of [removed link], together with the refactor of [removed link]. The reader eval of [removed link] is the last step and gets its own plan once the page exists.
 
 ## Goal
 
@@ -16,15 +16,15 @@ The graph stays on the page as the full record, and it is readable when it opens
 
 ## Intention
 
-The page today leads with a one-line answer, then a full-graph canvas, then one card per node. A 26-node graph opens as a thin strip of unreadable nodes (Mermaid) or a long column of observations with overlapping edge labels (offline). The reader has to rebuild the argument from the canvas. #39 guessed the page should lead with the proof path of the named answer. The user chose that shape on 2026-09-29, over a split view and over keeping the graph first.
+The page today leads with a one-line answer, then a full-graph canvas, then one card per node. A 26-node graph opens as a thin strip of unreadable nodes (Mermaid) or a long column of observations with overlapping edge labels (offline). The reader has to rebuild the argument from the canvas. [removed link] guessed the page should lead with the proof path of the named answer. The user chose that shape on 2026-09-29, over a split view and over keeping the graph first.
 
-Both renderers repeat the same helpers (`clip_text`, `html_anchor`, the compact node label) and each works out node classes, beliefs and labels by itself. The new outline needs the same facts a third time. That is the moment to do #18: one normalized graph that the outline, Mermaid and the offline SVG all read.
+Both renderers repeat the same helpers (`clip_text`, `html_anchor`, the compact node label) and each works out node classes, beliefs and labels by itself. The new outline needs the same facts a third time. That is the moment to do [removed link]: one normalized graph that the outline, Mermaid and the offline SVG all read.
 
 ## Scope & Constraints
 
 In scope:
 
-- #18: a shared visual graph model, and the split of `render.py` into Mermaid, page, and browser assets.
+- [removed link]: a shared visual graph model, and the split of `render.py` into Mermaid, page, and browser assets.
 - The case: a pure function from the state to the case for the claimed answer, and its section on the page.
 - The page reorder: case first, graph second, node details collapsed.
 - Graph legibility: the canvas opens readable in both modes, and offline edge labels no longer print over each other.
@@ -58,8 +58,8 @@ These are the edges belief flows through (`costs.truth_inputs`), so the outline 
 
 ## Work Plan
 
-1. **Shared visual graph (#18).** `graph_view.py` builds, once per render, the nodes (render id, anchor, type, class, group, label lines, belief, answer label) and the drawn edges (ends, type, dashed or not, factor membership). `to_mermaid` and `offline_graph_svg` read it. The duplicated helpers go. Output unchanged: the existing render tests pass as they are, plus one test that both renderers draw the same nodes and edges from a shared fixture.
-2. **Split `render.py` (#18).** `mermaid.py` holds `to_mermaid`; `page.py` holds the document; the CSS and JS move to package files under `page_assets/`, and the page passes its data to the script as JSON. Output unchanged apart from where the script reads its data.
+1. **Shared visual graph ([removed link]).** `graph_view.py` builds, once per render, the nodes (render id, anchor, type, class, group, label lines, belief, answer label) and the drawn edges (ends, type, dashed or not, factor membership). `to_mermaid` and `offline_graph_svg` read it. The duplicated helpers go. Output unchanged: the existing render tests pass as they are, plus one test that both renderers draw the same nodes and edges from a shared fixture.
+2. **Split `render.py` ([removed link]).** `mermaid.py` holds `to_mermaid`; `page.py` holds the document; the CSS and JS move to package files under `page_assets/`, and the page passes its data to the script as JSON. Output unchanged apart from where the script reads its data.
 3. **The case.** `case.py` returns the case as plain data. Tests on hand-written states cover each part, shared premises, groups, and a state with no answer.
 4. **Case-first page.** The case section follows the answer and status. Each id in it opens the node's popup. The graph follows; node details go into a closed `<details>`. `rendering.md` describes the new page.
 5. **Legible graph.** Mermaid: pick the layout direction and canvas fit so a 26-node real state opens with readable labels. Offline: wrap a tall rank into several columns and keep edge labels apart. Checked by screenshot on three real states (10, 26, 32 nodes).
@@ -98,7 +98,7 @@ Commit after each step.
    | Split view | 5 | 2 | 2 | 4 | 29 |
    | Graph first, fixed | 2 | 3 | 5 | 2 | 23 |
 
-2. #18 goes first. Every shape needs the same node facts, so the shared model does not depend on the page design.
+2. [removed link] goes first. Every shape needs the same node facts, so the shared model does not depend on the page design.
 3. Weak spots are mechanical. A judgment such as "a weak clue scored 5" is the reader's to make, and the eval measures whether the page helps them make it.
 4. A claim with no input at all is a weak spot too (`no_input`), next to one resting on a single input. Both are counts, so the rule stays mechanical.
 5. Tests are listed in node order, and linked either way: a why-tree node prompts or is checked by the test, or the test produced a why-tree observation (`test leads_to observation`).
@@ -109,7 +109,7 @@ Commit after each step.
 
 - The page leads with the case: answer, why believe it down to the quotes, against it, tests, rivals, weak spots. Every id opens its node card. The graph follows; node details start collapsed.
 - The graph opens readable: at desktop width, scale 0.93 offline and 0.66 to 1 in Mermaid on the three real states, up from about 0.3.
-- #18 is done: one `GraphView` feeds Mermaid and the offline SVG, and a parity test holds them to the same nodes, labels, edges and colours. `render.py` is split into `mermaid.py`, `page.py`, `case.py`, `case_section.py` and `page_assets/`.
+- [removed link] is done: one `GraphView` feeds Mermaid and the offline SVG, and a parity test holds them to the same nodes, labels, edges and colours. `render.py` is split into `mermaid.py`, `page.py`, `case.py`, `case_section.py` and `page_assets/`.
 - Not measured yet: whether the case lets a reader check the answer faster. That is the reader eval, the next plan.
 - Follow-ups, not done here:
   - Offline rows sort by id as text (`O10` before `O2`), and nothing orders them to cut crossings.

@@ -1,6 +1,6 @@
 # CLI without the stop certificate
 
-Tracks issue #38. Decisions are recorded in the #38 comment of 2026-09-28.
+Tracks issue [removed link]. Decisions are recorded in the [removed link] comment of 2026-09-28.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Cut the tool calls an agent spends on the CLI itself, so the graph costs less pe
 
 ## Intention
 
-In the resume loop of #37 the graph arm passed as many items as a notes file but cost 1.8 times as much. Most of the friction guarded the `solved` certificate of the old accuracy gate: the stop event, the lock behind it, the verified trace. #37 dropped that gate, so the guards go too. What stays is what protects the record for a reader: a well-formed graph, verbatim quotes, and the checks on a claimed answer.
+In the resume loop of [removed link] the graph arm passed as many items as a notes file but cost 1.8 times as much. Most of the friction guarded the `solved` certificate of the old accuracy gate: the stop event, the lock behind it, the verified trace. [removed link] dropped that gate, so the guards go too. What stays is what protects the record for a reader: a well-formed graph, verbatim quotes, and the checks on a claimed answer.
 
 ## Scope & Constraints
 
@@ -16,7 +16,7 @@ In scope: the eleven decisions under Decisions, the docs and ADRs that describe 
 
 Out of scope, each a later plan:
 
-- The presentation eval and any change to how the HTML lays out the graph (#39). This plan adds one status line to the HTML and nothing else.
+- The presentation eval and any change to how the HTML lays out the graph ([removed link]). This plan adds one status line to the HTML and nothing else.
 - A task too large for one note.
 - Subagents handing patch files to the main agent.
 
@@ -84,7 +84,7 @@ The HTML shows the status line of `audit`, computed when it renders. Nothing els
 
 ### 8. Rerun the graph arm
 
-Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loop.py`, count with `loop_usage.py`, post the result on #38.
+Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loop.py`, count with `loop_usage.py`, post the result on [removed link].
 
 ## Validation
 
@@ -108,7 +108,7 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 - [x] 5. `init` output (`21055d7`)
 - [x] 6. HTML status line (`3d4d95b`)
 - [x] 7. Docs and ADRs, version 0.3.0 (`2312798`, `85dc677`, `920eee8`, `dc7b700`)
-- [x] 8. Rerun `s55-loop-r2` and result on #38
+- [x] 8. Rerun `s55-loop-r2` and result on [removed link]
 - [x] 9. Draft check removed after the repeat (`90113f0`). Not measured: no run on the CLI without it
 
 ## Surprises & Discoveries
@@ -116,11 +116,11 @@ Run id `s55-loop-r2`, the same 14 items, model and effort. Score with `score_loo
 Found while preparing the plan, from the transcripts of `s55-loop-r1`:
 
 - **The duplicate-id failures were not a memory problem.** All 12 are `nodes id G1 already exists` in round 1. `init` creates the goal and prints nothing, and the first patch adds it again. 9 cost one extra call, 3 cost three.
-- **The 1.3 times target of #38 is probably out of reach by removing friction alone.** Counting the feedback turn, a round of the notes-file arm takes 3.5 tool calls in round 1 and 2.6 later. A round of the graph arm takes 8.1 and 5.3. One of them loads the skill, and at least two are `record` and the final check. Agents already chain the final checks: 41 of the 42 calls that ran `stop` also ran `validate` and `audit`, and 28 of them ran `record` too. So folding the three checks into one saves output tokens more than calls.
+- **The 1.3 times target of [removed link] is probably out of reach by removing friction alone.** Counting the feedback turn, a round of the notes-file arm takes 3.5 tool calls in round 1 and 2.6 later. A round of the graph arm takes 8.1 and 5.3. One of them loads the skill, and at least two are `record` and the final check. Agents already chain the final checks: 41 of the 42 calls that ran `stop` also ran `validate` and `audit`, and 28 of them ran `record` too. So folding the three checks into one saves output tokens more than calls.
 - **50 CLI calls failed** in the graph arm, out of about 150. 34 were refused writes after a stop and 12 were `G1`.
 - **The package lost about 1000 lines net**: 1429 added, 2444 removed across 75 files. Package checks: 374 passed, 83 subtests.
 - **`record` writes `"factors": []`** into a state without groups. It predates this plan and is left alone.
-- **`score_ab.py` measures the precision of `solved` stops**, the target #37 dropped. With no stop it prints `no-stop` for every new run. It still scores the old runs, and `score_loop.py` imports its McNemar test. Left alone here; a follow-up can cut it down.
+- **`score_ab.py` measures the precision of `solved` stops**, the target [removed link] dropped. With no stop it prints `no-stop` for every new run. It still scores the old runs, and `score_loop.py` imports its McNemar test. Left alone here; a follow-up can cut it down.
 
 ## Decisions
 
@@ -153,7 +153,7 @@ Settled during the implementation:
 
 ## Outcomes & Retrospective
 
-Graph arm, the same 14 items, `claude-sonnet-5-5` at high effort, one run per column. The notes file is the run of #37.
+Graph arm, the same 14 items, `claude-sonnet-5-5` at high effort, one run per column. The notes file is the run of [removed link].
 
 | Measure | Notes file | Graph, old CLI (`s55-loop-r1`) | Graph, new CLI (`s55-loop-r2`) |
 |---|---|---|---|
@@ -195,7 +195,7 @@ What the result says:
 - **Later rounds did not get cheaper.** The total fell by 6%, and this run had two more rounds.
 - **The hints were not lost.** In all 8 cases of an unused hint, the hint text is in a node of the graph, and in 5 of them the next answer takes up the subject of the hint. In `dead-mans-island` the hint sat at the top of the index as a test, and the agent drew the opposite conclusion from it.
 - **Why fewer hints turned into a covered key point is not known.** Three candidates, which one run per arm cannot tell apart: run-to-run noise (the notes-file arm had 20 of 25 with the hint in its notes), the rejected-answer convention, and the missing `Last record` line. The line is the weakest suspect: the hint sat in the top part of the index about as often in both runs.
-- **The 1.3 times target of #38 was not reached**, as the call counts had predicted.
+- **The 1.3 times target of [removed link] was not reached**, as the call counts had predicted.
 
 What the 37 failed CLI calls were:
 
@@ -239,4 +239,4 @@ Follow-ups, each its own plan:
 1. ~~Decide on the draft check.~~ Removed, decision 12.
 2. A second run of the old CLI, only if the hint-use question has to be settled. Not run: the plan was closed without it, so whether the old 25 of 25 was luck stays open.
 3. ~~Cut `score_ab.py` down to what still applies.~~ Done: the `solved`-stop precision and honest abstention are removed; accuracy, McNemar and cost stay.
-4. The presentation eval (#39).
+4. The presentation eval ([removed link]).

@@ -1,6 +1,6 @@
 # Graph-centric state and page
 
-Part 1 continues the pruning of #38. Part 2 is a first step of #39.
+Part 1 continues the pruning of [removed link]. Part 2 is a first step of [removed link].
 
 ## Goal
 
@@ -21,7 +21,7 @@ In scope:
 
 Out of scope:
 
-- The presentation eval of #39: no reader is measured here.
+- The presentation eval of [removed link]: no reader is measured here.
 - What the page leads with. The full graph stays the one canvas.
 - A benchmark rerun. No agent wrote these keys, and no agent opened a render.
 
@@ -65,7 +65,7 @@ Constraints:
 ## Decisions
 
 1. `report`, `presentation` and `view` are removed whole. They were never written in 42 states, and each was a copy of the graph that needed its own checks.
-2. `summary.answer` stays. It is the claim, and the rule that a goal's only candidate is its answer was removed in #38.
+2. `summary.answer` stays. It is the claim, and the rule that a goal's only candidate is its answer was removed in [removed link].
 3. The page keeps one answer line. Without it a reader has to find the conclusion in a graph of 40 nodes.
 4. The answer node is labelled, not highlighted, and its path is not highlighted either. The focus dropdown highlights a path when the reader asks for it.
 
@@ -86,9 +86,9 @@ Both parts are done. The package check passes: 367 tests, 73 subtests. The chang
 
 Checked on a real state of `s55-loop-r3` (26 nodes) in both render modes, by screenshot.
 
-Seen in the screenshots and left alone, both older than this plan and both for #39:
+Seen in the screenshots and left alone, both older than this plan and both for [removed link]:
 
 1. Mermaid fits a wide graph to the width of the canvas. The nodes are small and most of the canvas is empty until the reader zooms.
 2. The offline SVG puts all observations in one long column, and edge labels overlap where many edges meet.
 
-Not measured: whether a reader finds the answer or an error faster. That is the eval of #39.
+Not measured: whether a reader finds the answer or an error faster. That is the eval of [removed link].

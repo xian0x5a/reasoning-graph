@@ -2,7 +2,7 @@
 
 ## Goal
 
-Close the Spooky Manor stop-gate bugs (#29, #30, #31, #32) and the older open tickets (#8–#20) in one run so the with-skill benchmark arm (#33) can start.
+Close the Spooky Manor stop-gate bugs ([removed links]) and the older open tickets ([removed link]) in one run so the with-skill benchmark arm ([removed link]) can start.
 
 ## Intention
 
@@ -21,16 +21,16 @@ The older tickets are mostly integrity gaps in the same driver/audit path. Fixin
 - Tests first for each bug (`tests/cli/` for commands, `tests/integration/` for invariants).
 - Remove superseded behavior rather than adding compatibility paths (edge ids, `answer_kind`, patch aliases).
 - Keep the probabilistic frontier queue as the core; new gates only make the trace honest, they do not change ranking.
-- No benchmark runs in this plan (#33 stays open).
+- No benchmark runs in this plan ([removed link] stays open).
 
 ## Work Plan
 
-1. Small integrity fixes: #13 resolver, #11 atomic writes, #8 malformed input, #9 audit purity, #15 indexed lookups.
-2. Contract alignment: #12 edge ids, #17 `answer_kind`, #16 patch fields, #10 presentation/view references.
-3. Driver trace integrity: #19 forced commands, #20 audit event integrity (single-claim add lists, historical rank checks).
-4. Stop gates: #29 unanswered accepted goal + sub-goal representation via `goal --requires--> goal`; #30 answer-to-candidate matching; #31 strict test-result rule; #32 zero-work expansion rule + peak live frontier stat.
+1. Small integrity fixes: [removed link] resolver, [removed link] atomic writes, [removed link] malformed input, [removed link] audit purity, [removed link] indexed lookups.
+2. Contract alignment: [removed link] edge ids, [removed link] `answer_kind`, [removed link] patch fields, [removed link] presentation/view references.
+3. Driver trace integrity: [removed link] forced commands, [removed link] audit event integrity (single-claim add lists, historical rank checks).
+4. Stop gates: [removed link] unanswered accepted goal + sub-goal representation via `goal --requires--> goal`; [removed link] answer-to-candidate matching; [removed link] strict test-result rule; [removed link] zero-work expansion rule + peak live frontier stat.
 5. Docs: SKILL.md granularity rule, `docs/schema/tests.md`, `docs/schema/goals.md`, `docs/driver.md`, `docs/test-scenarios.md`, README smoke flow.
-6. Close #14 as stale (pseudocode directory removed in 2fd8b9a); comment status on #18.
+6. Close [removed link] as stale (pseudocode directory removed in 2fd8b9a); comment status on [removed link].
 
 ## Validation
 

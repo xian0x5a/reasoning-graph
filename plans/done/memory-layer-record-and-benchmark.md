@@ -1,6 +1,6 @@
 # Memory layer: cheaper record and a resume benchmark
 
-Tracks issue #37. Decisions are recorded in the #37 comment of 2026-09-28.
+Tracks issue [removed link]. Decisions are recorded in the [removed link] comment of 2026-09-28.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Make the graph a record that survives context loss, and measure whether it does 
 
 ## Intention
 
-#34 and #36 showed the skill does not make answers more accurate. What it does reliably is keep a record. This plan cuts the parts of the record that cost the agent effort without helping a reader, then tests the record as memory.
+[removed links] showed the skill does not make answers more accurate. What it does reliably is keep a record. This plan cuts the parts of the record that cost the agent effort without helping a reader, then tests the record as memory.
 
 The memory layer goes first because it is the riskier bet. If the graph cannot beat a notes file, the record should be shaped for people only.
 
@@ -57,7 +57,7 @@ Milestones 1 to 3 need no change to the package. Milestone 4 is independent of t
 - Cap per item: key points plus one submits.
 - Context reset between submits: the driver ends the session and starts a fresh one, as after a killed session. Nothing is handed over. The arms differ in what survives on disk.
 - Arms: `no-memory` keeps nothing and is the lower bound. `notes-file` keeps `notes.md`, which the agent is told to maintain and reread.
-- Validate the scorer on the #34 answers before running any arm.
+- Validate the scorer on the [removed link] answers before running any arm.
 
 ### 4. Record changes in the package
 
@@ -77,7 +77,7 @@ Modules touched, from a field-usage grep: `costs.py`, `validation.py`, `policy.p
 ### 5. Graph arm and result
 
 - Run the `graph` arm through the same driver. It keeps `state.json` plus the index.
-- Score all three arms and post the result on #37.
+- Score all three arms and post the result on [removed link].
 
 ## Validation
 
@@ -94,7 +94,7 @@ Behavior worth a test:
 - `stop` passes with no review recorded, and still fails on a bad quote or a test with no result.
 - A correlation group counts its edges once, at the combined score.
 
-Scorer checks, on the #34 answers:
+Scorer checks, on the [removed link] answers:
 
 - It fails every answer with a wrong letter.
 - It gives the same verdict three times in a row on the same submit.
@@ -113,7 +113,7 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 
 ## Progress
 
-- [x] Decisions recorded on #37
+- [x] Decisions recorded on [removed link]
 - [x] 1. Pilot on Sonnet 5.5: 97 of 120 runs correct, 15 of 60 items kept, 8 of them wrong in both runs. Cost $13.54.
 - [x] 2. Rubrics: 14 items, rewritten by hand from the drafts. `the-diamond-necklace` is left out because its decisive clue appears only in the solution.
 - [x] 3. Loop harness and baseline arms: both arms ran as `s55-loop-r1` on 14 items. `notes-file` passed 12, `no-memory` passed 3. Table under Outcomes.
@@ -126,7 +126,7 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
   - [x] 4.6 Belief out of the state: `43b2739`, `37c98ad`, `33b738c`
   - [x] 4.7 Index file: `183312d`
   - [x] 4.8 Docs and ADRs 0009, 0010, 0011. Skill docs changed with each step.
-- [x] 5. Graph arm and result: the graph ties the notes file at 12 of 14 and costs 1.8 times as much. Result posted on #37.
+- [x] 5. Graph arm and result: the graph ties the notes file at 12 of 14 and costs 1.8 times as much. Result posted on [removed link].
 
 ## Surprises & Discoveries
 
@@ -167,7 +167,7 @@ Accuracy guard, fixed before any run: the skill hurts when no-skill-only-right e
 | Decision | Reason |
 |---|---|
 | Memory layer before presentation | Riskier bet, and its eval can be scripted |
-| Scores stay, on a 1–5 scale | A reader catches a wrong weight more easily; decimals claimed a calibration that #36 showed does not exist |
+| Scores stay, on a 1–5 scale | A reader catches a wrong weight more easily; decimals claimed a calibration that [removed link] showed does not exist |
 | Defaults, scores only on exceptions | Most written scores were boilerplate |
 | Belief threshold dropped | It drove the tuning records, 0.64 per run |
 | Correlation groups kept, simplified | Without them correlated clues count twice |

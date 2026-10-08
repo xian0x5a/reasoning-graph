@@ -6,7 +6,7 @@ Delete the best-first frontier queue from the `reasoning-graph` package so the C
 
 ## Intention
 
-The countdown-island benchmark (issue #33) showed the queue and the rival gate pulled agents into seeding and popping work they did not need, which cost quality and tokens. The skill (`skills/reasoning-graph/SKILL.md`, commit 750d4a3) no longer uses the queue; the CLI still ships it. Dead machinery confuses agents that read `--help` and doubles the test surface.
+The countdown-island benchmark (issue [removed link]) showed the queue and the rival gate pulled agents into seeding and popping work they did not need, which cost quality and tokens. The skill (`skills/reasoning-graph/SKILL.md`, commit 750d4a3) no longer uses the queue; the CLI still ships it. Dead machinery confuses agents that read `--help` and doubles the test surface.
 
 ## Scope & Constraints
 
@@ -35,7 +35,7 @@ Constraints:
 1. **Port harnesses (queue still present).** Switch tests that build graphs via `seed`/`expand` but assert non-queue behavior to `record`: `test_score_commands` (parametrized `seed`/`expand` → `record`), `SpookyManorFlow` in `test_stop_gates`, belief/cost tests in `test_commands`, `test_belief_sources`, `test_driver_invariants`, `test_fixture_matrix::test_patch_fixtures_apply_to_popped_branch`. Convert fixtures `reasoning-graph-strict-good.json`, `strict-driver-state.json`, `stopped-reviewed-state.json` and the `invalid/*` fixtures to record/review/rank/stop traces with no `frontier`. Commit.
 2. **Remove the queue.** Delete the commands, code, schema definitions (`frontierItem`, queue event variants, `search_policy`, `frontier_exhausted`), and queue-only tests listed above. Shrink `frontier.py` to trace status (`next_event_step`, initialized/stopped) and rename it `events.py`. `audit` keeps: record claim integrity, review validity, rank payload checks, stop gates at stop time. Regenerate goldens (`init-strict.json`, `doctor-strict-driver.txt`). Reinstall the tool. Commit.
 3. **Docs.** `skills/reasoning-graph/docs/driver.md` (drop "Queue Driver Loop", command list, queue events), `skills/reasoning-graph/docs/cost-model.md` (drop search cost), `skills/reasoning-graph/docs/schema/reporting.md` (drop `view.frontier`), repo `docs/test-scenarios.md` (run metrics: records, reviews, stop gate instead of pops/expansions/`peak_live_frontier`; drop the "graph not exercised" rule). Add `docs/adr/0006-graph-is-memory-and-stop-gate-not-a-work-queue.md` with the benchmark results and the decision. Commit.
-4. **Issue #33.** Draft a results comment; post only after the user confirms.
+4. **Issue [removed link].** Draft a results comment; post only after the user confirms.
 
 ## Validation
 
@@ -60,7 +60,7 @@ Constraints:
 - [x] 1. Port harnesses (committed with 2 as 0bb5c71)
 - [x] 2. Remove the queue (0bb5c71)
 - [x] 3. Docs + ADR 0006
-- [x] 4. Issue #33 comment posted: https://github.com/ewgdg/reasoning-graph/issues/33#issuecomment-5843212311
+- [x] 4. Issue [removed link] comment posted: [removed link]
 
 ## Surprises & Discoveries
 

@@ -6,12 +6,12 @@ Make one `record` patch able to express any graph change, and give agents one op
 
 ## Intention
 
-In the #34 A/B (Sonnet 5, 22 items), skill runs averaged 5.5 `record` calls and 1.5 Python hand-edits of `state.json`. That's about 7 graph writes per run, and each one costs a full-context turn.
+In the [removed link] A/B (Sonnet 5, 22 items), skill runs averaged 5.5 `record` calls and 1.5 Python hand-edits of `state.json`. That's about 7 graph writes per run, and each one costs a full-context turn.
 
 - A patch could only add nodes, edges, and factors, and set node fields. It could not change or remove an edge, remove a node or factor, or drop a field. Agents hand-edited to make those changes.
 - A hand-edit skipped the verbatim quote check (`a-porsche-of-course` rewrote O12's quote). It left no event, so a passed review stayed current. When it removed an edge, a later `audit` failed with "add_edges references missing edge id".
 
-Analysis: issue #36 comment 5861985148. Target: about 3 graph writes per run (the first batch plus one per review round).
+Analysis: issue [removed link]. Target: about 3 graph writes per run (the first batch plus one per review round).
 
 ## Scope & Constraints
 
