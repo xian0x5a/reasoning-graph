@@ -5,6 +5,7 @@ description: >
   tests, and candidate answers can diverge. Keeps a JSON reasoning graph as
   working memory, checks the claimed answer against recorded evidence, and
   renders a live HTML view of progress.
+license: MIT
 ---
 
 # Reasoning Graph

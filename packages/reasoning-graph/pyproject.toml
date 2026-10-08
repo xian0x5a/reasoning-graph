@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=69"]
+# 77 reads the SPDX `license` string below.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +8,7 @@ name = "reasoning-graph"
 version = "0.3.0"
 description = "Reasoning graph CLI and helper library"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
   "jsonschema>=4.23",
