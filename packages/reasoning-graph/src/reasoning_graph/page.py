@@ -398,6 +398,11 @@ def html_document(
     else:
         bootstrap = f"""<script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  // ELK, not Mermaid's default dagre: a test's result edge runs from the Hypotheses lane
+  // back into Observations, and dagre then stacks the lanes and tangles every edge.
+  // layout-elk 0.2 is the line that pairs with Mermaid 11; 1.x needs Mermaid 12.
+  import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.2/dist/mermaid-layout-elk.esm.min.mjs";
+  mermaid.registerLayoutLoaders(elkLayouts);
   // The graph takes the page's typeface, read from the stylesheet so it is set in one place.
   const fontFamily = getComputedStyle(document.body).fontFamily;
   // Edges, edge labels and lane titles take the page's palette, light or dark; node colours
@@ -416,7 +421,7 @@ def html_document(
     primaryTextColor: token("--ink"),
     primaryBorderColor: token("--muted"),
   }};
-  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", theme: "base", fontFamily, themeVariables, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
+  mermaid.initialize({{ startOnLoad: false, securityLevel: "loose", theme: "base", layout: "elk", fontFamily, themeVariables, flowchart: {{ {mermaid_flowchart_config(spacing)} }} }});
   mermaid.run({{ querySelector: ".mermaid" }}).then(setupGraphs).catch((error) => {{
     console.error("Mermaid render failed", error);
     setupGraphs();

@@ -47,6 +47,14 @@ class RenderIdentityTests(unittest.TestCase):
         self.assertEqual(first.node_ids["A_B"], "A_B_3")
         self.assertNotEqual(first.factor_ids["F-1"], first.factor_ids["F_1"])
 
+    def test_online_page_lays_out_the_graph_with_elk(self) -> None:
+        # Dagre stacks the type lanes once a test result points back into Observations.
+        state = self.state()
+        document = html_document(state, to_mermaid(state), render_mode="mermaid")
+
+        self.assertIn("@mermaid-js/layout-elk", document)
+        self.assertIn('layout: "elk"', document)
+
     def test_mermaid_offline_and_html_share_node_identity_map(self) -> None:
         state = self.state()
         identities = render_identity_map(state)

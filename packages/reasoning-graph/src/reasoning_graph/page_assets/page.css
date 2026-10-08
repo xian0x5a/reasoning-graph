@@ -89,14 +89,10 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-source { margin-top: .6rem; color: var(--muted); }
 .graph-source pre { white-space: pre-wrap; overflow: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: .75rem; color: var(--ink); }
 .graph-canvas a { cursor: pointer; }
-.graph-canvas svg .edgePath, .graph-canvas svg .edge-path, .graph-canvas svg .flowchart-link { cursor: crosshair; pointer-events: stroke; outline: none; }
+.graph-canvas svg .flowchart-link { cursor: crosshair; pointer-events: stroke; outline: none; }
 .graph-canvas svg .edge-hitbox { stroke: transparent !important; stroke-width: 14px !important; fill: none !important; pointer-events: stroke; cursor: crosshair; outline: none; }
-.graph-canvas svg .edgePath.edge-hover path:not(.edge-hitbox),
-.graph-canvas svg .edge-path.edge-hover path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-hover:not(.edge-hitbox),
 .graph-canvas svg path.edge-hover:not(.edge-hitbox) { stroke: var(--hot) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hot) 55%, transparent)); }
-.graph-canvas svg .edgePath.edge-pinned path:not(.edge-hitbox),
-.graph-canvas svg .edge-path.edge-pinned path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-pinned:not(.edge-hitbox),
 .graph-canvas svg path.edge-pinned:not(.edge-hitbox) { stroke: var(--hot) !important; stroke-width: 5px !important; filter: drop-shadow(0 0 7px color-mix(in srgb, var(--hot) 70%, transparent)); }
 .graph-canvas svg .node.node-connected rect,
@@ -107,8 +103,6 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-canvas svg .edgeLabel.edge-connected { color: var(--hot) !important; font-weight: 600; }
 .graph-canvas.focus-active { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
 .graph-canvas.focus-active svg .node:not(.node-focused) { opacity: .36 !important; }
-.graph-canvas.focus-active svg .edgePath:not(.edge-focused),
-.graph-canvas.focus-active svg .edge-path:not(.edge-focused),
 .graph-canvas.focus-active svg path.flowchart-link:not(.edge-focused):not(.edge-hitbox) { opacity: .22 !important; }
 .graph-canvas.focus-active svg .edgeLabels > .edgeLabel:not(.edge-focused) { opacity: .18 !important; }
 .graph-canvas.focus-active svg .edgeLabels > .edgeLabel.edge-focused { opacity: 1 !important; }
@@ -125,8 +119,6 @@ button { border: 1px solid var(--line); background: var(--soft); color: var(--in
 .graph-canvas svg .node.node-focused ellipse,
 .graph-canvas svg .node.node-focused polygon,
 .graph-canvas svg .node.node-focused path { stroke: var(--focus) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--focus) 45%, transparent)); }
-.graph-canvas svg .edgePath.edge-focused path:not(.edge-hitbox),
-.graph-canvas svg .edge-path.edge-focused path:not(.edge-hitbox),
 .graph-canvas svg path.flowchart-link.edge-focused:not(.edge-hitbox),
 .graph-canvas svg path.edge-focused:not(.edge-hitbox) { stroke: var(--focus) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--focus) 50%, transparent)); opacity: 1 !important; }
 .detail-filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0 1rem; }

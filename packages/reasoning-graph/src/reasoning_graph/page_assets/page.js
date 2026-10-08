@@ -168,9 +168,13 @@ function connectedNodeKeys(edge, fallback) {
   return fallback ? [normalizeMermaidKey(fallback.from), normalizeMermaidKey(fallback.to)] : [];
 }
 
+// Mermaid 11 (dagre or ELK) and the offline SVG both mark each edge's own path this way.
+// Group classes such as .edgePath are not used: under ELK they name the group of all edges.
+const EDGE_PATH_SELECTOR = "path.flowchart-link";
+
 function edgeContainerFor(target) {
   if (!target || !target.closest) return null;
-  return target.closest("path.flowchart-link, path.edge-hitbox, path[class*='LS-'][class*='LE-'], path[id^='L-'], g.edgePath, .edgePath, g.edge-path, .edge-path");
+  return target.closest(`${EDGE_PATH_SELECTOR}, path.edge-hitbox`);
 }
 
 function uniqueElements(items) {
@@ -179,9 +183,7 @@ function uniqueElements(items) {
 
 function edgeElements(svg) {
   return uniqueElements(
-    Array.from(svg.querySelectorAll("path.flowchart-link, path[class*='LS-'][class*='LE-'], path[id^='L-'], g.edgePath, .edgePath, g.edge-path, .edge-path"))
-      .filter((item) => !item.classList.contains("edge-hitbox"))
-      .map((item) => item.matches?.("path") ? item : (item.closest?.("g") || item))
+    Array.from(svg.querySelectorAll(EDGE_PATH_SELECTOR)).filter((item) => !item.classList.contains("edge-hitbox"))
   );
 }
 
