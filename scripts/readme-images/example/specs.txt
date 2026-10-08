@@ -1,0 +1,2 @@
+Breaker B3 (installed Oct 3): rated 40 A
+Pump P2 motor: inrush current 55 A for 0.4 s

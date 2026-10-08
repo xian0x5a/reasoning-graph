@@ -4,7 +4,7 @@ An agent skill that makes the agent keep its reasoning as a graph: what it saw, 
 
 Use it for tasks where a linear chain of thought drifts: puzzles, root-cause analysis, ambiguous debugging, planning under uncertainty.
 
-![The live state.html view: the claimed answer passes its checks, backed by quoted evidence, with its rival and weak spots listed](docs/images/state-html-preview.png)
+![The live state.html view: the claimed answer passes its checks, backed by quoted evidence, with its rival and weak spots listed](docs/images/state-html-case.png)
 
 ## Install
 
@@ -39,6 +39,10 @@ If the user rejects the answer, the agent records the rejection as evidence and 
 
 **3. Progress view.** Every `record` refreshes `state.html`, so a human can follow along live. The agent scores claims and evidence on a 1–5 scale only where the default is wrong; the page turns those scores into a belief per claim, so a reader can see why one candidate outranks another and catch a weight that looks off. Belief is computed for the reader only: the state stores none and `audit` ignores it.
 
+The page also draws the full graph. Focusing a candidate highlights the evidence it rests on:
+
+<img src="docs/images/state-html-canvas.png" width="600" alt="The audit graph with the answer CS1 focused: its supporting observations, test, and hypothesis are highlighted, and the rival branches fade">
+
 ## Usage
 
 The agent drives the CLI. A typical run:
@@ -72,5 +76,7 @@ Skill instructions live in `skills/reasoning-graph/`; the Python package, CLI, a
 uv --project packages/reasoning-graph run reasoning-graph audit packages/reasoning-graph/tests/fixtures/valid/reasoning-graph-strict-good.json
 uv --project packages/reasoning-graph run --group dev pytest packages/reasoning-graph/tests/cli packages/reasoning-graph/tests/integration -q
 ```
+
+To rebuild the README screenshots after a page change, run `uv run scripts/readme-images/render.py` (needs Google Chrome).
 
 Generated reports, HTML, and Mermaid files go in `test-results/` or `/tmp`, not git.

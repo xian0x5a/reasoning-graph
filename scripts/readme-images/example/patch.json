@@ -1,0 +1,35 @@
+{
+  "nodes": [
+    {"id": "O1", "type": "observation", "text": "P2 restarted twice just before the outage", "source": "maintenance.log line 2", "quote": "P2 restarted 02:10, 02:14 (cause unknown)"},
+    {"id": "O2", "type": "observation", "text": "Breaker B3 tripped at 02:15", "source": "alerts.log line 1", "quote": "station offline: breaker B3 tripped"},
+    {"id": "O3", "type": "observation", "text": "B3 was replaced two days earlier without checking its rating", "source": "maintenance.log line 1", "quote": "B3 breaker replaced on Oct 3; rating not verified against pump load"},
+    {"id": "O4", "type": "observation", "text": "B3 is rated 40 A; P2 draws 55 A on startup", "source": "specs.txt", "quote": "rated 40 A...inrush current 55 A for 0.4 s"},
+    {"id": "O5", "type": "observation", "text": "P2 restarts weekly and never caused an outage before", "source": "maintenance.log line 3", "quote": "P2 restarts weekly after the filter cycle; no outage on prior restarts"},
+    {"id": "O6", "type": "observation", "text": "Supply voltage was nominal when B3 tripped", "source": "alerts.log line 2", "quote": "supply voltage nominal at time of trip"},
+    {"id": "H1", "type": "hypothesis", "text": "A fault in pump P2 caused the outage", "score": 2},
+    {"id": "H2", "type": "hypothesis", "text": "The new B3 is undersized and trips on P2's startup current"},
+    {"id": "H3", "type": "hypothesis", "text": "A grid voltage sag tripped B3", "score": 2},
+    {"id": "T1", "type": "test", "text": "Compare B3's rating with P2's inrush current"},
+    {"id": "T2", "type": "test", "text": "Pull the utility's voltage log for 02:00-02:30", "not_run": "utility logs need a request that takes days"},
+    {"id": "CS1", "type": "candidate_solution", "answer_kind": "exact_answer", "text": "Undersized replacement breaker B3 tripped on P2's restart"},
+    {"id": "CS2", "type": "candidate_solution", "answer_kind": "exact_answer", "text": "Pump P2 failed and took the station down"}
+  ],
+  "edges": [
+    {"from": "O1", "to": "H1", "type": "supports"},
+    {"from": "O5", "to": "H1", "type": "contradicts", "score": 4},
+    {"from": "O2", "to": "H2", "type": "supports"},
+    {"from": "O3", "to": "H2", "type": "supports"},
+    {"from": "O1", "to": "H2", "type": "supports", "score": 2},
+    {"from": "H2", "to": "T1", "type": "prompts"},
+    {"from": "T1", "to": "O4", "type": "leads_to"},
+    {"from": "O4", "to": "H2", "type": "supports", "score": 5},
+    {"from": "O2", "to": "H3", "type": "supports", "score": 2},
+    {"from": "O6", "to": "H3", "type": "contradicts", "score": 4},
+    {"from": "H3", "to": "T2", "type": "prompts"},
+    {"from": "H2", "to": "CS1", "type": "leads_to"},
+    {"from": "H1", "to": "CS2", "type": "leads_to"},
+    {"from": "CS1", "to": "G1", "type": "answers"},
+    {"from": "CS2", "to": "G1", "type": "answers"}
+  ],
+  "answer": "CS1"
+}
