@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Graph-centric state and page
 
 Part 1 continues the pruning of [removed link]. Part 2 is a first step of [removed link].

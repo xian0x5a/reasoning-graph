@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Add Cost Invariant Tests
 
 ## Goal

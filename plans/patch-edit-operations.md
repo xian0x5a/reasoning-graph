@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Patch edit operations and hand-edit refresh
 
 ## Goal
@@ -72,4 +76,4 @@ Analysis: issue [removed link]. Target: about 3 graph writes per run (the first 
 
 ## Superseded in part
 
-The reason-only `record` re-sync was replaced by `reasoning-graph refresh` and the graph digest (`plans/done/refresh-command-and-graph-digest.md`).
+The reason-only `record` re-sync was replaced by `reasoning-graph refresh` and the graph digest (`plans/refresh-command-and-graph-digest.md`).

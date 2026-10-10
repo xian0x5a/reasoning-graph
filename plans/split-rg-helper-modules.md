@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Split rg helper into modules
 
 ## Goal

@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Memory layer: cheaper record and a resume benchmark
 
 Tracks issue [removed link]. Decisions are recorded in the [removed link] comment of 2026-09-28.

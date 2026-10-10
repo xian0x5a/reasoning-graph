@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Fix stop gates and clear open tickets
 
 ## Goal

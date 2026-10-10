@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Remove the frontier queue from the CLI
 
 ## Goal

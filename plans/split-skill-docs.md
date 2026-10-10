@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Split Reasoning Graph Skill Docs
 
 ## Goal

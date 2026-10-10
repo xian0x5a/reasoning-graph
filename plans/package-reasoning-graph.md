@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Package Reasoning Graph as Real Python Project
 
 ## Goal

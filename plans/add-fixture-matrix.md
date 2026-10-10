@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Add Reasoning Graph Fixture Matrix
 
 ## Goal

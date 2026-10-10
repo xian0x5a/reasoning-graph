@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Factors for Correlated Updates
 
 ## Goal

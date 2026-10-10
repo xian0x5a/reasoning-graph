@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Add Semantic Stop Review Command
 
 ## Goal

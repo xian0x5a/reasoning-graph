@@ -1,6 +1,10 @@
+---
+status: done
+---
+
 # Reader eval
 
-The measure half of [removed link]. The case-first page exists (`plans/done/case-first-page.md`); this plan measures whether it lets a reader check the answer better than the alternatives.
+The measure half of [removed link]. The case-first page exists (`plans/case-first-page.md`); this plan measures whether it lets a reader check the answer better than the alternatives.
 
 ## Goal
 

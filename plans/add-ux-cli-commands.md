@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Add Reasoning Graph UX CLI Commands
 
 ## Goal

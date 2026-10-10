@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Merge claim node types into `hypothesis` and rename `evidence` to `observation`
 
 ## Goal

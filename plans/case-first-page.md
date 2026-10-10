@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Case-first page
 
 The build half of [removed link], together with the refactor of [removed link]. The reader eval of [removed link] is the last step and gets its own plan once the page exists.

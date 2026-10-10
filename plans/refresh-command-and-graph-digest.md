@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Refresh command and tamper-evident stop gate
 
 ## Goal

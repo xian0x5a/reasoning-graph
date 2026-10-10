@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Formalize package layout
 
 ## Goal

@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Evidence node schema
 
 ## Goal

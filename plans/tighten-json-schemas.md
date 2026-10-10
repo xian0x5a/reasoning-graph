@@ -1,3 +1,7 @@
+---
+status: done
+---
+
 # Tighten JSON Schemas Against Legacy Fields
 
 ## Goal
