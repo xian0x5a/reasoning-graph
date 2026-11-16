@@ -24,10 +24,12 @@ Use belief to find where to look, then judge each spot from the evidence itself:
    expected whether its target is true or false, because every rival explains it as well.
 3. Shared cause: edges into one target from sources that share a source, an observation,
    a cause, or logical overlap, not grouped in one factor.
-4. Wrong edge type. leads_to is a deduction: the target would be certain if every source
-   were. Flag a leads_to that fails that (observations that each corroborate the target,
-   an elimination over a rival list that may be incomplete), and supports edges from
-   sources that together prove their target (a claim that combines or restates them).
+4. Wrong edge type. A leads_to premise is a source its target stands or falls with:
+   certain if all its premises hold, without a basis if any one fails. Flag a leads_to
+   the target would survive losing (a corroborating clue, a second proof, one of several
+   alternatives); premises that would not make the target certain, with no premise for
+   what is missing (an elimination over a rival list that may be incomplete); and a
+   supports from a source the target cannot hold without (a part of a combined claim).
 5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
    a failed check it cannot survive) held down only by a contradicts edge.
 6. Overreach: a rules_out edge from an observation that does not settle its claim as false.

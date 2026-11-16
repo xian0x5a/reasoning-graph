@@ -93,7 +93,7 @@ A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it c
 ```json
 {
   "nodes": [
-    {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3"}
+    {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3", "score": 2}
   ]
 }
 ```
@@ -107,7 +107,8 @@ Once proved, a later `record` adds its `leads_to` premises to the same node and 
   ],
   "edges": [
     {"from": "O4", "to": "H3", "type": "leads_to", "note": "If every appended term is a multiple of 3, each row sum is too."}
-  ]
+  ],
+  "update_nodes": [{"id": "H3", "unset": ["score"]}]
 }
 ```
 

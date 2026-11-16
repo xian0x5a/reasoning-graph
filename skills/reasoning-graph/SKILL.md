@@ -94,7 +94,7 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 No belief level and no ranking is checked: the answer is the candidate you name, not the one that scores highest.
 
 - If the evidence does not decide it, or you are blocked, claim no answer. Record the blocker as a hypothesis and report the open hypotheses.
-- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it when the listed rivals are all there are (choosing the edge, below). Contradicting its siblings does not ground the survivor.
+- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it as choosing the edge (below) describes. Contradicting its siblings does not ground the survivor.
 - The CLI checks the record, not your reading of the sources: before claiming, reread each observation the answer relies on against its `quote`, and look for evidence in the sources that cuts against the answer.
 - Ask the user before deepening search when remaining work would cost meaningful time.
 
@@ -121,7 +121,7 @@ Keep working in the same state; nothing locks it. Put the rejection in one patch
 | 3 | open | ×2 |
 | 5 | well established | ×5, the ceiling: stronger evidence still counts ×5; never proof |
 
-Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim deduced from `leads_to` premises carries no score (choosing the edge, below), and neither do goals, constraints, and tests.
+Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises from observations or claims carries no score (choosing the edge, below), and neither do goals, constraints, and tests.
 
 An evidence edge is a likelihood ratio: how much more expected the observation is if the target is true than if it is false. It measures diagnosticity, not relevance. An observation that every rival explains about as well as the target is about as expected either way: a likelihood ratio near 1, so draw no edge. One that fits the target and some rivals but not the rest is still evidence for each claim it fits; the more rivals it also fits, the closer its ratio is to 1. An unscored edge still counts as score 3, ×2. A `contradicts` edge takes the reciprocal.
 
@@ -146,15 +146,15 @@ Edge types (any edge may carry a `note`):
 - `supports` — evidence for the target, at its `score` or the default; each edge multiplies the target's odds
 - `contradicts` — evidence against the target, at its `score` or the default; does not disqualify the target by itself
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
-- `leads_to` — premise of a deduction (choosing the edge, below): the target takes its belief from all its premises jointly and carries no score; `supports` edges into it apply on top
+- `leads_to` — premise the target stands or falls with (choosing the edge, below): the target takes its belief from all its premises jointly and carries no score; `supports` edges into it apply on top
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 - `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it, along with every claim resting on it through `leads_to`. `audit` fails an answer that names a ruled-out claim. Undo it by changing the edge to `contradicts`
 
-Choosing the edge: the type decides which way belief moves, so pick it by one question. If every source were certain, would the target be certain too?
+Choosing the edge: the type decides which way belief moves. Ask whether the target stands or falls with its sources: certain if they all hold, and left without a basis if any one of them fails.
 
-- Yes: the target is a deduction from its sources, each a `leads_to` premise. Its belief starts from theirs jointly, so each added premise can only lower it, and it carries no score: unset any score it had in the patch that adds its premises. A claim that combines or restates others is a deduction from them; so is a claim a test result proves, and the survivor of an elimination when the listed rivals are all there are.
-- No: each source is evidence, `supports` or `contradicts`, scored by its likelihood ratio, so each one adds. Observations that each corroborate a claim are evidence: as premises they would multiply, and every extra one would lower the claim.
-- A step that holds only probably is not a deduction. Link its sources as evidence, or add the doubt as a premise of its own: a hypothesis that the step holds.
+- Stands and falls with them: each is a `leads_to` premise. The target's belief starts from theirs jointly, so each added premise can only lower it, and it carries no score: unset any score it had in the patch that adds its premises. A claim that combines or restates others stands or falls with them, and so does a claim a test result proves.
+- Falls with them, but they would not make it certain: keep them as `leads_to` premises and add what is missing as a premise of its own, a hypothesis; for an elimination, that the listed rivals are all there are. That hypothesis rests on its score alone until evidence supports it, so `audit` does not count it toward grounding the answer.
+- Survives losing one of them (a corroborating clue, a second proof, one of several alternatives): that one is evidence, `supports` or `contradicts` scored by its likelihood ratio, so each one adds. As premises they would multiply, and every extra one would lower the target. A source that would make the target certainly false takes `rules_out`.
 
 Put evidence about one part of a combined claim on that part; a `supports` edge into the combined claim counts on top.
 

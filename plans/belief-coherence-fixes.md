@@ -37,7 +37,7 @@ Layers, each working end to end before the next:
 2. **`rules_out` edge (#5 step 2).** Observation → hypothesis/candidate_solution, no score, not groupable. Belief walk caps the target at `RULED_OUT_BELIEF` (renders `<1%`); `leads_to` descendants inherit it. Page/index/mermaid show "rules out" instead of a ratio; case "Against it" and Rivals include it. Rejection flow in `SKILL.md` uses it. ADR 0014.
 3. **`exclusive_sets` (#2).** Top-level `exclusive_sets: [{id, members, note?}]`, patch `exclusive_sets` (upsert by id) and `remove_exclusive_sets`. Members: ≥2 distinct existing hypothesis/candidate_solution ids. Page: a section listing each set with members' beliefs; a reader-only note when two or more members are above 50%. Index lists sets. ADR 0015.
 4. **Strong-contradiction mark (#5 step 1).** A claim with a score-5 `contradicts` edge or score-5 contradicts group shows the mark in its graph label and detail card, naming the source.
-5. **Deduction rule (review round 3, N1–N5).** Three doc reviews kept finding leaks in the case list that splits `leads_to` from `supports`, so the split becomes one question, stated once in `SKILL.md`: if every source were certain, would the target be certain? Yes: `leads_to`, a deduction. No: evidence, scored by likelihood ratio.
+5. **Deduction rule (review round 3, N1–N5).** Three doc reviews kept finding leaks in the case list that splits `leads_to` from `supports`, so the split becomes one rule, stated once in `SKILL.md`: a `leads_to` premise is a source the target stands or falls with (certain if all premises hold, without a basis if any fails); a source the target survives losing is evidence; a missing piece becomes a premise hypothesis.
    - Code: `record`/`refresh`/`audit` reject a `score` on a claim with belief-bearing `leads_to` premises or a `leads_to` group, naming the claims and the two ways out (unset it; or it is not a deduction: use `supports`, or add the doubt as a premise hypothesis). Removes the trap where a lemma scored 2 while open dropped to 27% once proved. ADR 0016 amends ADR 0009.
    - Docs: the rule lives in `SKILL.md` "Choosing the edge"; `cost-model.md`, `schema/tests.md`, `schema/goals.md` and `review.md` refer to it. Also N1 (review example), N3, N4, N5.
    - Rename of `leads_to` (to `premise_of`, with a separate test-to-result edge) is a follow-up issue, not this branch.
@@ -59,17 +59,20 @@ Layers, each working end to end before the next:
 - [x] Independent tests: 36 tests from the spec, no bugs found (0fd12d1)
 - [x] Independent review (Fable): 3 serious, 3 moderate findings, fixed with regression tests that fail on the pre-fix code (48808bb)
 - [x] Doc reviews of the scoring wording: Fable (45defff), then Opus: fix first (N1–N5)
-- [ ] Layer 5: independent tests for the deduced-claim score rule, written before the code and seen failing
-- [ ] Layer 5: code, ADR 0016, existing tests and fixtures updated
-- [ ] Layer 5: docs (deduction question, N1, N3–N5)
-- [ ] Layer 5: independent final review
-- [ ] Follow-up issue: rename `leads_to`
+- [x] Layer 5: independent tests for the deduced-claim score rule, written before the code and seen failing (6 of 11 failed for the missing rule)
+- [x] Layer 5: code, ADR 0016, existing tests and fixtures updated (694b231)
+- [x] Layer 5: docs (deduction question, N1, N3–N5) (c01148d)
+- [x] Layer 5: independent final review (Opus): code correct; the sufficiency-only question admitted second proofs as premises and sent needed-but-insufficient sources to `supports`. Replaced by stand-or-fall (user chose option S).
+- [ ] Layer 5: focused review of the stand-or-fall change
+- [x] Follow-up issue: rename `leads_to` (#7)
 
 ## Surprises & Discoveries
 
 - The first `rules_out` cap leaked: a `leads_to` group replaced the ruled-out member's cost (descendant at 90%), and stacked support lifted a descendant from an inherited 0.001 (76%). The cap now covers the transitive `leads_to` closure and applies after evidence.
 - A claim-sourced score 5 contradiction never divides by 5 (at belief b it divides by 1 + 4b), so the ÷5 mark counts only observation sources.
 - The extra label line needed taller offline SVG nodes.
+- "Would the target be certain if every source were?" checks only sufficiency; `leads_to` math is both: the target needs each premise and the premises settle it. The rule now asks both (stand or fall).
+- A missing-piece premise rests on its score alone, so it does not ground an answer; the folded step score never blocked `audit`. Kept as intended (ADR 0016).
 
 ## Decisions
 

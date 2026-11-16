@@ -22,8 +22,7 @@ The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` e
 | `hypothesis`, `candidate_solution` | 3 |
 | `supports`, `contradicts` edge | 3 |
 
-- A claim with no score and no claim among its `leads_to` premises takes its default.
-- A claim with `leads_to` premises from observations or claims, or a `leads_to` group, is deduced from them (choosing the edge, `../SKILL.md`). It takes their joint belief and adds nothing of its own: a hypothesis at score 4 leading to a candidate gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
+- A claim with no score takes its default, unless it is deduced: it has `leads_to` premises from observations or claims, or a `leads_to` group (choosing the edge, `../SKILL.md`). A deduced claim takes their joint belief and adds nothing of its own: a hypothesis at score 4 leading to a candidate gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
 - Goals, constraints, and tests carry no score. Neither do `leads_to`, `requires`, `prompts`, and `answers` edges.
 - The scale has no certainty and no impossibility: even a score 5 `contradicts` edge is a ratio that other evidence can outweigh. An observation that settles a claim as false takes a `rules_out` edge instead (below).
 - The removed fields `prior`, `confidence`, `probability`, and `posterior` on nodes and `likelihood` and `likelihood_ratio` on edges are rejected, not converted.

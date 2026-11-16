@@ -34,7 +34,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
 {
   "nodes": [
     {"id": "H1", "type": "hypothesis", "text": "The service is reading stale config"},
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"}
+    {"id": "T1", "type": "test", "text": "Log the hash of the config file the service loads at startup"}
   ],
   "edges": [
     {"from": "H1", "to": "T1", "type": "prompts"}
@@ -47,12 +47,12 @@ A result `observation` takes the default score 5. Lower it only when the reading
 ```json
 {
   "nodes": [
-    {"id": "T1", "type": "test", "text": "Print config path and mtime at startup"},
-    {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy"}
+    {"id": "T1", "type": "test", "text": "Log the hash of the config file the service loads at startup"},
+    {"id": "O1", "type": "observation", "text": "The service loaded config hash a1f3, the pre-deploy file; the deployed file hashes to 9c2e"}
   ],
   "edges": [
     {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The config predates the deploy, so the service cannot have read the new one."}
+    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
   ]
 }
 ```
@@ -67,7 +67,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
   ],
   "edges": [
     {"from": "T2", "to": "O2", "type": "leads_to"},
-    {"from": "O2", "to": "H1", "type": "supports", "note": "A restart rereads the config, but it also clears caches, so a stale cache fits too."}
+    {"from": "O2", "to": "H1", "type": "supports", "score": 2, "note": "A restart rereads the config, but it also clears caches, so a stale cache fits too."}
   ]
 }
 ```
@@ -101,11 +101,11 @@ A `record` patch adds the result node and connects it to the existing test node.
 ```json
 {
   "nodes": [
-    {"id": "O1", "type": "observation", "text": "Startup logs show config mtime before deploy"}
+    {"id": "O1", "type": "observation", "text": "The service loaded config hash a1f3, the pre-deploy file; the deployed file hashes to 9c2e"}
   ],
   "edges": [
     {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The config predates the deploy, so the service cannot have read the new one."}
+    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
   ]
 }
 ```
