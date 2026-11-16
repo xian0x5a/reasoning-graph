@@ -19,9 +19,8 @@ Use belief to find where to look, then judge each spot from the evidence itself:
 1. Rivals both likely: two claims that cannot both be true both look likely. Report what
    lifts them (items 2-4), or that they belong in one exclusive set; the fact that both
    are likely is a belief, not a finding.
-2. Non-diagnostic support: a supports edge from an observation that a rival explains
-   about as well, so it is about as expected if the target is false (likelihood ratio
-   near 1).
+2. Non-diagnostic support: a supports edge whose likelihood ratio is near 1, because a
+   rival explains the observation about as well.
 3. Shared cause: edges into one target from sources that share a source, an observation,
    a cause, or logical overlap, not grouped in one factor.
 4. Wrong edge type: a claim that combines or restates other claims fed by supports from

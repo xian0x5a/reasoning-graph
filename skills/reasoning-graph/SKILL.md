@@ -115,15 +115,15 @@ Keep working in the same state; nothing locks it. Put the rejection in one patch
 
 `score` is the only number you write, from 1 to 5, on claims and on `supports`/`contradicts` edges. Leave it out unless the default is wrong:
 
-| score | claim | evidence edge: how much more expected the observation is if the target is true than if it is false (likelihood ratio) |
+| score | claim | evidence edge (likelihood ratio) |
 | --- | --- | --- |
-| 1 | very unlikely | slightly |
-| 3 | open | about twice |
-| 5 | well established | about five times: very strong, never proof |
+| 1 | very unlikely | 1.2 |
+| 3 | open | 2 |
+| 5 | well established | 5: very strong, never proof |
 
 Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises inherits their belief and needs no score. Goals, constraints, and tests carry none.
 
-An evidence edge says how much the observation tells the target apart from its alternatives (likelihood ratio), not how relevant it is. Before drawing one, ask whether the observation would be about as expected if the target were false, for example because a rival explains it just as well. If so, draw no edge: an observation that every rival explains moves none of them, and an edge with no score still claims "about twice". A `contradicts` edge reads the same way with true and false swapped.
+An evidence edge is a likelihood ratio: how much more expected the observation is if the target is true than if it is false. It measures diagnosticity, not relevance. An observation that a rival explains about as well has a likelihood ratio near 1, so draw no edge; an edge with no score still claims 2. A `contradicts` edge takes the reciprocal.
 
 Score what you judge and move on. The CLI turns scores into a belief per claim only when it renders the graph, so a reader can see why one candidate outranks another and catch a weight that looks wrong. The state holds no belief, and the commands of the workflow (`record`, `refresh`, `audit`) print none. Evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
 

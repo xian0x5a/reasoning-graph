@@ -6,17 +6,17 @@ Scores, defaults, and the belief the rendered view computes from them. Read the 
 
 One optional `score` from 1 to 5 is the only number you write, on claims and on evidence edges. Write it only where the default is wrong.
 
-| score | claim | probability | evidence edge: how much more expected if the target is true | ratio (likelihood ratio) |
-| --- | --- | --- | --- | --- |
-| 1 | very unlikely | 0.1 | slightly | 1.2 |
-| 2 | unlikely | 0.3 | somewhat | 1.5 |
-| 3 | open | 0.5 | about twice | 2 |
-| 4 | likely | 0.7 | about three times | 3 |
-| 5 | well established | 0.9 | about five times: very strong, never proof | 5 |
+| score | claim | probability | evidence edge (likelihood ratio) |
+| --- | --- | --- | --- |
+| 1 | very unlikely | 0.1 | 1.2 |
+| 2 | unlikely | 0.3 | 1.5 |
+| 3 | open | 0.5 | 2 |
+| 4 | likely | 0.7 | 3 |
+| 5 | well established | 0.9 | 5: very strong, never proof |
 
-A `contradicts` edge uses the reciprocal of its ratio: how much more expected the observation is if the target is false.
+A `contradicts` edge uses the reciprocal of its likelihood ratio.
 
-The ratio (likelihood ratio) compares the target being true with it being false, not with the observation being relevant. An observation that every rival explains about as well is expected either way, so its ratio is about 1 and it gets no edge. Drawn anyway, it lifts every claim it touches: one observation with a default `supports` edge to each of two rivals shows both at 67%, where no edge leaves both at 50%.
+An observation that every rival explains about as well has a likelihood ratio near 1 and gets no edge. Drawn anyway, it lifts every claim it touches: one observation with a default `supports` edge to each of two rivals shows both at 67%, where no edge leaves both at 50%.
 
 | object | default score |
 | --- | --- |
