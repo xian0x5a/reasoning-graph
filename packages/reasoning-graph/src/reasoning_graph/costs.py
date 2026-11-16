@@ -350,9 +350,9 @@ class ScoredDeductionError(ValueError):
 
 def scored_deduction_message(node_ids: list[str]) -> str:
     return (
-        f"score on {', '.join(node_ids)}: a claim with leads_to premises is deduced from them and takes no score; unset it. "
-        "If the step from the premises is not certain, it is not a deduction: link them by supports instead, "
-        "or add the doubt as a premise of its own, a hypothesis that the step holds"
+        f"score on {', '.join(node_ids)}: a claim with leads_to premises takes its belief from them and carries no score; unset it. "
+        "If the premises would not make it certain, add what is missing as a premise of its own, a hypothesis; "
+        "if it would survive losing one of them, link that one by supports instead"
     )
 
 
