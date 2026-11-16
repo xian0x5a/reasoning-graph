@@ -21,7 +21,7 @@ The docs also disagreed: score 5 was labelled "decisive", `contradicts` "does no
 - A `rules_out` edge runs from an observation to a hypothesis or candidate. It takes no score and cannot be grouped.
 - The belief walk caps its target at `0.001`, rendered `<1%`, after premises and evidence. The cap covers every claim resting on the target through `leads_to`, grouped or not, also after their own evidence: inheriting 0.001 as a base let five strong supports lift a descendant back to 76%, and a premise group replaced the member's cost altogether.
 - The rejection flow uses `rules_out`; `contradicts` stays for doubt.
-- The evidence scale is unchanged: score 5 now reads "very strong, never proof", and the ratio stays 5.
+- The evidence scale is unchanged: score 5 now reads "×5, the ceiling: stronger evidence still counts ×5; never proof", and the ratio stays 5.
 - A ruled-out claim is never evidence-grounded, so `audit` fails an answer that names it. The check reads the authored edge, not a belief, so ADR 0010 holds; without it the stronger edge gated less than the score 5 `contradicts` it replaced, which already failed such an answer.
 
 ## Consequences

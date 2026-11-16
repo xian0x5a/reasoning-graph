@@ -22,7 +22,7 @@ T1 --leads_to--> O9
 O9 --supports|contradicts--> H1
 ```
 
-Result nodes are `observation` only: record what the test showed, not what it means. A conclusion drawn from the observation is a separate `hypothesis` linked `O9 --leads_to--> H2`.
+Result nodes are `observation` only: record what the test showed, not what it means. A conclusion drawn from the observation is a separate `hypothesis`: linked `O9 --leads_to--> H2` only when the result establishes it, so it holds whenever the observation does, and `O9 --supports--> H2` when the result only makes it more likely.
 
 A result `observation` takes the default score 5. Lower it only when the reading itself is doubtful: a flaky script, OCR, a lossy transcription.
 
@@ -105,7 +105,7 @@ A check that ran but did not settle anything (inconclusive, blocked, failed, or 
 
 - Tests carry no belief by themselves.
 - Test nodes carry no score; score the result observation instead.
-- Result nodes are `observation` only; a conclusion is a separate `hypothesis` reached by `leads_to` from the observation.
+- Result nodes are `observation` only; a conclusion is a separate `hypothesis`, reached by `leads_to` when the result establishes it and by `supports` when it only makes it more likely.
 - Result observations, not test nodes, support or contradict claims.
 - Use `test --leads_to--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.

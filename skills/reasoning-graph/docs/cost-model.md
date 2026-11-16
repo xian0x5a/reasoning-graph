@@ -8,13 +8,13 @@ One optional `score` from 1 to 5 is the only number you write, on claims and on 
 
 | score | claim | probability | evidence edge (likelihood ratio) |
 | --- | --- | --- | --- |
-| 1 | very unlikely | 0.1 | 1.2 |
-| 2 | unlikely | 0.3 | 1.5 |
-| 3 | open | 0.5 | 2 |
-| 4 | likely | 0.7 | 3 |
-| 5 | well established | 0.9 | 5: very strong, never proof |
+| 1 | very unlikely | 0.1 | ×1.2 |
+| 2 | unlikely | 0.3 | ×1.5 |
+| 3 | open | 0.5 | ×2 |
+| 4 | likely | 0.7 | ×3 |
+| 5 | well established | 0.9 | ×5, the ceiling: stronger evidence still counts ×5; never proof |
 
-A `contradicts` edge uses the reciprocal of its likelihood ratio.
+The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` edge uses its reciprocal.
 
 An observation that every rival explains about as well has a likelihood ratio near 1 and gets no edge. Drawn anyway, it lifts every claim it touches: one observation with a default `supports` edge to each of two rivals shows both at 67%, where no edge leaves both at 50%.
 
@@ -71,7 +71,7 @@ Graph labels show effective belief; node details show the authored score beside 
 - Correlated or overlapping evidence should be merged into one node or grouped (`schema/factors.md`), so it counts once. A group's score replaces its members' updates: two grouped supports at group score 3 double the odds once, not twice.
 - `leads_to` premises that stand or fall together are grouped the same way; the group's score is read from the claim table as their joint probability and replaces their product.
 
-`leads_to` and `supports` move belief in opposite ways as inputs pile up. Premises multiply, so each added premise can only lower the target; evidence multiplies odds, so each added support raises it. Model a claim that combines or restates other claims with `leads_to` from them, and independent corroboration with `supports`. The reverse inflates a combined claim above its parts, or lowers a claim with every observation that confirms it.
+`leads_to` and `supports` move belief in opposite ways as inputs pile up. Premises multiply: the first premise replaces an unscored claim's default with the premise's belief; each further premise can only lower it. Evidence multiplies odds, so each added support raises it. Model a claim that combines or restates other claims with `leads_to` from them, and independent corroboration with `supports`. The reverse inflates a combined claim above its parts, or lowers a claim with every observation that confirms it.
 
 ### Ruled-out claims
 
