@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 ---
 
 # One node per claim: evidence on the claim it bears on (issue #8)
@@ -32,8 +32,8 @@ No mechanical check can tell that two texts state one claim, and a cap on a clai
 ## Progress
 
 - [x] Layer 1 text, revised after an Opus wording review: one rule (merge into the candidate) instead of three directions for the evidence; evidence about a step goes on the step; ADR 0018 lists keeping both nodes as a considered option
-- [ ] Layer 2 probe
-- [ ] Layer 3 review
+- [x] Layer 2 probe (first_patch_probe.py, rejudge.py; 4 samples x 14 items per version). Loose judge (any hypothesis whose main claim is a candidate's, reasons or story attached): main 22/56, 88dd23e 13/56, e423cfa 8/56 (main vs e423cfa p = 0.006). Strict re-judge (could the hypothesis be false while the candidate is right?): pure restatements 7, 6, 2; one hypothesis per suspect 3, 3, 0. Hypotheses per patch 2.9, 2.6, 1.8, with evidence moving from observation->hypothesis (5.6 -> 3.9) to observation->candidate (3.7 -> 5.3); step hypotheses (exclusions, means) remain.
+- [x] Layer 3 review (Opus): removed "or restates" from choosing the edge and the matching cost-model clause, which still kept both nodes as premise and target; driver.md index example now has rival candidates, not a hypothesis per suspect; merge details (shared source, group and set membership, one patch); ADR probe numbers split loose and strict.
 
 ## Decisions
 
@@ -41,5 +41,7 @@ No mechanical check can tell that two texts state one claim, and a cap on a clai
 - No type change from hypothesis to candidate: in every post-#6 run the candidates exist from round 1, so the duplicate is not a hypothesis that later became the answer.
 
 ## Surprises
+
+- Stated only under one node per claim (88dd23e), the rule did not move pure restatements (7 -> 6 of 56). They start where the agent picks alternatives: one hypothesis per suspect beside the candidates. Stating the rule in the alternatives bullet (e423cfa) did.
 
 - Sonnet's safeguards flagged one detective-puzzle prompt as unsafe; the probe retries and skips a job that keeps failing, for both variants alike.

@@ -23,6 +23,7 @@ After #6, agents stopped writing premises between claims, and the lift went with
 ## Consequences
 
 - No check catches a restated claim: telling that two texts state one claim takes reading them. The reviewer brief covers it when a review runs.
+- The rule sits where the agent picks alternatives, since that is where the duplicates start: in a probe of first record patches (14 puzzles, 4 samples each), a judge counting any hypothesis whose main claim is a candidate's, story attached or not, found one in 22 of 56 patches under the old text and 8 of 56 under this one; a stricter judge counting pure restatements found 7 and 2, and one hypothesis per suspect beside the candidates went from 3 patches to none. Stated only under one node per claim, the rule cut the first count to 13 but left the pure restatements (6) and the per-suspect hypotheses (3) in place.
 - Evidence on a combined claim as a whole still lifts it above its parts. The skill says so, and puts evidence on the part it bears on.
 - A claim proved by a test result may still sit above the proof.
 
@@ -30,6 +31,6 @@ After #6, agents stopped writing premises between claims, and the lift went with
 
 - Cap a claim at its weakest premise: one rule in code, but it blocks the proved claim with independent clues, and the evidence should have raised the premise too.
 - Propagate evidence back to the premises: correct for every case, but it turns the forward cost walk into belief-network inference, and the scores are too coarse to make that precision worth it.
-- Keep both nodes and make one the other's only premise, with all the evidence on that one: beliefs agree, but the reader still sees one claim twice, and each later clue must go to the right one of the two.
+- Keep both nodes and make one the other's only premise, with all the evidence on that one, as the skill's "a claim that combines or restates others stands or falls with them" implied: beliefs agree, but the reader still sees one claim twice, and each later clue must go to the right one of the two. The skill now names only combining there.
 - A `restates` edge whose two ends share their evidence: a new edge type and belief rule for what merging does with the existing ones. It needs the writer to spot the restatement just as merging does.
 - Let `update_nodes` turn a hypothesis into a candidate: no run needed it, since the candidates existed from the first round.

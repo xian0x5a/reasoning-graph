@@ -67,23 +67,24 @@ An edge carries no id. It is identified by its ends, written `from-to`: the edge
 Answer: CS1
 
 ## Open
-- H2 hypothesis: The butler did it
+- H2 hypothesis: The butler had a key to the safe
 - T2 test (no result): Ask the cook
 - T3 test (not run: The case file has none): Compare dental records
 
 ## Nodes
 - O2 observation (score 3): The gardener says he stayed late [problem.md]
 - CS1 candidate_solution: The gardener
+- CS2 candidate_solution: The butler
 
 ## Edges
-- O1 -contradicts(5)-> H2 | note: Nine is before the theft
+- O1 -contradicts(5)-> CS2 | note: Nine is before the theft
 - H1 -premise_of-> CS1
 
 ## Groups
 - F1 [O2-H1, O3-H1] score 4 | note: Both place him on site
 
 ## Exclusive sets
-- X1 [H1, H2] | note: Only one person took it
+- X1 [CS1, CS2] | note: Only one person took it
 ```
 
 - Goals come first, with the claimed answer.
