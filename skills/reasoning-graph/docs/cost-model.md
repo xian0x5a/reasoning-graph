@@ -22,7 +22,7 @@ The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` e
 | `hypothesis`, `candidate_solution` | 3 |
 | `supports`, `contradicts` edge | 3 |
 
-- A claim with no score takes its default, unless it is deduced: it has premises (`premise_of` edges) or a premise group (choosing the edge, `../SKILL.md`). A deduced claim takes their joint belief and adds nothing of its own: a hypothesis at score 4 leading to a candidate gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
+- A claim with no score takes its default, unless it is deduced: it has premises (`premise_of` edges) or a premise group (choosing the edge, `../SKILL.md`). A deduced claim takes their joint belief and adds nothing of its own: a hypothesis at score 4 that is a candidate's only premise gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
 - Goals, constraints, and tests carry no score. Neither do `premise_of`, `yields`, `requires`, `prompts`, and `answers` edges; a test has no belief, so `yields` moves none.
 - The scale has no certainty and no impossibility: even a score 5 `contradicts` edge is a ratio that other evidence can outweigh. An observation that settles a claim as false takes a `rules_out` edge instead (below).
 - The removed fields `prior`, `confidence`, `probability`, and `posterior` on nodes and `likelihood` and `likelihood_ratio` on edges are rejected, not converted.
@@ -46,7 +46,7 @@ The removed `reasoning` field is rejected.
 Belief is computed in cost space, where a probability `P` has cost `-ln(P)`:
 
 ```txt
-local_probability = table[score or default] for a claim without premises from observations or claims, or 1 for a deduced claim, which takes no score
+local_probability = table[score or default] for a claim without premises, or 1 for a deduced claim, which takes no score
 base_truth_cost(target) = -ln(local_probability) + sum(effective_truth_cost(ungrouped premises via premise_of)) + sum(-ln(premise group probability))
 base_odds = P_base / (1 - P_base)
 updated_odds = base_odds * product(ungrouped supports/contradicts ratios) * product(supports/contradicts group ratios)

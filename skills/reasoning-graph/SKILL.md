@@ -146,8 +146,8 @@ Edge types (any edge may carry a `note`):
 - `supports` — evidence for the target, at its `score` or the default; each edge multiplies the target's odds
 - `contradicts` — evidence against the target, at its `score` or the default; does not disqualify the target by itself
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
-- `premise_of` — the source is a premise the target stands or falls with (choosing the edge, below): the target takes its belief from all its premises jointly and carries no score; `supports` edges into it apply on top. From an observation or claim into a hypothesis or candidate
-- `yields` — a run test to the observation that records its result; carries no belief
+- `premise_of` — the source is a premise the target stands or falls with (choosing the edge, below): the target takes its belief from all its premises jointly and carries no score; `supports` edges into it apply on top. Must run from an observation or claim into a `hypothesis` or `candidate_solution`
+- `yields` — from a test that ran to the observation of its result. Must be `test -> observation`; carries no belief; a `not_run` test has none
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 - `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it, along with every claim resting on it as a premise. `audit` fails an answer that names a ruled-out claim. Undo it by changing the edge to `contradicts`
 

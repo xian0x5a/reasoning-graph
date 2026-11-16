@@ -75,6 +75,9 @@ def main() -> None:
             page = browser.new_page(viewport=VIEWPORT, device_scale_factor=DEVICE_SCALE_FACTOR)
             page.goto(state_html.as_uri())
             page.wait_for_selector("#audit-graph svg", timeout=GRAPH_RENDER_TIMEOUT_MS)
+            # Mermaid inserts the svg before the page fits it to the canvas; a capture in
+            # between came out as an empty canvas. The fit sets the svg's width last.
+            page.wait_for_function("document.querySelector('#audit-graph svg').style.width === '100%'", timeout=GRAPH_RENDER_TIMEOUT_MS)
             # The floating Sections button would sit on top of the captured cards.
             page.add_style_tag(content=".floating-nav { display: none; }")
             screenshot_case(page, IMAGES_DIR / "state-html-case.png")
