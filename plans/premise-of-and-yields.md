@@ -36,7 +36,7 @@ The benchmark in the #7 comment found no change in how agents type edges (17/60 
 
 - [x] Layer 1 code (08d8fd5): suite 458 passed. Tests that exercised now-invalid endpoints (a goal, constraint, or test as a premise; a premise into an observation) were removed or retargeted; a hypothesis as a test result now fails at record, so its fixture moved from invalid/audit to invalid/validate.
 - [x] Layer 2 docs: skill text, docs, README, example patch, screenshots (only the edge chip changed), ADR 0017
-- [ ] Layer 3 independent tests
+- [x] Layer 3 independent tests: tests/cli/test_premise_of_and_yields.py (Sonnet, 29 cases), no code bugs found; suite 487 passed
 - [ ] Layer 4 review
 
 ## Decisions
