@@ -34,10 +34,13 @@ Use belief to find where to look, then judge each spot from the evidence itself:
 5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
    a failed check it cannot survive) held down only by a contradicts edge.
 6. Overreach: a rules_out edge from an observation that does not settle its claim as false.
+7. One claim twice: two nodes that state the same claim, such as a hypothesis "X is the
+   killer" beside the candidate "X", with the evidence for that claim split between them.
+   Name the node to keep (the candidate, when one of them is) and the edges to move to it.
 
 Report one line per finding: the ids, the fact about the evidence, and the graph change
-it implies (remove an edge, group edges, change an edge type, rule a claim out, add an
-exclusive set, add a test).
+it implies (remove an edge, group edges, change an edge type, merge two nodes,
+rule a claim out, add an exclusive set, add a test).
 Example: "O1 -> H1: every rival (H2, H3, H4) predicts a multi-chain drain as well as H1
 does, so O1 is as expected if H1 is false; remove the edge."
 Write every finding as a fact about the evidence. Leave out beliefs, ranks, scores, and

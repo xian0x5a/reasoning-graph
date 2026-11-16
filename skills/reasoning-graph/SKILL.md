@@ -76,7 +76,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 - **Tests get results.** A run test records what came back as an `observation` linked `test --yields--> observation`. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". Link the result to the claim it tested, and to any conclusion drawn from it (a separate `hypothesis`), by what it means: choosing the edge, below. Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no check counts them. When at most one of them can be true, list them in an exclusive set (below).
 - **Notes are your memory.** Any node or edge may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state. Write one on an edge when its score departs from the default or the link is not obvious from the two texts. What concerns no node goes in a file of your own.
-- **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
+- **One node per claim for its whole life.** Update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form. A candidate states a claim: answering "who killed Bryan?", the candidate "Thornton" claims that Thornton is the killer, and a rival answer is a rival candidate. Evidence that a candidate is the answer goes on the candidate; evidence about a step it needs, a motive, or how it was done goes on the hypothesis that states it. When a hypothesis states a candidate's claim, merge it into the candidate: give the candidate the hypothesis's other edges, put its reasons in the candidate's `note`, and remove the hypothesis.
 
 ## Subagents
 
@@ -100,7 +100,7 @@ No belief level and no ranking is checked: the answer is the candidate you name,
 
 ## Review before claiming
 
-The scores and edges are yours, and so are their mistakes: an observation every rival explains scored as support, clues sharing one cause left ungrouped, corroboration recorded as a deduction. `audit` checks none of that, and you do not read the computed beliefs. When a subagent is available and the answer matters, hand the state to a read-only reviewer with the brief in `docs/review.md` before claiming. It reads the rendered beliefs and reports facts about the evidence, never a number or which way to move one. Apply what you accept in one patch, then claim. One round per answer: the review is a second reading, not a gate to pass.
+The scores and edges are yours, and so are their mistakes: an observation every rival explains scored as support, clues sharing one cause left ungrouped, corroboration recorded as a deduction, one claim recorded as two nodes. `audit` checks none of that, and you do not read the computed beliefs. When a subagent is available and the answer matters, hand the state to a read-only reviewer with the brief in `docs/review.md` before claiming. It reads the rendered beliefs and reports facts about the evidence, never a number or which way to move one. Apply what you accept in one patch, then claim. One round per answer: the review is a second reading, not a gate to pass.
 
 ## When the answer is rejected
 
@@ -157,7 +157,7 @@ Choosing the edge: the type decides which way belief moves. Ask whether the targ
 - Falls with them, but they would not make it certain: keep them as premises and add what is missing as a premise of its own, a hypothesis; for an elimination, that the listed rivals are all there are. That hypothesis rests on its score alone until evidence supports it; until then the target is not grounded through its premises, and `audit` fails an answer resting on it.
 - Survives losing one of them, because another source still settles it or it never needed that one (a second proof, one of several alternatives, a corroborating clue): that one is evidence, `supports` or `contradicts` scored by its likelihood ratio, so each one adds. As premises they would multiply, and every extra one would lower the target. An observation that would make the target certainly false takes `rules_out`.
 
-Put evidence about one part of a combined claim on that part; a `supports` edge into the combined claim counts on top.
+Put evidence about one part of a combined claim on that part. Belief flows only from sources to targets, so evidence on the combined claim never reaches its parts and lifts the claim above them.
 
 Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List them in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
 
