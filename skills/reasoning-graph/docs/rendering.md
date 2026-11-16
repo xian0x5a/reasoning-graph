@@ -113,9 +113,9 @@ The case lets a reader check the answer without reading the graph first. It list
 | Part | Content |
 | --- | --- |
 | Why believe it | the `leads_to` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's weight, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
-| Against it | `contradicts` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
+| Against it | `contradicts` and `rules_out` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
 | Tests | tests that a why-tree node prompts or is checked by, or that produced a why-tree observation, with each result observation or the `not_run` reason |
-| Rivals | the other candidates of the goal, by belief, with the `contradicts` edges into each |
+| Rivals | the other candidates of the goal, by belief, with the `contradicts` and `rules_out` edges into each |
 | Weak spots | counted, not judged: a why-tree claim resting on one input or none (a group counts once), a why-tree observation without a quote, an unrun test |
 
 The why-tree follows the edges belief flows through, so the case and the computed beliefs agree. The data comes from `answer_cases` in `case.py`.
@@ -134,7 +134,7 @@ Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nod
 
 Node details separate **Effective belief** from **Prior**, the probability a claim's score sets before evidence, or its type's default when it has no score. A claim that takes its belief from premises and has no score has no prior. For example, premise `0.7` and score 5 give a graph label `belief 63%` and details `Prior: 90%`.
 
-The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `leads_to` group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `leads_to` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
+The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `rules_out` edge has no weight; its target reads `<1%`. A `leads_to` group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `leads_to` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
 
 When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 

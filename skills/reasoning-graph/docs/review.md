@@ -23,9 +23,11 @@ Use belief to find where to look, then judge each spot from the evidence itself:
    a cause, or logical overlap, not grouped in one factor.
 4. Wrong edge type: a claim that combines or restates other claims fed by supports from
    them; observations that each corroborate a claim on their own listed as leads_to premises.
+5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
+   a failed check it cannot survive) held down only by a contradicts edge.
 
 Report one line per finding: the ids, the fact about the evidence, and the graph change
-it implies (remove an edge, group edges, change an edge type).
+it implies (remove an edge, group edges, change an edge type, rule a claim out).
 Example: "O1 -> H1: O1 is equally expected under H2 (both predict a multi-chain drain);
 remove the edge."
 Write every finding as a fact about the evidence. Leave out beliefs, ranks, scores, and

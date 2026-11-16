@@ -107,7 +107,7 @@ The scores are yours, and so are their mistakes: an observation every rival expl
 Keep working in the same state; nothing locks it. Put the rejection in one patch:
 
 - what the user said, as an observation with `"source": "user"`
-- a `contradicts` edge from it to the rejected candidate
+- a `rules_out` edge from it to the rejected candidate; use `contradicts` instead when the user only doubts it
 - a `test` node for each check the guidance asks for, so it shows under `Open` in the index
 - `"answer": ""`, unless the answer stands and only its explanation was rejected
 
@@ -148,6 +148,7 @@ Edge types (any edge may carry a `note`):
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
 - `leads_to` — premise the target rests on; all premises must hold together, so the target is never more likely than they are jointly
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
+- `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it. Undo it by changing the edge to `contradicts`
 
 Choosing the edge: the type decides which way belief moves, so pick it by what the link means.
 

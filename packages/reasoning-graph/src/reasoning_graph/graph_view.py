@@ -42,7 +42,7 @@ GRAPH_GROUPS = (
 OTHER_GROUP = ("cluster_other", "Other")
 
 # Edges that are not a derivation step are drawn dashed; follow-up work also gets a warm colour.
-DASHED_EDGE_TYPES = {"contradicts", "prompts", "tested_by", "tests"}
+DASHED_EDGE_TYPES = {"contradicts", "rules_out", "prompts", "tested_by", "tests"}
 FOLLOW_UP_EDGE_TYPES = {"prompts", "tested_by", "tests"}
 
 

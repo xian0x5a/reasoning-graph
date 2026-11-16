@@ -20,6 +20,11 @@ EVIDENCE_SCORE_RATIO = {1: 1.2, 2: 1.5, 3: 2.0, 4: 3.0, 5: 5.0}
 DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3, "candidate_solution": 3}
 DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
+# A ruled-out claim is a status, not a weight: any finite ratio loses to enough stacked
+# support, which left user-rejected answers rendering at 95%. Its belief is capped here,
+# low enough to read `<1%` and small enough that no inherited belief stays visible.
+RULED_OUT_EDGE_TYPE = "rules_out"
+RULED_OUT_BELIEF = 0.001
 
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
 # evidence; belief always follows the recorded inputs.
@@ -305,6 +310,8 @@ class TruthInputs:
     evidence_updates: dict[str, list[EvidenceUpdate]]
     # Claims whose belief comes from a claim premise or a premise group.
     premise_backed_nodes: set[str]
+    # Claims an observation rules out; their belief is capped at RULED_OUT_BELIEF.
+    ruled_out_nodes: set[str]
 
 
 def truth_inputs(state: dict[str, Any]) -> TruthInputs:
@@ -322,6 +329,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     # so it is a truth dependency just like a premise.
     truth_dependencies: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     evidence_updates: dict[str, list[EvidenceUpdate]] = {}
+    ruled_out_nodes: set[str] = set()
 
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -345,6 +353,8 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
                 truth_dependencies[dst].append(src)
             if not grouped:
                 evidence_updates.setdefault(dst, []).append(EvidenceUpdate(math.log(likelihood_ratio), (src,)))
+        elif edge_type == RULED_OUT_EDGE_TYPE:
+            ruled_out_nodes.add(dst)
     assert_acyclic_premise_dependencies(truth_dependencies)
 
     # A group is an explicit bundle of dependent edges; its score replaces theirs.
@@ -370,6 +380,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             if premise_group_costs[node_id]
             or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
         },
+        ruled_out_nodes=ruled_out_nodes,
     )
 
 
@@ -458,6 +469,8 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost
+        if node_id in inputs.ruled_out_nodes:
+            cost = max(cost, probability_cost(RULED_OUT_BELIEF))
         cost = require_non_negative_float(cost, f"node {node_id} truth cost")
         visiting.remove(node_id)
         memo[node_id] = cost

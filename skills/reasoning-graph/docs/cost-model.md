@@ -28,7 +28,7 @@ The ratio compares the target being true with it being false, not with the obser
 - A claim with `leads_to` premises from other claims inherits their belief. Without a score it adds nothing of its own: a hypothesis at score 4 leading to an unscored candidate gives the candidate belief `0.7`, not `0.35`.
 - A score on a premise-backed claim is a further local factor: premise `0.7` and score 5 give `0.63`. Write one only for uncertainty the premises do not already carry.
 - Goals, constraints, and tests carry no score. Neither do `leads_to`, `requires`, `prompts`, and `answers` edges.
-- The scale has no certainty and no impossibility: even a score 5 `contradicts` edge is a ratio that other evidence can outweigh.
+- The scale has no certainty and no impossibility: even a score 5 `contradicts` edge is a ratio that other evidence can outweigh. An observation that settles a claim as false takes a `rules_out` edge instead (below).
 - The removed fields `prior`, `confidence`, `probability`, and `posterior` on nodes and `likelihood` and `likelihood_ratio` on edges are rejected, not converted.
 
 Belief is computed only when the graph is rendered, for the reader. The state stores none, a state or patch carrying `belief` is rejected, and the workflow commands (`record`, `refresh`, `audit`) print none: an agent that sees a belief tunes scores until the number moves. `html` and `mermaid` render it for readers, including the pre-claim reviewer (`review.md`), who never edits the graph.
@@ -72,5 +72,9 @@ Graph labels show effective belief; node details show the authored score beside 
 - `leads_to` premises that stand or fall together are grouped the same way; the group's score is read from the claim table as their joint probability and replaces their product.
 
 `leads_to` and `supports` move belief in opposite ways as inputs pile up. Premises multiply, so each added premise can only lower the target; evidence multiplies odds, so each added support raises it. Model a claim that combines or restates other claims with `leads_to` from them, and independent corroboration with `supports`. The reverse inflates a combined claim above its parts, or lowers a claim with every observation that confirms it.
+
+### Ruled-out claims
+
+A `rules_out` edge from an observation caps its target's belief at `0.001`, rendered `<1%`, after premises and evidence are applied. It is a status, not a weight: no stack of supports or strong premise lifts the claim back, and claims that take it as a `leads_to` premise inherit the cap. Its `supports` toward other claims then count for almost nothing, since claim-sourced evidence is scaled by the source's belief. Only an observation can rule a claim out, so one wrong inference cannot veto another claim. `audit` does not check it: a wrongly ruled-out answer can still be named, and changing the edge to `contradicts` undoes it.
 
 `leads_to` is not an evidence update. It forms the target's base belief from the ungrouped premises and any `leads_to` groups. `supports`/`contradicts` then update that base belief.

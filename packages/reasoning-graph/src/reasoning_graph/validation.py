@@ -8,6 +8,7 @@ from .costs import (
     EVIDENCE_EDGE_TYPES,
     REMOVED_EDGE_SCORE_FIELDS,
     REMOVED_NODE_SCORE_FIELDS,
+    RULED_OUT_EDGE_TYPE,
     assert_acyclic_premise_dependencies,
     node_effective_truth_costs,
     removed_score_field_message,
@@ -227,6 +228,10 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
         if src_type == "test" and dst_type == "observation" and edge_type == "leads_to" and "not_run" in nodes_by_id.get(src, {}):
             errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
+        # Only something seen may rule a claim out: an inference that vetoed another claim
+        # would turn one mistaken conclusion into an unrecoverable one.
+        if edge_type == RULED_OUT_EDGE_TYPE and (src_type != "observation" or dst_type not in {"hypothesis", "candidate_solution"}):
+            errors.append(f"edge {i} rules_out must connect observation -> hypothesis or candidate_solution; {src} -> {dst} is {src_type} -> {dst_type}")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
         if src_type == "hypothesis" and dst_type == "goal":

@@ -175,7 +175,7 @@ ol.case-tree { list-style: decimal; padding-left: 1.5rem; }
 .case-rel { display: inline-block; padding: 0 .4rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; color: var(--muted); background: var(--soft); }
 /* For and against are the first thing a reader scans for, so they get colour. */
 .case-rel[data-rel="supports"], .case-rel[data-rel="leads_to"] { color: var(--good-ink); background: var(--good-bg); }
-.case-rel[data-rel="contradicts"] { color: var(--bad-ink); background: var(--bad-bg); }
+.case-rel[data-rel="contradicts"], .case-rel[data-rel="rules_out"] { color: var(--bad-ink); background: var(--bad-bg); }
 .case-empty { border-top: 1px solid var(--line); padding-top: .6rem; margin: .6rem 0 0; color: var(--muted); font-size: .9rem; }
 /* Ids use the text face: in monospace, the O of O2 reads as a zero. */
 .case-id { display: inline-block; padding: 0 .4rem; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; font-weight: 700; color: var(--node-ink); text-decoration: none; }

@@ -245,7 +245,8 @@
             "tested_by",
             "tests",
             "leads_to",
-            "answers"
+            "answers",
+            "rules_out"
           ]
         },
         "score": {

@@ -212,7 +212,7 @@ def candidate_focus_nodes(
             premises_by_node.setdefault(target, []).append(source)
         elif edge_type == "requires":
             premises_by_node.setdefault(source, []).append(target)
-        elif edge_type == "contradicts":
+        elif edge_type in {"contradicts", "rules_out"}:
             contradictors_by_node.setdefault(target, []).append(source)
 
     # Focus is the candidate's full derivation: every transitive premise, including the

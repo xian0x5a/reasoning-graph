@@ -21,6 +21,7 @@ from .policy import answer_candidates, goal_candidates
 from .state import by_id, edge_id
 
 WHY_RELATIONS = ("leads_to", "supports")
+AGAINST_RELATIONS = ("contradicts", "rules_out")
 # Edges that tie a test to the claim it checks, as (claim end, test end).
 TEST_LINKS = {"prompts": ("from", "to"), "tested_by": ("from", "to"), "tests": ("to", "from")}
 CLAIM_TYPES = {"hypothesis", "candidate_solution"}
@@ -219,13 +220,13 @@ class _CaseGraph:
             answer=self.case_node(answer_id),
             why=why,
             against=tuple(
-                self.link(edge, reference=False) for node_id in why_nodes for edge in self.edges_into(node_id, ("contradicts",))
+                self.link(edge, reference=False) for node_id in why_nodes for edge in self.edges_into(node_id, AGAINST_RELATIONS)
             ),
             tests=tuple(tests),
             rivals=tuple(
                 CaseRival(
                     node=self.case_node(rival_id),
-                    against=tuple(self.link(edge, reference=False) for edge in self.edges_into(rival_id, ("contradicts",))),
+                    against=tuple(self.link(edge, reference=False) for edge in self.edges_into(rival_id, AGAINST_RELATIONS)),
                 )
                 for rival_id in rivals
             ),
