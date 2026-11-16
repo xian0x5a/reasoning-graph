@@ -16,11 +16,12 @@ EDGE_LABEL_GAP = 2
 
 def _spacing_metrics(spacing: str) -> dict[str, int]:
     presets = {
-        # A node holds up to four label lines: id, two of claim, belief.
-        "default": {"rank_gap": 290, "row_gap": 130, "node_width": 210, "node_height": 92},
-        "relaxed": {"rank_gap": 330, "row_gap": 155, "node_width": 220, "node_height": 96},
-        "wide": {"rank_gap": 380, "row_gap": 175, "node_width": 240, "node_height": 100},
-        "compact": {"rank_gap": 250, "row_gap": 110, "node_width": 200, "node_height": 88},
+        # A node holds up to five label lines: id, two of claim, belief, and the strongest
+        # case against it. Each line takes 18 px.
+        "default": {"rank_gap": 290, "row_gap": 148, "node_width": 210, "node_height": 110},
+        "relaxed": {"rank_gap": 330, "row_gap": 173, "node_width": 220, "node_height": 114},
+        "wide": {"rank_gap": 380, "row_gap": 193, "node_width": 240, "node_height": 118},
+        "compact": {"rank_gap": 250, "row_gap": 128, "node_width": 200, "node_height": 106},
     }
     return presets.get(spacing, presets["default"])
 

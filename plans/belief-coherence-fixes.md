@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 ---
 
 # Belief coherence fixes (issues #1–#5)
@@ -48,14 +48,18 @@ Layers, each working end to end before the next:
 ## Progress
 
 - [x] Branch created, baseline tests pass.
-- [ ] Layer 1 docs
-- [ ] Layer 2 rules_out
-- [ ] Layer 3 exclusive_sets
-- [ ] Layer 4 strong-contradiction mark
-- [ ] Independent tests
-- [ ] Independent review
+- [x] Layer 1 docs (2cd8edd)
+- [x] Layer 2 rules_out (41cd31b)
+- [x] Layer 3 exclusive_sets (17b3a58)
+- [x] Layer 4 strong-contradiction mark (95967c8)
+- [x] Independent tests: 36 tests from the spec, no bugs found (0fd12d1)
+- [x] Independent review (Fable): 3 serious, 3 moderate findings, fixed with regression tests that fail on the pre-fix code (48808bb)
 
 ## Surprises & Discoveries
+
+- The first `rules_out` cap leaked: a `leads_to` group replaced the ruled-out member's cost (descendant at 90%), and stacked support lifted a descendant from an inherited 0.001 (76%). The cap now covers the transitive `leads_to` closure and applies after evidence.
+- A claim-sourced score 5 contradiction never divides by 5 (at belief b it divides by 1 + 4b), so the ÷5 mark counts only observation sources.
+- The extra label line needed taller offline SVG nodes.
 
 ## Decisions
 
@@ -66,3 +70,9 @@ Layers, each working end to end before the next:
 - Name `exclusive_sets`, not `rival_sets`: the case page already has a "Rivals" part for candidates of one goal.
 
 ## Outcomes & Retrospective
+
+- All five issues are addressed on `fix/belief-coherence`. Suite: 409 → 452 tests passing.
+- The bank-robber round-3 state with `rules_out` renders its three rejected candidates at `<1%` (were 95%, 97%, 92%). The wallet-drain state before its fix gets the exclusive-set note (H1 81%, H2 80%); after the fix it does not.
+- Decisions live in ADR 0014 (rules_out) and ADR 0015 (exclusive sets); the reviewer brief in `skills/reasoning-graph/docs/review.md`.
+- Not done: an exclusive set id may equal a node or factor id (factors behave the same); left as is.
+- Lesson: an independent review of the status semantics found what the spec-driven tests could not, because the spec itself had the hole.
