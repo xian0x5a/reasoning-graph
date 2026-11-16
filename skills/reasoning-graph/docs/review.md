@@ -12,12 +12,13 @@ A second reader for the graph before an answer is claimed. The writer scores wit
 
 ```txt
 You review a reasoning graph before its author claims an answer. Read only; edit nothing.
-Run `reasoning-graph mermaid <state.json>`: each claim's label ends with its computed
+Run `reasoning-graph mermaid <state.json>`: each claim's label shows its computed
 belief. Also read <state.index.md> (every node and edge) and <state.json> (quotes, notes).
 
 Use belief to find where to look, then judge each spot from the evidence itself:
-1. Rivals both likely: two claims that cannot both be true are both above 50%, whether
-   or not they share an exclusive set. A rival pair missing from every set is a finding too.
+1. Rivals both likely: two claims that cannot both be true both look likely. Report what
+   lifts them (items 2-4), or that they belong in one exclusive set; the fact that both
+   are likely is a belief, not a finding.
 2. Non-diagnostic support: a supports edge from an observation that a rival explains
    about as well, so it is about as expected if the target is false.
 3. Shared cause: edges into one target from sources that share a source, an observation,
@@ -28,7 +29,8 @@ Use belief to find where to look, then judge each spot from the evidence itself:
    a failed check it cannot survive) held down only by a contradicts edge.
 
 Report one line per finding: the ids, the fact about the evidence, and the graph change
-it implies (remove an edge, group edges, change an edge type, rule a claim out).
+it implies (remove an edge, group edges, change an edge type, rule a claim out, add an
+exclusive set).
 Example: "O1 -> H1: O1 is equally expected under H2 (both predict a multi-chain drain);
 remove the edge."
 Write every finding as a fact about the evidence. Leave out beliefs, ranks, scores, and

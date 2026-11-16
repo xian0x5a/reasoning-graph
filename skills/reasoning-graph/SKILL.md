@@ -136,7 +136,7 @@ Node types:
 - `goal` — target to prove, solve, decide, or explain
 - `observation` — what was seen, given, verified, or source-backed, recorded as observed rather than interpreted; lower its score only when the reading itself is doubtful
 - `constraint` — boundary valid answers must satisfy; connect with `requires`
-- `hypothesis` — claim not yet established: an interpretation, an intermediate step toward the goal, or a blocker backed by observations. Open until it has `leads_to` premises
+- `hypothesis` — claim not yet established: an interpretation, an intermediate step toward the goal, or a blocker backed by observations. Open until it has `leads_to` premises or is ruled out
 - `test` — action/check/procedure; carries no score until its result `observation` is recorded
 - `candidate_solution` — possible answer; requires `answer_kind` and a `candidate_solution -> goal` `answers` edge
 
@@ -148,7 +148,7 @@ Edge types (any edge may carry a `note`):
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
 - `leads_to` — premise the target rests on; all premises must hold together, so the target is never more likely than they are jointly
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
-- `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it. Undo it by changing the edge to `contradicts`
+- `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it, along with every claim resting on it through `leads_to`. `audit` fails an answer that names a ruled-out claim. Undo it by changing the edge to `contradicts`
 
 Choosing the edge: the type decides which way belief moves, so pick it by what the link means.
 

@@ -59,6 +59,8 @@ def index_document(state: dict[str, Any]) -> str:
     premises = [edge for edge in edges if edge.get("type") == "leads_to"]
     tests_with_results = {edge.get("from") for edge in premises if node_types.get(edge.get("to")) in RESULT_NODE_TYPES}
     premise_backed = {edge.get("to") for edge in premises if node_types.get(edge.get("from")) in BELIEF_NODE_TYPES}
+    # A ruled-out hypothesis is settled, not open.
+    ruled_out = {edge.get("to") for edge in edges if edge.get("type") == "rules_out"}
 
     def test_state(node: dict[str, Any]) -> str:
         if "not_run" in node:
@@ -67,7 +69,7 @@ def index_document(state: dict[str, Any]) -> str:
 
     def is_open(node: dict[str, Any]) -> bool:
         if node.get("type") == "hypothesis":
-            return node.get("id") not in premise_backed and not node.get("exhausted")
+            return node.get("id") not in premise_backed and node.get("id") not in ruled_out and not node.get("exhausted")
         return node.get("type") == "test" and bool(test_state(node))
 
     def lines_of(selected: list[dict[str, Any]]) -> list[str]:

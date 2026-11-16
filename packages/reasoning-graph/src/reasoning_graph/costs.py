@@ -21,8 +21,9 @@ DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3, "candidate_solution": 
 DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 # A ruled-out claim is a status, not a weight: any finite ratio loses to enough stacked
-# support, which left user-rejected answers rendering at 95%. Its belief is capped here,
-# low enough to read `<1%` and small enough that no inherited belief stays visible.
+# support, which left user-rejected answers rendering at 95%. The cap applies after all
+# evidence, to the claim and to every claim resting on it through `leads_to`, grouped or
+# not, so neither stacked support nor a premise group lifts it back.
 RULED_OUT_EDGE_TYPE = "rules_out"
 RULED_OUT_BELIEF = 0.001
 
@@ -219,14 +220,31 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {format_belief(probability_from_cost(effective_truth_cost))}"
 
 
-def strongest_challenges(state: dict[str, Any]) -> dict[str, str]:
-    """Per claim, the strongest recorded case against it, for a reader: `ruled out by O7`, or
-    `÷5 by O6` for the top contradiction score, ungrouped or grouped.
+@dataclass(frozen=True)
+class Challenge:
+    """The strongest recorded case against a claim, for a reader: `ruled out by O7`, or
+    `÷5 by O6` for a top-score contradiction from observations."""
+
+    lead: str
+    sources: tuple[str, ...]
+
+    def text(self) -> str:
+        return f"{self.lead} {', '.join(self.sources)}"
+
+
+def strongest_challenges(state: dict[str, Any]) -> dict[str, Challenge]:
+    """Per claim, its strongest challenge, if any.
 
     A top-score contradiction can sit beside a high belief when enough support outweighs it;
-    the mark keeps that conflict in view instead of leaving it to the number.
+    the mark keeps that conflict in view apart from the number. Only observation sources
+    count: a claim source divides by less than its score says, scaled by its own belief.
     """
     top_score = max(EVIDENCE_SCORE_RATIO)
+    nodes = {node.get("id"): node for node in state.get("nodes", []) if isinstance(node, dict)}
+
+    def all_observed(sources: tuple[str, ...]) -> bool:
+        return all(nodes.get(source, {}).get("type") == "observation" for source in sources)
+
     ruled_out_by: dict[str, list[str]] = {}
     contradicted_by: dict[str, list[str]] = {}
     groups, _ = resolve_edge_groups(state)
@@ -237,15 +255,15 @@ def strongest_challenges(state: dict[str, Any]) -> dict[str, str]:
         source, target, relation = str(edge.get("from")), str(edge.get("to")), edge.get("type")
         if relation == RULED_OUT_EDGE_TYPE:
             ruled_out_by.setdefault(target, []).append(source)
-        elif relation == "contradicts" and edge.get("score") == top_score and edge_id(edge) not in grouped_edge_ids:
+        elif relation == "contradicts" and edge.get("score") == top_score and edge_id(edge) not in grouped_edge_ids and all_observed((source,)):
             contradicted_by.setdefault(target, []).append(source)
     for group in groups:
-        if group.relation == "contradicts" and group.score == top_score:
+        if group.relation == "contradicts" and group.score == top_score and all_observed(group.sources):
             contradicted_by.setdefault(group.target, []).extend(group.sources)
-    top_ratio = f"÷{EVIDENCE_SCORE_RATIO[top_score]:g}"
+    top_ratio = f"÷{EVIDENCE_SCORE_RATIO[top_score]:g} by"
     return {
-        **{target: f"{top_ratio} by {', '.join(sources)}" for target, sources in contradicted_by.items()},
-        **{target: f"ruled out by {', '.join(sources)}" for target, sources in ruled_out_by.items()},
+        **{target: Challenge(top_ratio, tuple(sources)) for target, sources in contradicted_by.items()},
+        **{target: Challenge("ruled out by", tuple(sources)) for target, sources in ruled_out_by.items()},
     }
 
 
@@ -340,7 +358,8 @@ class TruthInputs:
     evidence_updates: dict[str, list[EvidenceUpdate]]
     # Claims whose belief comes from a claim premise or a premise group.
     premise_backed_nodes: set[str]
-    # Claims an observation rules out; their belief is capped at RULED_OUT_BELIEF.
+    # Claims an observation rules out, and claims resting on one through `leads_to`;
+    # their belief is capped at RULED_OUT_BELIEF and they are never evidence-grounded.
     ruled_out_nodes: set[str]
 
 
@@ -410,8 +429,19 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             if premise_group_costs[node_id]
             or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
         },
-        ruled_out_nodes=ruled_out_nodes,
+        ruled_out_nodes=_resting_on(ruled_out_nodes, premise_sources),
     )
+
+
+def _resting_on(roots: set[str], premise_sources: dict[str, list[str]]) -> set[str]:
+    """The roots and every claim that rests on one of them through a chain of premises."""
+    closed = set(roots)
+    changed = bool(closed)
+    while changed:
+        added = {node_id for node_id, premises in premise_sources.items() if node_id not in closed and closed.intersection(premises)}
+        closed |= added
+        changed = bool(added)
+    return closed
 
 
 def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
@@ -428,6 +458,9 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
     grounded = {node_id for node_id, node in inputs.nodes.items() if node.get("type") == "observation"}
 
     def is_grounded_by(node_id: str) -> bool:
+        # A ruled-out claim fails the answer check, as a strong enough contradiction does.
+        if node_id in inputs.ruled_out_nodes:
+            return False
         premises = inputs.premise_sources.get(node_id, [])
         if premises and all(premise in grounded for premise in premises):
             return True

@@ -62,7 +62,7 @@ Layers, each working end to end before the next:
 - Exclusive-set warning fires when two or more members exceed 50%, not when the sum exceeds 100%: with the 0.5 default, five rivals already sum to 250% before evidence, so a sum check would fire on every new set. Two members above 50% is impossible for exclusive claims whether or not the list is complete.
 - No 1/n prior advice: it assumes the list is complete, and with a shared default the order inside a set barely depends on the prior.
 - `rules_out` is a status edge, not a steeper ratio: any finite ratio loses to stacked support or a strong `leads_to` premise (advisor replays: ÷20 still left 12 of 77 rejected candidates at ≥50%).
-- `audit` does not fail an answer that names a ruled-out candidate: retyping the edge undoes a wrong rule-out, and no gate on belief keeps ADR 0010.
+- `audit` fails an answer that names a ruled-out candidate (reversed after review): leaving it out made `rules_out` gate less than the `contradicts(5)` it replaced. It reads the authored edge, not belief, so ADR 0010 holds.
 - Name `exclusive_sets`, not `rival_sets`: the case page already has a "Rivals" part for candidates of one goal.
 
 ## Outcomes & Retrospective

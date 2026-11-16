@@ -87,7 +87,7 @@ Answer: CS1
 ```
 
 - Goals come first, with the claimed answer.
-- **Open** lists hypotheses that rest on no claim premise yet, tests without a result, and tests marked `not_run`.
+- **Open** lists hypotheses that rest on no claim premise yet and are not ruled out, tests without a result, and tests marked `not_run`.
 - A line gives id, type, text, and the source ref in brackets. A score shows only where it departs from the default. Notes follow `| note:`.
 - Within a section, lines keep the order of the state's lists.
 - The index holds no quote and nothing computed. It is a view: edit the state through a patch, never the index.
@@ -126,7 +126,7 @@ Answer checks:
 
 - every accepted, non-optional goal is answered (`docs/schema/goals.md`)
 - `summary.answer` names exactly one candidate for each of those goals, by id as a whole word or by exact text. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
-- the answer candidate is evidence-grounded, and every test has a result or `not_run` (`../SKILL.md`)
+- the answer candidate is evidence-grounded and not ruled out, and every test has a result or `not_run` (`../SKILL.md`)
 
 The HTML view shows the same status line, computed when it renders.
 

@@ -1,5 +1,6 @@
 """`rules_out`: an observation that eliminates a candidate or hypothesis outright."""
 
+import html
 import json
 import re
 import subprocess
@@ -13,6 +14,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
 
+from reasoning_graph.index import index_document
 from reasoning_graph.mermaid import to_mermaid
 from reasoning_graph.page import html_document
 from reasoning_graph.validation import validate_state
@@ -61,9 +63,10 @@ def base_state(answer: str = "CS1") -> dict:
 
 
 def card(document: str, node_id: str) -> str:
+    """The card's visible text: tags dropped, entities decoded."""
     match = re.search(rf'<article class="detail-card[^"]*"[^>]* id="details-{node_id}".*?</article>', document, re.DOTALL)
     assert match, f"no card for {node_id}"
-    return match[0]
+    return html.unescape(re.sub(r"<[^>]+>", "", match[0]))
 
 
 def case_part(document: str, heading: str) -> str:
@@ -148,17 +151,51 @@ def test_record_and_audit_reject_a_misplaced_rules_out() -> None:
         assert run_cli("audit", str(state_path)).returncode == 1
 
 
-def test_audit_does_not_judge_belief_so_a_ruled_out_grounded_answer_passes() -> None:
+@pytest.mark.parametrize("answer,ruled_out", [
+    ("CS2", "CS2"),  # the answer itself
+    ("CS1", "H1"),   # a premise the answer rests on
+])
+def test_audit_fails_an_answer_that_is_ruled_out_without_printing_belief(answer: str, ruled_out: str) -> None:
+    # Both answers are evidence-grounded without the rule-out; a score 5 contradicts already
+    # failed such an answer, so the stronger edge must not gate less.
     with tempfile.TemporaryDirectory() as tmp_dir:
         state_path = Path(tmp_dir, "state.json")
-        state = base_state(answer="CS2")
-        state["edges"].append(edge("O5", "CS2", "rules_out"))
+        state = base_state(answer=answer)
+        state["edges"].append(edge("O5", ruled_out, "rules_out"))
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
         result = run_cli("audit", str(state_path))
 
-        assert result.returncode == 0, result.stderr
-        assert not re.search(r"\d\s*%|<1%|belief", result.stdout + result.stderr)
+        assert result.returncode == 1
+        assert f"answer candidate {answer} is ruled out" in result.stderr
+        assert not re.search(r"\d\s*%|belief", result.stdout + result.stderr)
+
+
+def test_a_ruled_out_premise_caps_its_descendant_whatever_lifts_the_descendant() -> None:
+    # A premise group would replace H1's cost with its joint score, and stacked supports
+    # would multiply an inherited 0.001 back up; neither may lift CS1.
+    state = base_state()
+    state["nodes"].append({"id": "H2", "type": "hypothesis", "text": "Another premise"})
+    state["nodes"].extend(observation(f"P{i}") for i in range(5))
+    state["edges"] += [
+        edge("O5", "H1", "rules_out"),
+        edge("H2", "CS1", "leads_to"),
+        *(edge(f"P{i}", "CS1", "supports", score=5) for i in range(5)),
+    ]
+    state["factors"] = [{"id": "F1", "edges": ["H1-CS1", "H2-CS1"], "score": 5}]
+    assert validate_state(state).ok
+
+    assert "Effective belief: <1%" in card(html_document(state, to_mermaid(state)), "CS1")
+
+
+def test_a_ruled_out_hypothesis_is_not_listed_as_open_in_the_index() -> None:
+    state = base_state()
+    state["nodes"].append({"id": "H2", "type": "hypothesis", "text": "A rival hypothesis"})
+    state["edges"].append(edge("O5", "H2", "rules_out"))
+
+    open_section = index_document(state).split("## Open")[1].split("\n## ")[0]
+
+    assert "H2" not in open_section
 
 
 def test_rules_out_into_the_answers_why_tree_is_listed_against_it() -> None:

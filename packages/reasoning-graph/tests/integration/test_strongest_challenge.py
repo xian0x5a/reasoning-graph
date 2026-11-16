@@ -1,5 +1,6 @@
 """The page marks the strongest challenge to a claim: a score-5 contradiction (÷5) or a rule-out."""
 
+import html
 import json
 import re
 import subprocess
@@ -48,8 +49,19 @@ def state_with(*edges: dict, factors: list | None = None) -> dict:
     return state
 
 
+def claim_contradiction_state() -> dict:
+    """H2, a claim, contradicts H1 at score 5."""
+    state = state_with()
+    state["nodes"].append({"id": "H2", "type": "hypothesis", "text": "A rival hypothesis"})
+    state["edges"].append(edge("H2", "H1", "contradicts", score=5))
+    assert validate_state(state).ok
+    return state
+
+
 def card(document: str, node_id: str) -> str:
-    return re.search(rf'<article class="detail-card[^"]*"[^>]* id="details-{node_id}".*?</article>', document, re.DOTALL)[0]
+    """The card's visible text: tags dropped, entities decoded."""
+    markup = re.search(rf'<article class="detail-card[^"]*"[^>]* id="details-{node_id}".*?</article>', document, re.DOTALL)[0]
+    return html.unescape(re.sub(r"<[^>]+>", "", markup))
 
 
 def node_label(mermaid: str, node_id: str) -> str:
@@ -82,8 +94,13 @@ def test_a_score_five_factors_group_marks_the_claim_with_the_groups_sources() ->
 
 
 @pytest.mark.parametrize("render_mode", RENDER_MODES)
-def test_a_score_four_contradiction_gives_no_mark(render_mode: str) -> None:
-    state = state_with(edge("O1", "H1", "contradicts", score=4))
+@pytest.mark.parametrize("contradiction", [
+    edge("O1", "H1", "contradicts", score=4),
+    # A claim source divides by less than its score says, scaled by its own belief.
+    edge("CS1", "H1", "contradicts", score=5),
+], ids=["score-four", "claim-source"])
+def test_a_contradiction_below_the_top_score_or_from_a_claim_gives_no_mark(render_mode: str, contradiction: dict) -> None:
+    state = state_with(contradiction) if contradiction["from"] != "CS1" else claim_contradiction_state()
     mermaid = to_mermaid(state)
     document = html_document(state, mermaid, render_mode=render_mode)
 

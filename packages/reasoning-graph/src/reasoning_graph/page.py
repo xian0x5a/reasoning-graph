@@ -61,11 +61,15 @@ def node_detail_cards(
         source_text = source_html(str(node["source"]), linked_sources) if node.get("source") else ""
         extras: list[str] = []
         if raw_type in BELIEF_NODE_TYPES:
-            extras.append(f"<span>Effective belief: {format_belief(probability_from_cost(node_truth_costs[raw_id]))}</span>")
+            extras.append(f"<span>Effective belief: {html.escape(format_belief(probability_from_cost(node_truth_costs[raw_id])))}</span>")
             if priors[raw_id] is not None:
-                extras.append(f"<span>Prior: {format_belief(priors[raw_id])}</span>")
+                extras.append(f"<span>Prior: {html.escape(format_belief(priors[raw_id]))}</span>")
             if raw_id in challenges:
-                extras.append(f"<span>Strongest against: {html.escape(challenges[raw_id])}</span>")
+                challenge = challenges[raw_id]
+                sources = ", ".join(
+                    f'<a href="#{identities.node_anchor(source)}">{html.escape(source)}</a>' for source in challenge.sources
+                )
+                extras.append(f"<span>Strongest against: {html.escape(challenge.lead)} {sources}</span>")
         edge_notes = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):
@@ -393,11 +397,12 @@ def exclusive_set_notes(state: dict[str, Any]) -> str:
         likely = [
             (member, probability_from_cost(truth_costs[member]))
             for member in exclusive_set.get("members") or []
-            if member in truth_costs and probability_from_cost(truth_costs[member]) > EXCLUSIVE_CONFLICT_BELIEF
+            # Judged on the shown whole percent, so a note never reads "50%, 50% are each above 50%".
+            if member in truth_costs and round(probability_from_cost(truth_costs[member]) * 100) > EXCLUSIVE_CONFLICT_BELIEF * 100
         ]
         if len(likely) < 2:
             continue
-        members = ", ".join(f"<code>{html.escape(member)}</code> {format_belief(belief)}" for member, belief in likely)
+        members = ", ".join(f"<code>{html.escape(member)}</code> {html.escape(format_belief(belief))}" for member, belief in likely)
         notes.append(
             f'<p class="answer-rank-note">Exclusive set <code>{html.escape(str(exclusive_set.get("id")))}</code>: '
             f"{members} are each above 50%, but at most one of them can be true.</p>"
@@ -418,7 +423,7 @@ def exclusive_sets_html(state: dict[str, Any]) -> str:
             key=lambda member: (truth_costs[member], member),
         )
         members_html = ", ".join(
-            f"<code>{html.escape(member)}</code> {format_belief(probability_from_cost(truth_costs[member]))}" for member in members
+            f"<code>{html.escape(member)}</code> {html.escape(format_belief(probability_from_cost(truth_costs[member])))}" for member in members
         )
         note = f" · {html.escape(str(exclusive_set['note']))}" if exclusive_set.get("note") else ""
         items.append(f"<li><code>{html.escape(str(exclusive_set.get('id')))}</code>: {members_html}{note}</li>")
