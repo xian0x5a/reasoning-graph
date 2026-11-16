@@ -39,8 +39,8 @@ FACTOR_RELATIONS = {
 }
 
 
-# A test yields what was observed; a conclusion drawn from it is a separate hypothesis
-# with the observation as its premise_of.
+# A test yields what was observed. A conclusion drawn from that observation is a
+# separate hypothesis, with the observation as its premise.
 RESULT_NODE_TYPES = {"observation"}
 
 

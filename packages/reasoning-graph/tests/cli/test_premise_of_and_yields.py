@@ -62,7 +62,8 @@ def output(result: subprocess.CompletedProcess[str]) -> str:
 def test_leads_to_is_rejected_everywhere_and_names_both_replacements(tmp_path):
     patch_result = record(write_state(tmp_path), [edge("T1", "O1", "leads_to")])
     hand_edited = write_state(tmp_path, [edge("T1", "O1", "leads_to")])
-    results = [patch_result, run_cli("refresh", str(hand_edited)), run_cli("audit", str(hand_edited))]
+    # mermaid renders without validating, so it must fail on its own rather than drop the edge.
+    results = [patch_result, *(run_cli(command, str(hand_edited)) for command in ("refresh", "audit", "mermaid"))]
     for result in results:
         assert result.returncode != 0, output(result)
         assert "leads_to" in output(result)

@@ -27,6 +27,15 @@ EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 RULED_OUT_EDGE_TYPE = "rules_out"
 RULED_OUT_BELIEF = 0.001
 
+class RemovedInputError(ValueError):
+    """An input the state format no longer takes; validation names its replacement."""
+
+
+# One name meant a premise of a claim and a test's result, which carries no belief (ADR 0017).
+REMOVED_EDGE_TYPES = {
+    "leads_to": "leads_to was split; use premise_of for a premise of a claim, or yields from a test to the observation of its result",
+}
+
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
 # evidence; belief always follows the recorded inputs.
 REMOVED_NODE_SCORE_FIELDS = ("prior", "confidence", "probability", "posterior")
@@ -281,7 +290,7 @@ def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> flo
     # inputs rather than silently computing without them.
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
-            raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
+            raise RemovedInputError(removed_score_field_message(f"node {node.get('id')}", field))
     if node.get("type") not in BELIEF_NODE_TYPES or premise_backed:
         return None
     if "score" in node:
@@ -394,6 +403,10 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         if not isinstance(edge, dict):
             continue
         edge_type = edge.get("type") or edge.get("label")
+        # `mermaid` renders without validating; a leftover leads_to must fail, not drop out
+        # of the belief walk and leave its target at the default.
+        if edge_type in REMOVED_EDGE_TYPES:
+            raise RemovedInputError(f"edge {edge_id(edge)}: {REMOVED_EDGE_TYPES[edge_type]}")
         # Validate every evidence edge, including those the belief walk never reaches.
         if edge_type in EVIDENCE_EDGE_TYPES:
             likelihood_ratio = likelihood_ratio_from_edge(edge)

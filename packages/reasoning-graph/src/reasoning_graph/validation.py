@@ -7,8 +7,10 @@ from typing import Any
 from .costs import (
     EVIDENCE_EDGE_TYPES,
     REMOVED_EDGE_SCORE_FIELDS,
+    REMOVED_EDGE_TYPES,
     REMOVED_NODE_SCORE_FIELDS,
     RULED_OUT_EDGE_TYPE,
+    RemovedInputError,
     ScoredDeductionError,
     assert_acyclic_premise_dependencies,
     node_effective_truth_costs,
@@ -57,9 +59,8 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if not isinstance(edge, dict):
             continue
         owner = f"edge {edge_id(edge)}"
-        if edge.get("type") == "leads_to":
-            # One name meant a premise of a claim and a test's result, which carries no belief (ADR 0017).
-            errors.append(f"{owner}: leads_to was split; use premise_of for a premise of a claim, or yields from a test to the observation of its result")
+        if edge.get("type") in REMOVED_EDGE_TYPES:
+            errors.append(f"{owner}: {REMOVED_EDGE_TYPES[edge['type']]}")
         if "id" in edge:
             # Agents wrote from-to as the id in 225 of 245 edges, the same thing twice.
             errors.append(f"{owner}: id was removed; an edge is identified by its ends, as from-to; delete the field")
@@ -87,9 +88,9 @@ PREMISE_TARGET_TYPES = {"hypothesis", "candidate_solution"}
 def premise_endpoint_hint(src_type: str | None, dst_type: str | None) -> str:
     """Name the edge a misused premise_of was probably meant to be."""
     if src_type == "test":
-        return "; a test's result takes yields"
+        return "; a test's result is an observation, linked by yields"
     if dst_type == "test":
-        return "; a claim that calls for a test takes prompts"
+        return "; link what calls for a test to it by prompts"
     if dst_type == "observation":
         return "; a conclusion drawn from observations is a hypothesis"
     return ""
@@ -265,7 +266,8 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"edge {i} references missing from node {src!r}")
         if dst not in node_ids:
             errors.append(f"edge {i} references missing to node {dst!r}")
-        if edge_type not in EDGE_TYPES:
+        # A removed type is already named with its replacement by authored_field_errors.
+        if edge_type not in EDGE_TYPES and edge_type not in REMOVED_EDGE_TYPES:
             errors.append(f"edge {i} invalid type {edge_type!r}")
         ignored_legacy_fields = sorted(field for field in ("hard", "mode", "strength") if field in edge)
         if ignored_legacy_fields:
@@ -371,6 +373,8 @@ def validate_state(state: Any) -> ValidationResult:
         node_effective_truth_costs(state)
     except ScoredDeductionError as exc:
         errors.append(str(exc))
+    except RemovedInputError:
+        pass  # authored_field_errors already named the replacement
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")
 
