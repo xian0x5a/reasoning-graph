@@ -34,7 +34,7 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
   ],
   "edges": [
     {"from": "O1", "to": "H1", "type": "supports", "note": "An expired token right after issue points to skew."},
-    {"from": "H1", "to": "CS1", "type": "leads_to"},
+    {"from": "H1", "to": "CS1", "type": "premise_of"},
     {"from": "CS1", "to": "G1", "type": "answers"}
   ]
 }
@@ -77,7 +77,7 @@ Answer: CS1
 
 ## Edges
 - O1 -contradicts(5)-> H2 | note: Nine is before the theft
-- H1 -leads_to-> CS1
+- H1 -premise_of-> CS1
 
 ## Groups
 - F1 [O2-H1, O3-H1] score 4 | note: Both place him on site

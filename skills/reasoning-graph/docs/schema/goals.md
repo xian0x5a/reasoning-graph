@@ -98,7 +98,7 @@ A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it c
 }
 ```
 
-Once proved, a later `record` adds its `leads_to` premises to the same node and unsets any score you wrote while it was open; belief then comes from the premises alone (choosing the edge, `../../SKILL.md`):
+Once proved, a later `record` adds its premises to the same node and unsets any score you wrote while it was open; belief then comes from the premises alone (choosing the edge, `../../SKILL.md`):
 
 ```json
 {
@@ -106,7 +106,7 @@ Once proved, a later `record` adds its `leads_to` premises to the same node and 
     {"id": "O4", "type": "observation", "text": "Row generator appends only multiples of 3 (src/rows.py:12-30)", "source": "src/rows.py"}
   ],
   "edges": [
-    {"from": "O4", "to": "H3", "type": "leads_to", "note": "If every appended term is a multiple of 3, each row sum is too."}
+    {"from": "O4", "to": "H3", "type": "premise_of", "note": "If every appended term is a multiple of 3, each row sum is too."}
   ],
   "update_nodes": [{"id": "H3", "unset": ["score"]}]
 }

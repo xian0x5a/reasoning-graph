@@ -25,7 +25,7 @@ The graph does three jobs. It does not plan the work; the agent solves the probl
 - `test`: a check that would settle a claim, then its result
 - `candidate_solution`: a possible answer to the goal
 
-Edges say how they relate: `supports`, `contradicts`, `rules_out`, `leads_to`, `prompts`, `requires`, `answers`.
+Edges say how they relate: `supports`, `contradicts`, `rules_out`, `premise_of`, `yields`, `prompts`, `requires`, `answers`.
 
 After a context reset, the agent rereads `state.index.md`: one line per node and edge, with open work on top.
 

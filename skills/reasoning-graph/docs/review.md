@@ -24,8 +24,8 @@ Use belief to find where to look, then judge each spot from the evidence itself:
    expected whether its target is true or false, because every rival explains it as well.
 3. Shared cause: edges into one target from sources that share a source, an observation,
    a cause, or logical overlap, not grouped in one factor.
-4. Wrong edge type. A leads_to premise is a source its target stands or falls with:
-   certain if all its premises hold, without a basis if any one fails. Flag a leads_to
+4. Wrong edge type. A premise (`premise_of`) is a source its target stands or falls with:
+   certain if all its premises hold, without a basis if any one fails. Flag a premise
    the target would survive losing because another source still settles it (a second
    proof, one of several alternatives), or that only corroborates it (a clue); premises
    that would not make the target certain, with no premise for what is missing (an

@@ -34,8 +34,8 @@ The benchmark in the #7 comment found no change in how agents type edges (17/60 
 
 ## Progress
 
-- [ ] Layer 1 code
-- [ ] Layer 2 docs
+- [x] Layer 1 code (08d8fd5): suite 458 passed. Tests that exercised now-invalid endpoints (a goal, constraint, or test as a premise; a premise into an observation) were removed or retargeted; a hypothesis as a test result now fails at record, so its fixture moved from invalid/audit to invalid/validate.
+- [x] Layer 2 docs: skill text, docs, README, example patch, screenshots (only the edge chip changed), ADR 0017
 - [ ] Layer 3 independent tests
 - [ ] Layer 4 review
 
@@ -44,3 +44,5 @@ The benchmark in the #7 comment found no change in how agents type edges (17/60 
 - One general message for a `leads_to` edge: a patch adds edges whose end nodes may not be in the patch, so the message cannot always tell which replacement applies.
 
 ## Surprises
+
+- `mermaid` renders without validating, so a state with a premise_of from a goal into a scored node now raises the scored-deduction error there; before, a goal source did not count as a premise. Same behaviour as any scored deduced claim since ADR 0016, so left as is.

@@ -18,8 +18,8 @@ A `test` node is a procedure, so it carries no score and no belief by itself. It
 
 ```txt
 H1 --prompts--> T1
-T1 --leads_to--> O9
-O9 --leads_to|supports|contradicts--> H1
+T1 --yields--> O9
+O9 --premise_of|supports|contradicts--> H1
 ```
 
 Result nodes are `observation` only: record what the test showed, not what it means. Link the result to the claim it tested, and to any conclusion drawn from it (a separate `hypothesis`), by the question under choosing the edge in `../../SKILL.md`.
@@ -51,8 +51,8 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "O1", "type": "observation", "text": "The service loaded config hash a1f3, the pre-deploy file; the deployed file hashes to 9c2e"}
   ],
   "edges": [
-    {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
+    {"from": "T1", "to": "O1", "type": "yields"},
+    {"from": "O1", "to": "H1", "type": "premise_of", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
   ]
 }
 ```
@@ -66,7 +66,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "O2", "type": "observation", "text": "The restarted instance fell to the baseline error rate; the others stayed high"}
   ],
   "edges": [
-    {"from": "T2", "to": "O2", "type": "leads_to"},
+    {"from": "T2", "to": "O2", "type": "yields"},
     {"from": "O2", "to": "H1", "type": "supports", "score": 2, "note": "A restart rereads the config, but it also clears caches, so a stale cache fits too."}
   ]
 }
@@ -81,7 +81,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
     {"id": "O4", "type": "observation", "text": "Replay was inconclusive because fixture token expired"}
   ],
   "edges": [
-    {"from": "T4", "to": "O4", "type": "leads_to"}
+    {"from": "T4", "to": "O4", "type": "yields"}
   ]
 }
 ```
@@ -104,15 +104,15 @@ A `record` patch adds the result node and connects it to the existing test node.
     {"id": "O1", "type": "observation", "text": "The service loaded config hash a1f3, the pre-deploy file; the deployed file hashes to 9c2e"}
   ],
   "edges": [
-    {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
+    {"from": "T1", "to": "O1", "type": "yields"},
+    {"from": "O1", "to": "H1", "type": "premise_of", "note": "The loaded file is the pre-deploy one, so the service reads stale config."}
   ]
 }
 ```
 
 ## Result rule
 
-`audit` fails a claimed answer while any `test` node lacks both a result `observation` linked by `test --leads_to--> observation` and a `not_run` reason. While no answer is claimed it lists the gap as something an answer still needs.
+`audit` fails a claimed answer while any `test` node lacks both a result `observation` linked by `test --yields--> observation` and a `not_run` reason. While no answer is claimed it lists the gap as something an answer still needs.
 
 A check that ran but did not settle anything (inconclusive, blocked, failed, or skipped midway) is recorded as a result observation describing what happened (see the inconclusive example above); `not_run` is only for a check that cannot be performed here at all. A failed probe of one interpretation usually also adds `result --contradicts--> interpretation`.
 
@@ -122,6 +122,6 @@ A check that ran but did not settle anything (inconclusive, blocked, failed, or 
 - Test nodes carry no score; score the result observation instead.
 - Result nodes are `observation` only; a conclusion is a separate `hypothesis`.
 - Result observations, not test nodes, prove, support, or contradict claims.
-- Use `test --leads_to--> observation` for recorded outcomes.
+- Use `test --yields--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.
 - A check that cannot be run here carries `not_run` with the reason and has no result observation, never an invented one.
