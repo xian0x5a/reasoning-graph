@@ -8,6 +8,8 @@ from .costs import (
     EVIDENCE_EDGE_TYPES,
     REMOVED_EDGE_SCORE_FIELDS,
     REMOVED_NODE_SCORE_FIELDS,
+    RULED_OUT_EDGE_TYPE,
+    ScoredDeductionError,
     assert_acyclic_premise_dependencies,
     node_effective_truth_costs,
     removed_score_field_message,
@@ -71,6 +73,46 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
             require_score(edge["score"])
         except ValueError as exc:
             errors.append(f"{owner}: {exc}")
+    return errors
+
+
+EXCLUSIVE_SET_MEMBER_TYPES = {"hypothesis", "candidate_solution"}
+
+
+def exclusive_set_errors(exclusive_sets: Any, nodes_by_id: dict[str, dict[str, Any]]) -> list[str]:
+    """Each set names at least two different existing claims; ids are unique.
+
+    Like a factor naming a removed edge, a set naming a removed node fails rather than
+    shrinking silently: the patch that removes a member must replace or remove the set.
+    """
+    if exclusive_sets is None:
+        return []
+    if not isinstance(exclusive_sets, list):
+        return ["exclusive_sets must be a list when present"]
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    for i, exclusive_set in enumerate(exclusive_sets):
+        label = f"exclusive_sets[{i}]"
+        if not isinstance(exclusive_set, dict):
+            errors.append(f"{label} must be object")
+            continue
+        set_id = exclusive_set.get("id")
+        if not isinstance(set_id, str) or not set_id:
+            errors.append(f"{label} missing string id")
+        elif set_id in seen_ids:
+            errors.append(f"duplicate exclusive set id {set_id}")
+        else:
+            seen_ids.add(set_id)
+        members = exclusive_set.get("members")
+        if not isinstance(members, list) or len(set(map(str, members))) < 2 or len(set(map(str, members))) != len(members):
+            errors.append(f"{label}.members must list at least two different node ids")
+            continue
+        for member in members:
+            member_type = nodes_by_id.get(member, {}).get("type") if isinstance(member, str) else None
+            if member_type is None:
+                errors.append(f"{label}.members references missing node {member!r}")
+            elif member_type not in EXCLUSIVE_SET_MEMBER_TYPES:
+                errors.append(f"{label}.members: {member} is a {member_type}; only hypothesis and candidate_solution claims can be exclusive")
     return errors
 
 
@@ -157,6 +199,7 @@ def validate_state(state: Any) -> ValidationResult:
                 for j, goal_id in enumerate(group_goals):
                     if goal_id not in goal_ids:
                         errors.append(f"goal_groups[{i}].goals[{j}] references missing goal {goal_id!r}")
+    errors.extend(exclusive_set_errors(state.get("exclusive_sets"), nodes_by_id))
     goal_policy = state.get("goal_policy", {})
     if goal_policy is not None:
         if not isinstance(goal_policy, dict):
@@ -227,6 +270,10 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
         if src_type == "test" and dst_type == "observation" and edge_type == "leads_to" and "not_run" in nodes_by_id.get(src, {}):
             errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
+        # Only something seen may rule a claim out: an inference that vetoed another claim
+        # would turn one mistaken conclusion into an unrecoverable one.
+        if edge_type == RULED_OUT_EDGE_TYPE and (src_type != "observation" or dst_type not in {"hypothesis", "candidate_solution"}):
+            errors.append(f"edge {i} rules_out must connect observation -> hypothesis or candidate_solution; {src} -> {dst} is {src_type} -> {dst_type}")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
         if src_type == "hypothesis" and dst_type == "goal":
@@ -299,6 +346,8 @@ def validate_state(state: Any) -> ValidationResult:
     try:
         # Computed only to catch inputs the belief math rejects, such as an evidence cycle.
         node_effective_truth_costs(state)
+    except ScoredDeductionError as exc:
+        errors.append(str(exc))
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")
 

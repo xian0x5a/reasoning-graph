@@ -93,12 +93,12 @@ A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it c
 ```json
 {
   "nodes": [
-    {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3"}
+    {"id": "H3", "type": "hypothesis", "text": "Every row sum is divisible by 3", "score": 2}
   ]
 }
 ```
 
-Once proved, a later `record` adds its `leads_to` premises to the same node. Belief then comes from the premises alone; unset a score you wrote while it was open, unless the inference step itself is doubtful:
+Once proved, a later `record` adds its `leads_to` premises to the same node and unsets any score you wrote while it was open; belief then comes from the premises alone (choosing the edge, `../../SKILL.md`):
 
 ```json
 {
@@ -107,7 +107,8 @@ Once proved, a later `record` adds its `leads_to` premises to the same node. Bel
   ],
   "edges": [
     {"from": "O4", "to": "H3", "type": "leads_to", "note": "If every appended term is a multiple of 3, each row sum is too."}
-  ]
+  ],
+  "update_nodes": [{"id": "H3", "unset": ["score"]}]
 }
 ```
 

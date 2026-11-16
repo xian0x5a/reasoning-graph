@@ -27,6 +27,7 @@ EDGE_TYPES = {
     "tests",  # legacy alias; prefer prompts for follow-up work provenance
     "leads_to",
     "answers",
+    "rules_out",
 }
 
 

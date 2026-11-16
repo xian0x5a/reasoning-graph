@@ -20,6 +20,12 @@ EVIDENCE_SCORE_RATIO = {1: 1.2, 2: 1.5, 3: 2.0, 4: 3.0, 5: 5.0}
 DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3, "candidate_solution": 3}
 DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
+# A ruled-out claim is a status, not a weight: any finite ratio loses to enough stacked
+# support, which left user-rejected answers rendering at 95%. The cap applies after all
+# evidence, to the claim and to every claim resting on it through `leads_to`, grouped or
+# not, so neither stacked support nor a premise group lifts it back.
+RULED_OUT_EDGE_TYPE = "rules_out"
+RULED_OUT_BELIEF = 0.001
 
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
 # evidence; belief always follows the recorded inputs.
@@ -214,12 +220,59 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {format_belief(probability_from_cost(effective_truth_cost))}"
 
 
+@dataclass(frozen=True)
+class Challenge:
+    """The strongest recorded case against a claim, for a reader: `ruled out by O7`, or
+    `÷5 by O6` for a top-score contradiction from observations."""
+
+    lead: str
+    sources: tuple[str, ...]
+
+    def text(self) -> str:
+        return f"{self.lead} {', '.join(self.sources)}"
+
+
+def strongest_challenges(state: dict[str, Any]) -> dict[str, Challenge]:
+    """Per claim, its strongest challenge, if any.
+
+    A top-score contradiction can sit beside a high belief when enough support outweighs it;
+    the mark keeps that conflict in view apart from the number. Only observation sources
+    count: a claim source divides by less than its score says, scaled by its own belief.
+    """
+    top_score = max(EVIDENCE_SCORE_RATIO)
+    nodes = {node.get("id"): node for node in state.get("nodes", []) if isinstance(node, dict)}
+
+    def all_observed(sources: tuple[str, ...]) -> bool:
+        return all(nodes.get(source, {}).get("type") == "observation" for source in sources)
+
+    ruled_out_by: dict[str, list[str]] = {}
+    contradicted_by: dict[str, list[str]] = {}
+    groups, _ = resolve_edge_groups(state)
+    grouped_edge_ids = {edge_id for group in groups for edge_id in group.edge_ids}
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        source, target, relation = str(edge.get("from")), str(edge.get("to")), edge.get("type")
+        if relation == RULED_OUT_EDGE_TYPE:
+            ruled_out_by.setdefault(target, []).append(source)
+        elif relation == "contradicts" and edge.get("score") == top_score and edge_id(edge) not in grouped_edge_ids and all_observed((source,)):
+            contradicted_by.setdefault(target, []).append(source)
+    for group in groups:
+        if group.relation == "contradicts" and group.score == top_score and all_observed(group.sources):
+            contradicted_by.setdefault(group.target, []).extend(group.sources)
+    top_ratio = f"÷{EVIDENCE_SCORE_RATIO[top_score]:g} by"
+    return {
+        **{target: Challenge(top_ratio, tuple(sources)) for target, sources in contradicted_by.items()},
+        **{target: Challenge("ruled out by", tuple(sources)) for target, sources in ruled_out_by.items()},
+    }
+
+
 def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> float | None:
     """Probability a claim's own score sets, or its type default when nothing else gives it a belief.
 
-    None when no prior applies. A premise-backed claim without a score has none: a default on
-    every derived claim would halve belief at each step of a chain. Goals, constraints, and
-    tests have none either.
+    None when no prior applies. A premise-backed claim has none: it is deduced from its premises
+    and takes no score (`truth_inputs` rejects one), and a default on every deduced claim would
+    halve belief at each step of a chain. Goals, constraints, and tests have none either.
     """
 
     if not node:
@@ -229,12 +282,10 @@ def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> flo
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
             raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
-    if node.get("type") not in BELIEF_NODE_TYPES:
+    if node.get("type") not in BELIEF_NODE_TYPES or premise_backed:
         return None
     if "score" in node:
         return CLAIM_SCORE_PROBABILITY[require_score(node["score"])]
-    if premise_backed:
-        return None
     return CLAIM_SCORE_PROBABILITY[DEFAULT_CLAIM_SCORE[str(node["type"])]]
 
 
@@ -293,6 +344,18 @@ class EvidenceUpdate:
     source_ids: tuple[str, ...]
 
 
+class ScoredDeductionError(ValueError):
+    """A claim deduced from `leads_to` premises carries a score of its own."""
+
+
+def scored_deduction_message(node_ids: list[str]) -> str:
+    return (
+        f"score on {', '.join(node_ids)}: a claim with leads_to premises takes its belief from them and carries no score; unset it. "
+        "If the premises would not make it certain, add what is missing as a premise of its own, a hypothesis; "
+        "if it would survive losing one of them, link that one by supports instead"
+    )
+
+
 @dataclass(frozen=True)
 class TruthInputs:
     """Validated graph inputs to belief propagation, shared by cost and grounding checks."""
@@ -305,6 +368,9 @@ class TruthInputs:
     evidence_updates: dict[str, list[EvidenceUpdate]]
     # Claims whose belief comes from a claim premise or a premise group.
     premise_backed_nodes: set[str]
+    # Claims an observation rules out, and claims resting on one through `leads_to`;
+    # their belief is capped at RULED_OUT_BELIEF and they are never evidence-grounded.
+    ruled_out_nodes: set[str]
 
 
 def truth_inputs(state: dict[str, Any]) -> TruthInputs:
@@ -322,6 +388,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     # so it is a truth dependency just like a premise.
     truth_dependencies: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     evidence_updates: dict[str, list[EvidenceUpdate]] = {}
+    ruled_out_nodes: set[str] = set()
 
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
@@ -345,6 +412,8 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
                 truth_dependencies[dst].append(src)
             if not grouped:
                 evidence_updates.setdefault(dst, []).append(EvidenceUpdate(math.log(likelihood_ratio), (src,)))
+        elif edge_type == RULED_OUT_EDGE_TYPE:
+            ruled_out_nodes.add(dst)
     assert_acyclic_premise_dependencies(truth_dependencies)
 
     # A group is an explicit bundle of dependent edges; its score replaces theirs.
@@ -358,19 +427,37 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             ratio = evidence_ratio(group.score, group.relation)
             evidence_updates.setdefault(group.target, []).append(EvidenceUpdate(math.log(ratio), group.sources))
 
+    premise_backed_nodes = {
+        node_id
+        for node_id in nodes
+        if premise_group_costs[node_id] or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
+    }
+    # A score meant a prior while the claim was open and a doubt about the step once
+    # premises arrived, so a lemma scored 2 fell from 30% to 27% when proved (ADR 0016).
+    scored_deductions = sorted(node_id for node_id in premise_backed_nodes if "score" in nodes[node_id])
+    if scored_deductions:
+        raise ScoredDeductionError(scored_deduction_message(scored_deductions))
+
     return TruthInputs(
         nodes=nodes,
         premise_sources=premise_sources,
         ungrouped_premise_sources=ungrouped_premise_sources,
         premise_group_costs=premise_group_costs,
         evidence_updates=evidence_updates,
-        premise_backed_nodes={
-            node_id
-            for node_id in nodes
-            if premise_group_costs[node_id]
-            or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
-        },
+        premise_backed_nodes=premise_backed_nodes,
+        ruled_out_nodes=_resting_on(ruled_out_nodes, premise_sources),
     )
+
+
+def _resting_on(roots: set[str], premise_sources: dict[str, list[str]]) -> set[str]:
+    """The roots and every claim that rests on one of them through a chain of premises."""
+    closed = set(roots)
+    changed = bool(closed)
+    while changed:
+        added = {node_id for node_id, premises in premise_sources.items() if node_id not in closed and closed.intersection(premises)}
+        closed |= added
+        changed = bool(added)
+    return closed
 
 
 def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
@@ -387,6 +474,9 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
     grounded = {node_id for node_id, node in inputs.nodes.items() if node.get("type") == "observation"}
 
     def is_grounded_by(node_id: str) -> bool:
+        # A ruled-out claim fails the answer check, as a strong enough contradiction does.
+        if node_id in inputs.ruled_out_nodes:
+            return False
         premises = inputs.premise_sources.get(node_id, [])
         if premises and all(premise in grounded for premise in premises):
             return True
@@ -458,6 +548,8 @@ def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
             cost = truth_cost_from_log_odds(log_odds)
         else:
             cost = base_cost
+        if node_id in inputs.ruled_out_nodes:
+            cost = max(cost, probability_cost(RULED_OUT_BELIEF))
         cost = require_non_negative_float(cost, f"node {node_id} truth cost")
         visiting.remove(node_id)
         memo[node_id] = cost

@@ -49,6 +49,15 @@
     },
     "remove_factors": {
       "$ref": "#/$defs/idList"
+    },
+    "exclusive_sets": {
+      "type": "array",
+      "items": {
+        "$ref": "state.schema.json#/$defs/exclusiveSet"
+      }
+    },
+    "remove_exclusive_sets": {
+      "$ref": "#/$defs/idList"
     }
   },
   "$defs": {

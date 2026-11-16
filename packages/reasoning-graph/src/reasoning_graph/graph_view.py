@@ -11,7 +11,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import Any
 
-from .costs import node_belief_label, node_effective_truth_costs, probability_from_cost
+from .costs import node_belief_label, node_effective_truth_costs, probability_from_cost, strongest_challenges
 from .identities import RenderIdentityMap, render_identity_map
 from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
 from .policy import answer_labels
@@ -42,7 +42,7 @@ GRAPH_GROUPS = (
 OTHER_GROUP = ("cluster_other", "Other")
 
 # Edges that are not a derivation step are drawn dashed; follow-up work also gets a warm colour.
-DASHED_EDGE_TYPES = {"contradicts", "prompts", "tested_by", "tests"}
+DASHED_EDGE_TYPES = {"contradicts", "rules_out", "prompts", "tested_by", "tests"}
 FOLLOW_UP_EDGE_TYPES = {"prompts", "tested_by", "tests"}
 
 
@@ -53,8 +53,9 @@ CLAIM_LINE_CHARS = 26
 CLAIM_MAX_LINES = 2
 
 
-def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "") -> str:
-    """The node's id, its claim cut short, then its belief, or its type when it has no belief.
+def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer_label: str = "", challenge: str = "") -> str:
+    """The node's id, its claim cut short, then its belief, or its type when it has no belief,
+    and last the strongest case against it, if any.
 
     The type of a claim is already given by its lane and colour; its belief is not.
     """
@@ -64,7 +65,7 @@ def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer
     claim = " ".join(str(node.get("short_text") or node.get("text") or "").split())
     claim_lines = textwrap.wrap(claim, width=CLAIM_LINE_CHARS, max_lines=CLAIM_MAX_LINES, placeholder="…")
     last_line = node_belief_label(node, effective_truth_cost) or node_type_label(node)
-    return "\n".join([id_line, *claim_lines, last_line])
+    return "\n".join([id_line, *claim_lines, last_line, *([challenge] if challenge else [])])
 
 
 def edge_type(edge: dict[str, Any]) -> str:
@@ -150,6 +151,7 @@ def graph_view(state: dict[str, Any], identities: RenderIdentityMap | None = Non
     identities = identities or render_identity_map(state)
     truth_costs = node_effective_truth_costs(state)
     answers = answer_labels(state)
+    challenges = strongest_challenges(state)
 
     nodes: list[ViewNode] = []
     for node in state.get("nodes", []):
@@ -168,7 +170,7 @@ def graph_view(state: dict[str, Any], identities: RenderIdentityMap | None = Non
                 node_type=node_type,
                 render_class=node_render_class(node),
                 group=_group_of(node_type),
-                label=compact_node_label(node, truth_costs[raw_id], answers.get(raw_id, "")),
+                label=compact_node_label(node, truth_costs[raw_id], answers.get(raw_id, ""), challenges[raw_id].text() if raw_id in challenges else ""),
                 belief=probability_from_cost(truth_costs[raw_id]) if node_type in BELIEF_NODE_TYPES else None,
                 answer_label=answers.get(raw_id, ""),
                 record=node,

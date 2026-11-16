@@ -11,7 +11,7 @@
 - `id` — unique group id.
 - `edges` — two or more edges, each named by its ends as `from-to`. All share one type (`leads_to`, `supports`, or `contradicts`) and one target.
 - `score` — required, 1 to 5: the combined weight of the grouped edges, read from the same tables as an ungrouped score (`../cost-model.md`).
-  - `supports` / `contradicts`: the evidence ratio of the whole group.
+  - `supports` / `contradicts`: the likelihood ratio of the whole group.
   - `leads_to`: the joint probability that all grouped premises hold.
 - `note` — optional: why the edges depend on each other.
 

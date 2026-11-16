@@ -100,7 +100,9 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 | Status | the line `audit` prints, such as `answer CS1: checks pass`, computed when the page renders |
 | Rank note | only when another candidate of the same goal outranks the answer |
 | Case | the case for each answer, described below. None while no answer is claimed |
+| Exclusive-set note | only when two or more members of one exclusive set are each above 50%: `Exclusive set X1: H1 81%, H2 80% are each above 50%, but at most one of them can be true.` |
 | Graph | the full graph, grouped by node type, in a pan/zoom canvas |
+| Exclusive sets | only when the state has `exclusive_sets`: each set's members with their beliefs, most believed first |
 | Goal policy | only when the state has `goal_policy` or `goal_groups` |
 | Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
 
@@ -113,9 +115,9 @@ The case lets a reader check the answer without reading the graph first. It list
 | Part | Content |
 | --- | --- |
 | Why believe it | the `leads_to` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's weight, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
-| Against it | `contradicts` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
+| Against it | `contradicts` and `rules_out` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
 | Tests | tests that a why-tree node prompts or is checked by, or that produced a why-tree observation, with each result observation or the `not_run` reason |
-| Rivals | the other candidates of the goal, by belief, with the `contradicts` edges into each |
+| Rivals | the other candidates of the goal, by belief, with the `contradicts` and `rules_out` edges into each |
 | Weak spots | counted, not judged: a why-tree claim resting on one input or none (a group counts once), a why-tree observation without a quote, an unrun test |
 
 The why-tree follows the edges belief flows through, so the case and the computed beliefs agree. The data comes from `answer_cases` in `case.py`.
@@ -132,9 +134,11 @@ Candidates are ranked only under Rivals in the case. The belief of each claim is
 
 Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nodes that inherit all their belief. This is the effective result used for candidate ranking, not the authored `score`. Goals, constraints, and tests have no belief label.
 
-Node details separate **Effective belief** from **Prior**, the probability a claim's score sets before evidence, or its type's default when it has no score. A claim that takes its belief from premises and has no score has no prior. For example, premise `0.7` and score 5 give a graph label `belief 63%` and details `Prior: 90%`.
+A claim with a score 5 `contradicts` edge or group against it gets one more label line naming the sources, `÷5 by O6`, and a ruled-out claim reads `ruled out by O7`. A top-score contradiction can sit beside a high belief when enough support outweighs it, so the mark keeps the conflict visible apart from the number. Node details show the same text as **Strongest against**.
 
-The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `leads_to` group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `leads_to` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
+Node details separate **Effective belief** from **Prior**, the probability a claim's score sets before evidence, or its type's default when it has no score. A claim deduced from `leads_to` premises takes no score and has no prior. For example, a hypothesis at score 4 shows `belief 70%` and `Prior: 70%`; a candidate deduced from it shows `belief 70%` and no prior.
+
+The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `rules_out` edge has no weight; its target reads `<1%`. A `leads_to` group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `leads_to` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
 
 When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 
@@ -145,7 +149,7 @@ Canvas rules:
 - The graph is laid out left to right, so the observations, the widest rank of a real graph, stack in a column instead of one row wider than any screen. The canvas opens with the graph fitted to its width, never above natural size, and grows as tall as that takes, up to two screens; past that the graph fits the capped height. The page scroll still passes over the canvas, so a tall canvas reads like a tall figure. The offline SVG moves an edge label down until it clears the labels placed before it.
 - The canvas view is fitted to the graph, then wheel zoom stays between the fitted view and a 50x zoom-in. Drag panning is unbounded, so the graph can be dragged off the canvas like a document can be scrolled away; every canvas keeps a "Reset view" control that restores the fit. The canvas clips at its own edges, which is why the graph must fill the canvas box rather than sit in a short strip: Mermaid renders inside its own `pre.mermaid` wrapper, so that wrapper carries the canvas height.
 - Wheel zoom is opt-in per canvas: the canvas must hold focus (click it or Tab into it) before the wheel zooms, otherwise the wheel keeps scrolling the page normally. The focused canvas is outlined and sits on a dotted sheet background so it is obvious which surface owns the scroll.
-- A node label is its id, its claim cut on a word to two lines of 26 characters, and its belief, or its type when it has no belief. A reader can follow the graph without opening every node, and a long claim cannot blow up its node. The full text and authored inputs stay in the node-detail cards/modals.
+- A node label is its id, its claim cut on a word to two lines of 26 characters, and its belief, or its type when it has no belief, plus the strongest case against it when there is one (belief display, above). A reader can follow the graph without opening every node, and a long claim cannot blow up its node. The full text and authored inputs stay in the node-detail cards/modals.
 - Set `short_text` on a node whose text does not cut well; the label shows it in place of the text.
 - Mermaid labels escape with Mermaid's own entity codes (`#lt;`, `#quot;`, `#35;`), never HTML entities: Mermaid reads the `#x27;` of `&#x27;` as its own code and prints `&&x27;`.
 - Prefer click-to-details anchors over huge node labels.

@@ -90,8 +90,7 @@ def test_invalid_patch_does_not_modify_state(tmp_path, invalid_part):
     assert state_path.read_bytes() == original
 
 
-@pytest.mark.parametrize("score,expected", [({}, 0.45), ({"score": 5}, 0.405)])
-def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, score, expected):
+def test_inherited_candidate_applies_atomically(tmp_path):
     state = starter_state("default")
     state["nodes"].append({"id": "A2", "type": "hypothesis", "text": "Existing premise", "score": 3})
     state_path = tmp_path / "state.json"
@@ -100,7 +99,6 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
 
 
     patch = valid_patch()
-    patch["nodes"][1].update(score)
     # Grounding must use the merged graph, not just the nodes in this patch.
     patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
     patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
@@ -113,6 +111,6 @@ def test_scored_inference_and_inherited_candidate_apply_atomically(tmp_path, sco
     result = run("record", str(state_path), "--patch", str(patch_path))
     assert result.returncode == 0, result.stderr
     updated = json.loads(state_path.read_text(encoding="utf-8"))
-    assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(expected)
+    assert probability_from_cost(node_effective_truth_costs(updated)["CS1"]) == pytest.approx(0.45)
     # Persisting a patch stores what was authored, nothing computed.
     assert updated["nodes"] == state["nodes"] + patch["nodes"]

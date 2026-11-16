@@ -33,7 +33,7 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
     {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer"}
   ],
   "edges": [
-    {"from": "O1", "to": "H1", "type": "leads_to", "note": "An expired token right after issue points to skew."},
+    {"from": "O1", "to": "H1", "type": "supports", "note": "An expired token right after issue points to skew."},
     {"from": "H1", "to": "CS1", "type": "leads_to"},
     {"from": "CS1", "to": "G1", "type": "answers"}
   ]
@@ -46,7 +46,7 @@ The state holds what you authored, nothing computed and no trace of how it got t
 - The list order of `nodes` and `edges` is the order they were recorded in.
 - Belief is computed when the graph is rendered (`cost-model.md`), and so is the status of the claim.
 
-Optional sections: `factors` (`docs/schema/factors.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`).
+Optional sections: `factors` (`docs/schema/factors.md`), `exclusive_sets` (`../SKILL.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`).
 
 Removed, and rejected by validation: `events`, `stop_policy`, an `id` on an edge, and the sections `report`, `presentation` and `view`. They held a second copy of the graph for the reader. The answer is `summary.answer`, the reason for a candidate is a `note` on the node or edge, and a next check is a `test` node.
 
@@ -81,10 +81,13 @@ Answer: CS1
 
 ## Groups
 - F1 [O2-H1, O3-H1] score 4 | note: Both place him on site
+
+## Exclusive sets
+- X1 [H1, H2] | note: Only one person took it
 ```
 
 - Goals come first, with the claimed answer.
-- **Open** lists hypotheses that rest on no claim premise yet, tests without a result, and tests marked `not_run`.
+- **Open** lists hypotheses that rest on no claim premise yet and are not ruled out, tests without a result, and tests marked `not_run`.
 - A line gives id, type, text, and the source ref in brackets. A score shows only where it departs from the default. Notes follow `| note:`.
 - Within a section, lines keep the order of the state's lists.
 - The index holds no quote and nothing computed. It is a view: edit the state through a patch, never the index.
@@ -93,11 +96,11 @@ Answer: CS1
 
 `record` applies these operations, in this order: removals, then updates, then additions. A patch holds at least one field.
 
-- `remove_nodes`, `remove_edges`, `remove_factors` take id lists; each id must exist. Removing a node also removes every edge touching it. Groups are never removed implicitly: a group left naming a removed edge fails validation, so remove or replace it in the same patch.
+- `remove_nodes`, `remove_edges`, `remove_factors`, `remove_exclusive_sets` take id lists; each id must exist. Removing a node also removes every edge touching it. Groups and sets are never removed implicitly: a group left naming a removed edge, or a set left naming a removed node, fails validation, so remove or replace it in the same patch.
 - `update_nodes` and `update_edges` take items `{"id": ..., "set": {...}, "unset": [...]}` with at least one of `set` or `unset`. `set` replaces top-level fields; `unset` deletes fields the item has. A node's `id` and `type` and an edge's `from` and `to` are immutable. Use `update_nodes` to keep one node per claim as evidence arrives.
 - `nodes` and `edges` are insert-only; a node id or an edge that exists after the removals is rejected. One removed earlier in the same patch may be added again.
 - The list order of `nodes` and `edges` is the order they were recorded in: `record` appends and never reorders, and nothing else records that order.
-- `factors` adds or replaces correlation groups by id.
+- `factors` adds or replaces correlation groups by id, and `exclusive_sets` exclusive sets.
 - `answer` sets `summary.answer`; an empty string withdraws the claim.
 - `belief` is rejected in `nodes` and `update_nodes`. `reason` is rejected: the state keeps no log, so what is worth keeping goes in a `note`.
 - Every observation whose `source` starts with a local text file (resolved from the state file's directory) must quote it verbatim: each `...`-separated fragment of `quote` has to appear in the file. Line breaks, markdown markers, quote-mark style, and case are ignored. Other sources are not checked. `record` and `refresh` recheck every quote on each call, not only the patched ones.
@@ -123,7 +126,7 @@ Answer checks:
 
 - every accepted, non-optional goal is answered (`docs/schema/goals.md`)
 - `summary.answer` names exactly one candidate for each of those goals, by id as a whole word or by exact text. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
-- the answer candidate is evidence-grounded, and every test has a result or `not_run` (`../SKILL.md`)
+- the answer candidate is evidence-grounded and not ruled out, and every test has a result or `not_run` (`../SKILL.md`)
 
 The HTML view shows the same status line, computed when it renders.
 

@@ -37,6 +37,13 @@
       "items": {
         "$ref": "#/$defs/goalGroup"
       }
+    },
+    "exclusive_sets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusiveSet"
+      },
+      "default": []
     }
   },
   "$defs": {
@@ -133,7 +140,7 @@
         },
         "score": {
           "$ref": "#/$defs/score",
-          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with leads_to premises inherits their belief, and a score on it is a further local factor."
+          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with leads_to premises from observations or claims, or a leads_to group, takes its belief from them and carries no score."
         },
         "answer_kind": {
           "enum": [
@@ -245,7 +252,8 @@
             "tested_by",
             "tests",
             "leads_to",
-            "answers"
+            "answers",
+            "rules_out"
           ]
         },
         "score": {
@@ -327,6 +335,32 @@
           }
         }
       ]
+    },
+    "exclusiveSet": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Claims of which at most one can be true. The list need not be complete. Changes no belief; the page tells the reader when two members are both above 50%.",
+      "required": [
+        "id",
+        "members"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "members": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nodeId"
+          },
+          "description": "hypothesis or candidate_solution ids."
+        },
+        "note": {
+          "type": "string"
+        }
+      }
     },
     "factor": {
       "type": "object",

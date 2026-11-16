@@ -231,9 +231,14 @@ def ungrounded_answer_messages(state: dict[str, Any]) -> list[str]:
     """
 
     named = {candidate_id for candidate_id in answer_candidates(state).values() if candidate_id}
+    ruled_out = named & truth_inputs(state).ruled_out_nodes
     return [
+        f"answer candidate {candidate_id} is ruled out: it, or a premise it rests on, has a rules_out edge from an observation; "
+        "name another candidate, or change that edge to contradicts if the rule-out was wrong"
+        for candidate_id in sorted(ruled_out)
+    ] + [
         f"answer candidate {candidate_id} is not evidence-grounded; claims resting on scores alone: {', '.join(claims)}"
-        for candidate_id, claims in ungrounded_claims_by_candidate(state, named).items()
+        for candidate_id, claims in ungrounded_claims_by_candidate(state, named - ruled_out).items()
     ]
 
 
