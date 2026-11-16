@@ -365,6 +365,67 @@ def answer_rank_notes(state: dict[str, Any]) -> str:
     return "".join(notes)
 
 
+# Two members of an exclusive set above this belief cannot both be right, however
+# incomplete the set is. A sum over 100% would fire on every new set: five members at
+# the 0.5 default already sum to 250% before any evidence.
+EXCLUSIVE_CONFLICT_BELIEF = 0.5
+
+
+def exclusive_sets(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [item for item in state.get("exclusive_sets") or [] if isinstance(item, dict)]
+
+
+def exclusive_set_notes(state: dict[str, Any]) -> str:
+    """Tell the reader when two or more claims of one exclusive set are each above 50%.
+
+    Only the reader is told, like the rank note: no gate and no command shows the agent a belief.
+    """
+    sets = exclusive_sets(state)
+    if not sets:
+        return ""
+    truth_costs = node_effective_truth_costs(state)
+    notes = []
+    for exclusive_set in sets:
+        likely = [
+            (member, probability_from_cost(truth_costs[member]))
+            for member in exclusive_set.get("members") or []
+            if member in truth_costs and probability_from_cost(truth_costs[member]) > EXCLUSIVE_CONFLICT_BELIEF
+        ]
+        if len(likely) < 2:
+            continue
+        members = ", ".join(f"<code>{html.escape(member)}</code> {format_belief(belief)}" for member, belief in likely)
+        notes.append(
+            f'<p class="answer-rank-note">Exclusive set <code>{html.escape(str(exclusive_set.get("id")))}</code>: '
+            f"{members} are each above 50%, but at most one of them can be true.</p>"
+        )
+    return "".join(notes)
+
+
+def exclusive_sets_html(state: dict[str, Any]) -> str:
+    """Each exclusive set with its members side by side, most believed first."""
+    sets = exclusive_sets(state)
+    if not sets:
+        return ""
+    truth_costs = node_effective_truth_costs(state)
+    items = []
+    for exclusive_set in sets:
+        members = sorted(
+            (member for member in exclusive_set.get("members") or [] if member in truth_costs),
+            key=lambda member: (truth_costs[member], member),
+        )
+        members_html = ", ".join(
+            f"<code>{html.escape(member)}</code> {format_belief(probability_from_cost(truth_costs[member]))}" for member in members
+        )
+        note = f" · {html.escape(str(exclusive_set['note']))}" if exclusive_set.get("note") else ""
+        items.append(f"<li><code>{html.escape(str(exclusive_set.get('id')))}</code>: {members_html}{note}</li>")
+    return f"""
+  <section id="exclusive-sets-section">
+    <h2>Exclusive sets</h2>
+    <p class="hint">At most one claim of each set can be true; the set need not list every possibility.</p>
+    <ul>{''.join(items)}</ul>
+  </section>"""
+
+
 def html_document(
     state: dict[str, Any],
     mermaid_source: str,
@@ -450,11 +511,14 @@ def html_document(
     {heading_html}
     {verdict(state, quote_errors)}
     {answer_rank_notes(state)}
+    {exclusive_set_notes(state)}
   </header>
 
   {case_html}
 
   {graph_panel("Full audit graph", mermaid_source, "audit-graph", focus_options, audit_svg)}
+
+  {exclusive_sets_html(state)}
 
   {goal_policy_section}
 

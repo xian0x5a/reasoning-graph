@@ -37,6 +37,13 @@
       "items": {
         "$ref": "#/$defs/goalGroup"
       }
+    },
+    "exclusive_sets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exclusiveSet"
+      },
+      "default": []
     }
   },
   "$defs": {
@@ -328,6 +335,32 @@
           }
         }
       ]
+    },
+    "exclusiveSet": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Claims of which at most one can be true. The list need not be complete. Changes no belief; the page tells the reader when two members are both above 50%.",
+      "required": [
+        "id",
+        "members"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "members": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nodeId"
+          },
+          "description": "hypothesis or candidate_solution ids."
+        },
+        "note": {
+          "type": "string"
+        }
+      }
     },
     "factor": {
       "type": "object",

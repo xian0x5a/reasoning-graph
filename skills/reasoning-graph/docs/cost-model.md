@@ -33,7 +33,7 @@ The ratio compares the target being true with it being false, not with the obser
 
 Belief is computed only when the graph is rendered, for the reader. The state stores none, a state or patch carrying `belief` is rejected, and the workflow commands (`record`, `refresh`, `audit`) print none: an agent that sees a belief tunes scores until the number moves. `html` and `mermaid` render it for readers, including the pre-claim reviewer (`review.md`), who never edits the graph.
 
-Mutually exclusive sibling hypotheses do not have to sum to anything; the scale is too coarse for that. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node.
+Beliefs of rival claims are not normalised: the scale is too coarse for it, and a rival list is rarely complete, so normalising would let the last one standing win by elimination. List rivals that cannot both hold in an exclusive set (`../SKILL.md`). Each member keeps its own belief; the page flags a set with two members above 50%, which exclusive claims cannot both be, whether or not the set is complete. A `test` is a procedure, not a claim: record its outcome as a separate `observation` node.
 
 ### Notes on edges
 

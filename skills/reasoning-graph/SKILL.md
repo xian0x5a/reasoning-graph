@@ -60,9 +60,9 @@ Record patch:
 
 One patch carries every kind of change:
 
-- **Add:** `nodes`, `edges`, `factors` (a group whose `id` exists replaces it).
+- **Add:** `nodes`, `edges`, `factors`, `exclusive_sets` (a group or set whose `id` exists replaces it).
 - **Change:** `update_nodes` and `update_edges`, each item `{"id": "H1", "set": {"score": 4}, "unset": ["note"]}`. A node's `id`/`type` and an edge's `from`/`to` are fixed; remove and re-add instead.
-- **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`.
+- **Remove:** `remove_nodes` (takes the node's edges with it), `remove_edges`, `remove_factors`, `remove_exclusive_sets`.
 - **Claim:** `answer` names the answer; `""` withdraws it.
 
 An edge has no id of its own. Name it by its ends, as `O1-H1`, in `update_edges`, `remove_edges`, and groups. One edge per ordered pair, and no hyphen in a node id.
@@ -74,7 +74,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 - **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command); for a local file, start `source` with its path. When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"); join separate excerpts with `...`. `record` rejects a quote that is not verbatim in the local file its `source` names. An observation claims no more than its quote.
 - **Checks you cannot run are marked, not answered.** Add a `test` node for each check that would settle a claim, even one nobody can run here (a lab exam, an interview, forensics on a case file). Set `not_run` on it to the reason; it then needs no result, cannot have one, and shows as "not run" in the view. Never write a result for a check that did not happen.
 - **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from one result is a separate `hypothesis` linked by `leads_to` from that observation; a conclusion that several results corroborate independently takes `supports` from each (see choosing the edge, below). Shapes: `docs/schema/tests.md`.
-- **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no check counts them.
+- **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no check counts them. When at most one of them can be true, list them in an exclusive set (below).
 - **Notes are your memory.** Any node or edge may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state. Write one on an edge when its score departs from the default or the link is not obvious from the two texts. What concerns no node goes in a file of your own.
 - **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
 
@@ -156,6 +156,8 @@ Choosing the edge: the type decides which way belief moves, so pick it by what t
 - Observations that each corroborate a claim on their own take `supports`, so each one adds. As `leads_to` premises their reliabilities multiply, so every extra observation lowers the claim.
 
 Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List them in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
+
+Exclusive sets: claims of which at most one can be true, such as rival explanations of one event, `{"id": "X1", "members": ["H1", "H2", "H3"]}` in `exclusive_sets`. Members are hypotheses or candidates; the set need not list every possibility. A set changes no belief; it tells the reader of the page when two members are both likely, which means a score or edge among them is wrong.
 
 Goals and candidates (`docs/schema/goals.md`):
 

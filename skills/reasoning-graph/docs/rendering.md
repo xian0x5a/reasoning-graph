@@ -100,7 +100,9 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 | Status | the line `audit` prints, such as `answer CS1: checks pass`, computed when the page renders |
 | Rank note | only when another candidate of the same goal outranks the answer |
 | Case | the case for each answer, described below. None while no answer is claimed |
+| Exclusive-set note | only when two or more members of one exclusive set are each above 50%: `Exclusive set X1: H1 81%, H2 80% are each above 50%, but at most one of them can be true.` |
 | Graph | the full graph, grouped by node type, in a pan/zoom canvas |
+| Exclusive sets | only when the state has `exclusive_sets`: each set's members with their beliefs, most believed first |
 | Goal policy | only when the state has `goal_policy` or `goal_groups` |
 | Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
 

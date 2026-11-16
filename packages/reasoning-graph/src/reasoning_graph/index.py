@@ -45,6 +45,11 @@ def _group_line(group: dict[str, Any]) -> str:
     return f"- {group.get('id')} [{edge_ids}] score {group.get('score')}{_note(group)}"
 
 
+def _exclusive_set_line(exclusive_set: dict[str, Any]) -> str:
+    members = ", ".join(str(member) for member in exclusive_set.get("members") or [])
+    return f"- {exclusive_set.get('id')} [{members}]{_note(exclusive_set)}"
+
+
 def index_document(state: dict[str, Any]) -> str:
     nodes = [node for node in state.get("nodes", []) if isinstance(node, dict)]
     edges = [edge for edge in state.get("edges", []) if isinstance(edge, dict)]
@@ -83,5 +88,6 @@ def index_document(state: dict[str, Any]) -> str:
         ("## Nodes", lines_of(other_nodes)),
         ("## Edges", [_edge_line(edge) for edge in edges]),
         ("## Groups", [_group_line(group) for group in groups]),
+        ("## Exclusive sets", [_exclusive_set_line(item) for item in state.get("exclusive_sets") or [] if isinstance(item, dict)]),
     ]
     return "\n\n".join("\n".join([title, *lines]) for title, lines in sections if lines) + "\n"

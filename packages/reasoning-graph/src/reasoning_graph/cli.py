@@ -77,6 +77,7 @@ RECORD_PATCH_FIELDS = {
     "nodes", "update_nodes", "remove_nodes",
     "edges", "update_edges", "remove_edges",
     "factors", "remove_factors",
+    "exclusive_sets", "remove_exclusive_sets",
 }
 
 
@@ -96,6 +97,7 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     factors_to_upsert = _object_list(patch.get("factors"), "factors")
+    exclusive_sets_to_upsert = _object_list(patch.get("exclusive_sets"), "exclusive_sets")
     node_updates = _field_update_list(patch.get("update_nodes"), "update_nodes")
     edge_updates = _field_update_list(patch.get("update_edges"), "update_edges")
 
@@ -108,6 +110,7 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     ]
     _remove_by_id(state, "edges", [*(patch.get("remove_edges") or []), *incident_edge_ids])
     _remove_by_id(state, "factors", patch.get("remove_factors") or [])
+    _remove_by_id(state, "exclusive_sets", patch.get("remove_exclusive_sets") or [])
 
     _apply_field_updates(state.get("nodes", []), node_updates, "update_nodes")
     _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
@@ -119,27 +122,35 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
         if edge_id(edge) in existing_edges:
             raise ValueError(f"edge {edge_id(edge)} already exists: one edge per ordered pair; change it with update_edges")
         existing_edges.add(edge_id(edge))
-    _ensure_object_ids(factors_to_upsert, "factors")
     state.setdefault("nodes", []).extend(nodes_to_add)
     state.setdefault("edges", []).extend(edges_to_add)
-    factors = state.setdefault("factors", [])
-    if not isinstance(factors, list):
-        raise ValueError("factors must be a list before a patch can update it")
-    factor_indexes: dict[str, int] = {}
-    for index, factor in enumerate(factors):
-        if not isinstance(factor, dict) or not isinstance(factor.get("id"), str) or not factor.get("id"):
+    _upsert_by_id(state, "factors", factors_to_upsert)
+    _upsert_by_id(state, "exclusive_sets", exclusive_sets_to_upsert)
+
+
+def _upsert_by_id(state: dict[str, Any], section: str, items: list[dict[str, Any]]) -> None:
+    """Add each item to a section of records keyed by id, replacing the one with the same id."""
+    if not items:
+        return
+    _ensure_object_ids(items, section)
+    records = state.setdefault(section, [])
+    if not isinstance(records, list):
+        raise ValueError(f"{section} must be a list before a patch can update it")
+    indexes: dict[str, int] = {}
+    for index, record in enumerate(records):
+        if not isinstance(record, dict) or not isinstance(record.get("id"), str) or not record.get("id"):
             continue
-        factor_id = str(factor["id"])
-        if factor_id in factor_indexes:
-            raise ValueError(f"factors has duplicate id {factor_id}")
-        factor_indexes[factor_id] = index
-    for factor in factors_to_upsert:
-        factor_id = str(factor["id"])
-        if factor_id in factor_indexes:
-            factors[factor_indexes[factor_id]] = factor
+        record_id = str(record["id"])
+        if record_id in indexes:
+            raise ValueError(f"{section} has duplicate id {record_id}")
+        indexes[record_id] = index
+    for item in items:
+        item_id = str(item["id"])
+        if item_id in indexes:
+            records[indexes[item_id]] = item
         else:
-            factor_indexes[factor_id] = len(factors)
-            factors.append(factor)
+            indexes[item_id] = len(records)
+            records.append(item)
 
 
 def _source_base_dir(state_path: str) -> Path:

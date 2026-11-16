@@ -16,7 +16,8 @@ Run `reasoning-graph mermaid <state.json>`: each claim's label ends with its com
 belief. Also read <state.index.md> (every node and edge) and <state.json> (quotes, notes).
 
 Use belief to find where to look, then judge each spot from the evidence itself:
-1. Rivals both likely: two claims that cannot both be true are both above 50%.
+1. Rivals both likely: two claims that cannot both be true are both above 50%, whether
+   or not they share an exclusive set. A rival pair missing from every set is a finding too.
 2. Non-diagnostic support: a supports edge from an observation that a rival explains
    about as well, so it is about as expected if the target is false.
 3. Shared cause: edges into one target from sources that share a source, an observation,
