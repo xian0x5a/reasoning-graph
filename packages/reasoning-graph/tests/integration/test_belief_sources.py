@@ -69,11 +69,6 @@ def test_premise_backed_claim_adds_no_default_factor(node_type):
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.7)
 
-    # An explicit score on a premise-backed claim is a further local factor.
-    state["nodes"][1]["score"] = 5
-    assert validate_state(state).ok
-    assert belief(state) == pytest.approx(0.63)
-
 
 @pytest.mark.parametrize("source_type", ["goal", "constraint", "test"])
 def test_scoreless_nonclaim_premise_leaves_the_default_in_place(source_type):
@@ -117,21 +112,6 @@ def test_premise_group_replaces_the_default():
     assert belief(state) == pytest.approx(0.7)
 
 
-def test_local_inference_score_matches_an_explicit_validity_assumption():
-    state = claim_state("hypothesis", score=5)
-    state["nodes"].append({"id": "E1", "type": "observation", "text": "Observation", "score": 4})
-    state["edges"].append(edge("E1", "N1"))
-    result = validate_state(state)
-    assert result.ok, result.errors
-    assert belief(state) == pytest.approx(0.63)
-
-    del state["nodes"][1]["score"]
-    state["nodes"].append({"id": "A1", "type": "hypothesis", "text": "Inference is valid", "score": 5})
-    state["edges"].append(edge("A1", "N1"))
-    assert validate_state(state).ok
-    assert belief(state) == pytest.approx(0.63)
-
-
 def test_candidate_ranking_uses_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
@@ -150,20 +130,20 @@ def test_computed_belief_recalculates_without_writing_node_scores():
     state["nodes"].extend([
         {"id": "E1", "type": "observation", "text": "Premise", "score": 4},
         {"id": "L1", "type": "observation", "text": "Independent observation"},
-        {"id": "D1", "type": "hypothesis", "text": "Soft inference", "score": 5},
+        {"id": "D1", "type": "hypothesis", "text": "Inference"},
     ])
     state["edges"].extend([edge("E1", "D1"), edge("L1", "D1", "supports"), edge("D1", "N1")])
     original = deepcopy(state)
     assert validate_state(state).ok
-    # Local 0.9 times inherited 0.7 gives 0.63; ratio 2 gives odds 126/37.
-    assert belief(state) == pytest.approx(126 / 163)
-    assert ranked_candidates(state)[0]["belief"] == pytest.approx(126 / 163, abs=1e-6)
+    # Inherited 0.7; ratio 2 gives odds 14/3.
+    assert belief(state) == pytest.approx(14 / 17)
+    assert ranked_candidates(state)[0]["belief"] == pytest.approx(14 / 17, abs=1e-6)
     assert state == original
 
     state["nodes"][2]["score"] = 3
     updated = deepcopy(state)
-    # Local 0.9 times inherited 0.5 gives 0.45; ratio 2 gives odds 18/11.
-    assert belief(state) == pytest.approx(18 / 29)
+    # Inherited 0.5; ratio 2 gives odds 2.
+    assert belief(state) == pytest.approx(2 / 3)
     assert state == updated
 
 

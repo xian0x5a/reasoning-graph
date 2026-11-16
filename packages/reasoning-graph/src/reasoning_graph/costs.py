@@ -270,9 +270,9 @@ def strongest_challenges(state: dict[str, Any]) -> dict[str, Challenge]:
 def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> float | None:
     """Probability a claim's own score sets, or its type default when nothing else gives it a belief.
 
-    None when no prior applies. A premise-backed claim without a score has none: a default on
-    every derived claim would halve belief at each step of a chain. Goals, constraints, and
-    tests have none either.
+    None when no prior applies. A premise-backed claim has none: it is deduced from its premises
+    and takes no score (`truth_inputs` rejects one), and a default on every deduced claim would
+    halve belief at each step of a chain. Goals, constraints, and tests have none either.
     """
 
     if not node:
@@ -282,12 +282,10 @@ def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> flo
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
             raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
-    if node.get("type") not in BELIEF_NODE_TYPES:
+    if node.get("type") not in BELIEF_NODE_TYPES or premise_backed:
         return None
     if "score" in node:
         return CLAIM_SCORE_PROBABILITY[require_score(node["score"])]
-    if premise_backed:
-        return None
     return CLAIM_SCORE_PROBABILITY[DEFAULT_CLAIM_SCORE[str(node["type"])]]
 
 
@@ -344,6 +342,18 @@ class EvidenceUpdate:
 
     log_likelihood_ratio: float
     source_ids: tuple[str, ...]
+
+
+class ScoredDeductionError(ValueError):
+    """A claim deduced from `leads_to` premises carries a score of its own."""
+
+
+def scored_deduction_message(node_ids: list[str]) -> str:
+    return (
+        f"score on {', '.join(node_ids)}: a claim with leads_to premises is deduced from them and takes no score; unset it. "
+        "If the step from the premises is not certain, it is not a deduction: link them by supports instead, "
+        "or add the doubt as a premise of its own, a hypothesis that the step holds"
+    )
 
 
 @dataclass(frozen=True)
@@ -417,18 +427,24 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
             ratio = evidence_ratio(group.score, group.relation)
             evidence_updates.setdefault(group.target, []).append(EvidenceUpdate(math.log(ratio), group.sources))
 
+    premise_backed_nodes = {
+        node_id
+        for node_id in nodes
+        if premise_group_costs[node_id] or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
+    }
+    # A score meant a prior while the claim was open and a doubt about the step once
+    # premises arrived, so a lemma scored 2 fell from 30% to 27% when proved (ADR 0016).
+    scored_deductions = sorted(node_id for node_id in premise_backed_nodes if "score" in nodes[node_id])
+    if scored_deductions:
+        raise ScoredDeductionError(scored_deduction_message(scored_deductions))
+
     return TruthInputs(
         nodes=nodes,
         premise_sources=premise_sources,
         ungrouped_premise_sources=ungrouped_premise_sources,
         premise_group_costs=premise_group_costs,
         evidence_updates=evidence_updates,
-        premise_backed_nodes={
-            node_id
-            for node_id in nodes
-            if premise_group_costs[node_id]
-            or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
-        },
+        premise_backed_nodes=premise_backed_nodes,
         ruled_out_nodes=_resting_on(ruled_out_nodes, premise_sources),
     )
 

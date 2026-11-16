@@ -9,6 +9,7 @@ from .costs import (
     REMOVED_EDGE_SCORE_FIELDS,
     REMOVED_NODE_SCORE_FIELDS,
     RULED_OUT_EDGE_TYPE,
+    ScoredDeductionError,
     assert_acyclic_premise_dependencies,
     node_effective_truth_costs,
     removed_score_field_message,
@@ -345,6 +346,8 @@ def validate_state(state: Any) -> ValidationResult:
     try:
         # Computed only to catch inputs the belief math rejects, such as an evidence cycle.
         node_effective_truth_costs(state)
+    except ScoredDeductionError as exc:
+        errors.append(str(exc))
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")
 

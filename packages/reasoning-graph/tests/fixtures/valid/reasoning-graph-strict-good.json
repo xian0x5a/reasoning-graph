@@ -38,7 +38,7 @@
     {
       "from": "O1",
       "to": "A1",
-      "type": "leads_to"
+      "type": "supports"
     },
     {
       "from": "A1",

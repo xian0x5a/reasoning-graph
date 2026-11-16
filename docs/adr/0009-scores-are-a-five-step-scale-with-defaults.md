@@ -40,7 +40,7 @@ Defaults, so that a score is written only for an exception:
 | Evidence edge | 3 |
 
 - A claim's default applies only when it has no score and no belief-bearing `leads_to` premise. A premise-backed claim with no score inherits its premises' belief and adds nothing. Otherwise every step of a derivation would halve the belief.
-- An explicit score on a premise-backed claim multiplies the inherited belief, as `prior` did.
+- An explicit score on a premise-backed claim multiplies the inherited belief, as `prior` did. Replaced by [ADR 0016](0016-a-deduced-claim-carries-no-score.md): a deduced claim carries no score.
 - Every claim now has a belief source, so the rule that a claim requires one is gone. The stop gate that an answer must rest on observations stays.
 - A correlation group is a list of edge ids and one required combined `score`. The edges share one type and one target. The score maps through the ratio table for evidence edges and through the probability table for `leads_to` premises. A grouped edge carries no score of its own.
 - Edges take an optional `note` in place of the required `reasoning`. Nothing enforces a note. The skill asks for one when a score departs from its default or the link is not obvious.

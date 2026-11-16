@@ -35,14 +35,16 @@ def report_state(*, support=False):
         "nodes": [
             {"id": "E1", "type": "observation", "text": "Observed premise", "score": 4},
             {"id": "E2", "type": "observation", "text": "Independent signal", "score": 5},
-            {"id": "D1", "type": "hypothesis", "text": "Conclusion", "score": 5},
+            {"id": "D1", "type": "hypothesis", "text": "Conclusion"},
             {"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"},
             {"id": "G1", "type": "goal", "text": "Find the answer"},
             {"id": "C1", "type": "constraint", "text": "Use the observed data"},
             {"id": "T1", "type": "test", "text": "Check the premise"},
+            {"id": "E3", "type": "observation", "text": "Second premise"},
         ],
         "edges": [
             {"from": "E1", "to": "D1", "type": "leads_to"},
+            {"from": "E3", "to": "D1", "type": "leads_to"},
             {"from": "D1", "to": "CS1", "type": "leads_to"},
             {"from": "CS1", "to": "G1", "type": "answers"},
         ],
@@ -81,7 +83,7 @@ def detail_card(document, node_id):
 @pytest.mark.parametrize("renderer", RENDERERS)
 @pytest.mark.parametrize("support,expected", [
     (False, "63%"),
-    (True, "77%"),  # 0.63 base and ratio 2 give 126/163.
+    (True, "77%"),  # premises 0.7 and 0.9 give a 0.63 base; ratio 2 gives 126/163.
 ])
 def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
     state = report_state(support=support)
@@ -104,10 +106,10 @@ def test_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
+    # The group's joint 0.5 replaces E1 and E2; E3 stays an ungrouped 0.9 premise.
     assert graph_labels(state, renderer)["CS1"] == "CS1\nThe answer is 42\nbelief 45%"
     state["factors"][0]["score"] = 5
-    del state["nodes"][2]["score"]
-    assert graph_labels(state, renderer)["CS1"] == "CS1\nThe answer is 42\nbelief 90%"
+    assert graph_labels(state, renderer)["CS1"] == "CS1\nThe answer is 42\nbelief 81%"
     assert all("belief" not in node for node in state["nodes"])
 
 
@@ -117,7 +119,8 @@ def test_details_separate_effective_belief_from_authored_inputs():
     cards = node_detail_cards(state)
     derived = detail_card(cards, "D1")
     assert "Effective belief: 77%" in derived
-    assert "Prior: 90%" in derived
+    assert "Prior" not in derived  # a deduced claim takes no score, so it has no prior
+    assert "Prior: 70%" in detail_card(cards, "E1")
     candidate = detail_card(cards, "CS1")
     assert "Effective belief: 77%" in candidate
     assert "Prior" not in candidate
@@ -133,7 +136,7 @@ def test_html_report_keeps_labels_and_details_consistent(render_mode):
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert "belief 77%" in document
     assert "Effective belief: 77%" in detail_card(document, "CS1")
-    assert "Prior: 90%" in detail_card(document, "D1")
+    assert "Prior: 70%" in detail_card(document, "E1")
     assert state["nodes"] == original_nodes
 
 

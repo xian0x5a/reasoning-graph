@@ -38,7 +38,7 @@ BASE_PATCH = {
         observation("O2", "The gardener stayed late, or so he said"),
         {"id": "H1", "type": "hypothesis", "text": "The gardener did it", "score": 3},
         {"id": "H2", "type": "hypothesis", "text": "The butler did it", "score": 2},
-        {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer", "score": 5},
+        {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
     ],
     "edges": [
         edge("O2", "H1", "supports", score=4),
@@ -74,7 +74,7 @@ class PatchOperationTests(unittest.TestCase):
             state_path = self.start(tmp_dir)
 
             self.ok(self.record(state_path, {
-                "update_nodes": [{"id": "CS1", "unset": ["score"]}, {"id": "H1", "set": {"note": "Only his word"}}],
+                "update_nodes": [{"id": "H1", "set": {"note": "Only his word"}, "unset": ["score"]}],
                 "update_edges": [{"id": "O2-H1", "set": {"score": 2}}, {"id": "O1-H1", "unset": ["score"]}],
                 "remove_nodes": ["H2"],
             }))
@@ -82,7 +82,7 @@ class PatchOperationTests(unittest.TestCase):
             state = self.load(state_path)
             nodes = {node["id"]: node for node in state["nodes"]}
             edges = {f"{item['from']}-{item['to']}": item for item in state["edges"]}
-            self.assertNotIn("score", nodes["CS1"])
+            self.assertNotIn("score", nodes["H1"])
             self.assertEqual(nodes["H1"]["note"], "Only his word")
             self.assertNotIn("H2", nodes)
             self.assertEqual(edges["O2-H1"]["score"], 2)
