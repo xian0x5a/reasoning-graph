@@ -14,6 +14,7 @@ from .costs import (
     node_effective_truth_costs,
     node_priors,
     probability_from_cost,
+    strongest_challenges,
 )
 from .identities import RenderIdentityMap, html_anchor, render_identity_map
 from .models import BELIEF_NODE_TYPES, node_type_label
@@ -46,6 +47,7 @@ def node_detail_cards(
     priors = node_priors(state)
     identities = identities or render_identity_map(state)
     labels = answer_labels(state)
+    challenges = strongest_challenges(state)
     cards: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
@@ -62,6 +64,8 @@ def node_detail_cards(
             extras.append(f"<span>Effective belief: {format_belief(probability_from_cost(node_truth_costs[raw_id]))}</span>")
             if priors[raw_id] is not None:
                 extras.append(f"<span>Prior: {format_belief(priors[raw_id])}</span>")
+            if raw_id in challenges:
+                extras.append(f"<span>Strongest against: {html.escape(challenges[raw_id])}</span>")
         edge_notes = []
         for edge in state.get("edges", []):
             if isinstance(edge, dict) and raw_id in (edge.get("from"), edge.get("to")):

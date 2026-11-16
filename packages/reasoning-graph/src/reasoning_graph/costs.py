@@ -219,6 +219,36 @@ def node_belief_label(node: dict[str, Any], effective_truth_cost: float) -> str:
     return f"belief {format_belief(probability_from_cost(effective_truth_cost))}"
 
 
+def strongest_challenges(state: dict[str, Any]) -> dict[str, str]:
+    """Per claim, the strongest recorded case against it, for a reader: `ruled out by O7`, or
+    `÷5 by O6` for the top contradiction score, ungrouped or grouped.
+
+    A top-score contradiction can sit beside a high belief when enough support outweighs it;
+    the mark keeps that conflict in view instead of leaving it to the number.
+    """
+    top_score = max(EVIDENCE_SCORE_RATIO)
+    ruled_out_by: dict[str, list[str]] = {}
+    contradicted_by: dict[str, list[str]] = {}
+    groups, _ = resolve_edge_groups(state)
+    grouped_edge_ids = {edge_id for group in groups for edge_id in group.edge_ids}
+    for edge in state.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        source, target, relation = str(edge.get("from")), str(edge.get("to")), edge.get("type")
+        if relation == RULED_OUT_EDGE_TYPE:
+            ruled_out_by.setdefault(target, []).append(source)
+        elif relation == "contradicts" and edge.get("score") == top_score and edge_id(edge) not in grouped_edge_ids:
+            contradicted_by.setdefault(target, []).append(source)
+    for group in groups:
+        if group.relation == "contradicts" and group.score == top_score:
+            contradicted_by.setdefault(group.target, []).extend(group.sources)
+    top_ratio = f"÷{EVIDENCE_SCORE_RATIO[top_score]:g}"
+    return {
+        **{target: f"{top_ratio} by {', '.join(sources)}" for target, sources in contradicted_by.items()},
+        **{target: f"ruled out by {', '.join(sources)}" for target, sources in ruled_out_by.items()},
+    }
+
+
 def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> float | None:
     """Probability a claim's own score sets, or its type default when nothing else gives it a belief.
 
