@@ -41,12 +41,12 @@ STORY_PATCH = {
         {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
     ],
     "edges": [
-        edge("T1", "O3", "leads_to"),
-        edge("O3", "H3", "leads_to"),
+        edge("T1", "O3", "yields"),
+        edge("O3", "H3", "premise_of"),
         edge("O2", "H1", "supports"),
         edge("O3", "H1", "supports"),
         edge("O1", "H2", "contradicts", score=5, note="Nine is before the theft"),
-        {"from": "H1", "to": "CS1", "type": "leads_to"},
+        {"from": "H1", "to": "CS1", "type": "premise_of"},
         edge("CS1", "G1", "answers"),
     ],
     "factors": [{"id": "F1", "edges": ["O2-H1", "O3-H1"], "score": 4, "note": "Both place him on site"}],
@@ -80,7 +80,7 @@ class IndexFileTests(unittest.TestCase):
 
             self.ok(self.record(state_path, {
                 "nodes": [{"id": "O4", "type": "observation", "text": "The cook saw nothing", "source": "interview"}],
-                "edges": [edge("T2", "O4", "leads_to")],
+                "edges": [edge("T2", "O4", "yields")],
             }))
 
             index = self.index(state_path)
@@ -121,7 +121,7 @@ class IndexFileTests(unittest.TestCase):
             self.assertIn("- CS1 candidate_solution: The gardener", index)
             self.assertIn("- O1 -contradicts(5)-> H2 | note: Nine is before the theft", index)
             self.assertIn("- O2 -supports-> H1", index)
-            self.assertIn("- H1 -leads_to-> CS1\n", index)
+            self.assertIn("- H1 -premise_of-> CS1\n", index)
             self.assertIn("- F1 [O2-H1, O3-H1] score 4 | note: Both place him on site", index)
 
     def test_index_holds_no_quotes_and_no_computed_belief(self) -> None:

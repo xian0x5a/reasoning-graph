@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from .costs import DEFAULT_CLAIM_SCORE, DEFAULT_EVIDENCE_SCORE
-from .models import BELIEF_NODE_TYPES, RESULT_NODE_TYPES
 
 
 def _one_line(value: Any) -> str:
@@ -56,9 +55,8 @@ def index_document(state: dict[str, Any]) -> str:
     groups = [group for group in state.get("factors") or [] if isinstance(group, dict)]
     node_types = {node.get("id"): node.get("type") for node in nodes}
 
-    premises = [edge for edge in edges if edge.get("type") == "leads_to"]
-    tests_with_results = {edge.get("from") for edge in premises if node_types.get(edge.get("to")) in RESULT_NODE_TYPES}
-    premise_backed = {edge.get("to") for edge in premises if node_types.get(edge.get("from")) in BELIEF_NODE_TYPES}
+    tests_with_results = {edge.get("from") for edge in edges if edge.get("type") == "yields"}
+    premise_backed = {edge.get("to") for edge in edges if edge.get("type") == "premise_of"}
     # A ruled-out hypothesis is settled, not open.
     ruled_out = {edge.get("to") for edge in edges if edge.get("type") == "rules_out"}
 

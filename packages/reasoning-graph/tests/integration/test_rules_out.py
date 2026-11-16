@@ -54,7 +54,7 @@ def base_state(answer: str = "CS1") -> dict:
             edge("O1", "H1", "supports"),
             edge("O2", "H1", "supports"),
             edge("O3", "H1", "supports"),
-            edge("H1", "CS1", "leads_to"),
+            edge("H1", "CS1", "premise_of"),
             edge("O4", "CS2", "supports"),
             edge("CS1", "G1", "answers"),
             edge("CS2", "G1", "answers"),
@@ -179,7 +179,7 @@ def test_a_ruled_out_premise_caps_its_descendant_whatever_lifts_the_descendant()
     state["nodes"].extend(observation(f"P{i}") for i in range(5))
     state["edges"] += [
         edge("O5", "H1", "rules_out"),
-        edge("H2", "CS1", "leads_to"),
+        edge("H2", "CS1", "premise_of"),
         *(edge(f"P{i}", "CS1", "supports", score=5) for i in range(5)),
     ]
     state["factors"] = [{"id": "F1", "edges": ["H1-CS1", "H2-CS1"], "score": 5}]

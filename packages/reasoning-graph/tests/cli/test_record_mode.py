@@ -47,12 +47,12 @@ class RecordModeTests(unittest.TestCase):
                 {"id": "T1", "type": "test", "text": "Probe the system"},
                 {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe.log", "quote": "exit 3", "note": "Only the last run was logged", "score": observation_score},
             ],
-            "edges": [edge("T1", "O1", "leads_to")],
+            "edges": [edge("T1", "O1", "yields")],
         }))
         self.ok(self.record(state_path, {
             "answer": "CS1",
             "nodes": [{"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}],
-            "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers")],
+            "edges": [edge("O1", "CS1", "premise_of"), edge("CS1", "G1", "answers")],
         }))
 
     def test_record_renders_live_view(self) -> None:

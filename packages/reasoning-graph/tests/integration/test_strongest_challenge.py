@@ -41,7 +41,7 @@ def state_with(*edges: dict, factors: list | None = None) -> dict:
             {"id": "H1", "type": "hypothesis", "text": "A hypothesis"},
             {"id": "CS1", "type": "candidate_solution", "text": "The answer", "answer_kind": "exact_answer"},
         ],
-        "edges": [edge("H1", "CS1", "leads_to"), edge("CS1", "G1", "answers"), *edges],
+        "edges": [edge("H1", "CS1", "premise_of"), edge("CS1", "G1", "answers"), *edges],
     }
     if factors:
         state["factors"] = factors

@@ -190,7 +190,7 @@ def graph_edge_connections(
             {
                 "from": source_id,
                 "to": target_id,
-                "label": str(edge.get("type") or edge.get("label") or "leads_to"),
+                "label": str(edge.get("type") or edge.get("label") or "premise_of"),
             }
         )
     return connections
@@ -208,7 +208,7 @@ def candidate_focus_nodes(
     nodes_by_id = by_id(state.get("nodes", []), "node")
     # Derivation edges point premise -> conclusion; `requires` points the other way
     # (dependent -> dependency). `contradicts` and `answers` are not derivation.
-    forward_derivation_edges = {"supports", "leads_to", "prompts", "tested_by", "tests"}
+    forward_derivation_edges = {"supports", "premise_of", "yields", "prompts", "tested_by", "tests"}
     premises_by_node: dict[str, list[str]] = {}
     contradictors_by_node: dict[str, list[str]] = {}
     for edge in state.get("edges", []):

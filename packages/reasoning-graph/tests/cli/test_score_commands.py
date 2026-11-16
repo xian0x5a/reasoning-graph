@@ -33,8 +33,8 @@ def valid_patch() -> dict:
             {"id": "E2", "type": "observation", "text": "Reading", "score": 5},
         ],
         "edges": [
-            {"from": "A2", "to": "D1", "type": "leads_to"},
-            {"from": "E2", "to": "D1", "type": "leads_to"},
+            {"from": "A2", "to": "D1", "type": "premise_of"},
+            {"from": "E2", "to": "D1", "type": "premise_of"},
         ],
     }
 
@@ -103,7 +103,7 @@ def test_inherited_candidate_applies_atomically(tmp_path):
     patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
     patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
     patch["edges"].extend([
-        {"from": "D1", "to": "CS1", "type": "leads_to"},
+        {"from": "D1", "to": "CS1", "type": "premise_of"},
         {"from": "CS1", "to": "G1", "type": "answers"},
     ])
     patch["edges"][0]["note"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2."

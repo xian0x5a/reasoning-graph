@@ -21,12 +21,12 @@
     {
       "from": "O1",
       "to": "H1",
-      "type": "leads_to"
+      "type": "premise_of"
     },
     {
       "from": "H1",
       "to": "G1",
-      "type": "leads_to"
+      "type": "premise_of"
     }
   ]
 }

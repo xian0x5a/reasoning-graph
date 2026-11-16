@@ -9,10 +9,10 @@
 ```
 
 - `id` — unique group id.
-- `edges` — two or more edges, each named by its ends as `from-to`. All share one type (`leads_to`, `supports`, or `contradicts`) and one target.
+- `edges` — two or more edges, each named by its ends as `from-to`. All share one type (`premise_of`, `supports`, or `contradicts`) and one target.
 - `score` — required, 1 to 5: the combined weight of the grouped edges, read from the same tables as an ungrouped score (`../cost-model.md`).
   - `supports` / `contradicts`: the likelihood ratio of the whole group.
-  - `leads_to`: the joint probability that all grouped premises hold.
+  - `premise_of`: the joint probability that all grouped premises hold.
 - `note` — optional: why the edges depend on each other.
 
 The edges carry the relation, the target, and the sources, so a group names none of them. A grouped edge carries no `score` of its own; the group's score is the one number.
@@ -42,7 +42,7 @@ A group is never removed implicitly. Removing an edge or a node that a group sti
 ## Validation
 
 - `edges` lists at least two different ids, each of an existing edge.
-- The edges share one type, which is `leads_to`, `supports`, or `contradicts`, and one target.
+- The edges share one type, which is `premise_of`, `supports`, or `contradicts`, and one target.
 - An edge belongs to at most one group.
 - A grouped edge has no `score`.
 - `score` is an integer from 1 to 5.

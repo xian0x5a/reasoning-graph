@@ -140,7 +140,7 @@
         },
         "score": {
           "$ref": "#/$defs/score",
-          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with leads_to premises from observations or claims, or a leads_to group, takes its belief from them and carries no score."
+          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with premise_of edges into it, or a premise_of group, takes its belief from them and carries no score."
         },
         "answer_kind": {
           "enum": [
@@ -251,7 +251,8 @@
             "prompts",
             "tested_by",
             "tests",
-            "leads_to",
+            "premise_of",
+            "yields",
             "answers",
             "rules_out"
           ]
@@ -382,11 +383,11 @@
             "$ref": "#/$defs/id"
           },
           "uniqueItems": true,
-          "description": "leads_to, supports, or contradicts edges of one type into one target, each named from-to. A grouped edge carries no score of its own."
+          "description": "premise_of, supports, or contradicts edges of one type into one target, each named from-to. A grouped edge carries no score of its own."
         },
         "score": {
           "$ref": "#/$defs/score",
-          "description": "Combined 1-5 score of the grouped edges: the joint probability tier of leads_to premises, or the joint evidence tier of supports/contradicts edges."
+          "description": "Combined 1-5 score of the grouped edges: the joint probability tier of premise_of edges, or the joint evidence tier of supports/contradicts edges."
         },
         "note": {
           "type": "string"

@@ -43,9 +43,9 @@ def report_state(*, support=False):
             {"id": "E3", "type": "observation", "text": "Second premise"},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to"},
-            {"from": "E3", "to": "D1", "type": "leads_to"},
-            {"from": "D1", "to": "CS1", "type": "leads_to"},
+            {"from": "E1", "to": "D1", "type": "premise_of"},
+            {"from": "E3", "to": "D1", "type": "premise_of"},
+            {"from": "D1", "to": "CS1", "type": "premise_of"},
             {"from": "CS1", "to": "G1", "type": "answers"},
         ],
     }
@@ -102,7 +102,7 @@ def test_graph_labels_carry_the_computed_belief(renderer, support, expected):
 def test_graph_uses_the_premise_group_and_refreshes_inputs(renderer):
     state = report_state()
     state["edges"].append({
-        "from": "E2", "to": "D1", "type": "leads_to",
+        "from": "E2", "to": "D1", "type": "premise_of",
         })
     state["factors"] = [{"id": "F1", "edges": ["E1-D1", "E2-D1"], "score": 3}]
     assert validate_state(state).ok
@@ -152,7 +152,7 @@ def ranked_state(answer):
             {"id": "CS2", "type": "candidate_solution", "text": "The butler", "answer_kind": "exact_answer"},
         ],
         "edges": [
-            {"from": "O1", "to": "CS1", "type": "leads_to"},
+            {"from": "O1", "to": "CS1", "type": "premise_of"},
             {"from": "O2", "to": "CS2", "type": "supports"},
             {"from": "CS1", "to": "G1", "type": "answers"},
             {"from": "CS2", "to": "G1", "type": "answers"},
@@ -230,7 +230,7 @@ def two_goal_state():
         {"id": "CS3", "type": "candidate_solution", "text": "The shears", "answer_kind": "exact_answer"},
     ]
     state["edges"] += [
-        {"from": "O3", "to": "CS3", "type": "leads_to"},
+        {"from": "O3", "to": "CS3", "type": "premise_of"},
         {"from": "CS3", "to": "G2", "type": "answers"},
     ]
     assert validate_state(state).ok

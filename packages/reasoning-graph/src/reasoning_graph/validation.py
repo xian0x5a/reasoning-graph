@@ -7,8 +7,10 @@ from typing import Any
 from .costs import (
     EVIDENCE_EDGE_TYPES,
     REMOVED_EDGE_SCORE_FIELDS,
+    REMOVED_EDGE_TYPES,
     REMOVED_NODE_SCORE_FIELDS,
     RULED_OUT_EDGE_TYPE,
+    RemovedInputError,
     ScoredDeductionError,
     assert_acyclic_premise_dependencies,
     node_effective_truth_costs,
@@ -16,7 +18,7 @@ from .costs import (
     require_score,
     resolve_edge_groups,
 )
-from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, NODE_TYPES, ValidationResult
+from .models import ANSWER_KINDS, BELIEF_NODE_TYPES, EDGE_TYPES, EPISTEMIC_GOAL_MARKERS, NODE_TYPES, RESULT_NODE_TYPES, ValidationResult
 from .policy import accepted_goal_ids, candidate_goal_targets, goal_accepts_answer_kind, goal_ids, goal_requirements
 from .schema_validation import state_schema_errors
 from .state import edge_id
@@ -57,6 +59,8 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if not isinstance(edge, dict):
             continue
         owner = f"edge {edge_id(edge)}"
+        if edge.get("type") in REMOVED_EDGE_TYPES:
+            errors.append(f"{owner}: {REMOVED_EDGE_TYPES[edge['type']]}")
         if "id" in edge:
             # Agents wrote from-to as the id in 225 of 245 edges, the same thing twice.
             errors.append(f"{owner}: id was removed; an edge is identified by its ends, as from-to; delete the field")
@@ -77,6 +81,19 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
 
 
 EXCLUSIVE_SET_MEMBER_TYPES = {"hypothesis", "candidate_solution"}
+# Observations are recorded as seen, so only a claim can rest on premises.
+PREMISE_TARGET_TYPES = {"hypothesis", "candidate_solution"}
+
+
+def premise_endpoint_hint(src_type: str | None, dst_type: str | None) -> str:
+    """Name the edge a misused premise_of was probably meant to be."""
+    if src_type == "test":
+        return "; a test's result is an observation, linked by yields"
+    if dst_type == "test":
+        return "; link what calls for a test to it by prompts"
+    if dst_type == "observation":
+        return "; a conclusion drawn from observations is a hypothesis"
+    return ""
 
 
 def exclusive_set_errors(exclusive_sets: Any, nodes_by_id: dict[str, dict[str, Any]]) -> list[str]:
@@ -143,7 +160,7 @@ def validate_state(state: Any) -> ValidationResult:
         errors.append("factors must be a list when present")
         factors_raw = []
     if "premise_groups" in state:
-        errors.append("premise_groups is not supported; use factors, which group leads_to edges by id")
+        errors.append("premise_groups is not supported; use factors, which group premise_of edges by id")
 
     errors.extend(authored_field_errors(nodes_raw, edges_raw))
 
@@ -249,7 +266,8 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"edge {i} references missing from node {src!r}")
         if dst not in node_ids:
             errors.append(f"edge {i} references missing to node {dst!r}")
-        if edge_type not in EDGE_TYPES:
+        # A removed type is already named with its replacement by authored_field_errors.
+        if edge_type not in EDGE_TYPES and edge_type not in REMOVED_EDGE_TYPES:
             errors.append(f"edge {i} invalid type {edge_type!r}")
         ignored_legacy_fields = sorted(field for field in ("hard", "mode", "strength") if field in edge)
         if ignored_legacy_fields:
@@ -268,12 +286,19 @@ def validate_state(state: Any) -> ValidationResult:
                 errors.append(f"edge {i} candidate_solution -> goal must use answers")
         if edge_type == "answers" and (src_type != "candidate_solution" or dst_type != "goal"):
             errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
-        if src_type == "test" and dst_type == "observation" and edge_type == "leads_to" and "not_run" in nodes_by_id.get(src, {}):
+        if edge_type == "yields" and "not_run" in nodes_by_id.get(src, {}):
             errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
         # Only something seen may rule a claim out: an inference that vetoed another claim
         # would turn one mistaken conclusion into an unrecoverable one.
         if edge_type == RULED_OUT_EDGE_TYPE and (src_type != "observation" or dst_type not in {"hypothesis", "candidate_solution"}):
             errors.append(f"edge {i} rules_out must connect observation -> hypothesis or candidate_solution; {src} -> {dst} is {src_type} -> {dst_type}")
+        if edge_type == "premise_of" and (src_type not in BELIEF_NODE_TYPES or dst_type not in PREMISE_TARGET_TYPES):
+            errors.append(
+                f"edge {i} premise_of must connect an observation or claim to a hypothesis or candidate_solution; "
+                f"{src} -> {dst} is {src_type} -> {dst_type}{premise_endpoint_hint(src_type, dst_type)}"
+            )
+        if edge_type == "yields" and (src_type != "test" or dst_type not in RESULT_NODE_TYPES):
+            errors.append(f"edge {i} yields must connect a test to the observation of its result; {src} -> {dst} is {src_type} -> {dst_type}")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
         if src_type == "hypothesis" and dst_type == "goal":
@@ -348,6 +373,8 @@ def validate_state(state: Any) -> ValidationResult:
         node_effective_truth_costs(state)
     except ScoredDeductionError as exc:
         errors.append(str(exc))
+    except RemovedInputError:
+        pass  # authored_field_errors already named the replacement
     except Exception as exc:  # validation should report instead of throwing
         errors.append(f"belief computation failed: {exc}")
 

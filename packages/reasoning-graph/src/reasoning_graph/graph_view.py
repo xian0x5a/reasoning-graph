@@ -69,7 +69,7 @@ def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer
 
 
 def edge_type(edge: dict[str, Any]) -> str:
-    return str(edge.get("type") or edge.get("label") or "leads_to")
+    return str(edge.get("type") or edge.get("label") or "premise_of")
 
 
 def _group_of(node_type: str) -> str:

@@ -114,7 +114,7 @@ The case lets a reader check the answer without reading the graph first. It list
 
 | Part | Content |
 | --- | --- |
-| Why believe it | the `leads_to` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's weight, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
+| Why believe it | the `premise_of` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's weight, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
 | Against it | `contradicts` and `rules_out` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
 | Tests | tests that a why-tree node prompts or is checked by, or that produced a why-tree observation, with each result observation or the `not_run` reason |
 | Rivals | the other candidates of the goal, by belief, with the `contradicts` and `rules_out` edges into each |
@@ -136,9 +136,9 @@ Claim nodes show `belief <value>` in both Mermaid and offline SVG, including nod
 
 A claim with a score 5 `contradicts` edge or group against it gets one more label line naming the sources, `÷5 by O6`, and a ruled-out claim reads `ruled out by O7`. A top-score contradiction can sit beside a high belief when enough support outweighs it, so the mark keeps the conflict visible apart from the number. Node details show the same text as **Strongest against**.
 
-Node details separate **Effective belief** from **Prior**, the probability a claim's score sets before evidence, or its type's default when it has no score. A claim deduced from `leads_to` premises takes no score and has no prior. For example, a hypothesis at score 4 shows `belief 70%` and `Prior: 70%`; a candidate deduced from it shows `belief 70%` and no prior.
+Node details separate **Effective belief** from **Prior**, the probability a claim's score sets before evidence, or its type's default when it has no score. A claim deduced from premises takes no score and has no prior. For example, a hypothesis at score 4 shows `belief 70%` and `Prior: 70%`; a candidate deduced from it shows `belief 70%` and no prior.
 
-The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `rules_out` edge has no weight; its target reads `<1%`. A `leads_to` group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `leads_to` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
+The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `rules_out` edge has no weight; its target reads `<1%`. A premise group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `premise_of` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
 
 When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 

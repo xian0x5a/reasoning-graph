@@ -50,8 +50,8 @@ ROOM_ONE_SOLVED = {
         {"id": "T2", "type": "test", "text": "Decode the waveform and probe the URL"},
     ],
     "edges": [
-        {"from": "T1", "to": "E2", "type": "leads_to"},
-        {"from": "E2", "to": "CS1", "type": "leads_to"},
+        {"from": "T1", "to": "E2", "type": "yields"},
+        {"from": "E2", "to": "CS1", "type": "premise_of"},
         {"from": "CS1", "to": "G1", "type": "answers"},
         {"from": "G1", "to": "G2", "type": "requires"},
         {"from": "E3", "to": "A2", "type": "supports", "score": 2},
@@ -81,7 +81,7 @@ class SpookyManorFlow(unittest.TestCase):
 class UnansweredGoalTests(SpookyManorFlow):
     PROFILE_ONLY = {
         "nodes": [{"id": "E4", "type": "observation", "text": "Spectral profile shows 20 tracks", "source": "fft"}],
-        "edges": [{"from": "T2", "to": "E4", "type": "leads_to"}],
+        "edges": [{"from": "T2", "to": "E4", "type": "yields"}],
     }
 
     def test_answer_fails_while_an_accepted_goal_is_unanswered(self) -> None:
@@ -126,7 +126,7 @@ class UnansweredGoalTests(SpookyManorFlow):
         with tempfile.TemporaryDirectory() as tmp_dir:
             state = json.loads(FIXTURE.read_text(encoding="utf-8"))
             state["nodes"].append({"id": "G2", "type": "goal", "text": "Sub goal"})
-            state["edges"].append({"from": "G1", "to": "G2", "type": "leads_to"})
+            state["edges"].append({"from": "G1", "to": "G2", "type": "premise_of"})
             result = run_cli("audit", str(write_json(Path(tmp_dir) / "state.json", state)))
 
             self.assertEqual(result.returncode, 1, result.stdout)
@@ -134,25 +134,20 @@ class UnansweredGoalTests(SpookyManorFlow):
 
 
 class StrictTestResultTests(SpookyManorFlow):
-    def test_answer_fails_on_a_hypothesis_as_a_test_result(self) -> None:
+    def test_record_rejects_a_hypothesis_as_a_test_result(self) -> None:
         # A conclusion drawn from a probe is not what was seen; the observation must be recorded first.
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = self.start_trail(tmp_dir)
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            state["goal_policy"] = {"optional_goals": ["G2"]}
-            write_json(state_path, state)
-            self.ok(self.record(tmp_dir, state_path, "conclusion", {
+            result = self.record(tmp_dir, state_path, "conclusion", {
                 "nodes": [{"id": "H1", "type": "hypothesis", "text": "The tracks are not ITA2", "score": 5}],
                 "edges": [
-                    {"from": "T2", "to": "H1", "type": "leads_to"},
+                    {"from": "T2", "to": "H1", "type": "yields"},
                     {"from": "H1", "to": "A2", "type": "contradicts", "score": 4},
                 ],
-            }))
+            })
 
-            audit = run_cli("audit", str(state_path))
-
-            self.assertEqual(audit.returncode, 1, audit.stdout)
-            self.assertIn("without a recorded result observation: T2", audit.stderr)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("yields must connect a test to the observation of its result", result.stderr)
 
 
 class GroundedPathTests(unittest.TestCase):
@@ -175,7 +170,7 @@ class GroundedPathTests(unittest.TestCase):
                 *nodes,
             ],
             "edges": [
-                {"from": "T1", "to": "O1", "type": "leads_to"},
+                {"from": "T1", "to": "O1", "type": "yields"},
                 {"from": "CS1", "to": "G1", "type": "answers"},
                 *edges,
             ],
@@ -199,7 +194,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_score_only_hypothesis_fails_the_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "premise_of")])
 
             audit = self.audit(state_path)
             self.assertEqual(audit.returncode, 1, audit.stdout)
@@ -208,7 +203,7 @@ class GroundedPathTests(unittest.TestCase):
 
     def test_score_only_path_passes_once_the_claim_is_withdrawn(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "leads_to")])
+            state_path = self.recorded_state(tmp_dir, [self.hypothesis("H1", 5)], [self.edge("H1", "CS1", "premise_of")])
             patch_path = write_json(Path(tmp_dir) / "withdraw.json", {"answer": ""})
             self.ok(run_cli("record", str(state_path), "--patch", str(patch_path)))
 
@@ -227,7 +222,7 @@ class GroundedPathTests(unittest.TestCase):
             state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 5)],
-                [self.edge("O1", "H1", "contradicts", score=1), self.edge("H1", "CS1", "leads_to")],
+                [self.edge("O1", "H1", "contradicts", score=1), self.edge("H1", "CS1", "premise_of")],
             )
             audit = self.audit(state_path)
             self.assertEqual(audit.returncode, 1, audit.stdout)
@@ -241,7 +236,7 @@ class GroundedPathTests(unittest.TestCase):
                 [
                     self.edge("O1", "H1", "supports", score=5),
                     self.edge("O2", "H1", "contradicts", score=1),
-                    self.edge("H1", "CS1", "leads_to"),
+                    self.edge("H1", "CS1", "premise_of"),
                 ],
             )
             self.ok(self.audit(state_path))
@@ -254,21 +249,21 @@ class GroundedPathTests(unittest.TestCase):
                 [
                     self.edge("O1", "H2", "contradicts", score=5),
                     self.edge("O1", "H1", "supports", score=5),
-                    self.edge("H1", "CS1", "leads_to"),
+                    self.edge("H1", "CS1", "premise_of"),
                 ],
             )
             self.ok(self.audit(state_path))
 
     def test_premise_chain_is_grounded_only_when_every_premise_is(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            grounded = self.recorded_state(tmp_dir, [self.hypothesis("H1")], [self.edge("O1", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")])
+            grounded = self.recorded_state(tmp_dir, [self.hypothesis("H1")], [self.edge("O1", "H1", "premise_of"), self.edge("H1", "CS1", "premise_of")])
             self.ok(self.audit(grounded))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             mixed = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H0", 5), self.hypothesis("H1")],
-                [self.edge("O1", "H1", "leads_to"), self.edge("H0", "H1", "leads_to"), self.edge("H1", "CS1", "leads_to")],
+                [self.edge("O1", "H1", "premise_of"), self.edge("H0", "H1", "premise_of"), self.edge("H1", "CS1", "premise_of")],
             )
             audit = self.audit(mixed)
             self.assertEqual(audit.returncode, 1, audit.stdout)
@@ -279,7 +274,7 @@ class GroundedPathTests(unittest.TestCase):
             state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 3), self.hypothesis("H2", 5)],
-                [self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
+                [self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "premise_of")],
             )
             audit = self.audit(state_path)
             self.assertEqual(audit.returncode, 1, audit.stdout)
@@ -290,7 +285,7 @@ class GroundedPathTests(unittest.TestCase):
             state_path = self.recorded_state(
                 tmp_dir,
                 [self.hypothesis("H1", 3), self.hypothesis("H2")],
-                [self.edge("O1", "H2", "leads_to"), self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "leads_to")],
+                [self.edge("O1", "H2", "premise_of"), self.edge("H2", "H1", "supports", score=5), self.edge("H1", "CS1", "premise_of")],
             )
             self.ok(self.audit(state_path))
 
@@ -302,7 +297,7 @@ class GroundedPathTests(unittest.TestCase):
                 [
                     self.edge("O1", "H1", "supports", score=3),
                     self.edge("H2", "H1", "contradicts", score=5),
-                    self.edge("H1", "CS1", "leads_to"),
+                    self.edge("H1", "CS1", "premise_of"),
                 ],
             )
             audit = self.audit(state_path)

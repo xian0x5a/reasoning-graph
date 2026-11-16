@@ -44,7 +44,7 @@ BASE_PATCH = {
         edge("O2", "H1", "supports", score=4),
         edge("O1", "H1", "contradicts", score=3),
         edge("O1", "H2", "supports", score=3),
-        edge("H1", "CS1", "leads_to"),
+        edge("H1", "CS1", "premise_of"),
         edge("CS1", "G1", "answers"),
     ],
 }

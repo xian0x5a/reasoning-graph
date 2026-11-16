@@ -1,7 +1,7 @@
 """The case for the claimed answer: what a reader checks before trusting it.
 
 Plain data, taken from the graph alone. The why-tree follows the edges belief flows
-through (`leads_to` premises and `supports` evidence), so the case and the computed
+through (premises by `premise_of` and evidence by `supports`), so the case and the computed
 belief tell the same story. The page lays it out; nothing here writes prose.
 """
 
@@ -20,7 +20,7 @@ from .models import BELIEF_NODE_TYPES
 from .policy import answer_candidates, goal_candidates
 from .state import by_id, edge_id
 
-WHY_RELATIONS = ("leads_to", "supports")
+WHY_RELATIONS = ("premise_of", "supports")
 AGAINST_RELATIONS = ("contradicts", "rules_out")
 # Edges that tie a test to the claim it checks, as (claim end, test end).
 TEST_LINKS = {"prompts": ("from", "to"), "tested_by": ("from", "to"), "tests": ("to", "from")}
@@ -176,7 +176,7 @@ class _CaseGraph:
             if relation in TEST_LINKS:
                 claim_end, test_end = TEST_LINKS[relation]
                 claim, test = str(edge[claim_end]), str(edge[test_end])
-            elif relation == "leads_to":
+            elif relation == "yields":
                 claim, test = str(edge["to"]), str(edge["from"])
             else:
                 continue
@@ -189,7 +189,7 @@ class _CaseGraph:
                 results=tuple(
                     self.case_node(str(edge["to"]))
                     for edge in self.edges
-                    if edge["from"] == test_id and edge_type(edge) == "leads_to" and self.nodes[edge["to"]].get("type") == "observation"
+                    if edge["from"] == test_id and edge_type(edge) == "yields"
                 ),
             )
             # In node order, so a test reads the same wherever it is linked from.

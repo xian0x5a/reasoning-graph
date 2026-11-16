@@ -333,7 +333,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 ],
                 "edges": [
                     {"from": "E1", "to": "A1", "type": "contradicts"},
-                    {"from": "A1", "to": "CS1", "type": "leads_to"},
+                    {"from": "A1", "to": "CS1", "type": "premise_of"},
                     {"from": "CS1", "to": "G1", "type": "answers"},
                 ],
             }
@@ -367,8 +367,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
                 ],
                 "edges": [
-                    {"from": "A1", "to": "CS1", "type": "leads_to"},
-                    {"from": "CS1", "to": "G1", "type": "leads_to"},
+                    {"from": "A1", "to": "CS1", "type": "premise_of"},
+                    {"from": "CS1", "to": "G1", "type": "premise_of"},
                     {"from": "A1", "to": "G1", "type": "answers"},
                 ],
             }
@@ -415,7 +415,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             # Default odds 1 * ratio 3 * default ratio 1/2 = odds 1.5 => belief 0.6 => -ln(.6).
             self.assertAlmostEqual(truth_cost(state, "A1"), 0.510826, places=6)
 
-    def test_beliefs_propagate_leads_to_premises(self) -> None:
+    def test_beliefs_propagate_through_premises(self) -> None:
         state = {
             "nodes": [
                 {"id": "A1", "type": "hypothesis", "text": "Premise A", "score": 4},
@@ -423,8 +423,8 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                 {"id": "D1", "type": "hypothesis", "text": "Derived from A and E"},
             ],
             "edges": [
-                {"from": "A1", "to": "D1", "type": "leads_to"},
-                {"from": "E1", "to": "D1", "type": "leads_to"},
+                {"from": "A1", "to": "D1", "type": "premise_of"},
+                {"from": "E1", "to": "D1", "type": "premise_of"},
             ],
         }
 
@@ -457,7 +457,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("audit", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_beliefs_leads_to_factor_replaces_independent_member_costs(self) -> None:
+    def test_beliefs_premise_of_factor_replaces_independent_member_costs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "factor-leads-to-state.json"
             state = {
@@ -468,9 +468,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived from A, B, and C"},
                 ],
                 "edges": [
-                    {"from": "A1", "to": "D1", "type": "leads_to"},
-                    {"from": "B1", "to": "D1", "type": "leads_to"},
-                    {"from": "C1", "to": "D1", "type": "leads_to"},
+                    {"from": "A1", "to": "D1", "type": "premise_of"},
+                    {"from": "B1", "to": "D1", "type": "premise_of"},
+                    {"from": "C1", "to": "D1", "type": "premise_of"},
                 ],
                 "factors": [{"id": "F1", "edges": ["A1-D1", "B1-D1"], "score": 2, "note": "A1 and B1 share a latent source."}],
             }
@@ -482,7 +482,7 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             valid = self.run_cli("audit", str(state_path))
             self.assertEqual(valid.returncode, 0, valid.stderr)
 
-    def test_audit_rejects_raw_leads_to_cycle_even_when_grouped(self) -> None:
+    def test_audit_rejects_raw_premise_of_cycle_even_when_grouped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             state_path = Path(tmp_dir) / "grouped-cycle-state.json"
             state = {
@@ -492,9 +492,9 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "D1", "type": "hypothesis", "text": "Derived claim"},
                 ],
                 "edges": [
-                    {"from": "A1", "to": "D1", "type": "leads_to"},
-                    {"from": "B1", "to": "D1", "type": "leads_to"},
-                    {"from": "D1", "to": "A1", "type": "leads_to"},
+                    {"from": "A1", "to": "D1", "type": "premise_of"},
+                    {"from": "B1", "to": "D1", "type": "premise_of"},
+                    {"from": "D1", "to": "A1", "type": "premise_of"},
                 ],
                 "factors": [{"id": "F1", "edges": ["A1-D1", "B1-D1"], "score": 2, "note": "A group must not hide the raw cycle."}],
             }

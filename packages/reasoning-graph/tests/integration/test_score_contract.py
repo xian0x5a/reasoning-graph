@@ -149,8 +149,8 @@ def derived_state(**derived: object) -> dict:
             {"id": "D1", "type": "hypothesis", "text": "Conclusion", **derived},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to"},
-            {"from": "A1", "to": "D1", "type": "leads_to"},
+            {"from": "E1", "to": "D1", "type": "premise_of"},
+            {"from": "A1", "to": "D1", "type": "premise_of"},
         ],
     }
 
@@ -192,7 +192,7 @@ def test_derived_belief_updates_from_evidence_on_uncertain_premises():
             {"id": "D1", "type": "hypothesis", "text": "Deterministic conclusion"},
         ],
         "edges": [
-            {"from": "E1", "to": "D1", "type": "leads_to"},
+            {"from": "E1", "to": "D1", "type": "premise_of"},
             {"from": "E2", "to": "D1", "type": "contradicts", "score": 5},
         ],
     }

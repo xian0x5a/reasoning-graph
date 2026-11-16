@@ -22,10 +22,19 @@ DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 # A ruled-out claim is a status, not a weight: any finite ratio loses to enough stacked
 # support, which left user-rejected answers rendering at 95%. The cap applies after all
-# evidence, to the claim and to every claim resting on it through `leads_to`, grouped or
+# evidence, to the claim and to every claim resting on it through `premise_of`, grouped or
 # not, so neither stacked support nor a premise group lifts it back.
 RULED_OUT_EDGE_TYPE = "rules_out"
 RULED_OUT_BELIEF = 0.001
+
+class RemovedInputError(ValueError):
+    """An input the state format no longer takes; validation names its replacement."""
+
+
+# One name meant a premise of a claim and a test's result, which carries no belief (ADR 0017).
+REMOVED_EDGE_TYPES = {
+    "leads_to": "leads_to was split; use premise_of for a premise of a claim, or yields from a test to the observation of its result",
+}
 
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
 # evidence; belief always follows the recorded inputs.
@@ -122,7 +131,7 @@ def resolve_edge_groups(state: dict[str, Any]) -> tuple[list[EdgeGroup], list[st
         if len(relations) > 1:
             found.append(f"{label}.edges must share one type, got {', '.join(relations)}")
         elif relations and relations[0] not in FACTOR_RELATIONS:
-            found.append(f"{label}.edges must be leads_to, supports, or contradicts edges, got {relations[0]}")
+            found.append(f"{label}.edges must be premise_of, supports, or contradicts edges, got {relations[0]}")
         if len(targets) > 1:
             found.append(f"{label}.edges must share one target, got {', '.join(targets)}")
         for member in members:
@@ -281,7 +290,7 @@ def node_prior(node: dict[str, Any] | None, premise_backed: bool = False) -> flo
     # inputs rather than silently computing without them.
     for field in REMOVED_NODE_SCORE_FIELDS:
         if field in node:
-            raise ValueError(removed_score_field_message(f"node {node.get('id')}", field))
+            raise RemovedInputError(removed_score_field_message(f"node {node.get('id')}", field))
     if node.get("type") not in BELIEF_NODE_TYPES or premise_backed:
         return None
     if "score" in node:
@@ -345,12 +354,12 @@ class EvidenceUpdate:
 
 
 class ScoredDeductionError(ValueError):
-    """A claim deduced from `leads_to` premises carries a score of its own."""
+    """A claim deduced from its premises (`premise_of` edges) carries a score of its own."""
 
 
 def scored_deduction_message(node_ids: list[str]) -> str:
     return (
-        f"score on {', '.join(node_ids)}: a claim with leads_to premises takes its belief from them and carries no score; unset it. "
+        f"score on {', '.join(node_ids)}: a claim with premise_of edges into it takes its belief from those premises and carries no score; unset it. "
         "If the premises would not make it certain, add what is missing as a premise of its own, a hypothesis; "
         "if it would survive losing one of them, link that one by supports instead"
     )
@@ -368,7 +377,7 @@ class TruthInputs:
     evidence_updates: dict[str, list[EvidenceUpdate]]
     # Claims whose belief comes from a claim premise or a premise group.
     premise_backed_nodes: set[str]
-    # Claims an observation rules out, and claims resting on one through `leads_to`;
+    # Claims an observation rules out, and claims resting on one through `premise_of`;
     # their belief is capped at RULED_OUT_BELIEF and they are never evidence-grounded.
     ruled_out_nodes: set[str]
 
@@ -394,6 +403,10 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         if not isinstance(edge, dict):
             continue
         edge_type = edge.get("type") or edge.get("label")
+        # `mermaid` renders without validating; a leftover leads_to must fail, not drop out
+        # of the belief walk and leave its target at the default.
+        if edge_type in REMOVED_EDGE_TYPES:
+            raise RemovedInputError(f"edge {edge_id(edge)}: {REMOVED_EDGE_TYPES[edge_type]}")
         # Validate every evidence edge, including those the belief walk never reaches.
         if edge_type in EVIDENCE_EDGE_TYPES:
             likelihood_ratio = likelihood_ratio_from_edge(edge)
@@ -402,7 +415,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
         if not isinstance(src, str) or not isinstance(dst, str) or src not in nodes or dst not in nodes:
             continue
         grouped = edge_id(edge) in grouped_edge_ids
-        if edge_type == "leads_to":
+        if edge_type == "premise_of":
             premise_sources[dst].append(src)
             truth_dependencies[dst].append(src)
             if not grouped:
@@ -421,7 +434,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     for group in groups:
         if group.target not in nodes or any(source not in nodes for source in group.sources):
             continue
-        if group.relation == "leads_to":
+        if group.relation == "premise_of":
             premise_group_costs[group.target].append(probability_cost(CLAIM_SCORE_PROBABILITY[group.score]))
         else:
             ratio = evidence_ratio(group.score, group.relation)
@@ -430,7 +443,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     premise_backed_nodes = {
         node_id
         for node_id in nodes
-        if premise_group_costs[node_id] or any(nodes[source].get("type") in BELIEF_NODE_TYPES for source in premise_sources[node_id])
+        if premise_group_costs[node_id] or premise_sources[node_id]
     }
     # A score meant a prior while the claim was open and a doubt about the step once
     # premises arrived, so a lemma scored 2 fell from 30% to 27% when proved (ADR 0016).
@@ -464,7 +477,7 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
     """Claims whose belief is earned from observations rather than hand-set scores.
 
     Observations are the base. A claim is grounded when every one of its
-    `leads_to` premises is grounded, or when its evidence favors it (net
+    premises (`premise_of` edges) is grounded, or when its evidence favors it (net
     likelihood ratio > 1) counting supporting updates only from grounded sources
     and contradicting updates from any source: unbacked support cannot lift a
     claim, but unbacked doubt still weighs. A score never grounds a
@@ -498,8 +511,8 @@ def evidence_grounded_node_ids(inputs: TruthInputs) -> set[str]:
 def node_effective_truth_costs(state: dict[str, Any]) -> dict[str, float]:
     """Compute effective node truth costs from premises and likelihood updates.
 
-    Incoming `leads_to` edges are required premises and contribute source truth
-    cost to the target's base belief. A `leads_to` group replaces its members'
+    Incoming `premise_of` edges are required premises and contribute source truth
+    cost to the target's base belief. A `premise_of` group replaces its members'
     costs with the joint probability of its score.
     Incoming `supports`/`contradicts` edges update that base belief in odds
     space; a group replaces its members' updates with one at its score.

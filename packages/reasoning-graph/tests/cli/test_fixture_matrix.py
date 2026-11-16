@@ -23,10 +23,10 @@ MALFORMED_FIXTURES = {
     "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
     "removed-stop-policy.json": "stop_policy was removed",
     "overlapping-factors.json": "edge E2-A1 is already grouped by F_SUPPORTS_A1",
+    "hypothesis-test-result.json": "yields must connect a test to the observation of its result; T1 -> H2",
 }
 # The graph is well-formed; the answer these claim fails its checks.
 FAILED_ANSWER_FIXTURES = {
-    "hypothesis-test-result.json": "test(s) without a recorded result observation: T1",
     "unanswered-accepted-goal.json": "accepted goal G2",
 }
 STATE_SCHEMA = PACKAGE_ROOT / "src" / "reasoning_graph" / "schemas" / "state.schema.json"
