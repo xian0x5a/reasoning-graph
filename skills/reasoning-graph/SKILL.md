@@ -73,7 +73,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 
 - **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command); for a local file, start `source` with its path. When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"); join separate excerpts with `...`. `record` rejects a quote that is not verbatim in the local file its `source` names. An observation claims no more than its quote.
 - **Checks you cannot run are marked, not answered.** Add a `test` node for each check that would settle a claim, even one nobody can run here (a lab exam, an interview, forensics on a case file). Set `not_run` on it to the reason; it then needs no result, cannot have one, and shows as "not run" in the view. Never write a result for a check that did not happen.
-- **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from a result is a separate `hypothesis` linked by `leads_to` from the observation. Shapes: `docs/schema/tests.md`.
+- **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion drawn from one result is a separate `hypothesis` linked by `leads_to` from that observation; a conclusion that several results corroborate independently takes `supports` from each (see choosing the edge, below). Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no check counts them.
 - **Notes are your memory.** Any node or edge may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state. Write one on an edge when its score departs from the default or the link is not obvious from the two texts. What concerns no node goes in a file of your own.
 - **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
@@ -98,6 +98,10 @@ No belief level and no ranking is checked: the answer is the candidate you name,
 - The CLI checks the record, not your reading of the sources: before claiming, reread each observation the answer relies on against its `quote`, and look for evidence in the sources that cuts against the answer.
 - Ask the user before deepening search when remaining work would cost meaningful time.
 
+## Review before claiming
+
+The scores are yours, and so are their mistakes: an observation every rival explains scored as support, clues sharing one cause left ungrouped, two rivals that cannot both hold both left likely. `audit` checks none of that, and you do not read the computed beliefs. When a subagent is available and the answer matters, hand the state to a read-only reviewer with the brief in `docs/review.md` before claiming. It reads the rendered beliefs and reports facts about the evidence, never a number or which way to move one. Apply what you accept in one patch, then claim. One round per answer: the review is a second reading, not a gate to pass.
+
 ## When the answer is rejected
 
 Keep working in the same state; nothing locks it. Put the rejection in one patch:
@@ -111,15 +115,17 @@ Keep working in the same state; nothing locks it. Put the rejection in one patch
 
 `score` is the only number you write, from 1 to 5, on claims and on `supports`/`contradicts` edges. Leave it out unless the default is wrong:
 
-| score | claim | evidence edge |
+| score | claim | evidence edge: how much more expected the observation is if the target is true than if it is false |
 | --- | --- | --- |
-| 1 | very unlikely | barely bears on the target |
-| 3 | open | moderate |
-| 5 | well established | decisive |
+| 1 | very unlikely | slightly |
+| 3 | open | about twice |
+| 5 | well established | about five times: very strong, never proof |
 
 Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises inherits their belief and needs no score. Goals, constraints, and tests carry none.
 
-Score what you judge and move on. The CLI turns scores into a belief per claim only when it renders the graph, so a reader can see why one candidate outranks another and catch a weight that looks wrong. The state holds no belief and no command prints one. Evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
+An evidence edge says how much the observation tells the target apart from its alternatives, not how relevant it is. Before drawing one, ask whether the observation would be about as expected if the target were false, for example because a rival explains it just as well. If so, draw no edge: an observation that every rival explains moves none of them, and an edge with no score still claims "about twice". A `contradicts` edge reads the same way with true and false swapped.
+
+Score what you judge and move on. The CLI turns scores into a belief per claim only when it renders the graph, so a reader can see why one candidate outranks another and catch a weight that looks wrong. The state holds no belief, and the commands of the workflow (`record`, `refresh`, `audit`) print none. Evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
 
 ## Schema quick reference
 
@@ -137,11 +143,16 @@ Node types:
 Edge types (any edge may carry a `note`):
 
 - `requires` — hard dependency; prefer `goal -> constraint` or `candidate_solution -> constraint`
-- `supports` — evidence for the target, at its `score` or the default
+- `supports` — evidence for the target, at its `score` or the default; each edge multiplies the target's odds
 - `contradicts` — evidence against the target, at its `score` or the default; does not disqualify the target by itself
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
-- `leads_to` — premise the target rests on
+- `leads_to` — premise the target rests on; all premises must hold together, so the target is never more likely than they are jointly
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
+
+Choosing the edge: the type decides which way belief moves, so pick it by what the link means.
+
+- A claim that combines or restates other claims takes them as `leads_to` premises, so it cannot outrank its parts. A `supports` edge from a component claim counts it again as fresh evidence and lifts the combined claim above the part.
+- Observations that each corroborate a claim on their own take `supports`, so each one adds. As `leads_to` premises their reliabilities multiply, so every extra observation lowers the claim.
 
 Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List them in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
 
@@ -163,6 +174,7 @@ Default final response: the answer, a concise proof path citing sources, open hy
 - `docs/schema/goals.md` — candidate, answer-kind, multiple-goal, and lemma rules
 - `docs/schema/factors.md` — correlation groups
 - `docs/cost-model.md` — score tables, defaults, and the belief math behind the rendered view
+- `docs/review.md` — brief for the optional pre-claim reviewer
 - `docs/driver.md` — CLI commands, state JSON, the index file, and audit
 - `docs/rendering.md` — graph/HTML rendering options
 - `docs/install.md` — one-time helper CLI install
