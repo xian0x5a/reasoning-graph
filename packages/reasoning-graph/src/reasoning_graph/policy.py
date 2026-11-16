@@ -250,8 +250,7 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
         edge.get("from")
         for edge in state.get("edges", [])
         if isinstance(edge, dict)
-        and edge.get("type") == "leads_to"
-        and nodes.get(edge.get("to"), {}).get("type") == "observation"
+        and edge.get("type") == "yields"
     }
     missing = sorted(
         node_id

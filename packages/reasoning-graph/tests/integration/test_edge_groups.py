@@ -45,8 +45,8 @@ def errors_of(state):
     ("supports", 5, 5 / 6),
     ("contradicts", 3, 1 / 3),    # The reciprocal, once.
     ("contradicts", 4, 1 / 4),
-    ("leads_to", 4, 0.7),         # Joint probability of the premises, not 0.9 * 0.9.
-    ("leads_to", 2, 0.3),
+    ("premise_of", 4, 0.7),         # Joint probability of the premises, not 0.9 * 0.9.
+    ("premise_of", 2, 0.3),
 ])
 def test_group_counts_its_edges_once_at_the_combined_score(relation, score, expected):
     state = grouped_state(relation, score=score)
@@ -54,7 +54,7 @@ def test_group_counts_its_edges_once_at_the_combined_score(relation, score, expe
     assert belief(state) == pytest.approx(expected)
 
     del state["factors"]
-    independent = {"supports": 0.8, "contradicts": 0.2, "leads_to": 0.81}[relation]
+    independent = {"supports": 0.8, "contradicts": 0.2, "premise_of": 0.81}[relation]
     assert belief(state) == pytest.approx(independent)
 
 
@@ -113,7 +113,7 @@ def invalid_groups():
         "missing edge": (missing_edge, "references missing edge 'O9-H1'"),
         "mixed relations": (mixed_relations, "must share one type"),
         "different targets": (different_targets, "must share one target"),
-        "ungroupable relation": (ungroupable_relation, "leads_to, supports, or contradicts"),
+        "ungroupable relation": (ungroupable_relation, "premise_of, supports, or contradicts"),
         "edge in two groups": (edge_in_two_groups, "edge O2-H1 is already grouped by F1"),
         "grouped edge with its own score": (grouped_edge_with_its_own_score, "edge O1-H1 is grouped by F1 and must not carry its own score"),
         "missing score": (missing_score, "score"),

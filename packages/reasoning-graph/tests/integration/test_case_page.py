@@ -25,7 +25,7 @@ STATE = {
     ],
     "edges": [
         {"from": "O1", "to": "H1", "type": "supports", "score": 4},
-        {"from": "H1", "to": "CS1", "type": "leads_to"},
+        {"from": "H1", "to": "CS1", "type": "premise_of"},
         {"from": "H1", "to": "T1", "type": "prompts"},
         {"from": "O2", "to": "CS2", "type": "contradicts", "score": 5},
         {"from": "CS1", "to": "G1", "type": "answers"},

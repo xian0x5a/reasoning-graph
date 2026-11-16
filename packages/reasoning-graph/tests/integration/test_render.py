@@ -27,7 +27,7 @@ class RenderIdentityTests(unittest.TestCase):
             "nodes": nodes,
             "edges": [
                 {"from": "A.B", "to": "A_B", "type": "supports", "score": 3},
-                {"from": "A B", "to": "A.B", "type": "leads_to"},
+                {"from": "A B", "to": "A.B", "type": "requires"},
             ],
         }
 
@@ -130,17 +130,17 @@ class RenderIdentityTests(unittest.TestCase):
             "edges": [
                 edge("O1", "supports", "H1"),
                 edge("H1", "prompts", "T1"),
-                edge("T1", "leads_to", "O4"),
-                edge("O4", "leads_to", "H3"),
+                edge("T1", "yields", "O4"),
+                edge("O4", "premise_of", "H3"),
                 edge("H3", "prompts", "T3"),
-                edge("T3", "leads_to", "O5"),
+                edge("T3", "yields", "O5"),
                 edge("O5", "supports", "H3"),
-                edge("H3", "leads_to", "CS1"),
+                edge("H3", "premise_of", "CS1"),
                 edge("CS1", "answers", "G1"),
-                edge("O4", "leads_to", "H4"),
-                edge("T6", "leads_to", "O6"),
+                edge("O4", "premise_of", "H4"),
+                edge("T6", "yields", "O6"),
                 edge("O6", "contradicts", "H4"),
-                edge("H4", "leads_to", "CS2"),
+                edge("H4", "premise_of", "CS2"),
                 edge("CS2", "answers", "G1"),
                 edge("O7", "contradicts", "CS3"),
                 edge("CS3", "answers", "G1"),
@@ -276,7 +276,7 @@ class GraphCanvasLayoutTests(unittest.TestCase):
                 {"id": "E1", "type": "observation", "text": "Observed premise", "score": 5},
                 {"id": "G1", "type": "goal", "text": "Answer the question"},
             ],
-            "edges": [{"from": "E1", "to": "G1", "type": "leads_to"}],
+            "edges": [{"from": "E1", "to": "G1", "type": "premise_of"}],
         }
         document = html_document(state, to_mermaid(state))
 

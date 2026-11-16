@@ -42,7 +42,7 @@ STORY_PATCH = {
         candidate("CS1", "The gardener"),
         candidate("CS2", "The butler"),
     ],
-    "edges": [edge("O1", "CS1", "leads_to"), edge("CS1", "G1", "answers"), edge("CS2", "G1", "answers")],
+    "edges": [edge("O1", "CS1", "premise_of"), edge("CS1", "G1", "answers"), edge("CS2", "G1", "answers")],
 }
 
 

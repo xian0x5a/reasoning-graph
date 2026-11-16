@@ -45,8 +45,8 @@ STORY_PATCH = {
         candidate("CS3", "The cook"),
     ],
     "edges": [
-        edge("T1", "O1", "leads_to"),
-        edge("O1", "CS1", "leads_to"),
+        edge("T1", "O1", "yields"),
+        edge("O1", "CS1", "premise_of"),
         edge("O2", "CS2", "supports"),
         edge("CS1", "G1", "answers"),
         edge("CS2", "G1", "answers"),

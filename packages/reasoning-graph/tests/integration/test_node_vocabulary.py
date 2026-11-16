@@ -31,7 +31,7 @@ class NodeVocabularyTests(unittest.TestCase):
 
     def test_hypothesis_to_goal_edge_is_rejected(self) -> None:
         # Both hypothesis shapes are covered: one carrying its own score, one whose belief
-        # comes from a leads_to premise. Neither may reach a goal except through a candidate.
+        # comes from its premises. Neither may reach a goal except through a candidate.
         score_backed = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find answer"},
@@ -47,8 +47,8 @@ class NodeVocabularyTests(unittest.TestCase):
                 {"id": "H1", "type": "hypothesis", "text": "Established step"},
             ],
             "edges": [
-                {"from": "O1", "to": "H1", "type": "leads_to"},
-                {"from": "H1", "to": "G1", "type": "leads_to"},
+                {"from": "O1", "to": "H1", "type": "premise_of"},
+                {"from": "H1", "to": "G1", "type": "premise_of"},
             ],
         }
         for label, state in {"score-backed": score_backed, "premise-backed": premise_backed}.items():

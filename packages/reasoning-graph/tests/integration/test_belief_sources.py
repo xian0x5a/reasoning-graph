@@ -19,7 +19,7 @@ CLAIM_TABLE = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
 RATIO_TABLE = {1: 1.2, 2: 1.5, 3: 2, 4: 3, 5: 5}
 
 
-def edge(source, target, relation="leads_to", **extra):
+def edge(source, target, relation="premise_of", **extra):
     return {"from": source, "to": target, "type": relation,
             **extra}
 
@@ -56,7 +56,8 @@ def test_claim_score_maps_through_one_table(node_type, score, expected):
     assert belief(state) == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("node_type", sorted(CLAIM_DEFAULTS))
+# Observations are recorded as seen, so only a hypothesis or candidate takes premises.
+@pytest.mark.parametrize("node_type", sorted(set(CLAIM_DEFAULTS) - {"observation"}))
 def test_premise_backed_claim_adds_no_default_factor(node_type):
     # A default of 0.5 on every derived claim would halve belief at each step of a chain.
     state = claim_state(node_type)
@@ -68,16 +69,6 @@ def test_premise_backed_claim_adds_no_default_factor(node_type):
     result = validate_state(state)
     assert result.ok, result.errors
     assert belief(state) == pytest.approx(0.7)
-
-
-@pytest.mark.parametrize("source_type", ["goal", "constraint", "test"])
-def test_scoreless_nonclaim_premise_leaves_the_default_in_place(source_type):
-    state = claim_state()
-    state["nodes"].append({"id": "S1", "type": source_type, "text": "Stipulation or action"})
-    state["edges"].append(edge("S1", "N1"))
-    result = validate_state(state)
-    assert result.ok, result.errors
-    assert belief(state) == pytest.approx(0.5)
 
 
 @pytest.mark.parametrize("relation,expected", [("supports", 2 / 3), ("contradicts", 1 / 3)])
@@ -102,8 +93,8 @@ def test_evidence_score_maps_through_one_table_and_contradicts_uses_the_reciproc
 def test_premise_group_replaces_the_default():
     state = claim_state()
     state["nodes"].extend([
-        {"id": "S1", "type": "constraint", "text": "First condition"},
-        {"id": "S2", "type": "constraint", "text": "Second condition"},
+        {"id": "S1", "type": "observation", "text": "First reading"},
+        {"id": "S2", "type": "observation", "text": "Second reading of the same log"},
     ])
     state["edges"].extend([edge("S1", "N1"), edge("S2", "N1")])
     state["factors"] = [{"id": "F1", "edges": ["S1-N1", "S2-N1"], "score": 4}]

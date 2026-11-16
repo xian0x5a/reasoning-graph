@@ -48,7 +48,7 @@
     {
       "from": "T1",
       "to": "H2",
-      "type": "leads_to"
+      "type": "yields"
     },
     {
       "from": "H2",
@@ -59,7 +59,7 @@
     {
       "from": "O1",
       "to": "CS1",
-      "type": "leads_to"
+      "type": "premise_of"
     },
     {
       "from": "CS1",

@@ -83,12 +83,12 @@
     {
       "from": "T1",
       "to": "E2",
-      "type": "leads_to"
+      "type": "yields"
     },
     {
       "from": "E2",
       "to": "CS1",
-      "type": "leads_to"
+      "type": "premise_of"
     },
     {
       "from": "CS1",
@@ -114,7 +114,7 @@
     {
       "from": "T2",
       "to": "E4",
-      "type": "leads_to"
+      "type": "yields"
     }
   ],
   "factors": []

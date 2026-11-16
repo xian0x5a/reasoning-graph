@@ -54,12 +54,12 @@
     {
       "from": "O1",
       "to": "A1",
-      "type": "leads_to"
+      "type": "premise_of"
     },
     {
       "from": "A1",
       "to": "CS1",
-      "type": "leads_to"
+      "type": "premise_of"
     },
     {
       "from": "CS1",

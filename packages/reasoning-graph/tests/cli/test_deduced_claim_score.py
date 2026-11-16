@@ -1,4 +1,4 @@
-"""A claim deduced by `leads_to` from a belief-bearing source carries no score of its own."""
+"""A claim deduced from premises (`premise_of` edges) carries no score of its own."""
 
 import json
 import re
@@ -64,26 +64,26 @@ def assert_actionable_error_without_belief(
     assert not DECIMAL.search(output), output
 
 
-LEADS_TO_H1 = {"from": "O1", "to": "H1", "type": "leads_to"}
+PREMISE_OF_H1 = {"from": "O1", "to": "H1", "type": "premise_of"}
 
 REJECTED_PATCHES = {
-    "leads_to into an existing scored hypothesis": ("H1", {"edges": [LEADS_TO_H1]}),
-    "scored candidate with a leads_to from a hypothesis": (
+    "premise_of into an existing scored hypothesis": ("H1", {"edges": [PREMISE_OF_H1]}),
+    "scored candidate with a premise_of from a hypothesis": (
         "C1",
         {
             "nodes": [
                 {"id": "C1", "type": "candidate_solution", "text": "Gardener", "answer_kind": "exact_answer", "score": 3}
             ],
             "edges": [
-                {"from": "H2", "to": "C1", "type": "leads_to"},
+                {"from": "H2", "to": "C1", "type": "premise_of"},
                 {"from": "C1", "to": "G1", "type": "answers"},
             ],
         },
     ),
-    "leads_to factor group into a scored hypothesis": (
+    "premise_of factor group into a scored hypothesis": (
         "H1",
         {
-            "edges": [LEADS_TO_H1, {"from": "O2", "to": "H1", "type": "leads_to"}],
+            "edges": [PREMISE_OF_H1, {"from": "O2", "to": "H1", "type": "premise_of"}],
             "factors": [{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4, "note": "one reading"}],
         },
     ),
@@ -104,7 +104,7 @@ def test_record_rejects_a_patch_that_leaves_a_deduced_node_scored(tmp_path: Path
 def test_record_rejects_setting_a_score_on_an_already_deduced_hypothesis(tmp_path: Path) -> None:
     state = base_state()
     state["nodes"] = [{k: v for k, v in n.items() if k != "score"} for n in state["nodes"]]
-    state["edges"] = [LEADS_TO_H1]
+    state["edges"] = [PREMISE_OF_H1]
     state_path = write_state(tmp_path, state)
     before = state_path.read_text(encoding="utf-8")
 
@@ -114,10 +114,10 @@ def test_record_rejects_setting_a_score_on_an_already_deduced_hypothesis(tmp_pat
     assert state_path.read_text(encoding="utf-8") == before
 
 
-def test_record_accepts_the_leads_to_when_the_same_patch_unsets_the_score(tmp_path: Path) -> None:
+def test_record_accepts_the_premise_of_when_the_same_patch_unsets_the_score(tmp_path: Path) -> None:
     state_path = write_state(tmp_path, base_state())
 
-    result = record(state_path, {"edges": [LEADS_TO_H1], "update_nodes": [{"id": "H1", "unset": ["score"]}]})
+    result = record(state_path, {"edges": [PREMISE_OF_H1], "update_nodes": [{"id": "H1", "unset": ["score"]}]})
 
     assert result.returncode == 0, result.stdout + result.stderr
     h1 = next(n for n in json.loads(state_path.read_text(encoding="utf-8"))["nodes"] if n["id"] == "H1")
@@ -126,7 +126,7 @@ def test_record_accepts_the_leads_to_when_the_same_patch_unsets_the_score(tmp_pa
 
 def hand_edited_deduced_state() -> dict:
     state = base_state()
-    state["edges"] = [LEADS_TO_H1]  # H1 keeps its score: a hand edit that skipped record
+    state["edges"] = [PREMISE_OF_H1]  # H1 keeps its score: a hand edit that skipped record
     return state
 
 
@@ -146,13 +146,7 @@ def test_audit_reports_a_hand_edited_deduced_scored_node(tmp_path: Path) -> None
 def accepted_states() -> dict[str, dict]:
     scored_test_result = base_state()
     scored_test_result["nodes"][3]["score"] = 4
-    scored_test_result["edges"] = [{"from": "T1", "to": "O1", "type": "leads_to"}]
-
-    from_constraint_and_goal = base_state()
-    from_constraint_and_goal["edges"] = [
-        {"from": "K1", "to": "H1", "type": "leads_to"},
-        {"from": "G1", "to": "H1", "type": "leads_to"},
-    ]
+    scored_test_result["edges"] = [{"from": "T1", "to": "O1", "type": "yields"}]
 
     evidence_edges = base_state()
     evidence_edges["edges"] = [
@@ -163,8 +157,8 @@ def accepted_states() -> dict[str, dict]:
     scored_group_on_unscored_target = base_state()
     del scored_group_on_unscored_target["nodes"][5]["score"]
     scored_group_on_unscored_target["edges"] = [
-        {"from": "O1", "to": "H1", "type": "leads_to"},
-        {"from": "O2", "to": "H1", "type": "leads_to"},
+        {"from": "O1", "to": "H1", "type": "premise_of"},
+        {"from": "O2", "to": "H1", "type": "premise_of"},
     ]
     scored_group_on_unscored_target["factors"] = [
         {"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4, "note": "one reading"}
@@ -172,9 +166,8 @@ def accepted_states() -> dict[str, dict]:
 
     return {
         "scored observation that is a test result": scored_test_result,
-        "leads_to only from a constraint or goal": from_constraint_and_goal,
         "supports and contradicts into a scored hypothesis": evidence_edges,
-        "scored leads_to group on an unscored target": scored_group_on_unscored_target,
+        "scored premise_of group on an unscored target": scored_group_on_unscored_target,
     }
 
 

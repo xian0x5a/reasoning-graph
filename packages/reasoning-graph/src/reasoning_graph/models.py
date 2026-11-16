@@ -25,21 +25,22 @@ EDGE_TYPES = {
     "prompts",
     "tested_by",  # legacy alias; prefer prompts for follow-up work provenance
     "tests",  # legacy alias; prefer prompts for follow-up work provenance
-    "leads_to",
+    "premise_of",
+    "yields",
     "answers",
     "rules_out",
 }
 
 
 FACTOR_RELATIONS = {
-    "leads_to",
+    "premise_of",
     "supports",
     "contradicts",
 }
 
 
-# A test result is what was observed; a conclusion drawn from it is a separate hypothesis
-# linked by leads_to from the observation.
+# A test yields what was observed; a conclusion drawn from it is a separate hypothesis
+# with the observation as its premise_of.
 RESULT_NODE_TYPES = {"observation"}
 
 

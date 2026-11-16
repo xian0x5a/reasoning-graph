@@ -46,7 +46,7 @@ def story_patch(hypothesis_score: int) -> dict:
         "edges": [
             edge("O2", "H1", "supports", score=4),
             edge("O1", "H2", "contradicts", score=3),
-            edge("H1", "CS1", "leads_to"),
+            edge("H1", "CS1", "premise_of"),
             edge("CS1", "G1", "answers"),
         ],
     }

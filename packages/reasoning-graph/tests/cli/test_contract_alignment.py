@@ -30,7 +30,7 @@ def base_state() -> dict:
             {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "score": 3},
         ],
         "edges": [
-            {"from": "A1", "to": "CS1", "type": "leads_to"},
+            {"from": "A1", "to": "CS1", "type": "premise_of"},
             {"from": "CS1", "to": "G1", "type": "answers"},
         ],
     }

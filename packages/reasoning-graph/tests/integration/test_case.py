@@ -59,8 +59,8 @@ def test_why_walks_premises_and_support_down_to_observations_and_shows_a_shared_
             edge("O1", "supports", "H1", score=4),
             edge("O1", "supports", "H2"),
             edge("O2", "supports", "H2"),
-            edge("H1", "leads_to", "CS1"),
-            edge("H2", "leads_to", "CS1"),
+            edge("H1", "premise_of", "CS1"),
+            edge("H2", "premise_of", "CS1"),
             edge("CS1", "answers", "G1"),
         ],
     }
@@ -69,8 +69,8 @@ def test_why_walks_premises_and_support_down_to_observations_and_shows_a_shared_
 
     assert (case.goal.id, case.answer.id) == ("G1", "CS1")
     assert outline(case.why) == [
-        ("leads_to", "H1", False, [("supports", "O1", False, [])]),
-        ("leads_to", "H2", False, [("supports", "O1", True, []), ("supports", "O2", False, [])]),
+        ("premise_of", "H1", False, [("supports", "O1", False, [])]),
+        ("premise_of", "H2", False, [("supports", "O1", True, []), ("supports", "O2", False, [])]),
     ]
     first_o1 = case.why[0].reasons[0]
     assert (first_o1.score, first_o1.node.source, first_o1.node.quote) == (4, "notes.txt", "said so")
@@ -96,7 +96,7 @@ def test_against_holds_contradictions_of_the_answer_and_its_why_tree_but_not_of_
         "nodes": [GOAL, observation("O1"), observation("O2"), observation("O3"), observation("O4"), hypothesis("H1"), candidate("CS1"), candidate("CS2")],
         "edges": [
             edge("O1", "supports", "H1"),
-            edge("H1", "leads_to", "CS1"),
+            edge("H1", "premise_of", "CS1"),
             edge("O2", "contradicts", "CS1", score=2),
             edge("O3", "contradicts", "H1"),
             edge("O4", "contradicts", "CS2", score=5),
@@ -127,12 +127,12 @@ def test_tests_of_the_why_tree_show_their_results_or_why_they_were_not_run() -> 
         "edges": [
             # T1 is linked twice: prompted by H1, and its result O1 is part of the why-tree.
             edge("H1", "prompts", "T1"),
-            edge("T1", "leads_to", "O1"),
+            edge("T1", "yields", "O1"),
             edge("O1", "supports", "H1"),
             edge("T2", "tests", "CS1"),
-            edge("H1", "leads_to", "CS1"),
+            edge("H1", "premise_of", "CS1"),
             edge("CS2", "prompts", "T3"),
-            edge("T3", "leads_to", "O2"),
+            edge("T3", "yields", "O2"),
             edge("CS1", "answers", "G1"),
             edge("CS2", "answers", "G1"),
         ],
@@ -184,8 +184,8 @@ def test_weak_spots_name_unrun_tests_unquoted_observations_and_claims_on_one_inp
             edge("O1", "supports", "H1"),
             edge("O2", "supports", "H1"),
             edge("O1", "supports", "H2"),
-            edge("H1", "leads_to", "CS1"),
-            edge("H2", "leads_to", "CS1"),
+            edge("H1", "premise_of", "CS1"),
+            edge("H2", "premise_of", "CS1"),
             edge("H2", "prompts", "T1"),
             # Outside the why-tree: a rival's unquoted evidence is not a weak spot of the answer.
             edge("O3", "contradicts", "CS2"),
