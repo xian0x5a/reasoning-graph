@@ -98,7 +98,7 @@ A lemma is one `hypothesis` node for its whole life. Once evidence-grounded it c
 }
 ```
 
-Once proved, a later `record` adds its `leads_to` premises to the same node. Belief then comes from the premises alone; unset a score you wrote while it was open, unless the inference step itself is doubtful:
+Once proved, a later `record` adds its `leads_to` premises to the same node and unsets any score you wrote while it was open; belief then comes from the premises alone (choosing the edge, `../../SKILL.md`):
 
 ```json
 {

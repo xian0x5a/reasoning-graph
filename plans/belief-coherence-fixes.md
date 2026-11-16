@@ -1,5 +1,5 @@
 ---
-status: done
+status: active
 ---
 
 # Belief coherence fixes (issues #1–#5)
@@ -37,6 +37,10 @@ Layers, each working end to end before the next:
 2. **`rules_out` edge (#5 step 2).** Observation → hypothesis/candidate_solution, no score, not groupable. Belief walk caps the target at `RULED_OUT_BELIEF` (renders `<1%`); `leads_to` descendants inherit it. Page/index/mermaid show "rules out" instead of a ratio; case "Against it" and Rivals include it. Rejection flow in `SKILL.md` uses it. ADR 0014.
 3. **`exclusive_sets` (#2).** Top-level `exclusive_sets: [{id, members, note?}]`, patch `exclusive_sets` (upsert by id) and `remove_exclusive_sets`. Members: ≥2 distinct existing hypothesis/candidate_solution ids. Page: a section listing each set with members' beliefs; a reader-only note when two or more members are above 50%. Index lists sets. ADR 0015.
 4. **Strong-contradiction mark (#5 step 1).** A claim with a score-5 `contradicts` edge or score-5 contradicts group shows the mark in its graph label and detail card, naming the source.
+5. **Deduction rule (review round 3, N1–N5).** Three doc reviews kept finding leaks in the case list that splits `leads_to` from `supports`, so the split becomes one question, stated once in `SKILL.md`: if every source were certain, would the target be certain? Yes: `leads_to`, a deduction. No: evidence, scored by likelihood ratio.
+   - Code: `record`/`refresh`/`audit` reject a `score` on a claim with belief-bearing `leads_to` premises or a `leads_to` group, naming the claims and the two ways out (unset it; or it is not a deduction: use `supports`, or add the doubt as a premise hypothesis). Removes the trap where a lemma scored 2 while open dropped to 27% once proved. ADR 0016 amends ADR 0009.
+   - Docs: the rule lives in `SKILL.md` "Choosing the edge"; `cost-model.md`, `schema/tests.md`, `schema/goals.md` and `review.md` refer to it. Also N1 (review example), N3, N4, N5.
+   - Rename of `leads_to` (to `premise_of`, with a separate test-to-result edge) is a follow-up issue, not this branch.
 
 ## Validation
 
@@ -54,6 +58,12 @@ Layers, each working end to end before the next:
 - [x] Layer 4 strong-contradiction mark (95967c8)
 - [x] Independent tests: 36 tests from the spec, no bugs found (0fd12d1)
 - [x] Independent review (Fable): 3 serious, 3 moderate findings, fixed with regression tests that fail on the pre-fix code (48808bb)
+- [x] Doc reviews of the scoring wording: Fable (45defff), then Opus: fix first (N1–N5)
+- [ ] Layer 5: independent tests for the deduced-claim score rule, written before the code and seen failing
+- [ ] Layer 5: code, ADR 0016, existing tests and fixtures updated
+- [ ] Layer 5: docs (deduction question, N1, N3–N5)
+- [ ] Layer 5: independent final review
+- [ ] Follow-up issue: rename `leads_to`
 
 ## Surprises & Discoveries
 

@@ -17,24 +17,26 @@ belief. Also read <state.index.md> (every node and edge) and <state.json> (quote
 
 Use belief to find where to look, then judge each spot from the evidence itself:
 1. Rivals both likely: two claims that cannot both be true both look likely. Report what
-   lifts them (items 2-4), or that they belong in one exclusive set; the fact that both
-   are likely is a belief, not a finding.
+   lifts them (items 2-4), that they belong in one exclusive set, or that no recorded
+   evidence separates them (add a test); the fact that both are likely is a belief, not
+   a finding.
 2. Non-diagnostic evidence: a supports or contradicts edge from an observation about as
    expected whether its target is true or false, because every rival explains it as well.
 3. Shared cause: edges into one target from sources that share a source, an observation,
    a cause, or logical overlap, not grouped in one factor.
-4. Wrong edge type: a claim that combines or restates other claims fed by supports from
-   them; observations that each corroborate a claim on their own listed as leads_to premises.
+4. Wrong edge type. leads_to is a deduction: the target would be certain if every source
+   were. Flag a leads_to that fails that (observations that each corroborate the target,
+   an elimination over a rival list that may be incomplete), and supports edges from
+   sources that together prove their target (a claim that combines or restates them).
 5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
    a failed check it cannot survive) held down only by a contradicts edge.
-6. Overreach: a rules_out edge from an observation that does not settle its claim as false;
-   a lone leads_to from an observation to a conclusion the observation only suggests.
+6. Overreach: a rules_out edge from an observation that does not settle its claim as false.
 
 Report one line per finding: the ids, the fact about the evidence, and the graph change
 it implies (remove an edge, group edges, change an edge type, rule a claim out, add an
-exclusive set).
-Example: "O1 -> H1: O1 is equally expected under H2 (both predict a multi-chain drain);
-remove the edge."
+exclusive set, add a test).
+Example: "O1 -> H1: every rival (H2, H3, H4) predicts a multi-chain drain as well as H1
+does, so O1 is as expected if H1 is false; remove the edge."
 Write every finding as a fact about the evidence. Leave out beliefs, ranks, scores, and
 how strong an edge should be: the author must not learn the numbers.
 If nothing qualifies, say "no findings".
@@ -42,6 +44,6 @@ If nothing qualifies, say "no findings".
 
 ## Why it is shaped this way
 
-- **Facts, not directions.** "O1 is equally expected under H2" survives the author not knowing any belief; "this edge is too strong" is a direction to tune toward.
+- **Facts, not directions.** "O1 is as expected under every rival" survives the author not knowing any belief; "this edge is too strong" is a direction to tune toward.
 - **One round, no gate.** `audit` never waits on a review, and the author is free to reject findings: in the project's reader evaluation, model readers caught every planted wrong weight, along with about four spurious findings per read.
 - **Optional.** It costs one subagent run per answer, so it is for answers that matter and harnesses that have subagents.

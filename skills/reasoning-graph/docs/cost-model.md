@@ -14,9 +14,7 @@ One optional `score` from 1 to 5 is the only number you write, on claims and on 
 | 4 | likely | 0.7 | ×3 |
 | 5 | well established | 0.9 | ×5, the ceiling: stronger evidence still counts ×5; never proof |
 
-The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` edge uses its reciprocal.
-
-An observation that every rival explains about as well has a likelihood ratio near 1 and gets no edge. Drawn anyway, it lifts every claim it touches: one observation with a default `supports` edge to each of two rivals shows both at 67%, where no edge leaves both at 50%.
+The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` edge uses its reciprocal. An edge drawn from an observation that every rival explains lifts every claim it touches: a default `supports` edge to each of two rivals shows both at 67%, where no edge leaves both at 50%.
 
 | object | default score |
 | --- | --- |
@@ -25,8 +23,7 @@ An observation that every rival explains about as well has a likelihood ratio ne
 | `supports`, `contradicts` edge | 3 |
 
 - A claim with no score and no claim among its `leads_to` premises takes its default.
-- A claim with `leads_to` premises from other claims inherits their belief. Without a score it adds nothing of its own: a hypothesis at score 4 leading to an unscored candidate gives the candidate belief `0.7`, not `0.35`.
-- A score on a premise-backed claim is a further local factor: premise `0.7` and score 5 give `0.63`. Write one only for uncertainty the premises do not already carry.
+- A claim with `leads_to` premises from observations or claims, or a `leads_to` group, is deduced from them (choosing the edge, `../SKILL.md`). It takes their joint belief and adds nothing of its own: a hypothesis at score 4 leading to a candidate gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
 - Goals, constraints, and tests carry no score. Neither do `leads_to`, `requires`, `prompts`, and `answers` edges.
 - The scale has no certainty and no impossibility: even a score 5 `contradicts` edge is a ratio that other evidence can outweigh. An observation that settles a claim as false takes a `rules_out` edge instead (below).
 - The removed fields `prior`, `confidence`, `probability`, and `posterior` on nodes and `likelihood` and `likelihood_ratio` on edges are rejected, not converted.
@@ -50,7 +47,7 @@ The removed `reasoning` field is rejected.
 Belief is computed in cost space, where a probability `P` has cost `-ln(P)`:
 
 ```txt
-local_probability = table[score], or table[default] for a claim without claim premises, or 1 for a premise-backed claim without a score
+local_probability = table[score or default] for a claim without premises from observations or claims, or 1 for a deduced claim, which takes no score
 base_truth_cost(target) = -ln(local_probability) + sum(effective_truth_cost(ungrouped premises via leads_to)) + sum(-ln(leads_to group probability))
 base_odds = P_base / (1 - P_base)
 updated_odds = base_odds * product(ungrouped supports/contradicts ratios) * product(supports/contradicts group ratios)
@@ -71,7 +68,7 @@ Graph labels show effective belief; node details show the authored score beside 
 - Correlated or overlapping evidence should be merged into one node or grouped (`schema/factors.md`), so it counts once. A group's score replaces its members' updates: two grouped supports at group score 3 double the odds once, not twice.
 - `leads_to` premises that stand or fall together are grouped the same way; the group's score is read from the claim table as their joint probability and replaces their product.
 
-`leads_to` and `supports` move belief in opposite ways as inputs pile up. Premises multiply: the first premise replaces an unscored claim's default with the premise's belief; each further premise can only lower it. Evidence multiplies odds, so each added support raises it. Model a claim that combines or restates other claims with `leads_to` from them, and independent corroboration with `supports`. The reverse inflates a combined claim above its parts, or lowers a claim with every observation that confirms it.
+`leads_to` and `supports` move belief in opposite ways as inputs pile up. Premises multiply: the first premise replaces the claim's default with the premise's belief; each further premise can only lower it. Evidence multiplies odds, so each added support raises it. Which one a link takes is the question under choosing the edge in `../SKILL.md`. The wrong one cuts a combined claim loose from its parts, above weak ones and below strong ones, or lowers a claim with every observation that confirms it.
 
 ### Ruled-out claims
 

@@ -73,7 +73,7 @@ Make every change through a patch. For what a patch cannot reach (`goal_policy`,
 
 - **Observations cite their source.** Set `source` to where the fact came from (file and line, section, URL, command); for a local file, start `source` with its path. When the source is text, set `quote` to the exact excerpt, hedges included ("may", "expert needed", "not checked"); join separate excerpts with `...`. `record` rejects a quote that is not verbatim in the local file its `source` names. An observation claims no more than its quote.
 - **Checks you cannot run are marked, not answered.** Add a `test` node for each check that would settle a claim, even one nobody can run here (a lab exam, an interview, forensics on a case file). Set `not_run` on it to the reason; it then needs no result, cannot have one, and shows as "not run" in the view. Never write a result for a check that did not happen.
-- **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`, which then `supports`/`contradicts` the claim it tested. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". A conclusion is a separate `hypothesis`. Link it by `leads_to` only when the result establishes it, so it holds whenever the observation does; when the result only makes it more likely, use `supports`, for one result or several (see choosing the edge, below). Shapes: `docs/schema/tests.md`.
+- **Tests get results.** A run test records what came back as an `observation` linked `test --leads_to--> observation`. A failed or inconclusive probe is still a result, and so is "not run: made moot by O7". Link the result to the claim it tested, and to any conclusion drawn from it (a separate `hypothesis`), by what it means: choosing the edge, below. Shapes: `docs/schema/tests.md`.
 - **Alternatives are your call.** Add competing hypotheses or candidates when the choice between them matters to you or the task asks for alternatives; no check counts them. When at most one of them can be true, list them in an exclusive set (below).
 - **Notes are your memory.** Any node or edge may carry a `note`: caveats, what is left to check, why an inference holds, anything you want to find again when you reread the state. Write one on an edge when its score departs from the default or the link is not obvious from the two texts. What concerns no node goes in a file of your own.
 - **One node per claim for its whole life:** update it with `update_nodes` as evidence arrives instead of adding a second node for the proved form.
@@ -94,13 +94,13 @@ Delegation is optional: bounded probes (source research, file inspection, test r
 No belief level and no ranking is checked: the answer is the candidate you name, not the one that scores highest.
 
 - If the evidence does not decide it, or you are blocked, claim no answer. Record the blocker as a hypothesis and report the open hypotheses.
-- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it. Contradicting its siblings does not ground the survivor.
+- A hypothesis that wins by elimination needs that elimination recorded as positive evidence: an observation such as "H2 ruled out" that `supports` the survivor, or a `leads_to` premise from it when the listed rivals are all there are (choosing the edge, below). Contradicting its siblings does not ground the survivor.
 - The CLI checks the record, not your reading of the sources: before claiming, reread each observation the answer relies on against its `quote`, and look for evidence in the sources that cuts against the answer.
 - Ask the user before deepening search when remaining work would cost meaningful time.
 
 ## Review before claiming
 
-The scores are yours, and so are their mistakes: an observation every rival explains scored as support, clues sharing one cause left ungrouped, two rivals that cannot both hold both left likely. `audit` checks none of that, and you do not read the computed beliefs. When a subagent is available and the answer matters, hand the state to a read-only reviewer with the brief in `docs/review.md` before claiming. It reads the rendered beliefs and reports facts about the evidence, never a number or which way to move one. Apply what you accept in one patch, then claim. One round per answer: the review is a second reading, not a gate to pass.
+The scores and edges are yours, and so are their mistakes: an observation every rival explains scored as support, clues sharing one cause left ungrouped, corroboration recorded as a deduction. `audit` checks none of that, and you do not read the computed beliefs. When a subagent is available and the answer matters, hand the state to a read-only reviewer with the brief in `docs/review.md` before claiming. It reads the rendered beliefs and reports facts about the evidence, never a number or which way to move one. Apply what you accept in one patch, then claim. One round per answer: the review is a second reading, not a gate to pass.
 
 ## When the answer is rejected
 
@@ -121,9 +121,9 @@ Keep working in the same state; nothing locks it. Put the rejection in one patch
 | 3 | open | ×2 |
 | 5 | well established | ×5, the ceiling: stronger evidence still counts ×5; never proof |
 
-Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim with `leads_to` premises inherits their belief and needs no score. Goals, constraints, and tests carry none.
+Defaults: observation 5, hypothesis and candidate 3, evidence edge 3. A claim deduced from `leads_to` premises carries no score (choosing the edge, below), and neither do goals, constraints, and tests.
 
-An evidence edge is a likelihood ratio: how much more expected the observation is if the target is true than if it is false. It measures diagnosticity, not relevance. An observation that every rival explains about as well as the target is about as expected either way: a likelihood ratio near 1, so draw no edge. One that fits the target and some rivals but not the rest is still evidence for each claim it fits. An unscored edge still counts as score 3, ×2. A `contradicts` edge takes the reciprocal.
+An evidence edge is a likelihood ratio: how much more expected the observation is if the target is true than if it is false. It measures diagnosticity, not relevance. An observation that every rival explains about as well as the target is about as expected either way: a likelihood ratio near 1, so draw no edge. One that fits the target and some rivals but not the rest is still evidence for each claim it fits; the more rivals it also fits, the closer its ratio is to 1. An unscored edge still counts as score 3, ×2. A `contradicts` edge takes the reciprocal.
 
 Score what you judge and move on. The CLI turns scores into a belief per claim only when it renders the graph, so a reader can see why one candidate outranks another and catch a weight that looks wrong. The state holds no belief, and the commands of the workflow (`record`, `refresh`, `audit`) print none. Evidence cycles between claims are invalid. Details: `docs/cost-model.md`.
 
@@ -146,14 +146,17 @@ Edge types (any edge may carry a `note`):
 - `supports` — evidence for the target, at its `score` or the default; each edge multiplies the target's odds
 - `contradicts` — evidence against the target, at its `score` or the default; does not disqualify the target by itself
 - `prompts` — non-evidential provenance from a claim to a test or follow-up
-- `leads_to` — premise the target rests on; all premises must hold together, so on premises alone the target is no more likely than they are jointly; `supports` edges into it apply on top and can lift it above them
+- `leads_to` — premise of a deduction (choosing the edge, below): the target takes its belief from all its premises jointly and carries no score; `supports` edges into it apply on top
 - `answers` — candidate satisfies a goal; must be `candidate_solution -> goal`
 - `rules_out` — an observation that settles a claim as false: a user's rejection, a failed check the claim cannot survive. Must be `observation -> hypothesis` or `observation -> candidate_solution`, takes no score, and caps the claim's belief below 1% whatever supports it, along with every claim resting on it through `leads_to`. `audit` fails an answer that names a ruled-out claim. Undo it by changing the edge to `contradicts`
 
-Choosing the edge: the type decides which way belief moves, so pick it by what the link means.
+Choosing the edge: the type decides which way belief moves, so pick it by one question. If every source were certain, would the target be certain too?
 
-- A claim that combines or restates other claims takes them as `leads_to` premises and starts from their joint belief. Put further evidence on the part it bears on: a `supports` edge into the combined claim counts on top and pulls it away from its parts.
-- Observations that each corroborate a claim on their own take `supports`, so each one adds. As `leads_to` premises their reliabilities multiply, so every extra observation lowers the claim.
+- Yes: the target is a deduction from its sources, each a `leads_to` premise. Its belief starts from theirs jointly, so each added premise can only lower it, and it carries no score: unset any score it had in the patch that adds its premises. A claim that combines or restates others is a deduction from them; so is a claim a test result proves, and the survivor of an elimination when the listed rivals are all there are.
+- No: each source is evidence, `supports` or `contradicts`, scored by its likelihood ratio, so each one adds. Observations that each corroborate a claim are evidence: as premises they would multiply, and every extra one would lower the claim.
+- A step that holds only probably is not a deduction. Link its sources as evidence, or add the doubt as a premise of its own: a hypothesis that the step holds.
+
+Put evidence about one part of a combined claim on that part; a `supports` edge into the combined claim counts on top.
 
 Correlation groups (`docs/schema/factors.md`): edges into one target that share a source, observation, latent cause, or logical overlap count once. List them in one `factors` item with a combined score, `{"id": "F1", "edges": ["O1-H1", "O2-H1"], "score": 4}`; the grouped edges carry no score of their own.
 

@@ -19,12 +19,12 @@ A `test` node is a procedure, so it carries no score and no belief by itself. It
 ```txt
 H1 --prompts--> T1
 T1 --leads_to--> O9
-O9 --supports|contradicts--> H1
+O9 --leads_to|supports|contradicts--> H1
 ```
 
-Result nodes are `observation` only: record what the test showed, not what it means. A conclusion drawn from the observation is a separate `hypothesis`: linked `O9 --leads_to--> H2` only when the result establishes it, so it holds whenever the observation does, and `O9 --supports--> H2` when the result only makes it more likely.
+Result nodes are `observation` only: record what the test showed, not what it means. Link the result to the claim it tested, and to any conclusion drawn from it (a separate `hypothesis`), by the question under choosing the edge in `../../SKILL.md`.
 
-A result `observation` takes the default score 5. Lower it only when the reading itself is doubtful: a flaky script, OCR, a lossy transcription.
+A result `observation` takes the default score 5. Lower it only when the reading itself is doubtful: a flaky script, OCR, a lossy transcription. Its evidence edges do not read that score, so put the same doubt into theirs (`../../SKILL.md`).
 
 ## Examples
 
@@ -42,7 +42,7 @@ A result `observation` takes the default score 5. Lower it only when the reading
 }
 ```
 
-### Check with supporting result
+### Check whose result proves the claim
 
 ```json
 {
@@ -52,7 +52,22 @@ A result `observation` takes the default score 5. Lower it only when the reading
   ],
   "edges": [
     {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "supports", "score": 4, "note": "The config predates the deploy, so the service cannot have read the new one."}
+    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The config predates the deploy, so the service cannot have read the new one."}
+  ]
+}
+```
+
+### Check with supporting result
+
+```json
+{
+  "nodes": [
+    {"id": "T2", "type": "test", "text": "Restart one instance and compare its error rate with the others"},
+    {"id": "O2", "type": "observation", "text": "The restarted instance fell to the baseline error rate; the others stayed high"}
+  ],
+  "edges": [
+    {"from": "T2", "to": "O2", "type": "leads_to"},
+    {"from": "O2", "to": "H1", "type": "supports", "note": "A restart rereads the config, but it also clears caches, so a stale cache fits too."}
   ]
 }
 ```
@@ -62,11 +77,11 @@ A result `observation` takes the default score 5. Lower it only when the reading
 ```json
 {
   "nodes": [
-    {"id": "T2", "type": "test", "text": "Replay request with debug headers"},
-    {"id": "O2", "type": "observation", "text": "Replay was inconclusive because fixture token expired"}
+    {"id": "T4", "type": "test", "text": "Replay request with debug headers"},
+    {"id": "O4", "type": "observation", "text": "Replay was inconclusive because fixture token expired"}
   ],
   "edges": [
-    {"from": "T2", "to": "O2", "type": "leads_to"}
+    {"from": "T4", "to": "O4", "type": "leads_to"}
   ]
 }
 ```
@@ -90,7 +105,7 @@ A `record` patch adds the result node and connects it to the existing test node.
   ],
   "edges": [
     {"from": "T1", "to": "O1", "type": "leads_to"},
-    {"from": "O1", "to": "H1", "type": "supports", "score": 4, "note": "The config predates the deploy, so the service cannot have read the new one."}
+    {"from": "O1", "to": "H1", "type": "leads_to", "note": "The config predates the deploy, so the service cannot have read the new one."}
   ]
 }
 ```
@@ -105,8 +120,8 @@ A check that ran but did not settle anything (inconclusive, blocked, failed, or 
 
 - Tests carry no belief by themselves.
 - Test nodes carry no score; score the result observation instead.
-- Result nodes are `observation` only; a conclusion is a separate `hypothesis`, reached by `leads_to` when the result establishes it and by `supports` when it only makes it more likely.
-- Result observations, not test nodes, support or contradict claims.
+- Result nodes are `observation` only; a conclusion is a separate `hypothesis`.
+- Result observations, not test nodes, prove, support, or contradict claims.
 - Use `test --leads_to--> observation` for recorded outcomes.
 - Inconclusive checks add a result observation explaining why the check did not settle the claim.
 - A check that cannot be run here carries `not_run` with the reason and has no result observation, never an invented one.
