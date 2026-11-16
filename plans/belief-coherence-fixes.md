@@ -38,7 +38,7 @@ Layers, each working end to end before the next:
 3. **`exclusive_sets` (#2).** Top-level `exclusive_sets: [{id, members, note?}]`, patch `exclusive_sets` (upsert by id) and `remove_exclusive_sets`. Members: ≥2 distinct existing hypothesis/candidate_solution ids. Page: a section listing each set with members' beliefs; a reader-only note when two or more members are above 50%. Index lists sets. ADR 0015.
 4. **Strong-contradiction mark (#5 step 1).** A claim with a score-5 `contradicts` edge or score-5 contradicts group shows the mark in its graph label and detail card, naming the source.
 5. **Deduction rule (review round 3, N1–N5).** Three doc reviews kept finding leaks in the case list that splits `leads_to` from `supports`, so the split becomes one rule, stated once in `SKILL.md`: a `leads_to` premise is a source the target stands or falls with (certain if all premises hold, without a basis if any fails); a source the target survives losing is evidence; a missing piece becomes a premise hypothesis.
-   - Code: `record`/`refresh`/`audit` reject a `score` on a claim with belief-bearing `leads_to` premises or a `leads_to` group, naming the claims and the two ways out (unset it; or it is not a deduction: use `supports`, or add the doubt as a premise hypothesis). Removes the trap where a lemma scored 2 while open dropped to 27% once proved. ADR 0016 amends ADR 0009.
+   - Code: `record`/`refresh`/`audit` reject a `score` on a claim with belief-bearing `leads_to` premises or a `leads_to` group, naming the claims and the ways out (unset it; add what is missing as a premise hypothesis; or link by `supports` a source the target survives losing). Removes the trap where a lemma scored 2 while open dropped to 27% once proved. ADR 0016 amends ADR 0009.
    - Docs: the rule lives in `SKILL.md` "Choosing the edge"; `cost-model.md`, `schema/tests.md`, `schema/goals.md` and `review.md` refer to it. Also N1 (review example), N3, N4, N5.
    - Rename of `leads_to` (to `premise_of`, with a separate test-to-result edge) is a follow-up issue, not this branch.
 
@@ -63,7 +63,7 @@ Layers, each working end to end before the next:
 - [x] Layer 5: code, ADR 0016, existing tests and fixtures updated (694b231)
 - [x] Layer 5: docs (deduction question, N1, N3–N5) (c01148d)
 - [x] Layer 5: independent final review (Opus): code correct; the sufficiency-only question admitted second proofs as premises and sent needed-but-insufficient sources to `supports`. Replaced by stand-or-fall (user chose option S).
-- [ ] Layer 5: focused review of the stand-or-fall change
+- [x] Layer 5: focused review of the stand-or-fall change (Opus): a proof with earlier clues read as evidence, `audit` wording, a reused phrase in cost-model, `rules_out` source type; fixed in wording
 - [x] Follow-up issue: rename `leads_to` (#7)
 
 ## Surprises & Discoveries

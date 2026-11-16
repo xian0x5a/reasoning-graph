@@ -26,10 +26,11 @@ Use belief to find where to look, then judge each spot from the evidence itself:
    a cause, or logical overlap, not grouped in one factor.
 4. Wrong edge type. A leads_to premise is a source its target stands or falls with:
    certain if all its premises hold, without a basis if any one fails. Flag a leads_to
-   the target would survive losing (a corroborating clue, a second proof, one of several
-   alternatives); premises that would not make the target certain, with no premise for
-   what is missing (an elimination over a rival list that may be incomplete); and a
-   supports from a source the target cannot hold without (a part of a combined claim).
+   the target would survive losing because another source still settles it (a second
+   proof, one of several alternatives), or that only corroborates it (a clue); premises
+   that would not make the target certain, with no premise for what is missing (an
+   elimination over a rival list that may be incomplete); and a supports from a source
+   the target cannot hold without (a part of a combined claim).
 5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
    a failed check it cannot survive) held down only by a contradicts edge.
 6. Overreach: a rules_out edge from an observation that does not settle its claim as false.
