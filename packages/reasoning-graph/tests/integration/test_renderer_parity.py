@@ -26,7 +26,7 @@ MIXED_STATE = {
         {"id": "H1", "type": "hypothesis", "text": "maybe", "score": 4},
         {"id": "T1", "type": "test", "text": "check"},
         {"id": "T2", "type": "test", "text": "skipped", "not_run": "no access"},
-        {"id": "CS1", "type": "candidate_solution", "text": "it"},
+        {"id": "CS1", "type": "hypothesis", "text": "it"},
     ],
     "edges": [
         {"from": "O1", "to": "H1", "type": "supports", "score": 4},
@@ -35,7 +35,7 @@ MIXED_STATE = {
         {"from": "T1", "to": "O1", "type": "yields"},
         {"from": "H1", "to": "CS1", "type": "premise_of"},
         {"from": "C1", "to": "CS1", "type": "contradicts", "score": 2},
-        {"from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
     ],
 }
 

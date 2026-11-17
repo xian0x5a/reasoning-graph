@@ -38,14 +38,14 @@ BASE_PATCH = {
         observation("O2", "The gardener stayed late, or so he said"),
         {"id": "H1", "type": "hypothesis", "text": "The gardener did it", "score": 3},
         {"id": "H2", "type": "hypothesis", "text": "The butler did it", "score": 2},
-        {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
+        {"id": "CS1", "type": "hypothesis", "text": "The gardener"},
     ],
     "edges": [
         edge("O2", "H1", "supports", score=4),
         edge("O1", "H1", "contradicts", score=3),
         edge("O1", "H2", "supports", score=3),
         edge("H1", "CS1", "premise_of"),
-        edge("CS1", "G1", "answers"),
+        edge("CS1", "G1", "answers", answer_kind="exact_answer"),
     ],
 }
 

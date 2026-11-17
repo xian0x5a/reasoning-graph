@@ -34,9 +34,9 @@ Use belief to find where to look, then judge each spot from the evidence itself:
 5. Rejected but standing: a claim that an observation settles as false (a user's rejection,
    a failed check it cannot survive) held down only by a contradicts edge.
 6. Overreach: a rules_out edge from an observation that does not settle its claim as false.
-7. One claim twice: two nodes that state the same claim, such as a hypothesis "X is the
-   killer" beside the candidate "X", with the evidence for that claim split between them.
-   Name the node to keep (the candidate, when one of them is) and the edges to move to it.
+7. One claim twice: two nodes that state the same claim, such as "X is the killer" beside
+   the candidate "X killed Bryan", with the evidence for that claim split between them.
+   Name the node to keep and the edges to move to it.
 
 Report one line per finding: the ids, the fact about the evidence, and the graph change
 it implies (remove an edge, group edges, change an edge type, merge two nodes,

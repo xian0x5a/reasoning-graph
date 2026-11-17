@@ -59,7 +59,7 @@ Create an HTML artifact as a report, not a fixed template. Choose the layout tha
 - a full audit graph in a pan/zoom canvas when the graph is large or debugging transparency matters
 - click-to-details for graph nodes, ideally without forcing the user away from the canvas
 - the answer candidate labelled on its node; a path is highlighted only when the reader asks for it
-- candidate solutions connect to the goal with `answers`
+- a hypothesis with an `answers` edge to a goal is drawn as a candidate
 - contradicted/heavily penalized branches dimmed or red
 - next verification/action when available
 
@@ -96,12 +96,12 @@ Everything on the page comes from the graph and the claim `summary.answer`. Top 
 
 | Part | Content |
 | --- | --- |
-| Answer | one line per answered goal, `Answer: CS1, <candidate text>`; with several goals, `Answer to G2: CS3, <candidate text>`. No line while no answer is claimed |
-| Status | the line `audit` prints, such as `answer CS1: checks pass`, computed when the page renders |
+| Answer | one line per answered goal, `Answer: H2, <candidate text>`; with several goals, `Answer to G2: H6, <candidate text>`. No line while no answer is claimed |
+| Status | the line `audit` prints, such as `answer H2: checks pass`, computed when the page renders |
 | Rank note | only when another candidate of the same goal outranks the answer |
 | Case | the case for each answer, described below. None while no answer is claimed |
 | Exclusive-set note | only when two or more members of one exclusive set are each above 50%: `Exclusive set X1: H1 81%, H2 80% are each above 50%, but at most one of them can be true.` |
-| Graph | the full graph, grouped by node type, in a pan/zoom canvas |
+| Graph | the full graph, grouped by node type, with candidates (hypotheses that answer a goal) in their own group, in a pan/zoom canvas |
 | Exclusive sets | only when the state has `exclusive_sets`: each set's members with their beliefs, most believed first |
 | Goal policy | only when the state has `goal_policy` or `goal_groups` |
 | Node details | one card per node: text, source, quote, note, belief, edges. Collapsed at first |
@@ -115,7 +115,7 @@ The case lets a reader check the answer without reading the graph first. It list
 | Part | Content |
 | --- | --- |
 | Why believe it | the `premise_of` and `supports` edges into the answer, walked down to observations: edge type, the edge's or its group's weight, id, text, belief of a claim, and an observation's verbatim quote and source. A node already shown reads `shown above` |
-| Against it | `contradicts` and `rules_out` edges into the answer or into any node of its why-tree, as `CS1 ← contradicts O6` |
+| Against it | `contradicts` and `rules_out` edges into the answer or into any node of its why-tree, as `H2 ← contradicts O6` |
 | Tests | tests that a why-tree node prompts or is checked by, or that produced a why-tree observation, with each result observation or the `not_run` reason |
 | Rivals | the other candidates of the goal, by belief, with the `contradicts` and `rules_out` edges into each |
 | Weak spots | counted, not judged: a why-tree claim resting on one input or none (a group counts once), a why-tree observation without a quote, an unrun test |
@@ -124,9 +124,9 @@ The why-tree follows the edges belief flows through, so the case and the compute
 
 The answer is labelled, not highlighted:
 
-- its node reads `CS1 · ANSWER` on the first label line, or `CS1 · ANSWER to G2` with several goals, in Mermaid and in the offline SVG
-- its detail card and popup carry the same label beside the node type
-- the focus dropdown lists it as `CS1 (ANSWER)`. Picking a candidate there highlights its derivation; nothing is focused by default
+- its node reads `H2 · ANSWER` on the first label line, or `H2 · ANSWER to G2` with several goals, in Mermaid and in the offline SVG
+- its detail card and popup carry the same label beside the node type (`candidate` for a hypothesis that answers a goal)
+- the focus dropdown lists it as `H2 (ANSWER)`. Picking a candidate there highlights its derivation; nothing is focused by default
 
 Candidates are ranked only under Rivals in the case. The belief of each claim is also on its node.
 
@@ -140,12 +140,12 @@ Node details separate **Effective belief** from **Prior**, the probability a cla
 
 The page shows an edge's score as the number it stands for, not as `score N`. Evidence shows how much it multiplies the odds, `×2` for the default support and `÷5` for a score 5 contradiction. A `rules_out` edge has no weight; its target reads `<1%`. A premise group shows its joint probability, `joint 70%`. The case lines and the group nodes in the graph use these weights; an ungrouped `premise_of` edge has none. Every belief on the page is a whole percent, so claims compare at a glance; the ends read `>99%` and `<1%`, since no belief is certain. Rendering never writes these computed values into the state.
 
-When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer CS2 is not the top-ranked candidate for G1: CS1 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
+When the answer names a candidate that another candidate of the same goal outranks, the report says so under the answer: `Answer H4 is not the top-ranked candidate for G1: H2 ranks higher`. Only the reader is told; `audit` accepts any grounded candidate as the answer.
 
 Canvas rules:
 
 - A curated explanation graph is optional. Use it when the full graph is too dense for the main story; aim for 8-18 nodes and rarely more than 25. If the full graph is already small/readable, it can serve as the explanation view.
-- Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
+- Full audit graph is complete and may be dense; put it in a canvas with pan/zoom instead of shrinking it until unreadable. Use subgraph grouping by node type, candidates apart, when it improves relationship readability. Add edge interaction when possible: hover previews connected nodes, click pins the edge + endpoints, and Escape/blank-canvas click clears the pin.
 - The graph is laid out left to right, so the observations, the widest rank of a real graph, stack in a column instead of one row wider than any screen. The canvas opens with the graph fitted to its width, never above natural size, and grows as tall as that takes, up to two screens; past that the graph fits the capped height. The page scroll still passes over the canvas, so a tall canvas reads like a tall figure. The offline SVG moves an edge label down until it clears the labels placed before it.
 - The canvas view is fitted to the graph, then wheel zoom stays between the fitted view and a 50x zoom-in. Drag panning is unbounded, so the graph can be dragged off the canvas like a document can be scrolled away; every canvas keeps a "Reset view" control that restores the fit. The canvas clips at its own edges, which is why the graph must fill the canvas box rather than sit in a short strip: Mermaid renders inside its own `pre.mermaid` wrapper, so that wrapper carries the canvas height.
 - Wheel zoom is opt-in per canvas: the canvas must hold focus (click it or Tab into it) before the wheel zooms, otherwise the wheel keeps scrolling the page normally. The focused canvas is outlined and sits on a dotted sheet background so it is obvious which surface owns the scroll.
@@ -164,14 +164,14 @@ Mermaid styling pattern:
 flowchart TD
   O1["observation: input is sorted"] --> H2["hypothesis: two-pointer is viable"]
   C1["constraint: O(n) time"] --> H2
-  H1["H1<br/>Two-pointer is viable<br/>belief 50%"] --> CS1["CS1<br/>Scan from both ends<br/>belief 50%"]
-  CS1 -- answers --> G
+  H1["H1<br/>Two-pointer is viable<br/>belief 50%"] --> H3["H3<br/>Scan from both ends<br/>belief 50%"]
+  H3 -- answers --> G
   O2["observation: violates O(n)"] -. contradicts .-> H1
 
   classDef candidate fill:#bccfcb,stroke:#076678;
   classDef bad fill:#f2c9c0,stroke:#9d0006;
 
-  class CS1 candidate;
+  class H3 candidate;
   class O2 bad;
 ```
 

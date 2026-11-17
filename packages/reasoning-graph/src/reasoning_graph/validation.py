@@ -9,6 +9,7 @@ from .costs import (
     REMOVED_EDGE_SCORE_FIELDS,
     REMOVED_EDGE_TYPES,
     REMOVED_NODE_SCORE_FIELDS,
+    REMOVED_NODE_TYPES,
     RULED_OUT_EDGE_TYPE,
     RemovedInputError,
     ScoredDeductionError,
@@ -40,6 +41,11 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if not isinstance(node, dict):
             continue
         owner = f"node {node.get('id') or index}"
+        if node.get("type") in REMOVED_NODE_TYPES:
+            errors.append(f"{owner}: {REMOVED_NODE_TYPES[node['type']]}")
+        if "answer_kind" in node:
+            # A kind says how a claim answers one goal, and one claim may answer two (ADR 0019).
+            errors.append(f"{owner}: answer_kind belongs on the answers edge; move it onto the edge from this hypothesis to its goal")
         if isinstance(node.get("id"), str) and "-" in node["id"]:
             # `O1-H1` has to read as one edge, from O1 to H1.
             errors.append(f"node id {node['id']!r} contains a hyphen; an edge is named from-to, so a node id takes none")
@@ -49,7 +55,7 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if "score" not in node:
             continue
         if node.get("type") not in BELIEF_NODE_TYPES:
-            errors.append(f"{owner}: score is only valid on observation, hypothesis, and candidate_solution nodes")
+            errors.append(f"{owner}: score is only valid on observation and hypothesis nodes")
             continue
         try:
             require_score(node["score"])
@@ -68,6 +74,7 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
         if "reasoning" in edge:
             # `reasoning` was 45% of edge bytes and mostly restated the two node texts.
             errors.append(f"{owner}: reasoning was removed; use the optional note, or leave the link unexplained when the two texts make it obvious")
+        errors.extend(answer_kind_errors(edge))
         if "score" not in edge:
             continue
         if edge.get("type") not in EVIDENCE_EDGE_TYPES:
@@ -80,9 +87,20 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
     return errors
 
 
-EXCLUSIVE_SET_MEMBER_TYPES = {"hypothesis", "candidate_solution"}
+def answer_kind_errors(edge: dict[str, Any]) -> list[str]:
+    """An answers edge carries an answer_kind, and no other edge does (ADR 0019)."""
+    owner = f"edge {edge_id(edge)}"
+    if edge.get("type") != "answers":
+        return [f"{owner}: answer_kind is only valid on answers edges; it says how a hypothesis answers a goal"] if "answer_kind" in edge else []
+    # A list or object kind would make the set lookup raise instead of report.
+    if not isinstance(edge.get("answer_kind"), str) or edge["answer_kind"] not in ANSWER_KINDS:
+        return [f"{owner}: answers edge answer_kind must be one of {sorted(ANSWER_KINDS)}, got {edge.get('answer_kind')!r}"]
+    return []
+
+
+EXCLUSIVE_SET_MEMBER_TYPES = {"hypothesis"}
 # Observations are recorded as seen, so only a claim can rest on premises.
-PREMISE_TARGET_TYPES = {"hypothesis", "candidate_solution"}
+PREMISE_TARGET_TYPES = {"hypothesis"}
 
 
 def premise_endpoint_hint(src_type: str | None, dst_type: str | None) -> str:
@@ -129,7 +147,41 @@ def exclusive_set_errors(exclusive_sets: Any, nodes_by_id: dict[str, dict[str, A
             if member_type is None:
                 errors.append(f"{label}.members references missing node {member!r}")
             elif member_type not in EXCLUSIVE_SET_MEMBER_TYPES:
-                errors.append(f"{label}.members: {member} is a {member_type}; only hypothesis and candidate_solution claims can be exclusive")
+                errors.append(f"{label}.members: {member} is a {member_type}; only hypothesis claims can be exclusive")
+    return errors
+
+
+UNRESOLVED_OUTCOME_MARKERS = (
+    "not solved",
+    "not established",
+    "cannot establish",
+    "insufficient evidence",
+    "missing dependency",
+    "undetermined",
+    "not recoverable",
+)
+
+
+def answers_edge_errors(
+    edge: dict[str, Any],
+    src_type: str | None,
+    dst_type: str | None,
+    goals_by_id: dict[Any, dict[str, Any]],
+    accepted_goals: set[str],
+) -> list[str]:
+    """An answers edge runs hypothesis -> goal, with an answer_kind the goal accepts.
+
+    A missing or unknown kind is already named by answer_kind_errors.
+    """
+    owner = f"edge {edge_id(edge)}"
+    errors: list[str] = []
+    if src_type != "hypothesis" or dst_type != "goal":
+        errors.append(f"{owner}: answers must connect hypothesis -> goal; it is {src_type} -> {dst_type}")
+    answer_kind = edge.get("answer_kind")
+    goal_id = edge.get("to")
+    goal = goals_by_id.get(goal_id)
+    if isinstance(answer_kind, str) and answer_kind in ANSWER_KINDS and goal is not None and goal_id in accepted_goals and not goal_accepts_answer_kind(goal, str(answer_kind)):
+        errors.append(f"{owner}: answer_kind {answer_kind!r} does not answer accepted goal {goal_id!r}: {goal.get('text')!r}")
     return errors
 
 
@@ -155,7 +207,7 @@ def validate_state(state: Any) -> ValidationResult:
         errors.append("solutions must be a list")
         solutions_raw = []
     elif solutions_raw:
-        warnings.append("solutions list is deprecated; use candidate_solution nodes with answers edges to the goal")
+        warnings.append("solutions list is deprecated; use answers edges from hypotheses to the goal")
     if not isinstance(factors_raw, list):
         errors.append("factors must be a list when present")
         factors_raw = []
@@ -177,7 +229,8 @@ def validate_state(state: Any) -> ValidationResult:
             errors.append(f"duplicate node id {node_id}")
         else:
             node_ids.add(node_id)
-        if node_type not in NODE_TYPES:
+        # A removed type is already named with its replacement by authored_field_errors.
+        if node_type not in NODE_TYPES and node_type not in REMOVED_NODE_TYPES:
             errors.append(f"node {node_id or i} invalid type {node_type!r}")
         if "not_run" in node:
             if node_type != "test":
@@ -246,11 +299,6 @@ def validate_state(state: Any) -> ValidationResult:
     accepted_goal_values = goal_policy.get("accepted_goals") if isinstance(goal_policy, dict) else None
     accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
     goals_by_id = {node.get("id"): node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "goal"}
-    candidate_nodes = [node for node in nodes_raw if isinstance(node, dict) and node.get("type") == "candidate_solution"]
-    candidate_ids = {node.get("id") for node in candidate_nodes}
-    candidate_goal_edges: set[str] = set()
-    candidate_accepted_goal_edges: set[str] = set()
-    candidate_goal_targets: dict[str, set[str]] = {}
     seen_edge_ids: set[str] = set()
     for i, edge in enumerate(edges_raw):
         if not isinstance(edge, dict):
@@ -276,35 +324,29 @@ def validate_state(state: Any) -> ValidationResult:
             )
         src_type = nodes_by_id.get(src, {}).get("type") if isinstance(src, str) else None
         dst_type = nodes_by_id.get(dst, {}).get("type") if isinstance(dst, str) else None
-        if src in candidate_ids and dst in goal_ids:
-            if edge_type == "answers":
-                candidate_goal_edges.add(src)
-                candidate_goal_targets.setdefault(str(src), set()).add(str(dst))
-                if dst in accepted_goal_ids:
-                    candidate_accepted_goal_edges.add(src)
-            else:
-                errors.append(f"edge {i} candidate_solution -> goal must use answers")
-        if edge_type == "answers" and (src_type != "candidate_solution" or dst_type != "goal"):
-            errors.append(f"edge {i} answers edge must connect candidate_solution -> goal")
+        # A removed node type is already named with its replacement; endpoint rules on it would
+        # only suggest other fixes, such as retyping the edge.
+        if src_type in REMOVED_NODE_TYPES or dst_type in REMOVED_NODE_TYPES:
+            continue
+        if edge_type == "answers":
+            errors.extend(answers_edge_errors(edge, src_type, dst_type, goals_by_id, accepted_goal_ids))
         if edge_type == "yields" and "not_run" in nodes_by_id.get(src, {}):
             errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
         # Only something seen may rule a claim out: an inference that vetoed another claim
         # would turn one mistaken conclusion into an unrecoverable one.
-        if edge_type == RULED_OUT_EDGE_TYPE and (src_type != "observation" or dst_type not in {"hypothesis", "candidate_solution"}):
-            errors.append(f"edge {i} rules_out must connect observation -> hypothesis or candidate_solution; {src} -> {dst} is {src_type} -> {dst_type}")
+        if edge_type == RULED_OUT_EDGE_TYPE and (src_type != "observation" or dst_type != "hypothesis"):
+            errors.append(f"edge {i} rules_out must connect observation -> hypothesis; {src} -> {dst} is {src_type} -> {dst_type}")
         if edge_type == "premise_of" and (src_type not in BELIEF_NODE_TYPES or dst_type not in PREMISE_TARGET_TYPES):
             errors.append(
-                f"edge {i} premise_of must connect an observation or claim to a hypothesis or candidate_solution; "
+                f"edge {i} premise_of must connect an observation or hypothesis to a hypothesis; "
                 f"{src} -> {dst} is {src_type} -> {dst_type}{premise_endpoint_hint(src_type, dst_type)}"
             )
         if edge_type == "yields" and (src_type != "test" or dst_type not in RESULT_NODE_TYPES):
             errors.append(f"edge {i} yields must connect a test to the observation of its result; {src} -> {dst} is {src_type} -> {dst_type}")
         if src_type == "goal" and dst_type == "goal" and edge_type != "requires":
             errors.append(f"edge {i} goal -> goal must use requires; {src} -> {dst} uses {edge_type!r}")
-        if src_type == "hypothesis" and dst_type == "goal":
-            errors.append(
-                f"edge {i} connects hypothesis {src} directly to goal {dst}; route hypotheses through tests/candidate nodes instead"
-            )
+        if src_type == "hypothesis" and dst_type == "goal" and edge_type != "answers":
+            errors.append(f"edge {edge_id(edge)} uses {edge_type!r} from hypothesis to goal; answers is the only edge from a hypothesis to a goal")
         if src_type == "constraint" and dst_type == "goal" and edge_type == "requires":
             errors.append(
                 f"edge {i} has constraint {src} requires goal {dst}; reverse direction to goal requires constraint"
@@ -323,38 +365,19 @@ def validate_state(state: Any) -> ValidationResult:
             seen_factor_ids.add(factor_id)
     errors.extend(resolve_edge_groups(state)[1])
 
-    unresolved_markers = ("not solved", "not established", "cannot establish", "insufficient evidence", "missing dependency", "undetermined", "not recoverable")
-    epistemic_goal_markers = EPISTEMIC_GOAL_MARKERS
-    for candidate in candidate_nodes:
-        candidate_id = candidate.get("id")
-        if not isinstance(candidate_id, str):
-            continue
-        candidate_text = str(candidate.get("text") or "").lower()
-        answer_kind = candidate.get("answer_kind")
-        if answer_kind not in ANSWER_KINDS:
-            # The schema already requires the field; this keeps the semantic message when it is present but wrong.
-            errors.append(f"candidate_solution {candidate_id} answer_kind must be one of {sorted(ANSWER_KINDS)}, got {answer_kind!r}")
-        goal_texts = [str(goals_by_id.get(goal_id, {}).get("text") or "").lower() for goal_id in candidate_goal_targets.get(candidate_id, set())]
-        has_explicit_epistemic_goal = any(
-            any(marker in goal_text for marker in epistemic_goal_markers)
-            for goal_text in goal_texts
+    for candidate_id, goal_targets in sorted(candidate_goal_targets(state).items()):
+        candidate_text = str(nodes_by_id.get(candidate_id, {}).get("text") or "").lower()
+        answers_non_epistemic_goal = any(
+            not any(marker in str(goals_by_id.get(goal_id, {}).get("text") or "").lower() for marker in EPISTEMIC_GOAL_MARKERS)
+            for goal_id in goal_targets
         )
-        if any(marker in candidate_text for marker in unresolved_markers) and not has_explicit_epistemic_goal:
+        if answers_non_epistemic_goal and any(marker in candidate_text for marker in UNRESOLVED_OUTCOME_MARKERS):
             warnings.append(
-                f"candidate_solution {candidate_id} looks like an unresolved outcome, not an answer candidate; record it as a hypothesis blocker and claim no answer, unless the goal is explicitly epistemic"
+                f"hypothesis {candidate_id} answers a goal but looks like an unresolved outcome, not an answer; keep it as a blocker "
+                "without an answers edge and claim no answer, unless the goal is explicitly epistemic"
             )
-        if answer_kind in ANSWER_KINDS:
-            for goal_id in candidate_goal_targets.get(candidate_id, set()):
-                goal = goals_by_id.get(goal_id, {})
-                if goal_id in accepted_goal_ids and not goal_accepts_answer_kind(goal, str(answer_kind)):
-                    errors.append(
-                        f"candidate_solution {candidate_id} answer_kind {answer_kind!r} does not answer accepted goal {goal_id!r}: {goal.get('text')!r}"
-                    )
-    for candidate_id in sorted(str(node_id) for node_id in candidate_ids if isinstance(node_id, str)):
-        if candidate_id not in candidate_goal_edges:
-            errors.append(f"candidate_solution {candidate_id} must connect to a goal with an answers edge")
-        elif isinstance(accepted_goal_values, list) and candidate_id not in candidate_accepted_goal_edges:
-            errors.append(f"candidate_solution {candidate_id} must connect to an accepted goal with an answers edge")
+        if isinstance(accepted_goal_values, list) and not goal_targets & accepted_goal_ids:
+            errors.append(f"hypothesis {candidate_id} answers only goals outside goal_policy.accepted_goals; point its answers edge at an accepted goal")
 
     try:
         assert_acyclic_premise_dependencies({goal_id: sorted(subs) for goal_id, subs in goal_requirements(state).items()})
@@ -365,8 +388,8 @@ def validate_state(state: Any) -> ValidationResult:
     for node_id in solution_node_ids:
         if node_id not in node_ids:
             errors.append(f"solutions references missing node {node_id!r}")
-        elif node_id not in candidate_ids:
-            errors.append(f"solutions references non-candidate node {node_id!r}; selected answers must be candidate_solution nodes")
+        elif node_id not in candidate_goal_targets(state):
+            errors.append(f"solutions references non-candidate node {node_id!r}; a selected answer must have an answers edge to a goal")
 
     try:
         # Computed only to catch inputs the belief math rejects, such as an evidence cycle.

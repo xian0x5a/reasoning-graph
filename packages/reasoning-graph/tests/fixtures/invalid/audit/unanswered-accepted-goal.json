@@ -1,7 +1,7 @@
 {
   "summary": {
     "title": "Spooky Manor shaped trail (trimmed)",
-    "answer": "TwoSigns -> Photophone"
+    "answer": "CS1 -> Photophone"
   },
   "nodes": [
     {
@@ -35,9 +35,8 @@
     },
     {
       "id": "CS1",
-      "type": "candidate_solution",
-      "text": "TwoSigns",
-      "answer_kind": "exact_answer"
+      "type": "hypothesis",
+      "text": "TwoSigns"
     },
     {
       "id": "G2",
@@ -93,7 +92,8 @@
     {
       "from": "CS1",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "answer_kind": "exact_answer"
     },
     {
       "from": "G1",

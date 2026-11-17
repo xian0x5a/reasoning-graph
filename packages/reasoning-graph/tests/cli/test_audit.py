@@ -32,7 +32,7 @@ def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
 
 
 def candidate(node_id: str, text: str) -> dict:
-    return {"id": node_id, "type": "candidate_solution", "text": text, "answer_kind": "exact_answer"}
+    return {"id": node_id, "type": "hypothesis", "text": text}
 
 
 # CS1 rests on a quoted observation. CS2 rests on nothing.
@@ -42,7 +42,7 @@ STORY_PATCH = {
         candidate("CS1", "The gardener"),
         candidate("CS2", "The butler"),
     ],
-    "edges": [edge("O1", "CS1", "premise_of"), edge("CS1", "G1", "answers"), edge("CS2", "G1", "answers")],
+    "edges": [edge("O1", "CS1", "premise_of"), edge("CS1", "G1", "answers", answer_kind="exact_answer"), edge("CS2", "G1", "answers", answer_kind="exact_answer")],
 }
 
 

@@ -36,7 +36,7 @@ def observation(node_id: str) -> dict:
 
 
 def candidate(node_id: str) -> dict:
-    return {"id": node_id, "type": "candidate_solution", "text": f"Candidate {node_id}", "answer_kind": "exact_answer"}
+    return {"id": node_id, "type": "hypothesis", "text": f"Candidate {node_id}"}
 
 
 def base_state(answer: str = "CS1") -> dict:
@@ -56,8 +56,8 @@ def base_state(answer: str = "CS1") -> dict:
             edge("O3", "H1", "supports"),
             edge("H1", "CS1", "premise_of"),
             edge("O4", "CS2", "supports"),
-            edge("CS1", "G1", "answers"),
-            edge("CS2", "G1", "answers"),
+            edge("CS1", "G1", "answers", answer_kind="exact_answer"),
+            edge("CS2", "G1", "answers", answer_kind="exact_answer"),
         ],
     }
 
@@ -94,10 +94,10 @@ def test_a_claim_leading_from_a_ruled_out_premise_is_also_below_one_percent() ->
     assert "Effective belief: <1%" in card(html_document(state, to_mermaid(state)), "CS1")
 
 
-@pytest.mark.parametrize("target_type", ["hypothesis", "candidate_solution"])
-def test_rules_out_is_allowed_from_an_observation_to_a_claim(target_type: str) -> None:
+# H1 is a step; CS2 is a hypothesis that answers the goal.
+@pytest.mark.parametrize("target", ["H1", "CS2"])
+def test_rules_out_is_allowed_from_an_observation_to_a_claim(target: str) -> None:
     state = base_state()
-    target = "H1" if target_type == "hypothesis" else "CS2"
     state["edges"].append(edge("O5", target, "rules_out"))
 
     assert validate_state(state).ok

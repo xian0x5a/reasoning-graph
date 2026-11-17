@@ -117,7 +117,7 @@ def unanswered_goal_messages(state: dict[str, Any]) -> list[str]:
         if goal_id in answered:
             continue
         if goal_id not in directly:
-            messages.append(f"accepted goal {_goal_brief(state, goal_id)} is unanswered: no answers edge from a candidate_solution")
+            messages.append(f"accepted goal {_goal_brief(state, goal_id)} is unanswered: no answers edge from a hypothesis")
             continue
         open_sub_goal = next(
             (sub_goal for sub_goal in sorted(requirements.get(goal_id, set())) if sub_goal not in answered and sub_goal not in optional_goal_ids(state)),
@@ -165,23 +165,21 @@ def preferred_goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def candidate_goal_targets(state: dict[str, Any]) -> dict[str, set[str]]:
+    """The one definition of a candidate: a hypothesis with an answers edge to a goal, mapped to those goals.
+
+    Every reader of candidacy goes through here. The type is checked too because `mermaid`
+    renders without validating, and an answers edge from another node is invalid.
+    """
     goals = goal_ids(state)
     nodes = by_id(state.get("nodes", []), "node")
-    candidate_ids = {node_id for node_id, node in nodes.items() if node.get("type") == "candidate_solution"}
-    targets: dict[str, set[str]] = {candidate_id: set() for candidate_id in candidate_ids}
+    targets: dict[str, set[str]] = {}
     for edge in state.get("edges", []):
-        if not isinstance(edge, dict):
+        if not isinstance(edge, dict) or edge.get("type") != "answers":
             continue
-        edge_type = edge.get("type") or edge.get("label")
-        src = edge.get("from")
-        dst = edge.get("to")
-        if src in candidate_ids and dst in goals and edge_type == "answers":
-            targets.setdefault(str(src), set()).add(str(dst))
+        src, dst = edge.get("from"), edge.get("to")
+        if isinstance(src, str) and nodes.get(src, {}).get("type") == "hypothesis" and dst in goals:
+            targets.setdefault(src, set()).add(str(dst))
     return targets
-
-
-def candidate_goal_answer_ids(state: dict[str, Any]) -> set[str]:
-    return {candidate_id for candidate_id, targets in candidate_goal_targets(state).items() if targets}
 
 
 def viable_candidate_ids(state: dict[str, Any]) -> set[str]:
@@ -262,20 +260,19 @@ def unrecorded_test_messages(state: dict[str, Any]) -> list[str]:
     return [f"test(s) without a recorded result observation: {', '.join(missing)}"]
 
 
-def _names(text: str, candidate_id: str, candidate_text: str) -> bool:
-    """Whether an answer text names the candidate, by id as a whole word or by its exact text."""
+def _names(text: str, candidate_id: str) -> bool:
+    """Whether an answer text names the candidate by id as a whole word.
+
+    Only the id: a text match found "Thornton" inside "Sergeant Josiah Thornton" and "42"
+    inside "142", and silently picked a node.
+    """
 
     # A bare substring would find CS1 inside CS10.
-    by_id_word = re.search(rf"(?<![\w-]){re.escape(candidate_id)}(?![\w-])", text)
-    return bool(by_id_word) or bool(candidate_text and candidate_text in text)
-
-
-def _candidate_text(nodes: dict[str, dict[str, Any]], candidate_id: str) -> str:
-    return str(nodes.get(candidate_id, {}).get("text") or "").strip()
+    return bool(re.search(rf"(?<![\w-]){re.escape(candidate_id)}(?![\w-])", text))
 
 
 def _candidate_listing(nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> str:
-    return ", ".join(f"{candidate_id} ({_candidate_text(nodes, candidate_id)!r})" for candidate_id in candidate_ids)
+    return ", ".join(f"{candidate_id} ({str(nodes.get(candidate_id, {}).get('text') or '').strip()!r})" for candidate_id in candidate_ids)
 
 
 def claimed_answer(state: dict[str, Any]) -> str:
@@ -285,8 +282,8 @@ def claimed_answer(state: dict[str, Any]) -> str:
     return str(summary.get("answer") or "").strip()
 
 
-def _named_in(text: str, nodes: dict[str, dict[str, Any]], candidate_ids: list[str]) -> list[str]:
-    return [candidate_id for candidate_id in candidate_ids if _names(text, candidate_id, _candidate_text(nodes, candidate_id))]
+def _named_in(text: str, candidate_ids: list[str]) -> list[str]:
+    return [candidate_id for candidate_id in candidate_ids if _names(text, candidate_id)]
 
 
 def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
@@ -297,13 +294,12 @@ def answer_candidates(state: dict[str, Any]) -> dict[str, str | None]:
     the answer names no candidate of the goal, or more than one.
     """
 
-    nodes = by_id(state.get("nodes", []), "node")
     required_goals = accepted_goal_ids(state) - optional_goal_ids(state)
     answers: dict[str, str | None] = {}
     for goal_id, candidates in goal_candidates(state).items():
         if goal_id not in required_goals:
             continue
-        named = _named_in(claimed_answer(state), nodes, candidates)
+        named = _named_in(claimed_answer(state), candidates)
         answers[goal_id] = named[0] if len(named) == 1 else None
     return answers
 
@@ -325,8 +321,7 @@ def answer_labels(state: dict[str, Any]) -> dict[str, str]:
 def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:
     """Name each answer text that does not stand for one candidate of each required goal.
 
-    `summary.answer` names the answer candidate by id or exact text; any candidate may be the
-    answer.
+    `summary.answer` names the answer candidate by id; any candidate may be the answer.
     """
 
     nodes = by_id(state.get("nodes", []), "node")
@@ -338,9 +333,19 @@ def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:
             continue
         if answers[goal_id] is not None:
             continue
-        named = _named_in(claim, nodes, candidates)
+        named = _named_in(claim, candidates)
+        # The agent may have named a hypothesis by id that has no answers edge to this goal yet:
+        # the fix is the edge, not another name.
+        named_non_candidates = [node_id for node_id in nodes if node_id not in candidates and _names(claim, node_id)]
         if named:
             messages.append(f"summary.answer names several candidates for goal {goal_id}: {', '.join(named)}; name the one answer")
+        elif named_non_candidates:
+            messages.append(
+                f"summary.answer names {', '.join(named_non_candidates)}, which has no answers edge to goal {goal_id}; "
+                f"add one with an answer_kind, or name a candidate: {_candidate_listing(nodes, candidates)}"
+            )
         else:
-            messages.append(f"summary.answer names no candidate for goal {goal_id}; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}")
+            messages.append(
+                f"summary.answer names no candidate for goal {goal_id}; name one by id; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}"
+            )
     return messages

@@ -22,7 +22,7 @@ IMAGES_DIR = REPO_ROOT / "docs" / "images"
 PACKAGE_DIR = REPO_ROOT / "packages" / "reasoning-graph"
 
 GOAL = "Find why the pumping station went offline at 02:15"
-ANSWER_ID = "CS1"
+ANSWER_ID = "H2"
 VIEWPORT = {"width": 1300, "height": 1000}
 DEVICE_SCALE_FACTOR = 1.5
 # Mermaid lays out the graph after load, from a CDN script.

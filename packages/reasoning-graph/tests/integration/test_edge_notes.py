@@ -27,7 +27,8 @@ def state_with(**edge_fields: object) -> dict:
 
 @pytest.mark.parametrize("edge_type", sorted(EDGE_TYPES))
 def test_every_edge_type_is_valid_without_a_note(edge_type):
-    edge = {"from": "A", "to": "B", "type": edge_type}
+    # An answers edge requires its answer_kind; the note is what is under test.
+    edge = {"from": "A", "to": "B", "type": edge_type, **({"answer_kind": "exact_answer"} if edge_type == "answers" else {})}
     assert not patch_schema_errors({"edges": [edge]})
     assert not patch_schema_errors({"edges": [{**edge, "note": "The source supplies what the target needs."}]})
 

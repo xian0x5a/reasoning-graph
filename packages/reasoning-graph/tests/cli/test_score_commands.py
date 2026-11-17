@@ -68,7 +68,7 @@ INVALID_PARTS = {
     "update_posterior": "posterior was removed; use score",
     "score_off_the_scale": "score must be an integer from 1 to 5",
     "score_on_a_premise_edge": "score is only valid on supports/contradicts edges",
-    "score_on_a_goal": "score is only valid on observation, hypothesis, and candidate_solution nodes",
+    "score_on_a_goal": "score is only valid on observation and hypothesis nodes",
     "removed_edge_reasoning": "reasoning was removed; use the optional note",
 }
 
@@ -101,10 +101,10 @@ def test_inherited_candidate_applies_atomically(tmp_path):
     patch = valid_patch()
     # Grounding must use the merged graph, not just the nodes in this patch.
     patch["nodes"] = [node for node in patch["nodes"] if node["id"] != "A2"]
-    patch["nodes"].append({"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"})
+    patch["nodes"].append({"id": "CS1", "type": "hypothesis", "text": "The answer is 42"})
     patch["edges"].extend([
         {"from": "D1", "to": "CS1", "type": "premise_of"},
-        {"from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
     ])
     patch["edges"][0]["note"] = "Dr. A. Smith checked U.S. and U.K. records, e.g. Fig. 2."
     patch_path.write_text(json.dumps(patch), encoding="utf-8")

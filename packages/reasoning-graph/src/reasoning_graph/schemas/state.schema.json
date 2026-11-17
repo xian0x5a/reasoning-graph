@@ -83,7 +83,7 @@
         },
         "answer": {
           "type": "string",
-          "description": "The claim audit checks: it names one candidate per goal, by id or exact text. Empty while no answer is claimed."
+          "description": "The claim audit checks: it names one candidate per goal, by id as a whole word. Empty while no answer is claimed."
         }
       }
     },
@@ -112,8 +112,7 @@
             "observation",
             "constraint",
             "hypothesis",
-            "test",
-            "candidate_solution"
+            "test"
           ]
         },
         "text": {
@@ -140,16 +139,7 @@
         },
         "score": {
           "$ref": "#/$defs/score",
-          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis and candidate 3. A claim with premise_of edges into it, or a premise_of group, takes its belief from them and carries no score."
-        },
-        "answer_kind": {
-          "enum": [
-            "exact_answer",
-            "exact_method",
-            "method_hypothesis",
-            "clue_path",
-            "blocker"
-          ]
+          "description": "Optional 1-5 tier for a claim: 1 very unlikely, 3 open, 5 well established. Omit it to take the default: observation 5, hypothesis 3. A claim with premise_of edges into it, or a premise_of group, takes its belief from them and carries no score."
         },
         "exhausted": {
           "type": "boolean"
@@ -176,23 +166,6 @@
           },
           "then": {
             "$ref": "#/$defs/scoreStipulation"
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "candidate_solution"
-              }
-            },
-            "required": [
-              "type"
-            ]
-          },
-          "then": {
-            "required": [
-              "answer_kind"
-            ]
           }
         }
       ],
@@ -222,10 +195,15 @@
             "required": [
               "belief"
             ]
+          },
+          {
+            "required": [
+              "answer_kind"
+            ]
           }
         ]
       },
-      "description": "Claims take one optional 1-5 score; the CLI maps it to a probability. Goals, constraints, and tests carry no score. The removed prior/confidence/probability/posterior fields are rejected, not converted. Computed belief is not stored: it is computed when the graph is rendered."
+      "description": "Claims take one optional 1-5 score; the CLI maps it to a probability. Goals, constraints, and tests carry no score. The removed prior/confidence/probability/posterior fields are rejected, not converted. Computed belief is not stored: it is computed when the graph is rendered. answer_kind belongs on the answers edge, not on a node."
     },
     "edge": {
       "type": "object",
@@ -264,6 +242,16 @@
         "note": {
           "type": "string",
           "description": "Optional: why the link holds when the two texts do not make it obvious, or why its score departs from the default."
+        },
+        "answer_kind": {
+          "enum": [
+            "exact_answer",
+            "exact_method",
+            "method_hypothesis",
+            "clue_path",
+            "blocker"
+          ],
+          "description": "answers edges only, and required there: how the hypothesis answers the goal. One hypothesis may answer two goals, each edge with its own kind."
         }
       },
       "not": {
@@ -334,6 +322,30 @@
               ]
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "answers"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "answer_kind"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "answer_kind"
+              ]
+            }
+          }
         }
       ]
     },
@@ -356,7 +368,7 @@
           "items": {
             "$ref": "#/$defs/nodeId"
           },
-          "description": "hypothesis or candidate_solution ids."
+          "description": "hypothesis ids."
         },
         "note": {
           "type": "string"

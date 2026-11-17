@@ -24,7 +24,6 @@ WHY_RELATIONS = ("premise_of", "supports")
 AGAINST_RELATIONS = ("contradicts", "rules_out")
 # Edges that tie a test to the claim it checks, as (claim end, test end).
 TEST_LINKS = {"prompts": ("from", "to"), "tested_by": ("from", "to"), "tests": ("to", "from")}
-CLAIM_TYPES = {"hypothesis", "candidate_solution"}
 
 
 @dataclass(frozen=True)
@@ -203,7 +202,7 @@ class _CaseGraph:
             node_type = self.nodes[node_id].get("type")
             if node_type == "observation" and not self.nodes[node_id].get("quote"):
                 spots.append(WeakSpot("no_quote", node_id))
-            elif node_type in CLAIM_TYPES and (count := self.input_count(node_id)) <= 1:
+            elif node_type == "hypothesis" and (count := self.input_count(node_id)) <= 1:
                 spots.append(WeakSpot("no_input" if count == 0 else "single_input", node_id))
         spots.extend(WeakSpot("test_not_run", test.node.id) for test in tests if test.node.not_run)
         return spots

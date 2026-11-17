@@ -17,12 +17,13 @@ from .costs import (
     strongest_challenges,
 )
 from .identities import RenderIdentityMap, html_anchor, render_identity_map
-from .models import BELIEF_NODE_TYPES, node_type_label
+from .models import BELIEF_NODE_TYPES, CANDIDATE_ROLE, node_role, node_type_label
 from .offline_render import offline_graph_svg
 from .policy import (
     accepted_goal_ids,
     answer_candidates,
     answer_labels,
+    candidate_goal_targets,
     claimed_answer,
     goal_best_candidates,
     preferred_goal_ids,
@@ -48,13 +49,16 @@ def node_detail_cards(
     identities = identities or render_identity_map(state)
     labels = answer_labels(state)
     challenges = strongest_challenges(state)
+    candidate_ids = candidate_goal_targets(state).keys()
     cards: list[str] = []
     for node in state.get("nodes", []):
         if not isinstance(node, dict):
             continue
         raw_id = str(node.get("id", ""))
         raw_type = str(node.get("type", "node"))
-        pill_text = node_type_label(node) if raw_type == "test" else raw_type
+        # Cards are filtered by role, so a hypothesis that answers a goal lists under Candidates.
+        role = node_role(node, candidate_ids)
+        pill_text = role if role == CANDIDATE_ROLE else node_type_label(node)
         if raw_id in labels:
             pill_text = f"{pill_text} · {labels[raw_id]}"
         text = html.escape(str(node.get("text") or node.get("short_text") or ""))
@@ -77,7 +81,7 @@ def node_detail_cards(
                 note = f": {html.escape(str(edge['note']))}" if edge.get("note") else ""
                 edge_notes.append(f"<li><strong>{html.escape(relationship)}</strong>{note}</li>")
         edges_html = ('<div class="edge-block"><ul>' + "".join(edge_notes) + "</ul></div>") if edge_notes else ""
-        type_class = html.escape(raw_type)
+        type_class = html.escape(role)
         cards.append(
             f'<article class="detail-card {type_class}" data-node-type="{type_class}" id="{identities.node_anchor(raw_id)}" tabindex="0">'
             f'<header><code>{html.escape(raw_id)}</code><span class="pill">{html.escape(pill_text)}</span></header>'
@@ -161,7 +165,7 @@ def detail_filter_buttons() -> str:
         ("observation", "Observations"),
         ("constraint", "Constraints"),
         ("hypothesis", "Hypotheses"),
-        ("candidate_solution", "Candidates"),
+        (CANDIDATE_ROLE, "Candidates"),
         ("test", "Tests"),
     ]
     buttons = [

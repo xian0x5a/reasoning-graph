@@ -22,11 +22,11 @@ NODES = [
     {"id": "O2", "type": "observation", "text": "The gate was unlocked"},
     {"id": "H1", "type": "hypothesis", "text": "The gardener did it"},
     {"id": "H2", "type": "hypothesis", "text": "The butler did it"},
-    {"id": "C1", "type": "candidate_solution", "text": "Gardener", "answer_kind": "exact_answer"},
-    {"id": "C2", "type": "candidate_solution", "text": "Butler", "answer_kind": "exact_answer"},
+    {"id": "C1", "type": "hypothesis", "text": "Gardener"},
+    {"id": "C2", "type": "hypothesis", "text": "Butler"},
 ]
 # Every candidate answers the goal, so the only findings are about the edge under test.
-ANSWERS = [{"from": "C1", "to": "G1", "type": "answers"}, {"from": "C2", "to": "G1", "type": "answers"}]
+ANSWERS = [{"from": "C1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}, {"from": "C2", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}]
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:

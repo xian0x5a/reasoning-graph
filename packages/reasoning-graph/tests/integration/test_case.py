@@ -25,7 +25,7 @@ def hypothesis(node_id: str, **fields) -> dict:
 
 
 def candidate(node_id: str) -> dict:
-    return {"id": node_id, "type": "candidate_solution", "text": f"{node_id} text"}
+    return {"id": node_id, "type": "hypothesis", "text": f"{node_id} text"}
 
 
 GOAL = {"id": "G1", "type": "goal", "text": "Who did it?"}
@@ -45,7 +45,7 @@ def outline(links) -> list:
 def test_no_case_while_no_answer_is_claimed() -> None:
     state = {
         "nodes": [GOAL, observation("O1"), candidate("CS1")],
-        "edges": [edge("O1", "supports", "CS1"), edge("CS1", "answers", "G1")],
+        "edges": [edge("O1", "supports", "CS1"), edge("CS1", "answers", "G1", answer_kind="exact_answer")],
     }
 
     assert answer_cases(state) == []
@@ -61,7 +61,7 @@ def test_why_walks_premises_and_support_down_to_observations_and_shows_a_shared_
             edge("O2", "supports", "H2"),
             edge("H1", "premise_of", "CS1"),
             edge("H2", "premise_of", "CS1"),
-            edge("CS1", "answers", "G1"),
+            edge("CS1", "answers", "G1", answer_kind="exact_answer"),
         ],
     }
 
@@ -81,7 +81,7 @@ def test_a_grouped_edge_carries_the_group_and_its_score() -> None:
     state = {
         "summary": {"answer": "CS1"},
         "nodes": [GOAL, observation("O1"), observation("O2"), candidate("CS1")],
-        "edges": [edge("O1", "supports", "CS1"), edge("O2", "supports", "CS1"), edge("CS1", "answers", "G1")],
+        "edges": [edge("O1", "supports", "CS1"), edge("O2", "supports", "CS1"), edge("CS1", "answers", "G1", answer_kind="exact_answer")],
         "factors": [{"id": "F1", "edges": ["O1-CS1", "O2-CS1"], "score": 4}],
     }
 
@@ -100,8 +100,8 @@ def test_against_holds_contradictions_of_the_answer_and_its_why_tree_but_not_of_
             edge("O2", "contradicts", "CS1", score=2),
             edge("O3", "contradicts", "H1"),
             edge("O4", "contradicts", "CS2", score=5),
-            edge("CS1", "answers", "G1"),
-            edge("CS2", "answers", "G1"),
+            edge("CS1", "answers", "G1", answer_kind="exact_answer"),
+            edge("CS2", "answers", "G1", answer_kind="exact_answer"),
         ],
     }
 
@@ -133,8 +133,8 @@ def test_tests_of_the_why_tree_show_their_results_or_why_they_were_not_run() -> 
             edge("H1", "premise_of", "CS1"),
             edge("CS2", "prompts", "T3"),
             edge("T3", "yields", "O2"),
-            edge("CS1", "answers", "G1"),
-            edge("CS2", "answers", "G1"),
+            edge("CS1", "answers", "G1", answer_kind="exact_answer"),
+            edge("CS2", "answers", "G1", answer_kind="exact_answer"),
         ],
     }
 
@@ -153,9 +153,9 @@ def test_rivals_rank_by_belief_with_what_counts_against_each() -> None:
         "edges": [
             edge("O1", "contradicts", "CS2", score=5),
             edge("O2", "contradicts", "CS3", score=1),
-            edge("CS1", "answers", "G1"),
-            edge("CS2", "answers", "G1"),
-            edge("CS3", "answers", "G1"),
+            edge("CS1", "answers", "G1", answer_kind="exact_answer"),
+            edge("CS2", "answers", "G1", answer_kind="exact_answer"),
+            edge("CS3", "answers", "G1", answer_kind="exact_answer"),
         ],
     }
 
@@ -189,8 +189,8 @@ def test_weak_spots_name_unrun_tests_unquoted_observations_and_claims_on_one_inp
             edge("H2", "prompts", "T1"),
             # Outside the why-tree: a rival's unquoted evidence is not a weak spot of the answer.
             edge("O3", "contradicts", "CS2"),
-            edge("CS1", "answers", "G1"),
-            edge("CS2", "answers", "G1"),
+            edge("CS1", "answers", "G1", answer_kind="exact_answer"),
+            edge("CS2", "answers", "G1", answer_kind="exact_answer"),
         ],
     }
 

@@ -43,7 +43,7 @@ ROOM_SEED = {
 ROOM_ONE_SOLVED = {
     "nodes": [
         {"id": "E2", "type": "observation", "text": "Braille decode reads TWOSIGNS and the URL returns 200", "source": "probe", "score": 5},
-        {"id": "CS1", "type": "candidate_solution", "text": "TwoSigns", "answer_kind": "exact_answer"},
+        {"id": "CS1", "type": "hypothesis", "text": "TwoSigns"},
         {"id": "G2", "type": "goal", "text": "Find the next URL path under /TwoSigns/"},
         {"id": "E3", "type": "observation", "text": "Room 2 shows a waveform image", "source": "room page"},
         {"id": "A2", "type": "hypothesis", "text": "The waveform encodes 5-bit characters", "score": 3},
@@ -52,12 +52,12 @@ ROOM_ONE_SOLVED = {
     "edges": [
         {"from": "T1", "to": "E2", "type": "yields"},
         {"from": "E2", "to": "CS1", "type": "premise_of"},
-        {"from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
         {"from": "G1", "to": "G2", "type": "requires"},
         {"from": "E3", "to": "A2", "type": "supports", "score": 2},
         {"from": "A2", "to": "T2", "type": "prompts"},
     ],
-    "answer": "TwoSigns",
+    "answer": "CS1",
 }
 
 
@@ -165,13 +165,13 @@ class GroundedPathTests(unittest.TestCase):
             "nodes": [
                 {"id": "T1", "type": "test", "text": "Probe the system"},
                 {"id": "O1", "type": "observation", "text": "Probe output", "source": "probe", "score": 5},
-                {"id": "CS1", "type": "candidate_solution", "text": "Root cause", "answer_kind": "exact_answer"}
+                {"id": "CS1", "type": "hypothesis", "text": "Root cause"}
                 | ({"score": candidate_score} if candidate_score is not None else {}),
                 *nodes,
             ],
             "edges": [
                 {"from": "T1", "to": "O1", "type": "yields"},
-                {"from": "CS1", "to": "G1", "type": "answers"},
+                {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
                 *edges,
             ],
         }

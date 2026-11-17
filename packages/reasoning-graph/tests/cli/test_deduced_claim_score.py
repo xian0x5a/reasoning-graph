@@ -72,11 +72,11 @@ REJECTED_PATCHES = {
         "C1",
         {
             "nodes": [
-                {"id": "C1", "type": "candidate_solution", "text": "Gardener", "answer_kind": "exact_answer", "score": 3}
+                {"id": "C1", "type": "hypothesis", "text": "Gardener", "score": 3}
             ],
             "edges": [
                 {"from": "H2", "to": "C1", "type": "premise_of"},
-                {"from": "C1", "to": "G1", "type": "answers"},
+                {"from": "C1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
             ],
         },
     ),

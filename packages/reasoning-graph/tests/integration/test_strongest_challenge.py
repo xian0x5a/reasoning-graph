@@ -39,9 +39,9 @@ def state_with(*edges: dict, factors: list | None = None) -> dict:
             {"id": "G1", "type": "goal", "text": "Who did it?"},
             *({"id": f"O{i}", "type": "observation", "text": f"Observation {i}", "source": "case.txt"} for i in (1, 2, 3)),
             {"id": "H1", "type": "hypothesis", "text": "A hypothesis"},
-            {"id": "CS1", "type": "candidate_solution", "text": "The answer", "answer_kind": "exact_answer"},
+            {"id": "CS1", "type": "hypothesis", "text": "The answer"},
         ],
-        "edges": [edge("H1", "CS1", "premise_of"), edge("CS1", "G1", "answers"), *edges],
+        "edges": [edge("H1", "CS1", "premise_of"), edge("CS1", "G1", "answers", answer_kind="exact_answer"), *edges],
     }
     if factors:
         state["factors"] = factors

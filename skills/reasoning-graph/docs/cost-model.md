@@ -19,7 +19,7 @@ The likelihood ratio is defined under Scores in `../SKILL.md`. A `contradicts` e
 | object | default score |
 | --- | --- |
 | `observation` | 5 |
-| `hypothesis`, `candidate_solution` | 3 |
+| `hypothesis` | 3 |
 | `supports`, `contradicts` edge | 3 |
 
 - A claim with no score takes its default, unless it is deduced: it has premises (`premise_of` edges) or a premise group (choosing the edge, `../SKILL.md`). A deduced claim takes their joint belief and adds nothing of its own: a hypothesis at score 4 that is a candidate's only premise gives the candidate belief `0.7`, not `0.35`. `record` rejects a score on a deduced claim.
@@ -63,7 +63,7 @@ Graph labels show effective belief; node details show the authored score beside 
 - Every `supports` and `contradicts` edge updates its target, at its score or at the default 3.
 - Multiple evidence edges multiply in odds space: a default hypothesis with two default supports has odds `1 * 2 * 2` and belief `0.8`.
 - The edge score already includes how reliable the source is. An observation's own score contributes through `premise_of`; it does not dampen the observation's `supports`/`contradicts` edges.
-- Evidence from a claim (`hypothesis` or `candidate_solution`) is only as strong as the claim: with source belief `b`, ratio `r` acts as `1 + b·(r − 1)`, treating a false source as uninformative. A group with claim sources uses the product of their beliefs. `supports` from a claim that is not evidence-grounded (`SKILL.md`, answer checks) has no effect; `contradicts` always applies, scaled. Claim-sourced evidence is a truth dependency, so cycles through it are invalid.
+- Evidence from a claim (a `hypothesis`) is only as strong as the claim: with source belief `b`, ratio `r` acts as `1 + b·(r − 1)`, treating a false source as uninformative. A group with claim sources uses the product of their beliefs. `supports` from a claim that is not evidence-grounded (`SKILL.md`, answer checks) has no effect; `contradicts` always applies, scaled. Claim-sourced evidence is a truth dependency, so cycles through it are invalid.
 - Correlated or overlapping evidence should be merged into one node or grouped (`schema/factors.md`), so it counts once. A group's score replaces its members' updates: two grouped supports at group score 3 double the odds once, not twice.
 - Premises that share a cause or overlap, so they hold or fail together, are grouped the same way; the group's score is read from the claim table as their joint probability and replaces their product.
 

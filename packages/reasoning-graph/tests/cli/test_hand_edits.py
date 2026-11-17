@@ -41,13 +41,13 @@ def story_patch(hypothesis_score: int) -> dict:
             observation("O2", "The gardener stayed late, or so he said"),
             {"id": "H1", "type": "hypothesis", "text": "The gardener did it", "score": hypothesis_score},
             {"id": "H2", "type": "hypothesis", "text": "The butler did it", "score": 1},
-            {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
+            {"id": "CS1", "type": "hypothesis", "text": "The gardener"},
         ],
         "edges": [
             edge("O2", "H1", "supports", score=4),
             edge("O1", "H2", "contradicts", score=3),
             edge("H1", "CS1", "premise_of"),
-            edge("CS1", "G1", "answers"),
+            edge("CS1", "G1", "answers", answer_kind="exact_answer"),
         ],
     }
 

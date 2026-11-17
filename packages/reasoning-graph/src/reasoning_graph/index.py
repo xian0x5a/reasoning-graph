@@ -36,7 +36,8 @@ def _node_line(node: dict[str, Any], state_of_test: str = "") -> str:
 def _edge_line(edge: dict[str, Any]) -> str:
     source, target = edge.get("from"), edge.get("to")
     score = f"({edge['score']})" if "score" in edge and edge["score"] != DEFAULT_EVIDENCE_SCORE else ""
-    return f"- {source} -{edge.get('type')}{score}-> {target}{_note(edge)}"
+    answer_kind = f"({edge['answer_kind']})" if "answer_kind" in edge else ""
+    return f"- {source} -{edge.get('type')}{score}{answer_kind}-> {target}{_note(edge)}"
 
 
 def _group_line(group: dict[str, Any]) -> str:

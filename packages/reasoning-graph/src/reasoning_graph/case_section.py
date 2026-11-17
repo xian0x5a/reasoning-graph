@@ -14,6 +14,7 @@ from .costs import edge_weight_label, format_belief
 from .graph_view import NODE_COLORS
 from .identities import RenderIdentityMap
 from .models import node_render_class
+from .policy import candidate_goal_targets
 from .source_links import SourceLink, source_html
 
 WEAK_SPOT_TEXT = {
@@ -35,11 +36,12 @@ def case_id_styles() -> str:
 class _CaseMarkup:
     def __init__(self, state: dict[str, Any], identities: RenderIdentityMap, linked_sources: dict[str, SourceLink]) -> None:
         self.nodes = {str(node.get("id")): node for node in state.get("nodes", []) if isinstance(node, dict)}
+        self.candidate_ids = candidate_goal_targets(state).keys()
         self.identities = identities
         self.linked_sources = linked_sources
 
     def node_link(self, node_id: str) -> str:
-        render_class = node_render_class(self.nodes[node_id])
+        render_class = node_render_class(self.nodes[node_id], self.candidate_ids)
         return (
             f'<a class="case-id" data-class="{html.escape(render_class)}" '
             f'href="#{html.escape(self.identities.node_anchor(node_id))}">{html.escape(node_id)}</a>'

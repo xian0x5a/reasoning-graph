@@ -83,13 +83,13 @@ class RenderIdentityTests(unittest.TestCase):
     def test_html_focus_map_uses_collision_safe_candidate_ids(self) -> None:
         state = {
             "nodes": [
-                {"id": "A.B", "type": "candidate_solution", "text": "hyphen", "score": 3, "answer_kind": "exact_answer"},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "score": 2, "answer_kind": "exact_answer"},
+                {"id": "A.B", "type": "hypothesis", "text": "hyphen", "score": 3},
+                {"id": "A_B", "type": "hypothesis", "text": "underscore", "score": 2},
                 {"id": "A B", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"from": "A.B", "to": "A B", "type": "answers"},
-                {"from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A.B", "to": "A B", "type": "answers", "answer_kind": "exact_answer"},
+                {"from": "A_B", "to": "A B", "type": "answers", "answer_kind": "exact_answer"},
             ],
         }
         identities = render_identity_map(state)
@@ -106,8 +106,8 @@ class RenderIdentityTests(unittest.TestCase):
         at the first observation, plus the evidence that directly contradicts that chain,
         while leaving rival branches and the contradicting evidence's own chain dim."""
 
-        def edge(source: str, edge_type: str, target: str) -> dict:
-            return {"from": source, "to": target, "type": edge_type}
+        def edge(source: str, edge_type: str, target: str, **extra: object) -> dict:
+            return {"from": source, "to": target, "type": edge_type, **extra}
 
         state = {
             "nodes": [
@@ -119,13 +119,13 @@ class RenderIdentityTests(unittest.TestCase):
                 {"id": "H3", "type": "hypothesis", "text": "decoding A"},
                 {"id": "T3", "type": "test", "text": "decode with A"},
                 {"id": "O5", "type": "observation", "text": "decoding A works"},
-                {"id": "CS1", "type": "candidate_solution", "text": "answer A", "answer_kind": "exact_answer"},
+                {"id": "CS1", "type": "hypothesis", "text": "answer A"},
                 {"id": "H4", "type": "hypothesis", "text": "decoding B"},
                 {"id": "T6", "type": "test", "text": "decode with B"},
                 {"id": "O6", "type": "observation", "text": "decoding B fails"},
-                {"id": "CS2", "type": "candidate_solution", "text": "answer B", "answer_kind": "exact_answer"},
+                {"id": "CS2", "type": "hypothesis", "text": "answer B"},
                 {"id": "O7", "type": "observation", "text": "answer C is ruled out"},
-                {"id": "CS3", "type": "candidate_solution", "text": "answer C", "score": 1, "answer_kind": "exact_answer"},
+                {"id": "CS3", "type": "hypothesis", "text": "answer C", "score": 1},
             ],
             "edges": [
                 edge("O1", "supports", "H1"),
@@ -136,14 +136,14 @@ class RenderIdentityTests(unittest.TestCase):
                 edge("T3", "yields", "O5"),
                 edge("O5", "supports", "H3"),
                 edge("H3", "premise_of", "CS1"),
-                edge("CS1", "answers", "G1"),
+                edge("CS1", "answers", "G1", answer_kind="exact_answer"),
                 edge("O4", "premise_of", "H4"),
                 edge("T6", "yields", "O6"),
                 edge("O6", "contradicts", "H4"),
                 edge("H4", "premise_of", "CS2"),
-                edge("CS2", "answers", "G1"),
+                edge("CS2", "answers", "G1", answer_kind="exact_answer"),
                 edge("O7", "contradicts", "CS3"),
-                edge("CS3", "answers", "G1"),
+                edge("CS3", "answers", "G1", answer_kind="exact_answer"),
             ],
         }
         document = html_document(state, to_mermaid(state), render_mode="offline")
@@ -158,13 +158,13 @@ class RenderIdentityTests(unittest.TestCase):
     def test_html_candidates_come_from_the_graph(self) -> None:
         state = {
             "nodes": [
-                {"id": "CS1", "type": "candidate_solution", "text": "First answer", "score": 3, "answer_kind": "exact_answer"},
-                {"id": "CS2", "type": "candidate_solution", "text": "Second answer", "score": 2, "answer_kind": "exact_answer"},
+                {"id": "CS1", "type": "hypothesis", "text": "First answer", "score": 3},
+                {"id": "CS2", "type": "hypothesis", "text": "Second answer", "score": 2},
                 {"id": "G1", "type": "goal", "text": "goal"},
             ],
             "edges": [
-                {"from": "CS1", "to": "G1", "type": "answers"},
-                {"from": "CS2", "to": "G1", "type": "answers"},
+                {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
+                {"from": "CS2", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
             ],
         }
         identities = render_identity_map(state)
