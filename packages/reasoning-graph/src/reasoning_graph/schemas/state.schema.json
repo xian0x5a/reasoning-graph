@@ -83,7 +83,7 @@
         },
         "answer": {
           "type": "string",
-          "description": "The claim audit checks: it names one candidate per goal, by id or exact text. Empty while no answer is claimed."
+          "description": "The claim audit checks: it names one candidate per goal, by id as a whole word. Empty while no answer is claimed."
         }
       }
     },

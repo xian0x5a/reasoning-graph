@@ -92,7 +92,8 @@ def answer_kind_errors(edge: dict[str, Any]) -> list[str]:
     owner = f"edge {edge_id(edge)}"
     if edge.get("type") != "answers":
         return [f"{owner}: answer_kind is only valid on answers edges; it says how a hypothesis answers a goal"] if "answer_kind" in edge else []
-    if edge.get("answer_kind") not in ANSWER_KINDS:
+    # A list or object kind would make the set lookup raise instead of report.
+    if not isinstance(edge.get("answer_kind"), str) or edge["answer_kind"] not in ANSWER_KINDS:
         return [f"{owner}: answers edge answer_kind must be one of {sorted(ANSWER_KINDS)}, got {edge.get('answer_kind')!r}"]
     return []
 
@@ -179,7 +180,7 @@ def answers_edge_errors(
     answer_kind = edge.get("answer_kind")
     goal_id = edge.get("to")
     goal = goals_by_id.get(goal_id)
-    if answer_kind in ANSWER_KINDS and goal is not None and goal_id in accepted_goals and not goal_accepts_answer_kind(goal, str(answer_kind)):
+    if isinstance(answer_kind, str) and answer_kind in ANSWER_KINDS and goal is not None and goal_id in accepted_goals and not goal_accepts_answer_kind(goal, str(answer_kind)):
         errors.append(f"{owner}: answer_kind {answer_kind!r} does not answer accepted goal {goal_id!r}: {goal.get('text')!r}")
     return errors
 
@@ -323,6 +324,10 @@ def validate_state(state: Any) -> ValidationResult:
             )
         src_type = nodes_by_id.get(src, {}).get("type") if isinstance(src, str) else None
         dst_type = nodes_by_id.get(dst, {}).get("type") if isinstance(dst, str) else None
+        # A removed node type is already named with its replacement; endpoint rules on it would
+        # only suggest other fixes, such as retyping the edge.
+        if src_type in REMOVED_NODE_TYPES or dst_type in REMOVED_NODE_TYPES:
+            continue
         if edge_type == "answers":
             errors.extend(answers_edge_errors(edge, src_type, dst_type, goals_by_id, accepted_goal_ids))
         if edge_type == "yields" and "not_run" in nodes_by_id.get(src, {}):

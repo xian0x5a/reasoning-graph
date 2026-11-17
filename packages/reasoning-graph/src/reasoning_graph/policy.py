@@ -165,17 +165,19 @@ def preferred_goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def candidate_goal_targets(state: dict[str, Any]) -> dict[str, set[str]]:
-    """The one definition of a candidate: a node with an answers edge to a goal, mapped to those goals.
+    """The one definition of a candidate: a hypothesis with an answers edge to a goal, mapped to those goals.
 
-    Validation guarantees the node is a hypothesis; every reader of candidacy goes through here.
+    Every reader of candidacy goes through here. The type is checked too because `mermaid`
+    renders without validating, and an answers edge from another node is invalid.
     """
     goals = goal_ids(state)
+    nodes = by_id(state.get("nodes", []), "node")
     targets: dict[str, set[str]] = {}
     for edge in state.get("edges", []):
         if not isinstance(edge, dict) or edge.get("type") != "answers":
             continue
         src, dst = edge.get("from"), edge.get("to")
-        if isinstance(src, str) and dst in goals:
+        if isinstance(src, str) and nodes.get(src, {}).get("type") == "hypothesis" and dst in goals:
             targets.setdefault(src, set()).add(str(dst))
     return targets
 
@@ -332,8 +334,16 @@ def unnamed_answer_messages(state: dict[str, Any]) -> list[str]:
         if answers[goal_id] is not None:
             continue
         named = _named_in(claim, candidates)
+        # The agent may have named a hypothesis by id that has no answers edge to this goal yet:
+        # the fix is the edge, not another name.
+        named_non_candidates = [node_id for node_id in nodes if node_id not in candidates and _names(claim, node_id)]
         if named:
             messages.append(f"summary.answer names several candidates for goal {goal_id}: {', '.join(named)}; name the one answer")
+        elif named_non_candidates:
+            messages.append(
+                f"summary.answer names {', '.join(named_non_candidates)}, which has no answers edge to goal {goal_id}; "
+                f"add one with an answer_kind, or name a candidate: {_candidate_listing(nodes, candidates)}"
+            )
         else:
             messages.append(
                 f"summary.answer names no candidate for goal {goal_id}; name one by id; candidates: {_candidate_listing(nodes, candidates)}; answer: {claim!r}"

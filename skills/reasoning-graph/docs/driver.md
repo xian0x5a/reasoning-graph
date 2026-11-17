@@ -48,7 +48,7 @@ The state holds what you authored, nothing computed and no trace of how it got t
 
 Optional sections: `factors` (`docs/schema/factors.md`), `exclusive_sets` (`../SKILL.md`), `goal_policy` / `goal_groups` (`docs/schema/goals.md`).
 
-Removed, and rejected by validation: `events`, `stop_policy`, an `id` on an edge, and the sections `report`, `presentation` and `view`. They held a second copy of the graph for the reader. The answer is `summary.answer`, the reason for a candidate is a `note` on the node or edge, and a next check is a `test` node.
+Removed, and rejected by validation: `events`, `stop_policy`, an `id` on an edge, and the sections `report`, `presentation` and `view`. They held a second copy of the graph for the reader. The answer is `summary.answer`, the reason for a candidate is a `note` on the node or edge, and a next check is a `test` node. Also rejected: the node type `candidate_solution` and an `answer_kind` on a node. A candidate is a hypothesis with an `answers` edge, and the edge carries the kind (`docs/schema/goals.md`).
 
 ## Edge identity
 
