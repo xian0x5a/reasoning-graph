@@ -28,8 +28,7 @@ def cmd_schema(args: argparse.Namespace) -> int:
 def cmd_audit(args: argparse.Namespace) -> int:
     """Read-only: report the status first, then what failed or what an answer still needs."""
     state = load_state(args.state)
-    quote_errors = _quote_errors(state, args.state) if isinstance(state, dict) else []
-    report = audit_state(state, quote_errors)
+    report = audit_state(state, _quote_errors(state, args.state))
     print(report.status)
     for need in report.needs:
         print(f"needs: {need}")
@@ -88,12 +87,19 @@ def removed_patch_field_errors(patch: dict[str, Any]) -> list[str]:
     return ["reason was removed: the state keeps no log; put what is worth keeping in a note on the node or edge it concerns"]
 
 
+PATCHED_SECTIONS = ("nodes", "edges", "factors", "exclusive_sets")
+
+
 def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     """Apply removals, then updates, then additions.
 
     Additions are appended and nothing is reordered: the list order is the order of the work,
     and nothing else records it.
     """
+    for section in PATCHED_SECTIONS:
+        if not isinstance(state.get(section, []), list):
+            # A hand edit made it something else; the patch finds what it edits by id in a list.
+            raise ValueError(f"{section} must be a list before a patch can update it")
     nodes_to_add = _object_list(patch.get("nodes"), "nodes")
     edges_to_add = _object_list(patch.get("edges"), "edges")
     factors_to_upsert = _object_list(patch.get("factors"), "factors")
@@ -115,8 +121,8 @@ def _apply_graph_patch(state: dict[str, Any], patch: dict[str, Any]) -> None:
     _apply_field_updates(state.get("nodes", []), node_updates, "update_nodes")
     _apply_field_updates(state.get("edges", []), edge_updates, "update_edges")
 
-    existing_nodes = {node.get("id") for node in state.get("nodes", []) if isinstance(node, dict)}
-    _ensure_unique_new_ids({str(item) for item in existing_nodes if item}, nodes_to_add, "nodes")
+    existing_nodes = {_item_id(node, "nodes") for node in state.get("nodes", []) if isinstance(node, dict)}
+    _ensure_unique_new_ids({item for item in existing_nodes if item}, nodes_to_add, "nodes")
     existing_edges = {edge_id(edge) for edge in state.get("edges", []) if isinstance(edge, dict)}
     for edge in edges_to_add:
         if edge_id(edge) in existing_edges:
@@ -134,8 +140,6 @@ def _upsert_by_id(state: dict[str, Any], section: str, items: list[dict[str, Any
         return
     _ensure_object_ids(items, section)
     records = state.setdefault(section, [])
-    if not isinstance(records, list):
-        raise ValueError(f"{section} must be a list before a patch can update it")
     indexes: dict[str, int] = {}
     for index, record in enumerate(records):
         if not isinstance(record, dict) or not isinstance(record.get("id"), str) or not record.get("id"):
@@ -163,11 +167,13 @@ def _linked_sources(state: dict[str, Any], state_path: str, page_dir: Path | Non
     return source_links(state, _source_base_dir(state_path), page_dir)
 
 
-def _quote_errors(state: dict[str, Any], state_path: str) -> list[str]:
+def _quote_errors(state: Any, state_path: str) -> list[str]:
     source_base_dir = _source_base_dir(state_path)
-    # Malformed nodes are validation's to report.
-    nodes = [node for node in state.get("nodes", []) if isinstance(node, dict)]
-    return [message for node in nodes for message in quote_mismatch_messages(node, source_base_dir)]
+    # A state or node of the wrong shape is validation's to report.
+    nodes = state.get("nodes", []) if isinstance(state, dict) else []
+    if not isinstance(nodes, list):
+        return []
+    return [message for node in nodes if isinstance(node, dict) for message in quote_mismatch_messages(node, source_base_dir)]
 
 
 def _passes_quote_and_graph_checks(state: dict[str, Any], state_path: str) -> bool:
@@ -218,6 +224,8 @@ def cmd_record(args: argparse.Namespace) -> int:
     """Apply a patch to the graph, then refresh the views beside the state."""
     state = load_state(args.state)
     patch = load_state(args.patch)
+    if not isinstance(state, dict):
+        raise ValueError("record state must be a JSON object")
     if not isinstance(patch, dict):
         raise ValueError("record patch must be a JSON object")
     added = {field: patch[field] if isinstance(patch.get(field), list) else [] for field in ("nodes", "edges")}
@@ -233,8 +241,11 @@ def cmd_record(args: argparse.Namespace) -> int:
         return 1
     _apply_graph_patch(state, patch)
     if "answer" in patch:
+        summary = state.setdefault("summary", {})
+        if not isinstance(summary, dict):
+            raise ValueError("summary must be an object before a patch can set the answer")
         # The claim `audit` judges. An empty answer withdraws it.
-        state.setdefault("summary", {})["answer"] = patch["answer"].strip()
+        summary["answer"] = patch["answer"].strip()
 
     # The checks judge the patched graph, so a patch may repair a hand edit.
     if not _passes_quote_and_graph_checks(state, args.state):
@@ -307,9 +318,15 @@ def _field_update_list(value: Any, field: str) -> list[dict[str, Any]]:
     return updates
 
 
-def _item_id(item: dict[str, Any], key: str) -> Any:
-    """The id a patch names an item of state[key] by; an edge carries none and is named by its ends."""
-    return edge_id(item) if key == "edges" else item.get("id")
+def _item_id(item: dict[str, Any], key: str) -> str | None:
+    """The id a patch names an item of state[key] by; an edge carries none and is named by its ends.
+
+    None when a hand edit gave the item an id that is not a string: no patch can name it, and
+    validation reports it after the patch.
+    """
+    if key == "edges":
+        return edge_id(item)
+    return item["id"] if isinstance(item.get("id"), str) else None
 
 
 def _apply_field_updates(items: list[Any], updates: list[dict[str, Any]], field: str) -> None:

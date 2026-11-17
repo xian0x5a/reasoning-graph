@@ -107,6 +107,7 @@
           "$ref": "#/$defs/nodeId"
         },
         "type": {
+          "type": "string",
           "enum": [
             "goal",
             "observation",
@@ -222,6 +223,7 @@
           "$ref": "#/$defs/nodeId"
         },
         "type": {
+          "type": "string",
           "enum": [
             "requires",
             "supports",
@@ -453,6 +455,9 @@
           "$ref": "#/$defs/stringList"
         },
         "preferred_goals": {
+          "$ref": "#/$defs/stringList"
+        },
+        "optional_goals": {
           "$ref": "#/$defs/stringList"
         }
       }
