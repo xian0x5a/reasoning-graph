@@ -148,18 +148,18 @@ def exclusive_set_errors(exclusive_sets: list[dict[str, Any]], nodes_by_id: dict
     for i, exclusive_set in enumerate(exclusive_sets):
         label = f"exclusive_sets[{i}]"
         set_id = exclusive_set.get("id")
-        if not isinstance(set_id, str) or not set_id:
+        if not set_id:
             errors.append(f"{label} missing string id")
         elif set_id in seen_ids:
             errors.append(f"duplicate exclusive set id {set_id}")
         else:
             seen_ids.add(set_id)
         members = exclusive_set.get("members")
-        if not isinstance(members, list) or len(set(map(str, members))) < 2 or len(set(map(str, members))) != len(members):
+        if not members or len(set(members)) < 2 or len(set(members)) != len(members):
             errors.append(f"{label}.members must list at least two different node ids")
             continue
         for member in members:
-            member_type = nodes_by_id.get(member, {}).get("type") if isinstance(member, str) else None
+            member_type = nodes_by_id.get(member, {}).get("type")
             if member_type is None:
                 errors.append(f"{label}.members references missing node {member!r}")
             elif member_type not in EXCLUSIVE_SET_MEMBER_TYPES:

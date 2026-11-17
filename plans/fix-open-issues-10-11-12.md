@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 ---
 
 # Fix open issues #10, #11, #12
@@ -47,16 +47,17 @@ A malformed state is an input error the agent can fix, so it must come back as a
 
 ## Progress
 
-- [ ] Step 1 regression tests
-- [ ] Step 2 #11
-- [ ] Step 3 #10
-- [ ] Step 4 #12
-- [ ] Step 5 docs
-- [ ] Step 6 review
+- [x] Step 1 regression tests (independent agent; all failed on the base commit for the bug, except the two pins of behaviour that already worked)
+- [x] Step 2 #11
+- [x] Step 3 #10
+- [x] Step 4 #12
+- [x] Step 5 docs
+- [x] Step 6 review (independent agent: no correctness findings; about 23,000 wrong-type mutations raised no Python error)
 
 ## Decisions
 
 - #11 gate on schema `type` errors only. Rejected: skip the graph rules on any schema error (the issue's suggestion). A probe failed 21 tests: the graph rules give the friendlier message for many schema errors (removed sections and group fields, `invalid type 'fact'`), and one run should list everything to fix. Rejected: harden every reader against every shape; the crash sites are spread over `policy`, `costs`, and `validation`.
+- Cost of the type gate, accepted: a wrong JSON type anywhere, even on a field no graph rule reads such as `note: 5`, hides the graph-rule errors until it is fixed. Narrowing the gate to the fields each rule reads would bring back the coupling the gate avoids; a wrong JSON type is rare next to the removed fields and enum values whose messages the gate keeps.
 - `record` does not refuse a state with a type error up front: that would stop a patch from repairing a hand edit such as `"score": "4"`, a documented use.
 - #10 derive acceptance through `requires`. Rejected: reject a policy that leaves out a required sub-goal; it makes every new `requires` edge invalidate the policy, and the combination it forbids has no use today (the parent can never be answered).
 
@@ -65,3 +66,9 @@ A malformed state is an input error the agent can fix, so it must come back as a
 - #11 is wider than the issue lists: a list-valued node `id` or `type`, `accepted_goals` entry, `goal_groups` goal, `solutions` entry, or a non-object `nodes` also raise.
 
 ## Outcomes & Retrospective
+
+- #11: `audit`, `refresh`, `record`, and `html` report every wrong-shape state as a schema error, one line per value: errors that only restate a type error on the same value are dropped. The graph rules lost the shape checks the gate covers, and `solutions` is named as removed instead of read.
+- #10: accepted goals are the listed ones and everything they require. A required sub-goal takes every accepted-goal check: kind, and naming its candidate in `summary.answer` (documented in `goals.md`). A state that passed with an unnamed sub-goal candidate now fails `audit`, as it already did without a policy.
+- #12: `ruff --select F` is clean on the package source. `tests/cli/test_commands.py` still imports `math` unused; out of the issue's scope.
+- Follow-ups: `mermaid` renders without validating, so it still raises on a wrong-shape state; the rendering and belief code still fall back to the removed edge `label`.
+- Retrospective: the issue's suggested fix (stop on any schema error) looked complete until a probe ran the suite; 21 failures showed the graph rules double as the friendly layer for many schema errors. Probing the cheap option first settled the design faster than reasoning about it.

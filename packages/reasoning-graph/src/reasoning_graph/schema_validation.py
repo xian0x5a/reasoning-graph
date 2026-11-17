@@ -83,7 +83,11 @@ def _non_finite_number_errors(value: Any, path: str = "$") -> list[str]:
 
 
 def _sorted_schema_errors(document: Any, schema_name: str) -> list[jsonschema.ValidationError]:
-    return sorted(_validator(schema_name).iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
+    errors = sorted(_validator(schema_name).iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
+    # A value of the wrong JSON type also fails the other keywords about it, such as a `not`
+    # listing removed fields; those errors only restate the type error, unreadably.
+    mistyped = {tuple(error.absolute_path) for error in errors if error.validator == "type"}
+    return [error for error in errors if error.validator == "type" or tuple(error.absolute_path) not in mistyped]
 
 
 def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list[str]:

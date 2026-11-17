@@ -73,7 +73,7 @@ Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. 
 }
 ```
 
-A goal is **answered** when a hypothesis has an `answers` edge to it and every goal it `requires` is answered (optional goals excepted). A goal an accepted goal requires is accepted too, so `accepted_goals` lists only the top goal, and a sub-goal added mid-run needs no policy change. The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
+A goal is **answered** when a hypothesis has an `answers` edge to it and every goal it `requires` is answered (optional goals excepted). A goal an accepted goal requires is accepted too, so `accepted_goals` lists only the top goal, and a sub-goal added mid-run needs no policy change. It takes the same checks as any accepted goal: its `answers` edges' kinds are checked, and once it has a candidate, `summary.answer` names one unless the goal is optional. The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
 
 ## Proof-shaped tasks
 
