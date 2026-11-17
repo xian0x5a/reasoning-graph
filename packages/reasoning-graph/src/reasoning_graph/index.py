@@ -54,7 +54,6 @@ def index_document(state: dict[str, Any]) -> str:
     nodes = [node for node in state.get("nodes", []) if isinstance(node, dict)]
     edges = [edge for edge in state.get("edges", []) if isinstance(edge, dict)]
     groups = [group for group in state.get("factors") or [] if isinstance(group, dict)]
-    node_types = {node.get("id"): node.get("type") for node in nodes}
 
     tests_with_results = {edge.get("from") for edge in edges if edge.get("type") == "yields"}
     premise_backed = {edge.get("to") for edge in edges if edge.get("type") == "premise_of"}
