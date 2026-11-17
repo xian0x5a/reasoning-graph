@@ -27,9 +27,8 @@
     },
     {
       "id": "CS1",
-      "type": "candidate_solution",
-      "text": "Exact answer",
-      "answer_kind": "exact_answer"
+      "type": "hypothesis",
+      "text": "Exact answer"
     }
   ],
   "goal_groups": [
@@ -64,7 +63,8 @@
     {
       "from": "CS1",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "answer_kind": "exact_answer"
     }
   ]
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
 
@@ -11,11 +12,10 @@ NODE_TYPES = {
     "constraint",
     "hypothesis",
     "test",
-    "candidate_solution",
 }
 
 
-BELIEF_NODE_TYPES = {"observation", "hypothesis", "candidate_solution"}
+BELIEF_NODE_TYPES = {"observation", "hypothesis"}
 
 
 EDGE_TYPES = {
@@ -82,28 +82,28 @@ EPISTEMIC_GOAL_MARKERS = (
 )
 
 
-CLASS_BY_NODE_TYPE = {
-    "goal": "goal",
-    "observation": "observation",
-    "constraint": "constraint",
-    "hypothesis": "hypothesis",
-    "test": "test",
-    "candidate_solution": "candidate",
-}
+# The page draws, groups, and filters a node by its role: its type, or `candidate` for a
+# node with an answers edge to a goal. Validation guarantees such a node is a hypothesis.
+CANDIDATE_ROLE = "candidate"
+RENDER_CLASSES = {"goal", "observation", "constraint", "hypothesis", "test", CANDIDATE_ROLE}
+
+
+def node_role(node: dict, candidate_ids: Collection[str]) -> str:
+    return CANDIDATE_ROLE if node.get("id") in candidate_ids else str(node.get("type", "node"))
 
 
 def node_type_label(node: dict) -> str:
     """Short type label shown on a node; a not_run test says so, since no result will ever exist."""
-    node_type = str(node.get("type", "node"))
-    if node_type == "test" and "not_run" in node:
+    if node.get("type") == "test" and "not_run" in node:
         return "test · not run"
-    return "candidate" if node_type == "candidate_solution" else node_type
+    return str(node.get("type", "node"))
 
 
-def node_render_class(node: dict) -> str:
+def node_render_class(node: dict, candidate_ids: Collection[str]) -> str:
     if node.get("type") == "test" and "not_run" in node:
         return "not_run"
-    return CLASS_BY_NODE_TYPE.get(str(node.get("type")), "hypothesis")
+    role = node_role(node, candidate_ids)
+    return role if role in RENDER_CLASSES else "hypothesis"
 
 
 @dataclass

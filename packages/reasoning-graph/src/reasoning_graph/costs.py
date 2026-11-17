@@ -17,7 +17,7 @@ from .utils import require_finite_float, require_non_negative_float
 CLAIM_SCORE_PROBABILITY = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
 # The ratios agents wrote most often. `contradicts` uses the reciprocal.
 EVIDENCE_SCORE_RATIO = {1: 1.2, 2: 1.5, 3: 2.0, 4: 3.0, 5: 5.0}
-DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3, "candidate_solution": 3}
+DEFAULT_CLAIM_SCORE = {"observation": 5, "hypothesis": 3}
 DEFAULT_EVIDENCE_SCORE = 3
 EVIDENCE_EDGE_TYPES = ("supports", "contradicts")
 # A ruled-out claim is a status, not a weight: any finite ratio loses to enough stacked
@@ -34,6 +34,11 @@ class RemovedInputError(ValueError):
 # One name meant a premise of a claim and a test's result, which carries no belief (ADR 0017).
 REMOVED_EDGE_TYPES = {
     "leads_to": "leads_to was split; use premise_of for a premise of a claim, or yields from a test to the observation of its result",
+}
+# The type split one claim in two: an answer label beside the claim it reasons about (ADR 0019).
+REMOVED_NODE_TYPES = {
+    "candidate_solution": "candidate_solution was removed; a candidate is a hypothesis with an answers edge to its goal; "
+    "move answer_kind onto that edge",
 }
 
 # Fields the 1-5 `score` replaced. `posterior` let an author overrule the graph's own
@@ -386,6 +391,11 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     """Collect premises and evidence updates, validating edges and groups."""
 
     nodes = by_id(state.get("nodes", []), "node")
+    # `mermaid` renders without validating; a leftover candidate_solution must fail, not
+    # render as a claim with no prior.
+    for node_id, node in nodes.items():
+        if node.get("type") in REMOVED_NODE_TYPES:
+            raise RemovedInputError(f"node {node_id}: {REMOVED_NODE_TYPES[node['type']]}")
     groups, group_errors = resolve_edge_groups(state)
     if group_errors:
         raise ValueError(group_errors[0])

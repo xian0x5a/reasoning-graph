@@ -13,8 +13,8 @@ from typing import Any
 
 from .costs import node_belief_label, node_effective_truth_costs, probability_from_cost, strongest_challenges
 from .identities import RenderIdentityMap, render_identity_map
-from .models import BELIEF_NODE_TYPES, node_render_class, node_type_label
-from .policy import answer_labels
+from .models import BELIEF_NODE_TYPES, CANDIDATE_ROLE, node_render_class, node_role, node_type_label
+from .policy import answer_labels, candidate_goal_targets
 from .visual_factors import VisualFactor, compact_factor_label, select_visual_factors
 
 # Render class -> (fill, stroke). Both renderers paint from this one table. Gruvbox:
@@ -32,12 +32,12 @@ NODE_COLORS = {
     "factor": ("#e7e0c3", "#7c6f64"),
 }
 
-# (group id, title, node types). Mermaid draws each as a subgraph box.
+# (group id, title, node roles). Mermaid draws each as a subgraph box.
 GRAPH_GROUPS = (
     ("cluster_goal", "Goal", {"goal"}),
     ("cluster_observations", "Observations", {"observation", "constraint"}),
     ("cluster_hypotheses", "Hypotheses", {"hypothesis", "test"}),
-    ("cluster_candidates", "Candidates", {"candidate_solution"}),
+    ("cluster_candidates", "Candidates", {CANDIDATE_ROLE}),
 )
 OTHER_GROUP = ("cluster_other", "Other")
 
@@ -72,8 +72,8 @@ def edge_type(edge: dict[str, Any]) -> str:
     return str(edge.get("type") or edge.get("label") or "premise_of")
 
 
-def _group_of(node_type: str) -> str:
-    return next((group_id for group_id, _, types in GRAPH_GROUPS if node_type in types), OTHER_GROUP[0])
+def _group_of(role: str) -> str:
+    return next((group_id for group_id, _, roles in GRAPH_GROUPS if role in roles), OTHER_GROUP[0])
 
 
 @dataclass(frozen=True)
@@ -82,6 +82,8 @@ class ViewNode:
     render_id: str
     anchor: str
     node_type: str
+    # The node's type, or `candidate` when it answers a goal.
+    role: str
     render_class: str
     group: str
     label: str
@@ -152,6 +154,7 @@ def graph_view(state: dict[str, Any], identities: RenderIdentityMap | None = Non
     truth_costs = node_effective_truth_costs(state)
     answers = answer_labels(state)
     challenges = strongest_challenges(state)
+    candidate_ids = candidate_goal_targets(state).keys()
 
     nodes: list[ViewNode] = []
     for node in state.get("nodes", []):
@@ -162,14 +165,16 @@ def graph_view(state: dict[str, Any], identities: RenderIdentityMap | None = Non
         if render_id is None:
             continue
         node_type = str(node.get("type", ""))
+        role = node_role(node, candidate_ids)
         nodes.append(
             ViewNode(
                 raw_id=raw_id,
                 render_id=render_id,
                 anchor=identities.node_anchor(raw_id),
                 node_type=node_type,
-                render_class=node_render_class(node),
-                group=_group_of(node_type),
+                role=role,
+                render_class=node_render_class(node, candidate_ids),
+                group=_group_of(role),
                 label=compact_node_label(node, truth_costs[raw_id], answers.get(raw_id, ""), challenges[raw_id].text() if raw_id in challenges else ""),
                 belief=probability_from_cost(truth_costs[raw_id]) if node_type in BELIEF_NODE_TYPES else None,
                 answer_label=answers.get(raw_id, ""),

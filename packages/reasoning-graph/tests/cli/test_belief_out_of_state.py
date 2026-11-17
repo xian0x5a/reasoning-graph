@@ -31,7 +31,7 @@ def edge(source: str, target: str, edge_type: str, **extra: int) -> dict:
 
 
 def candidate(node_id: str, text: str) -> dict:
-    return {"id": node_id, "type": "candidate_solution", "text": text, "answer_kind": "exact_answer"}
+    return {"id": node_id, "type": "hypothesis", "text": text}
 
 
 # CS1 rests on a probe result and ranks first. CS2 rests on a weaker clue. CS3 rests on nothing.
@@ -48,9 +48,9 @@ STORY_PATCH = {
         edge("T1", "O1", "yields"),
         edge("O1", "CS1", "premise_of"),
         edge("O2", "CS2", "supports"),
-        edge("CS1", "G1", "answers"),
-        edge("CS2", "G1", "answers"),
-        edge("CS3", "G1", "answers"),
+        edge("CS1", "G1", "answers", answer_kind="exact_answer"),
+        edge("CS2", "G1", "answers", answer_kind="exact_answer"),
+        edge("CS3", "G1", "answers", answer_kind="exact_answer"),
     ],
 }
 NUMBER = re.compile(r"\d\.\d")
@@ -136,7 +136,7 @@ class BeliefOutOfStateTests(StateCase):
 class AnswerNamesACandidateTests(StateCase):
     def test_answer_may_name_a_grounded_candidate_that_is_not_top_ranked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = self.start(tmp_dir, answer="The butler did it.")
+            state_path = self.start(tmp_dir, answer="CS2")
 
             self.ok(self.audit(state_path))
 

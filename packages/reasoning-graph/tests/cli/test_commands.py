@@ -74,12 +74,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
         patch_schema = json.loads(PATCH_SCHEMA.read_text(encoding="utf-8"))
 
         self.assertEqual(state_schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
+        self.assertNotIn("candidate_solution", state_schema["$defs"]["node"]["properties"]["type"]["enum"])
         self.assertIn("answers", state_schema["$defs"]["edge"]["properties"]["type"]["enum"])
         self.assertNotIn("event", state_schema["$defs"])
         self.assertNotIn("stop_policy", state_schema["properties"])
         self.assertIn("answer", patch_schema["properties"])
-        self.assertIn("exact_answer", state_schema["$defs"]["node"]["properties"]["answer_kind"]["enum"])
+        self.assertIn("exact_answer", state_schema["$defs"]["edge"]["properties"]["answer_kind"]["enum"])
         self.assertNotIn("reason", patch_schema["properties"])
         self.assertNotIn("events", state_schema["properties"])
         serialized_schemas = json.dumps({"state": state_schema, "patch": patch_schema})
@@ -329,12 +329,12 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
                     {"id": "G1", "type": "goal", "text": "Pick cause"},
                     {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
                     {"id": "E1", "type": "observation", "text": "Observed mismatch", "score": 5},
-                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"id": "CS1", "type": "hypothesis", "text": "Candidate"},
                 ],
                 "edges": [
                     {"from": "E1", "to": "A1", "type": "contradicts"},
                     {"from": "A1", "to": "CS1", "type": "premise_of"},
-                    {"from": "CS1", "to": "G1", "type": "answers"},
+                    {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
                 ],
             }
             legacy_state = {
@@ -357,27 +357,27 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
             self.assertIn("invalid type 'fact'", invalid.stderr)
             self.assertIn("invalid type 'contradiction'", invalid.stderr)
 
-    def test_audit_requires_answers_edge_for_candidate_goal_link(self) -> None:
+    def test_audit_requires_answers_edge_for_hypothesis_goal_link(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             invalid_path = Path(tmp_dir) / "invalid-candidate-goal-link.json"
             invalid_state = {
                 "nodes": [
                     {"id": "G1", "type": "goal", "text": "Pick cause"},
-                    {"id": "A1", "type": "hypothesis", "text": "Likely cause", "score": 3},
-                    {"id": "CS1", "type": "candidate_solution", "text": "Candidate", "answer_kind": "exact_answer"},
+                    {"id": "E1", "type": "observation", "text": "Observed mismatch", "score": 5},
+                    {"id": "CS1", "type": "hypothesis", "text": "Candidate"},
                 ],
                 "edges": [
-                    {"from": "A1", "to": "CS1", "type": "premise_of"},
+                    {"from": "E1", "to": "CS1", "type": "premise_of"},
                     {"from": "CS1", "to": "G1", "type": "premise_of"},
-                    {"from": "A1", "to": "G1", "type": "answers"},
+                    {"from": "E1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
                 ],
             }
             invalid_path.write_text(json.dumps(invalid_state), encoding="utf-8")
 
             invalid = self.run_cli("audit", str(invalid_path))
             self.assertNotEqual(invalid.returncode, 0, invalid.stdout)
-            self.assertIn("candidate_solution -> goal must use answers", invalid.stderr)
-            self.assertIn("answers edge must connect candidate_solution -> goal", invalid.stderr)
+            self.assertIn("answers is the only edge from a hypothesis to a goal", invalid.stderr)
+            self.assertIn("answers must connect hypothesis -> goal", invalid.stderr)
 
     def test_audit_accepts_prompts_edge_for_follow_up_work(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -577,13 +577,13 @@ class ReasoningGraphCliBasicTests(unittest.TestCase):
     def test_offline_html_uses_collision_safe_render_identities(self) -> None:
         state = {
             "nodes": [
-                {"id": "A.B", "type": "candidate_solution", "text": "hyphen", "answer_kind": "exact_answer", "score": 3},
-                {"id": "A_B", "type": "candidate_solution", "text": "underscore", "answer_kind": "exact_answer", "score": 2},
+                {"id": "A.B", "type": "hypothesis", "text": "hyphen", "score": 3},
+                {"id": "A_B", "type": "hypothesis", "text": "underscore", "score": 2},
                 {"id": "A B", "type": "goal", "text": "space"},
             ],
             "edges": [
-                {"from": "A.B", "to": "A B", "type": "answers"},
-                {"from": "A_B", "to": "A B", "type": "answers"},
+                {"from": "A.B", "to": "A B", "type": "answers", "answer_kind": "exact_answer"},
+                {"from": "A_B", "to": "A B", "type": "answers", "answer_kind": "exact_answer"},
             ],
         }
         with tempfile.TemporaryDirectory() as tmp_dir:

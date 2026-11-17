@@ -13,7 +13,7 @@ from reasoning_graph.schema_validation import load_schema
 from reasoning_graph.validation import validate_state
 
 
-EXPECTED_NODE_TYPES = {"goal", "observation", "constraint", "hypothesis", "test", "candidate_solution"}
+EXPECTED_NODE_TYPES = {"goal", "observation", "constraint", "hypothesis", "test"}
 
 
 def schema_node_types() -> set[str]:
@@ -31,7 +31,7 @@ class NodeVocabularyTests(unittest.TestCase):
 
     def test_hypothesis_to_goal_edge_is_rejected(self) -> None:
         # Both hypothesis shapes are covered: one carrying its own score, one whose belief
-        # comes from its premises. Neither may reach a goal except through a candidate.
+        # comes from its premises. Neither may reach a goal except through an answers edge.
         score_backed = {
             "nodes": [
                 {"id": "G1", "type": "goal", "text": "Find answer"},
@@ -54,8 +54,7 @@ class NodeVocabularyTests(unittest.TestCase):
         for label, state in {"score-backed": score_backed, "premise-backed": premise_backed}.items():
             with self.subTest(hypothesis=label):
                 errors = validate_state(state).errors
-                self.assertTrue(any("connects hypothesis H1 directly to goal G1" in error for error in errors), errors)
-                self.assertTrue(any("route hypotheses through tests/candidate nodes" in error for error in errors), errors)
+                self.assertTrue(any("edge H1-G1" in error and "answers is the only edge from a hypothesis to a goal" in error for error in errors), errors)
 
 
 if __name__ == "__main__":

@@ -17,11 +17,11 @@ STATE = {
     "nodes": [
         {"id": "G1", "type": "goal", "text": "Who took the <key>?"},
         {"id": "O1", "type": "observation", "text": "The butler had the key", "source": "case.txt"},
-        {"id": "CS1", "type": "candidate_solution", "text": "The butler", "answer_kind": "exact_answer"},
+        {"id": "CS1", "type": "hypothesis", "text": "The butler"},
     ],
     "edges": [
         {"from": "O1", "to": "CS1", "type": "supports"},
-        {"from": "CS1", "to": "G1", "type": "answers"},
+        {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
     ],
 }
 
@@ -60,8 +60,8 @@ def test_a_summary_title_sits_above_the_question_only_when_one_is_given() -> Non
 def test_each_of_several_goals_is_named_in_the_header() -> None:
     state = copy.deepcopy(STATE)
     state["nodes"].append({"id": "G2", "type": "goal", "text": "When was the door opened?"})
-    state["nodes"].append({"id": "CS2", "type": "candidate_solution", "text": "At nine", "answer_kind": "exact_answer"})
-    state["edges"] += [{"from": "O1", "to": "CS2", "type": "supports"}, {"from": "CS2", "to": "G2", "type": "answers"}]
+    state["nodes"].append({"id": "CS2", "type": "hypothesis", "text": "At nine"})
+    state["edges"] += [{"from": "O1", "to": "CS2", "type": "supports"}, {"from": "CS2", "to": "G2", "type": "answers", "answer_kind": "exact_answer"}]
     state["summary"]["answer"] = "G1: CS1; G2: CS2"
 
     top = text_of(header(html_document(state, to_mermaid(state))))

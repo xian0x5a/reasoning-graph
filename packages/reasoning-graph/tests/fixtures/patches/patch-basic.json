@@ -2,9 +2,8 @@
   "nodes": [
     {
       "id": "CS2",
-      "type": "candidate_solution",
-      "text": "Alternative exact answer",
-      "answer_kind": "exact_answer"
+      "type": "hypothesis",
+      "text": "Alternative exact answer"
     }
   ],
   "edges": [
@@ -16,7 +15,8 @@
     {
       "from": "CS2",
       "to": "G1",
-      "type": "answers"
+      "type": "answers",
+      "answer_kind": "exact_answer"
     }
   ]
 }

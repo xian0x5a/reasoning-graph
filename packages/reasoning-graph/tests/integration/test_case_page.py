@@ -20,16 +20,16 @@ STATE = {
         {"id": "O2", "type": "observation", "text": "The gardener left at nine", "source": "case.txt"},
         {"id": "H1", "type": "hypothesis", "text": "The butler could open the door"},
         {"id": "T1", "type": "test", "text": "Check the lock", "not_run": "no access"},
-        {"id": "CS1", "type": "candidate_solution", "text": "The butler"},
-        {"id": "CS2", "type": "candidate_solution", "text": "The gardener"},
+        {"id": "CS1", "type": "hypothesis", "text": "The butler"},
+        {"id": "CS2", "type": "hypothesis", "text": "The gardener"},
     ],
     "edges": [
         {"from": "O1", "to": "H1", "type": "supports", "score": 4},
         {"from": "H1", "to": "CS1", "type": "premise_of"},
         {"from": "H1", "to": "T1", "type": "prompts"},
         {"from": "O2", "to": "CS2", "type": "contradicts", "score": 5},
-        {"from": "CS1", "to": "G1", "type": "answers"},
-        {"from": "CS2", "to": "G1", "type": "answers"},
+        {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
+        {"from": "CS2", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
     ],
 }
 

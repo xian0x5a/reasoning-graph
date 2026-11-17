@@ -36,7 +36,7 @@ def report_state(*, support=False):
             {"id": "E1", "type": "observation", "text": "Observed premise", "score": 4},
             {"id": "E2", "type": "observation", "text": "Independent signal", "score": 5},
             {"id": "D1", "type": "hypothesis", "text": "Conclusion"},
-            {"id": "CS1", "type": "candidate_solution", "text": "The answer is 42", "answer_kind": "exact_answer"},
+            {"id": "CS1", "type": "hypothesis", "text": "The answer is 42"},
             {"id": "G1", "type": "goal", "text": "Find the answer"},
             {"id": "C1", "type": "constraint", "text": "Use the observed data"},
             {"id": "T1", "type": "test", "text": "Check the premise"},
@@ -46,7 +46,7 @@ def report_state(*, support=False):
             {"from": "E1", "to": "D1", "type": "premise_of"},
             {"from": "E3", "to": "D1", "type": "premise_of"},
             {"from": "D1", "to": "CS1", "type": "premise_of"},
-            {"from": "CS1", "to": "G1", "type": "answers"},
+            {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
         ],
     }
     if support:
@@ -148,14 +148,14 @@ def ranked_state(answer):
             {"id": "G1", "type": "goal", "text": "Who did it?"},
             {"id": "O1", "type": "observation", "text": "The gardener signed in at nine"},
             {"id": "O2", "type": "observation", "text": "The butler had the key"},
-            {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
-            {"id": "CS2", "type": "candidate_solution", "text": "The butler", "answer_kind": "exact_answer"},
+            {"id": "CS1", "type": "hypothesis", "text": "The gardener"},
+            {"id": "CS2", "type": "hypothesis", "text": "The butler"},
         ],
         "edges": [
             {"from": "O1", "to": "CS1", "type": "premise_of"},
             {"from": "O2", "to": "CS2", "type": "supports"},
-            {"from": "CS1", "to": "G1", "type": "answers"},
-            {"from": "CS2", "to": "G1", "type": "answers"},
+            {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
+            {"from": "CS2", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
         ],
     }
     assert validate_state(state).ok
@@ -164,14 +164,14 @@ def ranked_state(answer):
 
 @pytest.mark.parametrize("render_mode", ["mermaid", "offline"])
 def test_html_marks_an_answer_that_is_not_the_top_ranked_candidate(render_mode):
-    state = ranked_state("The butler did it.")
+    state = ranked_state("CS2")
     document = html_document(state, to_mermaid(state), render_mode=render_mode)
     assert 'class="answer-rank-note"' in document
     assert "Answer <code>CS2</code> is not the top-ranked candidate for <code>G1</code>" in document
     assert "<code>CS1</code> ranks higher" in document
 
 
-@pytest.mark.parametrize("answer", ["The gardener did it.", ""])
+@pytest.mark.parametrize("answer", ["CS1", ""])
 def test_html_leaves_a_top_ranked_or_unnamed_answer_unmarked(answer):
     state = ranked_state(answer)
     document = html_document(state, to_mermaid(state))
@@ -211,7 +211,7 @@ def test_graph_labels_shorten_the_claim_and_keep_its_characters(renderer):
 
 @pytest.mark.parametrize("renderer", RENDERERS)
 def test_graph_labels_the_answer_and_no_rival(renderer):
-    labels = graph_labels(ranked_state("The butler did it."), renderer)
+    labels = graph_labels(ranked_state("CS2"), renderer)
     assert labels["CS2"].split("\n")[:2] == ["CS2 · ANSWER", "The butler"]
     assert labels["CS1"].split("\n")[:2] == ["CS1", "The gardener"]
 
@@ -227,11 +227,11 @@ def two_goal_state():
     state["nodes"] += [
         {"id": "G2", "type": "goal", "text": "With what?"},
         {"id": "O3", "type": "observation", "text": "The rope was cut"},
-        {"id": "CS3", "type": "candidate_solution", "text": "The shears", "answer_kind": "exact_answer"},
+        {"id": "CS3", "type": "hypothesis", "text": "The shears"},
     ]
     state["edges"] += [
         {"from": "O3", "to": "CS3", "type": "premise_of"},
-        {"from": "CS3", "to": "G2", "type": "answers"},
+        {"from": "CS3", "to": "G2", "type": "answers", "answer_kind": "exact_answer"},
     ]
     assert validate_state(state).ok
     return state

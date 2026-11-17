@@ -16,8 +16,8 @@ from reasoning_graph.page import html_document
 from reasoning_graph.validation import validate_state
 
 
-def edge(source: str, target: str, edge_type: str = "supports") -> dict:
-    return {"from": source, "to": target, "type": edge_type}
+def edge(source: str, target: str, edge_type: str = "supports", **extra: object) -> dict:
+    return {"from": source, "to": target, "type": edge_type, **extra}
 
 
 def state_with(supports: dict[str, int], members: list[str] | None = None, **set_extra) -> dict:
@@ -26,9 +26,9 @@ def state_with(supports: dict[str, int], members: list[str] | None = None, **set
         {"id": "G1", "type": "goal", "text": "Who did it?"},
         {"id": "H1", "type": "hypothesis", "text": "First"},
         {"id": "H2", "type": "hypothesis", "text": "Second"},
-        {"id": "CS1", "type": "candidate_solution", "text": "Third", "answer_kind": "exact_answer"},
+        {"id": "CS1", "type": "hypothesis", "text": "Third"},
     ]
-    edges = [edge("CS1", "G1", "answers")]
+    edges = [edge("CS1", "G1", "answers", answer_kind="exact_answer")]
     for claim, count in supports.items():
         for index in range(count):
             node_id = f"O{claim}{index}"

@@ -14,7 +14,7 @@ from reasoning_graph.policy import ranked_candidates
 from reasoning_graph.validation import validate_state
 
 
-CLAIM_DEFAULTS = {"observation": 0.9, "hypothesis": 0.5, "candidate_solution": 0.5}
+CLAIM_DEFAULTS = {"observation": 0.9, "hypothesis": 0.5}
 CLAIM_TABLE = {1: 0.1, 2: 0.3, 3: 0.5, 4: 0.7, 5: 0.9}
 RATIO_TABLE = {1: 1.2, 2: 1.5, 3: 2, 4: 3, 5: 5}
 
@@ -24,14 +24,14 @@ def edge(source, target, relation="premise_of", **extra):
             **extra}
 
 
-def claim_state(node_type="candidate_solution", **score):
+def claim_state(node_type="hypothesis", **score):
+    """N1 is a candidate when it is a hypothesis: only a hypothesis may answer a goal."""
     return {
         "nodes": [
             {"id": "G1", "type": "goal", "text": "Find the answer"},
-            {"id": "N1", "type": node_type, "text": "The answer is 42",
-             **({"answer_kind": "exact_answer"} if node_type == "candidate_solution" else {}), **score},
+            {"id": "N1", "type": node_type, "text": "The answer is 42", **score},
         ],
-        "edges": [edge("N1", "G1", "answers")] if node_type == "candidate_solution" else [],
+        "edges": [edge("N1", "G1", "answers", answer_kind="exact_answer")] if node_type == "hypothesis" else [],
     }
 
 
@@ -56,7 +56,7 @@ def test_claim_score_maps_through_one_table(node_type, score, expected):
     assert belief(state) == pytest.approx(expected)
 
 
-# Observations are recorded as seen, so only a hypothesis or candidate takes premises.
+# Observations are recorded as seen, so only a hypothesis takes premises.
 @pytest.mark.parametrize("node_type", sorted(set(CLAIM_DEFAULTS) - {"observation"}))
 def test_premise_backed_claim_adds_no_default_factor(node_type):
     # A default of 0.5 on every derived claim would halve belief at each step of a chain.
@@ -107,10 +107,9 @@ def test_candidate_ranking_uses_inherited_belief():
     state = claim_state()
     state["nodes"].extend([
         {"id": "O1", "type": "observation", "text": "Observed clue"},
-        {"id": "CS2", "type": "candidate_solution", "text": "The answer is 43",
-         "answer_kind": "exact_answer", "score": 4},
+        {"id": "CS2", "type": "hypothesis", "text": "The answer is 43", "score": 4},
     ])
-    state["edges"].extend([edge("O1", "N1"), edge("CS2", "G1", "answers")])
+    state["edges"].extend([edge("O1", "N1"), edge("CS2", "G1", "answers", answer_kind="exact_answer")])
     assert validate_state(state).ok
     ranked = ranked_candidates(state)
     assert [(item["id"], item["belief"]) for item in ranked] == [("N1", 0.9), ("CS2", 0.7)]

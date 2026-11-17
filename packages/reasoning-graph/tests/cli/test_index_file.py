@@ -38,7 +38,7 @@ STORY_PATCH = {
         {"id": "T2", "type": "test", "text": "Ask the cook"},
         {"id": "T3", "type": "test", "text": "Compare dental records", "not_run": "The case file has none"},
         {"id": "C1", "type": "constraint", "text": "Name one person", "source": "user prompt"},
-        {"id": "CS1", "type": "candidate_solution", "text": "The gardener", "answer_kind": "exact_answer"},
+        {"id": "CS1", "type": "hypothesis", "text": "The gardener"},
     ],
     "edges": [
         edge("T1", "O3", "yields"),
@@ -47,7 +47,7 @@ STORY_PATCH = {
         edge("O3", "H1", "supports"),
         edge("O1", "H2", "contradicts", score=5, note="Nine is before the theft"),
         {"from": "H1", "to": "CS1", "type": "premise_of"},
-        edge("CS1", "G1", "answers"),
+        edge("CS1", "G1", "answers", answer_kind="exact_answer"),
     ],
     "factors": [{"id": "F1", "edges": ["O2-H1", "O3-H1"], "score": 4, "note": "Both place him on site"}],
 }
@@ -118,7 +118,8 @@ class IndexFileTests(unittest.TestCase):
             self.assertIn("- O1 observation: The butler left at nine [problem.md]", index)
             self.assertIn("- O2 observation (score 3): The gardener says he stayed late [problem.md]", index)
             self.assertIn("- C1 constraint: Name one person [user prompt]", index)
-            self.assertIn("- CS1 candidate_solution: The gardener", index)
+            self.assertIn("- CS1 hypothesis: The gardener", index)
+            self.assertIn("- CS1 -answers(exact_answer)-> G1", index)
             self.assertIn("- O1 -contradicts(5)-> H2 | note: Nine is before the theft", index)
             self.assertIn("- O2 -supports-> H1", index)
             self.assertIn("- H1 -premise_of-> CS1\n", index)

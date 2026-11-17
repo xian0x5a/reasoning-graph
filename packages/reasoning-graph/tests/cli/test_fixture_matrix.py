@@ -19,8 +19,8 @@ VALID_FIXTURES = sorted((FIXTURES / "valid").glob("*.json"))
 MALFORMED_FIXTURES = {
     "removed-likelihood-ratio.json": "likelihood_ratio was removed; use score",
     "bad-node-type.json": "invalid type 'fact'",
-    "candidate-missing-answers.json": "must connect to a goal with an answers edge",
-    "direct-hypothesis-goal.json": "connects hypothesis H1 directly to goal G1",
+    "removed-candidate-solution.json": "candidate_solution was removed; a candidate is a hypothesis with an answers edge to its goal",
+    "direct-hypothesis-goal.json": "answers is the only edge from a hypothesis to a goal",
     "removed-stop-policy.json": "stop_policy was removed",
     "overlapping-factors.json": "edge E2-A1 is already grouped by F_SUPPORTS_A1",
     "hypothesis-test-result.json": "yields must connect a test to the observation of its result; T1 -> H2",

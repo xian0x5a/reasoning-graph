@@ -7,6 +7,7 @@ from typing import Any
 
 from .graph_view import ViewEdge, graph_view
 from .identities import RenderIdentityMap, html_anchor
+from .models import CANDIDATE_ROLE
 
 EDGE_LABEL_FONT_SIZE = 12
 # A generous glyph width, as a share of the font size, to reserve room for a label.
@@ -26,16 +27,15 @@ def _spacing_metrics(spacing: str) -> dict[str, int]:
     return presets.get(spacing, presets["default"])
 
 
-def _node_rank(node: dict[str, Any]) -> int:
-    node_type = str(node.get("type") or "")
+def _node_rank(role: str) -> int:
     return {
         "observation": 0,
         "constraint": 0,
         "hypothesis": 1,
         "test": 2,
-        "candidate_solution": 3,
+        CANDIDATE_ROLE: 3,
         "goal": 4,
-    }.get(node_type, 2)
+    }.get(role, 2)
 
 
 def _label_tspans(label: str, x: int, y: int) -> str:
@@ -99,7 +99,7 @@ def offline_graph_svg(
     # equivalent states, so use them first and raw IDs as a deterministic tie-breaker.
     nodes = sorted(view.nodes, key=lambda node: (node.render_id, node.raw_id))
     factors = sorted(view.factors, key=lambda factor: (factor.render_id, factor.raw_id))
-    node_ranks = {node.raw_id: _node_rank(node.record) for node in nodes}
+    node_ranks = {node.raw_id: _node_rank(node.role) for node in nodes}
     ranks: dict[int, list[tuple[str, str]]] = {}
     for node in nodes:
         ranks.setdefault(node_ranks[node.raw_id], []).append(("node", node.raw_id))

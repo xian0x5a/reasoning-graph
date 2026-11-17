@@ -25,7 +25,7 @@ from reasoning_graph.validation import validate_state
 REMOVED_NODE_FIELDS = ("prior", "confidence", "probability", "posterior")
 REMOVED_EDGE_FIELDS = {"likelihood": {"if_target_true": 0.8, "if_target_false": 0.2}, "likelihood_ratio": 2}
 
-CLAIM_TYPES = ("candidate_solution", "hypothesis", "observation")
+CLAIM_TYPES = ("hypothesis", "observation")
 SCORE_FREE_TYPES = ("goal", "constraint", "test")
 EVIDENCE_EDGE_TYPES = ("contradicts", "supports")
 INVALID_SCORES = [0, 6, -1, 2.5, True, "3", None]
@@ -33,8 +33,6 @@ INVALID_SCORES = [0, 6, -1, 2.5, True, "3", None]
 
 def build_node(node_type: str, **extra: object) -> dict:
     node: dict = {"id": "N1", "type": node_type, "text": "claim"}
-    if node_type == "candidate_solution":
-        node["answer_kind"] = "exact_answer"
     node.update(extra)
     return node
 
@@ -44,7 +42,7 @@ def state_with(node_type: str, **extra: object) -> dict:
 
 
 def score_errors(state: dict) -> list[str]:
-    # A lone candidate fails validation for lacking an answers edge; only score errors matter here.
+    # Only score errors matter here.
     return [error for error in validate_state(state).errors if "score" in error]
 
 

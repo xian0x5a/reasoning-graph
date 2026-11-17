@@ -1,4 +1,4 @@
-"""Candidate answer_kind and patch field contracts."""
+"""answers-edge answer_kind and patch field contracts."""
 
 import json
 import subprocess
@@ -27,11 +27,11 @@ def base_state() -> dict:
             {"id": "G1", "type": "goal", "text": "Find the exact answer"},
             {"id": "A1", "type": "hypothesis", "text": "Likely route", "score": 3},
             {"id": "A2", "type": "hypothesis", "text": "Other route", "score": 2},
-            {"id": "CS1", "type": "candidate_solution", "text": "Answer one", "answer_kind": "exact_answer", "score": 3},
+            {"id": "CS1", "type": "hypothesis", "text": "Answer one", "score": 3},
         ],
         "edges": [
             {"from": "A1", "to": "CS1", "type": "premise_of"},
-            {"from": "CS1", "to": "G1", "type": "answers"},
+            {"from": "CS1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"},
         ],
     }
 
@@ -53,15 +53,15 @@ class ContractAlignmentTests(unittest.TestCase):
 
     # --- answer_kind ---
 
-    def test_candidate_without_answer_kind_is_rejected(self) -> None:
+    def test_answers_edge_without_answer_kind_is_rejected(self) -> None:
         state = base_state()
-        del state["nodes"][3]["answer_kind"]
+        del state["edges"][1]["answer_kind"]
         result = self.validate(state)
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("answer_kind", result.stderr)
 
         patched = self.record({
-            "nodes": [{"id": "CS2", "type": "candidate_solution", "text": "Answer two", "score": 2}],
+            "nodes": [{"id": "CS2", "type": "hypothesis", "text": "Answer two", "score": 2}],
             "edges": [{"from": "CS2", "to": "G1", "type": "answers"}],
         })
         self.assertEqual(patched.returncode, 1, patched.stdout)
