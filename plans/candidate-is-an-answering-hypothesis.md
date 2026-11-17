@@ -36,7 +36,7 @@ With candidacy as an edge, a claim becomes an answer by gaining an `answers` edg
 
 ## Progress
 
-- [ ] 1 Probe gate
+- [x] 1 Probe gate: passed. `answers_probe.py` under `~/.agents/artifacts/outputs/reasoning-graph/2026-11-16/candidate-as-hypothesis/`, 4 samples x 14 items, 46 judged patches per variant after retrying safeguard refusals (10 per variant still refused). Same-claim pairs: 7723f1b 1, 3d538a0 2, all "Ian Fairbank" beside "Mr. Fairbank" in one puzzle; no hypothesis restating an answer in either. Misplaced `answers` edges 0 and 0; bare labels 0 and 0. Under 7723f1b no `candidate_solution` node and `answer_kind` on all 188 `answers` edges. Non-answer claims per patch 1.6 -> 0.7.
 - [ ] 2 Package
 - [ ] 3 Docs
 - [ ] 4 Tests
@@ -51,4 +51,5 @@ With candidacy as an edge, a claim becomes an answer by gaining an `answers` edg
 
 ## Surprises
 
-(none yet)
+- 10 of 112 first patches leave out the goal node, taking it as made by `init`, and point `answers` edges at `G1` anyway. The probe judge now shows such a goal as implied.
+- Under the new text the agent writes fewer non-answer hypotheses in its first patch (1.6 -> 0.7): observations link straight to the rival answers. Not a defect by itself; watch for lost step hypotheses in full runs.
