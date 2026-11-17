@@ -9,7 +9,7 @@ State shape, the index file, commands, and audit checks. The workflow and the re
 ```bash
 reasoning-graph init --goal "Diagnose outage" -o state.json   # creates goal G1 and says so
 reasoning-graph record state.json --patch - <<'JSON'   # apply a patch; refreshes state.html and state.index.md
-{"nodes": [...], "edges": [...], "answer": "CS1"}
+{"nodes": [...], "edges": [...], "answer": "H2"}
 JSON
 reasoning-graph refresh state.json                 # after a hand edit: validate, recheck quotes, rewrite the views
 reasoning-graph audit state.json                   # read-only: graph, quotes, and the claimed answer
@@ -24,18 +24,18 @@ Use the installed `reasoning-graph` CLI. In a repository checkout, developers ma
 
 ```json
 {
-  "summary": {"answer": "CS1"},
+  "summary": {"answer": "H2"},
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Solve the problem"},
     {"id": "O1", "type": "observation", "text": "Observed failure", "source": "incident.log line 12", "quote": "request failed: token expired"},
     {"id": "C1", "type": "constraint", "text": "Must preserve API", "source": "user prompt"},
     {"id": "H1", "type": "hypothesis", "text": "Token clock skew", "note": "Check the NTP log before trusting this."},
-    {"id": "CS1", "type": "candidate_solution", "text": "Resync the token server clock", "answer_kind": "exact_answer"}
+    {"id": "H2", "type": "hypothesis", "text": "Resyncing the token server clock stops the failures"}
   ],
   "edges": [
     {"from": "O1", "to": "H1", "type": "supports", "note": "An expired token right after issue points to skew."},
-    {"from": "H1", "to": "CS1", "type": "premise_of"},
-    {"from": "CS1", "to": "G1", "type": "answers"}
+    {"from": "H1", "to": "H2", "type": "premise_of"},
+    {"from": "H2", "to": "G1", "type": "answers", "answer_kind": "exact_method"}
   ]
 }
 ```
@@ -64,27 +64,29 @@ An edge carries no id. It is identified by its ends, written `from-to`: the edge
 ```md
 # Reasoning graph index
 - G1 goal: Who did it?
-Answer: CS1
+Answer: H3
 
 ## Open
 - H2 hypothesis: The butler had a key to the safe
+- H4 hypothesis: The butler took it
 - T2 test (no result): Ask the cook
 - T3 test (not run: The case file has none): Compare dental records
 
 ## Nodes
 - O2 observation (score 3): The gardener says he stayed late [problem.md]
-- CS1 candidate_solution: The gardener
-- CS2 candidate_solution: The butler
+- H3 hypothesis: The gardener took it
 
 ## Edges
-- O1 -contradicts(5)-> CS2 | note: Nine is before the theft
-- H1 -premise_of-> CS1
+- O1 -contradicts(5)-> H4 | note: Nine is before the theft
+- H1 -premise_of-> H3
+- H3 -answers(exact_answer)-> G1
+- H4 -answers(exact_answer)-> G1
 
 ## Groups
 - F1 [O2-H1, O3-H1] score 4 | note: Both place him on site
 
 ## Exclusive sets
-- X1 [CS1, CS2] | note: Only one person took it
+- X1 [H3, H4] | note: Only one person took it
 ```
 
 - Goals come first, with the claimed answer.
@@ -119,14 +121,14 @@ A hand edit is checked, not logged. `refresh` validates the graph, rechecks ever
 | State | Checks | Status line | Exit code |
 | --- | --- | --- | --- |
 | `summary.answer` is empty | graph, quotes | `no answer claimed` | non-zero if one fails |
-| `summary.answer` is set | graph, quotes, answer checks | `answer CS1: checks pass`, `answer CS1: 1 check fails`, `answer CS1: 2 checks fail` | non-zero if one fails |
+| `summary.answer` is set | graph, quotes, answer checks | `answer H2: checks pass`, `answer H2: 1 check fails`, `answer H2: 2 checks fail` | non-zero if one fails |
 
 While no answer is claimed, `audit` lists what an answer would still need as `needs:` lines: unanswered goals and tests without a result. They do not fail the audit.
 
 Answer checks:
 
 - every accepted, non-optional goal is answered (`docs/schema/goals.md`)
-- `summary.answer` names exactly one candidate for each of those goals, by id as a whole word or by exact text. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
+- `summary.answer` names exactly one candidate for each of those goals, by id as a whole word. A goal's only candidate is not its answer until it is named, and naming more than one is rejected
 - the answer candidate is evidence-grounded and not ruled out, and every test has a result or `not_run` (`../SKILL.md`)
 
 The HTML view shows the same status line, computed when it renders.

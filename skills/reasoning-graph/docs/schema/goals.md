@@ -10,22 +10,21 @@ Use this page as the shape and example reference for goal/candidate schema. Usag
 {"id": "G1", "type": "goal", "text": "Recover the exact plaintext"}
 ```
 
-### Candidate solution
+### Candidate answer
+
+A candidate is a hypothesis whose text states the whole claim:
 
 ```json
-{
-  "id": "CS1",
-  "type": "candidate_solution",
-  "text": "Plaintext is ...",
-  "answer_kind": "exact_answer"
-}
+{"id": "H2", "type": "hypothesis", "text": "The plaintext is HELLO WORLD"}
 ```
 
-A candidate answers a goal through an `answers` edge:
+An `answers` edge to the goal it would settle makes it a candidate, and carries the `answer_kind`:
 
 ```json
-{"from": "CS1", "to": "G1", "type": "answers"}
+{"from": "H2", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}
 ```
+
+A hypothesis that settles two goals has an `answers` edge to each, each with its own kind.
 
 ## `answer_kind` values
 
@@ -74,7 +73,7 @@ Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. 
 }
 ```
 
-A goal is **answered** when it has an `answers` edge from a `candidate_solution` and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
+A goal is **answered** when a hypothesis has an `answers` edge to it and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
 
 ## Proof-shaped tasks
 
@@ -83,7 +82,7 @@ A goal is **answered** when it has an `answers` edge from a `candidate_solution`
 | theorem | `goal` |
 | axiom, given | `observation`, or `constraint` |
 | lemma, proposition, corollary, conjecture | `hypothesis` |
-| proof | `candidate_solution` with `answer_kind: "exact_method"` |
+| proof | `hypothesis` answering the theorem with `answer_kind: "exact_method"` |
 | remark | a `note` on the node it concerns, or the final response |
 
 ### Lemma-shaped steps
@@ -112,6 +111,8 @@ Once proved, a later `record` adds its premises to the same node and unsets any 
 }
 ```
 
+A lemma that turns out to settle a goal, such as a sub-goal, becomes a candidate the same way: a later patch adds its `answers` edge, and it stays one node.
+
 ## Examples
 
 ### Single exact-answer goal
@@ -120,10 +121,10 @@ Once proved, a later `record` adds its premises to the same node and unsets any 
 {
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Find the exact passcode"},
-    {"id": "CS1", "type": "candidate_solution", "text": "Passcode is 314159", "answer_kind": "exact_answer"}
+    {"id": "H1", "type": "hypothesis", "text": "The passcode is 314159"}
   ],
   "edges": [
-    {"from": "CS1", "to": "G1", "type": "answers"}
+    {"from": "H1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}
   ]
 }
 ```
@@ -137,10 +138,10 @@ Once proved, a later `record` adds its premises to the same node and unsets any 
   "nodes": [
     {"id": "G1", "type": "goal", "text": "Find a valid solution"},
     {"id": "G2", "type": "goal", "text": "Identify blocker proving no valid solution exists"},
-    {"id": "CS2", "type": "candidate_solution", "text": "No solution exists under the constraints", "answer_kind": "blocker"}
+    {"id": "H2", "type": "hypothesis", "text": "No solution exists under the constraints"}
   ],
   "edges": [
-    {"from": "CS2", "to": "G2", "type": "answers"}
+    {"from": "H2", "to": "G2", "type": "answers", "answer_kind": "blocker"}
   ]
 }
 ```
@@ -162,14 +163,11 @@ Once proved, a later `record` adds its premises to the same node and unsets any 
 
 ## Validation checklist
 
-- `candidate_solution -> goal` edges use `type: "answers"`.
-- `answers` edges connect only `candidate_solution -> goal`.
-- Each candidate connects to at least one goal with an `answers` edge.
-- Each candidate connects to an accepted goal when `goal_policy.accepted_goals` is present.
-- Candidate `answer_kind` is one of the listed values.
-- Concrete exact-answer goals accept only `exact_answer` or `exact_method` candidates.
-- `method_hypothesis`, `clue_path`, and `blocker` candidates target matching method, clue, or epistemic goals.
-- `hypothesis -> goal` edges are invalid; claims reach goals only through `candidate_solution --answers--> goal`.
+- `answers` edges connect only `hypothesis -> goal`, and are the only edges from a hypothesis to a goal.
+- Each `answers` edge carries an `answer_kind` from the listed values; no other edge, and no node, carries one.
+- Each candidate answers an accepted goal when `goal_policy.accepted_goals` is present.
+- Concrete exact-answer goals accept only `exact_answer` or `exact_method` edges.
+- `method_hypothesis`, `clue_path`, and `blocker` edges target matching method, clue, or epistemic goals.
 - `goal -> goal` edges use `requires`; goal requirement cycles are invalid.
 - `goal_policy.optional_goals` reference existing goals.
-- `constraint -> goal` with `requires` is invalid; use `goal -> constraint` or `candidate_solution -> constraint`.
+- `constraint -> goal` with `requires` is invalid; use `goal -> constraint` or `hypothesis -> constraint`.

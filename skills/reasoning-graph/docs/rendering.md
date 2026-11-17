@@ -59,7 +59,7 @@ Create an HTML artifact as a report, not a fixed template. Choose the layout tha
 - a full audit graph in a pan/zoom canvas when the graph is large or debugging transparency matters
 - click-to-details for graph nodes, ideally without forcing the user away from the canvas
 - the answer candidate labelled on its node; a path is highlighted only when the reader asks for it
-- candidate solutions connect to the goal with `answers`
+- a hypothesis with an `answers` edge to a goal is drawn as a candidate
 - contradicted/heavily penalized branches dimmed or red
 - next verification/action when available
 

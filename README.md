@@ -21,9 +21,8 @@ The graph does three jobs. It does not plan the work; the agent solves the probl
 **1. Memory.** The agent writes what each step produced into `state.json`:
 
 - `observation`: a fact, with its `source` and a verbatim `quote`
-- `hypothesis`: a claim not yet established
+- `hypothesis`: a claim not yet established; one with an `answers` edge to the goal is a candidate answer
 - `test`: a check that would settle a claim, then its result
-- `candidate_solution`: a possible answer to the goal
 
 Edges say how they relate: `supports`, `contradicts`, `rules_out`, `premise_of`, `yields`, `prompts`, `requires`, `answers`.
 
@@ -41,7 +40,7 @@ If the user rejects the answer, the agent records the rejection as evidence and 
 
 The page also draws the full graph. Focusing a candidate highlights the evidence it rests on:
 
-![The audit graph with the answer CS1 focused: its supporting observations, test, and hypothesis are highlighted, and the rival branches fade](docs/images/state-html-canvas.png)
+![The audit graph with the answer H2 focused: its supporting observations, test, and hypothesis are highlighted, and the rival branches fade](docs/images/state-html-canvas.png)
 
 ## Usage
 
