@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 ---
 
 # A candidate is a hypothesis that answers a goal
@@ -51,10 +51,10 @@ With candidacy as an edge, a claim becomes an answer by gaining an `answers` edg
 ## Progress
 
 - [x] 1 Probe gate: passed. `answers_probe.py` under `~/.agents/artifacts/outputs/reasoning-graph/2026-11-16/candidate-as-hypothesis/`, 4 samples x 14 items, 46 judged patches per variant after retrying safeguard refusals (10 per variant still refused). Same-claim pairs: 7723f1b 1, 3d538a0 2, all "Ian Fairbank" beside "Mr. Fairbank" in one puzzle; no hypothesis restating an answer in either. Misplaced `answers` edges 0 and 0; bare labels 0 and 0. Under 7723f1b no `candidate_solution` node and `answer_kind` on all 188 `answers` edges. Non-answer claims per patch 1.6 -> 0.7.
-- [ ] 2 Package
-- [ ] 3 Docs
-- [ ] 4 Tests
-- [ ] 5 Review
+- [x] 2 Package (Opus): candidacy read from `answers` edges in `policy.candidate_goal_targets`; removed inputs fail naming the replacement; README example and screenshots rebuilt.
+- [x] 3 Docs: SKILL.md, goals, driver, cost-model, review, rendering, README, ADR 0019.
+- [x] 4 Tests (independent Sonnet agents): spec-first file `tests/cli/test_answering_hypothesis.py`, then the review's gaps.
+- [x] 5 Review (two Fable runs, no high-severity finding). Fixed: a named hypothesis without an `answers` edge was told to "name one by id"; a list `answer_kind` crashed; endpoint errors piled onto a removed type; the schema still said "or exact text"; stale `CS` ids in rendering.md. Kept: unproven candidates list under Open in the index. Filed pre-existing: #10, #11, #12.
 
 ## Decisions
 
