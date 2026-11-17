@@ -26,6 +26,20 @@ With candidacy as an edge, a claim becomes an answer by gaining an `answers` edg
 - ADR 0019 amends 0005 (the edge rule) and 0018 (merge target).
 - Old state files fail validation; regenerate them. Package version bumps.
 
+## Package design
+
+- **One definition of a candidate.** A candidate is a node with an `answers` edge to a goal; validation guarantees that node is a hypothesis. `policy.candidate_goal_targets` derives it from the edges, and every other reader (`ranked_candidates`, `goal_candidates`, viable candidates, answer checks, case rivals, page focus, graph clusters, Mermaid class, index) goes through it. No code tests `type == "candidate_solution"`.
+- **Removed inputs fail with the replacement named**, the way `leads_to` does: a `candidate_solution` node ("a candidate is a hypothesis with an answers edge to its goal; move answer_kind onto that edge") and an `answer_kind` on a node ("answer_kind belongs on the answers edge").
+- **`answers` edges.** Must be `hypothesis -> goal`; must carry `answer_kind` from `ANSWER_KINDS`; `answer_kind` on any other edge is an error. Each edge is checked against its goal with `goal_accepts_answer_kind` when the goal is accepted. Any other edge type from a hypothesis to a goal is an error that names `answers` as the only one. With `goal_policy.accepted_goals`, a hypothesis whose `answers` edges all go to unaccepted goals is an error (today's candidate rule, per hypothesis).
+- **Unresolved-outcome warning** applies to hypotheses with an `answers` edge to a goal that is not epistemic.
+- **Endpoints.** `premise_of` and `rules_out` targets, exclusive-set members: `hypothesis`. Scores: observation and hypothesis. Default claim scores drop the candidate entry.
+- **Naming the answer.** `summary.answer` names candidates by id as a whole word; the exact-text match is removed. A claim that names no candidate says to name one by id.
+- **Rendering keeps today's look for a candidate:** the `candidate` visual class, the Candidates cluster and filter, the focus dropdown, the rank note, now decided by the edge. A hypothesis that gains an `answers` edge moves into that role.
+- **Index:** a candidate is listed as a hypothesis; its `answers` edge line shows the `answer_kind`.
+- `update_edges` may set or unset `answer_kind`; validation catches an `answers` edge left without one.
+- Fixture and test node ids such as `CS1` may stay: ids are free strings.
+- Version 0.3.0 -> 0.4.0.
+
 ## Work Plan
 
 1. **Probe gate (text only).** Write the B-model SKILL.md, commit, and run a first-patch probe against the branch head under one variant-neutral judge: "answer nodes" are nodes with an `answers` edge to a goal, whatever their type, so both models are judged by one prompt in one run. The judge reports, per patch: pairs of nodes stating one claim (one of them an answer node), answer nodes whose truth would not settle the goal they answer, and answer nodes written as bare labels. Pass when, against the branch head in the same run, B has no more patches with a restated claim and no more than 2 extra patches with a misplaced `answers` edge. A fail stops the work and goes back to the user with the data.
