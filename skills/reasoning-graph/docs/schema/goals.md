@@ -52,7 +52,7 @@ blocker            insufficiency/blocker candidate for an explicit epistemic goa
 
 Fields:
 
-- `accepted_goals` — goal ids that candidates may validly answer. If absent, all goal nodes are accepted.
+- `accepted_goals` — goal ids that candidates may validly answer, together with every goal they `require`, transitively. If absent, all goal nodes are accepted.
 - `preferred_goals` — goal ids preferred in presentation or priority discussion; does not change validity.
 - `optional_goals` — goal ids a claimed answer may leave unanswered; also exempt as required sub-goals, and the answer need not name a candidate for them.
 - `goal_groups[].exclusive` — marks mutually incompatible outcomes in that group.
@@ -73,7 +73,7 @@ Chained or nested goals are plain `goal` nodes; there is no sub-goal node type. 
 }
 ```
 
-A goal is **answered** when a hypothesis has an `answers` edge to it and every goal it `requires` is answered (optional goals excepted). The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
+A goal is **answered** when a hypothesis has an `answers` edge to it and every goal it `requires` is answered (optional goals excepted). A goal an accepted goal requires is accepted too, so `accepted_goals` lists only the top goal, and a sub-goal added mid-run needs no policy change. The open leaf goal is therefore structural, not inferred from insertion order. `audit` fails a claimed answer while any accepted, non-optional goal is unanswered.
 
 ## Proof-shaped tasks
 

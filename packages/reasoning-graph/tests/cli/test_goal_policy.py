@@ -85,7 +85,7 @@ def test_answer_naming_candidates_for_parent_and_required_goal_passes_audit(tmp_
     result = run_cli("audit", str(state_path))
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.splitlines()[0].startswith("checks pass"), result.stdout
+    assert result.stdout.splitlines()[0] == "answer H1, H2: checks pass", result.stdout
 
 
 def test_acceptance_reaches_goals_required_transitively(tmp_path: Path) -> None:

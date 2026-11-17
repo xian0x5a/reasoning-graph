@@ -34,12 +34,25 @@ def goal_ids(state: dict[str, Any]) -> set[str]:
 
 
 def accepted_goal_ids(state: dict[str, Any]) -> set[str]:
+    """Goals a candidate may answer: every goal, or those goal_policy.accepted_goals lists and every goal they require.
+
+    A goal is answered only once the goals it requires are, so accepting it accepts them;
+    otherwise no candidate could answer them and the goal could never be answered.
+    """
     goals = goal_ids(state)
     policy = state.get("goal_policy") if isinstance(state.get("goal_policy"), dict) else {}
     configured = policy.get("accepted_goals")
-    if isinstance(configured, list) and configured:
-        return {str(goal_id) for goal_id in configured if str(goal_id) in goals}
-    return goals
+    if not (isinstance(configured, list) and configured):
+        return goals
+    requirements = goal_requirements(state)
+    accepted: set[str] = set()
+    pending = [str(goal_id) for goal_id in configured if str(goal_id) in goals]
+    while pending:
+        goal_id = pending.pop()
+        if goal_id not in accepted:
+            accepted.add(goal_id)
+            pending.extend(requirements.get(goal_id, ()))
+    return accepted
 
 
 def optional_goal_ids(state: dict[str, Any]) -> set[str]:

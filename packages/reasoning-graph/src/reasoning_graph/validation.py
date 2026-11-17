@@ -251,7 +251,7 @@ def graph_rule_result(state: dict[str, Any]) -> ValidationResult:
         if node.get("exhausted") is True and not str(node.get("exhaustion_reason") or "").strip():
             warnings.append(f"node {node_id or i} exhausted=true should include exhaustion_reason")
     nodes_by_id = {str(node.get("id")): node for node in nodes_raw if isinstance(node.get("id"), str)}
-    goal_ids = {node.get("id") for node in nodes_raw if node.get("type") == "goal"}
+    goals = goal_ids(state)
     seen_goal_groups: set[str] = set()
     for i, group in enumerate(state.get("goal_groups", [])):
         group_id = group.get("id")
@@ -266,7 +266,7 @@ def graph_rule_result(state: dict[str, Any]) -> ValidationResult:
             errors.append(f"goal_groups[{i}].goals must be a non-empty list")
         else:
             for j, goal_id in enumerate(group_goals):
-                if goal_id not in goal_ids:
+                if goal_id not in goals:
                     errors.append(f"goal_groups[{i}].goals[{j}] references missing goal {goal_id!r}")
     errors.extend(exclusive_set_errors(state.get("exclusive_sets", []), nodes_by_id))
     goal_policy = state.get("goal_policy", {})
@@ -277,10 +277,9 @@ def graph_rule_result(state: dict[str, Any]) -> ValidationResult:
                 errors.append(f"goal_policy.{key} must be a non-empty list when present")
                 continue
             for i, goal_id in enumerate(values):
-                if goal_id not in goal_ids:
+                if goal_id not in goals:
                     errors.append(f"goal_policy.{key}[{i}] references missing goal {goal_id!r}")
-    accepted_goal_values = goal_policy.get("accepted_goals")
-    accepted_goal_ids = {str(goal_id) for goal_id in accepted_goal_values} if isinstance(accepted_goal_values, list) else set(goal_ids)
+    accepted_goals = accepted_goal_ids(state)
     goals_by_id = {node.get("id"): node for node in nodes_raw if node.get("type") == "goal"}
     seen_edge_ids: set[str] = set()
     for i, edge in enumerate(edges_raw):
@@ -309,7 +308,7 @@ def graph_rule_result(state: dict[str, Any]) -> ValidationResult:
         if src_type in REMOVED_NODE_TYPES or dst_type in REMOVED_NODE_TYPES:
             continue
         if edge_type == "answers":
-            errors.extend(answers_edge_errors(edge, src_type, dst_type, goals_by_id, accepted_goal_ids))
+            errors.extend(answers_edge_errors(edge, src_type, dst_type, goals_by_id, accepted_goals))
         if edge_type == "yields" and "not_run" in nodes_by_id.get(src, {}):
             errors.append(f"edge {i} gives not_run test {src} a result observation {dst}; a check that ran is not not_run")
         # Only something seen may rule a claim out: an inference that vetoed another claim
@@ -354,8 +353,11 @@ def graph_rule_result(state: dict[str, Any]) -> ValidationResult:
                 f"hypothesis {candidate_id} answers a goal but looks like an unresolved outcome, not an answer; keep it as a blocker "
                 "without an answers edge and claim no answer, unless the goal is explicitly epistemic"
             )
-        if isinstance(accepted_goal_values, list) and not goal_targets & accepted_goal_ids:
-            errors.append(f"hypothesis {candidate_id} answers only goals outside goal_policy.accepted_goals; point its answers edge at an accepted goal")
+        if not goal_targets & accepted_goals:
+            errors.append(
+                f"hypothesis {candidate_id} answers only {', '.join(sorted(goal_targets))}, outside goal_policy.accepted_goals; "
+                "accept the goal by listing it there or by a requires edge from an accepted goal, or point the answers edge at an accepted goal"
+            )
 
     try:
         assert_acyclic_premise_dependencies({goal_id: sorted(subs) for goal_id, subs in goal_requirements(state).items()})
