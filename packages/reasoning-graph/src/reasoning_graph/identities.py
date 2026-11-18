@@ -66,7 +66,8 @@ def render_identity_map(state: dict[str, Any]) -> RenderIdentityMap:
     candidates: list[tuple[tuple[str, str], str]] = []
     node_raw_ids: list[str] = []
     for node in state.get("nodes", []) if isinstance(state.get("nodes", []), list) else []:
-        if not isinstance(node, dict) or not isinstance(node.get("id"), str):
+        # An empty id is no id, as for the belief code (`state.by_id`): a node drawn without it would have no belief.
+        if not isinstance(node, dict) or not isinstance(node.get("id"), str) or not node["id"]:
             continue
         raw_id = node["id"]
         node_raw_ids.append(raw_id)
