@@ -361,8 +361,8 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
 
 def cmd_mermaid(args: argparse.Namespace) -> int:
     state = load_state(args.state)
-    # mermaid draws a graph that breaks graph rules, so it skips full validation; a value of the
-    # wrong JSON type cannot be drawn and would raise a Python error, so it is reported instead.
+    # mermaid skips full validation so it can draw a graph that breaks graph rules. A value of the
+    # wrong JSON type is reported instead of drawn: on many of them the drawing code would raise.
     type_errors = state_type_errors(state)
     for error in type_errors:
         print(f"error: {error}", file=sys.stderr)
