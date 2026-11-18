@@ -108,14 +108,28 @@ class WrongShapeStateTests(unittest.TestCase):
         for fragment in PYTHON_ERROR_FRAGMENTS:
             self.assertNotIn(fragment, result.stderr)
 
-    def test_audit_and_refresh_report_wrong_shapes_as_validation_errors(self) -> None:
+    def test_audit_refresh_and_mermaid_report_wrong_shapes_as_validation_errors(self) -> None:
         for label, (document, location) in WRONG_SHAPE_DOCUMENTS.items():
-            for command in ("audit", "refresh"):
+            # solutions is a removed section rather than a value of the wrong type; mermaid never reads it.
+            commands = ("audit", "refresh") if label == "removed-solutions-entry-list" else ("audit", "refresh", "mermaid")
+            for command in commands:
                 with self.subTest(document=label, command=command), tempfile.TemporaryDirectory() as tmp_dir:
                     state_path = Path(tmp_dir) / "state.json"
                     state_path.write_text(json.dumps(document), encoding="utf-8")
 
                     self.assert_clean_validation_error(run_cli(command, str(state_path)), location)
+
+    def test_mermaid_still_draws_a_well_typed_state_that_breaks_graph_rules(self) -> None:
+        # mermaid deliberately skips full validation, so a dangling edge target must not stop the drawing.
+        document = state_document(edges=[{"from": "H1", "to": "MISSING", "type": "supports"}])
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state_path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = run_cli("mermaid", str(state_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("flowchart", result.stdout)
 
     def test_record_rejects_wrong_shapes_and_leaves_the_state_file_untouched(self) -> None:
         cases = {
