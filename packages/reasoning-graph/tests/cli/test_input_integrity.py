@@ -120,16 +120,23 @@ class WrongShapeStateTests(unittest.TestCase):
                     self.assert_clean_validation_error(run_cli(command, str(state_path)), location)
 
     def test_mermaid_still_draws_a_well_typed_state_that_breaks_graph_rules(self) -> None:
-        # mermaid deliberately skips full validation, so a dangling edge target must not stop the drawing.
-        document = state_document(edges=[{"from": "H1", "to": "MISSING", "type": "supports"}])
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            state_path = Path(tmp_dir) / "state.json"
-            state_path.write_text(json.dumps(document), encoding="utf-8")
+        # mermaid deliberately skips full validation (audit reports these), so none of them may stop the drawing.
+        good_node = {"id": "G1", "type": "goal", "text": "Who did it?"}
+        cases = {
+            "dangling-edge-target": state_document(edges=[{"from": "G1", "to": "MISSING", "type": "supports"}]),
+            "empty-node-id": state_document(nodes=[good_node, {"id": "", "type": "goal", "text": "empty id"}], edges=[]),
+            "missing-node-id": state_document(nodes=[good_node, {"type": "goal", "text": "no id"}], edges=[]),
+        }
+        for label, document in cases.items():
+            with self.subTest(document=label), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                state_path.write_text(json.dumps(document), encoding="utf-8")
 
-            result = run_cli("mermaid", str(state_path))
+                result = run_cli("mermaid", str(state_path))
 
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("flowchart", result.stdout)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("flowchart", result.stdout)
+                self.assertIn("Who did it?", result.stdout)
 
     def test_record_rejects_wrong_shapes_and_leaves_the_state_file_untouched(self) -> None:
         cases = {
