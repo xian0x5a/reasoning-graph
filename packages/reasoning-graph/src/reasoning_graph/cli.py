@@ -11,7 +11,7 @@ from .audit import audit_state
 from .index import index_document
 from .mermaid import to_mermaid
 from .page import html_document
-from .schema_validation import patch_schema_errors, standalone_schema
+from .schema_validation import patch_schema_errors, standalone_schema, state_type_errors
 from .source_links import SourceLink, source_links
 from .source_quotes import quote_mismatch_messages
 from .state import dump_state, edge_id, load_state, strict_json_dumps, write_output_text
@@ -361,6 +361,13 @@ def _remove_by_id(state: dict[str, Any], key: str, ids: list[str]) -> list[str]:
 
 def cmd_mermaid(args: argparse.Namespace) -> int:
     state = load_state(args.state)
+    # mermaid skips full validation so it can draw a graph that breaks graph rules. A value of the
+    # wrong JSON type is reported instead of drawn: on many of them the drawing code would raise.
+    type_errors = state_type_errors(state)
+    for error in type_errors:
+        print(f"error: {error}", file=sys.stderr)
+    if type_errors:
+        return 1
     write_output_text(to_mermaid(state), args.output)
     return 0
 
