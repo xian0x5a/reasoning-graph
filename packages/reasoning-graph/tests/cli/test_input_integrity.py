@@ -58,6 +58,121 @@ class MalformedStateInputTests(unittest.TestCase):
             self.assertNotIn("has no attribute", result.stderr)
 
 
+PYTHON_ERROR_FRAGMENTS = ("has no attribute", "unhashable", "not iterable", "object is not", "does not support", "Traceback")
+
+
+def state_document(**overrides: object) -> dict:
+    document: dict = {
+        "nodes": [{"id": "G1", "type": "goal", "text": "Who did it?"}, {"id": "H1", "type": "hypothesis", "text": "The gardener"}],
+        "edges": [{"from": "H1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}],
+    }
+    document.update(overrides)
+    return document
+
+
+def with_node(node: object) -> dict:
+    return state_document(nodes=[node])
+
+
+def with_edge(**fields: object) -> dict:
+    edge = {"from": "H1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"} | fields
+    return state_document(edges=[edge])
+
+
+def with_goal_policy(**policy: object) -> dict:
+    return state_document(goal_policy=policy)
+
+
+# label -> (state document, location the error should name)
+WRONG_SHAPE_DOCUMENTS = {
+    "non-object-node": ({"nodes": ["oops"], "edges": []}, "$.nodes[0]"),
+    "nodes-as-object": ({"nodes": {"a": 1}, "edges": []}, "$.nodes"),
+    "edges-null": (state_document(edges=None), "$.edges"),
+    "node-id-list": (with_node({"id": ["x"], "type": "goal", "text": "t"}), "$.nodes[0].id"),
+    "node-type-list": (with_node({"id": "G1", "type": ["goal"], "text": "t"}), "$.nodes[0].type"),
+    "edge-from-list": (with_edge(**{"from": ["H1"]}), "$.edges[0].from"),
+    "edge-to-list": (with_edge(to=["G1"]), "$.edges[0].to"),
+    "edge-type-list": (with_edge(type=["answers"]), "$.edges[0].type"),
+    "accepted-goal-list": (with_goal_policy(accepted_goals=[["G1"]]), "$.goal_policy.accepted_goals[0]"),
+    "optional-goal-list": (with_goal_policy(optional_goals=[["G1"]]), "$.goal_policy.optional_goals[0]"),
+    "goal-group-goal-list": (state_document(goal_groups=[{"id": "GG1", "goals": [["G1"]]}]), "$.goal_groups[0].goals[0]"),
+    "removed-solutions-entry-list": (state_document(solutions=[["S1"]]), "solutions"),
+}
+
+
+class WrongShapeStateTests(unittest.TestCase):
+    def assert_clean_validation_error(self, result: subprocess.CompletedProcess[str], location: str) -> None:
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("error:", result.stderr)
+        self.assertIn(location, result.stderr)
+        for fragment in PYTHON_ERROR_FRAGMENTS:
+            self.assertNotIn(fragment, result.stderr)
+
+    def test_audit_and_refresh_report_wrong_shapes_as_validation_errors(self) -> None:
+        for label, (document, location) in WRONG_SHAPE_DOCUMENTS.items():
+            for command in ("audit", "refresh"):
+                with self.subTest(document=label, command=command), tempfile.TemporaryDirectory() as tmp_dir:
+                    state_path = Path(tmp_dir) / "state.json"
+                    state_path.write_text(json.dumps(document), encoding="utf-8")
+
+                    self.assert_clean_validation_error(run_cli(command, str(state_path)), location)
+
+    def test_record_rejects_wrong_shapes_and_leaves_the_state_file_untouched(self) -> None:
+        cases = {
+            "edges-null": (json.dumps(state_document(edges=None)), {"answer": ""}),
+            "non-object-node": (json.dumps({"nodes": ["oops"], "edges": []}), {"answer": ""}),
+            "node-id-list": (json.dumps(with_node({"id": ["x"], "type": "goal", "text": "t"})), {"answer": ""}),
+            "top-level-list": ("[]", {"answer": ""}),
+            "summary-string": (json.dumps(state_document(summary="text")), {"answer": "H1"}),
+        }
+        for label, (document, patch) in cases.items():
+            with self.subTest(document=label), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                patch_path = Path(tmp_dir) / "patch.json"
+                state_path.write_text(document, encoding="utf-8")
+                patch_path.write_text(json.dumps(patch), encoding="utf-8")
+                before = state_path.read_bytes()
+
+                result = run_cli("record", str(state_path), "--patch", str(patch_path))
+
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("error:", result.stderr)
+                for fragment in PYTHON_ERROR_FRAGMENTS:
+                    self.assertNotIn(fragment, result.stderr)
+                self.assertEqual(state_path.read_bytes(), before)
+
+    def test_removed_field_is_still_named_alongside_a_wrong_shape(self) -> None:
+        document = {
+            "nodes": [{"id": "H1", "type": "hypothesis", "text": "The gardener", "belief": 0.5}],
+            "edges": None,
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            state_path.write_text(json.dumps(document), encoding="utf-8")
+
+            result = run_cli("audit", str(state_path))
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("belief was removed", result.stderr)
+
+    def test_patch_repairs_a_hand_edit_with_the_wrong_json_type(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state.json"
+            patch_path = Path(tmp_dir) / "patch.json"
+            state_path.write_text(
+                json.dumps({"nodes": [{"id": "H1", "type": "hypothesis", "text": "The gardener", "score": "4"}], "edges": []}),
+                encoding="utf-8",
+            )
+            patch_path.write_text(json.dumps({"update_nodes": [{"id": "H1", "set": {"score": 4}}]}), encoding="utf-8")
+
+            result = run_cli("record", str(state_path), "--patch", str(patch_path))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            written = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(written["nodes"][0]["score"], 4)
+            self.assertIsInstance(written["nodes"][0]["score"], int)
+
+
 def record_step(state_path: Path, patch_path: Path | None = None) -> subprocess.CompletedProcess[str]:
     patch_path = patch_path or state_path.with_name("patch.json")
     patch_path.write_text(json.dumps({"answer": ""}), encoding="utf-8")

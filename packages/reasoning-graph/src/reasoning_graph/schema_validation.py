@@ -82,14 +82,28 @@ def _non_finite_number_errors(value: Any, path: str = "$") -> list[str]:
     return []
 
 
+def _sorted_schema_errors(document: Any, schema_name: str) -> list[jsonschema.ValidationError]:
+    errors = sorted(_validator(schema_name).iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
+    # A value of the wrong JSON type also fails the other keywords about it, such as a `not`
+    # listing removed fields; those errors only restate the type error, unreadably.
+    mistyped = {tuple(error.absolute_path) for error in errors if error.validator == "type"}
+    return [error for error in errors if error.validator == "type" or tuple(error.absolute_path) not in mistyped]
+
+
 def schema_validation_errors(document: dict[str, Any], schema_name: str) -> list[str]:
-    validator = _validator(schema_name)
-    errors = sorted(validator.iter_errors(document), key=lambda error: (list(error.absolute_path), error.message))
-    return [format_schema_error(error) for error in errors] + _non_finite_number_errors(document)
+    return [format_schema_error(error) for error in _sorted_schema_errors(document, schema_name)] + _non_finite_number_errors(document)
 
 
 def state_schema_errors(state: dict[str, Any]) -> list[str]:
     return schema_validation_errors(state, STATE_SCHEMA)
+
+
+def state_type_errors(state: Any) -> list[str]:
+    """The state's values of the wrong JSON type, such as a section that is not a list or an id that is not a string.
+
+    The graph rules can read anything else, so these are the errors that stop them.
+    """
+    return [format_schema_error(error) for error in _sorted_schema_errors(state, STATE_SCHEMA) if error.validator == "type"]
 
 
 def patch_schema_errors(patch: dict[str, Any]) -> list[str]:

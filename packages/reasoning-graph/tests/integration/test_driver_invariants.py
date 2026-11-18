@@ -104,7 +104,6 @@ class ReasoningGraphCostInvariantTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertTrue(any("score must be an integer from 1 to 5" in error for error in result.errors))
-        self.assertTrue(any("belief computation failed" in error for error in result.errors))
 
     def test_state_serialization_rejects_non_finite_values_before_writing(self) -> None:
         output = io.StringIO()
