@@ -138,6 +138,27 @@ class WrongShapeStateTests(unittest.TestCase):
                 self.assertIn("flowchart", result.stdout)
                 self.assertIn("Who did it?", result.stdout)
 
+    def test_mermaid_does_not_draw_an_edge_without_a_type(self) -> None:
+        # An edge has no relation without a type: neither the removed label nor a made-up default may stand in.
+        typed_edge = {"from": "H1", "to": "G1", "type": "answers", "answer_kind": "exact_answer"}
+        cases = {
+            "label-only": {"from": "G1", "to": "H1", "label": "supports", "score": 4},
+            "bare": {"from": "G1", "to": "H1"},
+        }
+        for label, untyped_edge in cases.items():
+            with self.subTest(edge=label), tempfile.TemporaryDirectory() as tmp_dir:
+                state_path = Path(tmp_dir) / "state.json"
+                state_path.write_text(json.dumps(state_document(edges=[typed_edge, untyped_edge])), encoding="utf-8")
+
+                result = run_cli("mermaid", str(state_path))
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Who did it?", result.stdout)
+                self.assertIn("The gardener", result.stdout)
+                self.assertRegex(result.stdout, r"(?m)^\s*H1 -- .* --> G1\s*$")  # the typed edge is still drawn
+                edge_lines = [line for line in result.stdout.splitlines() if "-->" in line]
+                self.assertEqual(len(edge_lines), 1, result.stdout)  # and nothing is drawn for the untyped one
+
     def test_record_rejects_wrong_shapes_and_leaves_the_state_file_untouched(self) -> None:
         cases = {
             "edges-null": (json.dumps(state_document(edges=None)), {"answer": ""}),
