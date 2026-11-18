@@ -69,7 +69,8 @@ def compact_node_label(node: dict[str, Any], effective_truth_cost: float, answer
 
 
 def edge_type(edge: dict[str, Any]) -> str:
-    return str(edge.get("type") or edge.get("label") or "premise_of")
+    """The edge's relation, or "" for an edge without a type, which has none to draw."""
+    return str(edge.get("type") or "")
 
 
 def _group_of(role: str) -> str:
@@ -215,7 +216,9 @@ def graph_view(state: dict[str, Any], identities: RenderIdentityMap | None = Non
     edges = [
         node_edge(str(edge.get("from")), str(edge.get("to")), edge_type(edge))
         for edge in state.get("edges", [])
+        # mermaid draws without validating, and an edge without a type has no relation; audit reports it.
         if isinstance(edge, dict)
+        and edge_type(edge)
         and str(edge.get("from")) in render_ids
         and str(edge.get("to")) in render_ids
         and (str(edge.get("from")), str(edge.get("to")), edge_type(edge)) not in selection.member_edges

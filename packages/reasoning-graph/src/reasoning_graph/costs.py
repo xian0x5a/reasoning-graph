@@ -412,7 +412,7 @@ def truth_inputs(state: dict[str, Any]) -> TruthInputs:
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
-        edge_type = edge.get("type") or edge.get("label")
+        edge_type = edge.get("type")
         # `mermaid` renders without validating; a leftover leads_to must fail, not drop out
         # of the belief walk and leave its target at the default.
         if edge_type in REMOVED_EDGE_TYPES:
