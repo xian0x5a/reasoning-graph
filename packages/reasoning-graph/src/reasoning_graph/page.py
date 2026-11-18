@@ -16,6 +16,7 @@ from .costs import (
     probability_from_cost,
     strongest_challenges,
 )
+from .graph_view import edge_type
 from .identities import RenderIdentityMap, html_anchor, render_identity_map
 from .models import BELIEF_NODE_TYPES, CANDIDATE_ROLE, node_role, node_type_label
 from .offline_render import offline_graph_svg
@@ -188,13 +189,13 @@ def graph_edge_connections(
         dst = str(edge.get("to"))
         source_id = identities.node(src)
         target_id = identities.node(dst)
-        if source_id is None or target_id is None:
+        if source_id is None or target_id is None or not edge_type(edge):
             continue
         connections.append(
             {
                 "from": source_id,
                 "to": target_id,
-                "label": str(edge.get("type") or edge.get("label") or "premise_of"),
+                "label": edge_type(edge),
             }
         )
     return connections
@@ -218,13 +219,13 @@ def candidate_focus_nodes(
     for edge in state.get("edges", []):
         if not isinstance(edge, dict):
             continue
-        edge_type = str(edge.get("type") or edge.get("label") or "")
+        relation = edge_type(edge)
         source, target = str(edge.get("from")), str(edge.get("to"))
-        if edge_type in forward_derivation_edges:
+        if relation in forward_derivation_edges:
             premises_by_node.setdefault(target, []).append(source)
-        elif edge_type == "requires":
+        elif relation == "requires":
             premises_by_node.setdefault(source, []).append(target)
-        elif edge_type in {"contradicts", "rules_out"}:
+        elif relation in {"contradicts", "rules_out"}:
             contradictors_by_node.setdefault(target, []).append(source)
 
     # Focus is the candidate's full derivation: every transitive premise, including the
