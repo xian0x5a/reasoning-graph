@@ -91,7 +91,7 @@ def authored_field_errors(nodes: list[Any], edges: list[Any]) -> list[str]:
             errors.append(f"{owner}: id was removed; an edge is identified by its ends, as from-to; delete the field")
         errors.extend(removed_score_field_message(owner, field) for field in REMOVED_EDGE_SCORE_FIELDS if field in edge)
         if "label" in edge:
-            errors.append(f"{owner}: label was removed; name the relation in type instead; delete the field")
+            errors.append(f"{owner}: label was removed; the relation is the type field; delete the field")
         if "reasoning" in edge:
             # `reasoning` was 45% of edge bytes and mostly restated the two node texts.
             errors.append(f"{owner}: reasoning was removed; use the optional note, or leave the link unexplained when the two texts make it obvious")

@@ -156,7 +156,8 @@ class WrongShapeStateTests(unittest.TestCase):
                 self.assertIn("Who did it?", result.stdout)
                 self.assertIn("The gardener", result.stdout)
                 self.assertRegex(result.stdout, r"(?m)^\s*H1 -- .* --> G1\s*$")  # the typed edge is still drawn
-                edge_lines = [line for line in result.stdout.splitlines() if "-->" in line]
+                # "->" also matches a dashed edge, drawn as `-. x .->`.
+                edge_lines = [line for line in result.stdout.splitlines() if "->" in line]
                 self.assertEqual(len(edge_lines), 1, result.stdout)  # and nothing is drawn for the untyped one
 
     def test_record_rejects_wrong_shapes_and_leaves_the_state_file_untouched(self) -> None:
